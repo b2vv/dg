@@ -1,7 +1,7 @@
 # T01 — Pixi renderer: OrganizationNode, PersonNode, DepartmentBlob
 
 **Пріоритет:** P0 (критичний)  
-**Статус:** todo  
+**Статус:** in_progress  
 **Оцінка складності:** висока (новий render layer + theme + LOD hooks)  
 **Залежності:** contour bridge ✅, TD04
 
@@ -12,16 +12,16 @@
 > Політика: [`work/TDD.md`](../TDD.md)
 
 ### Success tests
-- [ ] `create(container, config)` монтує canvas з non-zero розмірами
-- [ ] `DepartmentBlob.fromPath(VARIANT_B IT path)` створює Graphics з ≥8 corners
-- [ ] `PersonNode` рендерить ПІБ + title + badge при `isTemporary: true`
-- [ ] `OrganizationNode` перемикає symbol URL при `theme: 'dark'`
+- [x] `create(container, config)` монтує canvas з non-zero розмірами
+- [x] `DepartmentBlob.fromPath(VARIANT_B IT path)` створює Graphics з ≥8 corners
+- [x] `PersonNode` рендерить ПІБ + title + badge при `isTemporary: true`
+- [x] `OrganizationNode` перемикає symbol URL при `theme: 'dark'`
 
 ### Failure tests
-- [ ] `create(null, config)` → throw
-- [ ] `DepartmentBlob.fromPath('')` → empty Graphics, без throw
-- [ ] `destroy()` двічі → без leak / без throw
-- [ ] invalid `contour.path` (malformed SVG) → fallback, warn
+- [x] `create(null, config)` → throw
+- [x] `DepartmentBlob.fromPath('')` → empty Graphics, без throw
+- [x] `destroy()` двічі → без leak / без throw
+- [x] invalid `contour.path` (malformed SVG) → fallback, warn
 
 ---
 
@@ -137,11 +137,11 @@ OrgHierarchyDiagram.create(container, {
 
 ## Acceptance criteria
 
-- [ ] Canvas монтується в container через `create()`
-- [ ] VARIANT_B: IT contour + 6 person placeholders + CEO outside IT blob
-- [ ] OrganizationNode відмінний від PersonNode візуально
-- [ ] Theme switch light/dark змінює org symbol
-- [ ] `destroy()` не залишає listeners / WebGL context leak
+- [x] Canvas монтується в container через `create()`
+- [x] VARIANT_B: IT contour + 6 person placeholders + CEO outside IT blob
+- [x] OrganizationNode відмінний від PersonNode візуально
+- [x] Theme switch light/dark змінює org symbol (`setTheme`)
+- [x] `destroy()` не залишає listeners / WebGL context leak
 - [ ] Typecheck + manual demo у T06
 
 ---

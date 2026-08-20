@@ -1,11 +1,14 @@
 import { emptyDiagramData, computeStats } from './data/types.js';
-import type {
-  DiagramData,
-  DiagramOrganization,
-  DiagramPerson,
-  DiagramPosition,
-} from './data/types.js';
+import type { DiagramData } from './data/types.js';
 import type { DiagramMappers } from './mappers/types.js';
+import { PixiHost } from './render/PixiHost.js';
+import {
+  defaultRenderConfig,
+  mergeTheme,
+  resolveTheme,
+  type NodeTheme,
+  type RenderConfig,
+} from './render/index.js';
 
 export type {
   DiagramData,
@@ -43,24 +46,50 @@ export type {
   DeptContourResult,
 } from './contour/bridge.js';
 
+export {
+  DepartmentBlobView,
+  PersonNodeView,
+  OrganizationNodeView,
+  DiagramRenderer,
+  PixiHost,
+  parseSvgPath,
+  defaultNodeTheme,
+  mergeTheme,
+} from './render/index.js';
+export type { NodeTheme, ThemeMode, RenderConfig } from './render/index.js';
+
 /** Конфіг embed — дані in-memory + мапери (API опційно зовні) */
 export interface OrgHierarchyConfig<TRaw = DiagramData> {
   data: TRaw | DiagramData;
   mappers?: DiagramMappers<TRaw>;
   theme?: 'light' | 'dark' | 'auto';
+  styles?: Partial<NodeTheme>;
+  render?: Partial<RenderConfig>;
   workerPoolSize?: number;
 }
 
-/** Skeleton SDK — render/layout у наступних фазах */
+/** Embed SDK — Pixi render + data/mappers */
 export class OrgHierarchyDiagram {
   private data: DiagramData = emptyDiagramData();
+  private host: PixiHost | null = null;
+  private themeMode: 'light' | 'dark' | 'auto' = 'auto';
+  private nodeTheme = mergeTheme();
+  private renderConfig: RenderConfig = { ...defaultRenderConfig };
 
   static async create<TRaw>(
-    _container: HTMLElement,
+    container: HTMLElement,
     config: OrgHierarchyConfig<TRaw>,
   ): Promise<OrgHierarchyDiagram> {
+    if (!container) {
+      throw new Error('OrgHierarchyDiagram: container is required');
+    }
     const instance = new OrgHierarchyDiagram();
+    instance.themeMode = config.theme ?? 'auto';
+    instance.nodeTheme = mergeTheme(config.styles);
+    instance.renderConfig = { ...defaultRenderConfig, ...config.render };
     await instance.applyConfig(config);
+    instance.host = await PixiHost.create(container);
+    await instance.render();
     return instance;
   }
 
@@ -77,8 +106,23 @@ export class OrgHierarchyDiagram {
     }
   }
 
+  private async render(): Promise<void> {
+    if (!this.host) return;
+    const resolved = resolveTheme(this.themeMode);
+    await this.host.renderer.render(this.data, this.nodeTheme, resolved, this.renderConfig);
+  }
+
   getData(): DiagramData {
     return this.data;
+  }
+
+  getCanvas(): HTMLCanvasElement | null {
+    return this.host?.getCanvas() ?? null;
+  }
+
+  async setTheme(theme: 'light' | 'dark' | 'auto'): Promise<void> {
+    this.themeMode = theme;
+    await this.render();
   }
 
   async appendData<TRaw>(chunk: TRaw, mappers?: DiagramMappers<TRaw>): Promise<void> {
@@ -89,10 +133,12 @@ export class OrgHierarchyDiagram {
       const mapped = await mappers.toDiagram(chunk);
       this.data = mergePartial(this.data, mapped);
     }
+    await this.render();
   }
 
   destroy(): void {
-    /* Pixi teardown — наступна фаза */
+    this.host?.destroy();
+    this.host = null;
   }
 }
 

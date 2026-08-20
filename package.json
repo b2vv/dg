@@ -11,6 +11,7 @@
     "build": "npm run build -w @org-hierarchy/sdk",
     "dev": "npm run dev -w @org-hierarchy/sdk",
     "test:rust": "cd packages/core && cargo test",
+    "test": "npm run test -w @org-hierarchy/sdk",
     "typecheck": "npm run typecheck -w @org-hierarchy/sdk"
   },
   "engines": {

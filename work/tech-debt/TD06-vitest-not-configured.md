@@ -1,7 +1,7 @@
 # TD06 — Vitest не налаштовано для SDK
 
 **Пріоритет:** високий (блокує TDD для TS)  
-**Статус:** відкрито  
+**Статус:** закрито (2026-08-20)  
 **Дата:** 2026-08-20
 
 ## Опис
@@ -25,8 +25,8 @@
 
 ## Критерії закриття
 
-- [ ] `npm run test -w @org-hierarchy/sdk` проходить
-- [ ] ≥ 1 success + ≥ 1 failure test у repo
+- [x] `npm run test -w @org-hierarchy/sdk` проходить (18 tests)
+- [x] ≥ 1 success + ≥ 1 failure test у repo
 - [ ] CI workflow включає SDK tests
 
 ## Зв'язок
