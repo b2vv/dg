@@ -333,7 +333,7 @@ SDK bridge: `packages/sdk/src/contour/bridge.ts`
 | G5 | Prefer notch (C-notch) | ✅ `prefer_notch` corridor cut (holes → C) |
 | G6 | No far-side wall | ✅ `apply_g6_clear_far_side_fill` |
 | G7 | Padding snap | ✅ `paddingCells` у bbox |
-| G8 | Stable under drag | ✅ recompute on drag end (morph anim — polish) |
+| G8 | Stable under drag | ✅ recompute on drag + morph anim (T17) |
 
 | ID | Membership | Статус |
 |----|------------|--------|

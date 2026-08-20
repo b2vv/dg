@@ -38,5 +38,4 @@ Demo: toolbar search → revealPath + focus.
 
 ### Follow-up
 - Floating HTML context menu UI
-- Contour morph animation on drag (G8 polish)
 - Full worker-built search index for 2M (T16 delivered chunked async + byChar; worker path still backlog)

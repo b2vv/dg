@@ -17,7 +17,9 @@ import { OrgEdgesView } from './OrgEdgesView.js';
 import { StaffEdgesView } from './StaffEdgesView.js';
 import { PersonNodeView } from './PersonNode.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
-import type { NodeTheme, RenderConfig } from './types.js';
+import { parseSvgPath } from './svgPath.js';
+import { runPointMorph, type PointMorphHandle } from './contourMorph.js';
+import type { DepartmentBlobStyle, NodeTheme, RenderConfig } from './types.js';
 import { defaultRenderConfig } from './types.js';
 import type { DiagramData } from '../data/types.js';
 import type { LodLevel } from './lod.js';
@@ -31,6 +33,8 @@ export interface RenderOptions {
   computeContours?: ContourComputer;
   orgLayout?: OrgLayoutOptions;
   lod?: LodLevel;
+  /** Contour morph duration during drag (ms). `0` = snap. Default 160. */
+  contourMorphMs?: number;
   onOrgClick?: (orgId: string) => void;
   onStaffOrgDrill?: (orgId: string) => void;
   onPersonClick?: (personId: string, positionId: string) => void;
@@ -61,6 +65,21 @@ export interface NodeWorldBox {
   height: number;
 }
 
+interface ContourSession {
+  baseInputs: ContourPositionInput[];
+  inputs: ContourPositionInput[];
+  compute: ContourComputer;
+  magnet: ContourMagnetConfig;
+  style: DepartmentBlobStyle;
+  lod: LodLevel;
+  morphMs: number;
+  deptNames: Map<string, string>;
+  personCounts: Map<string, number>;
+  blobsByDept: Map<string, DepartmentBlobView[]>;
+  morphHandles: Map<DepartmentBlobView, PointMorphHandle>;
+  previewGen: number;
+}
+
 export class LayerManager {
   readonly root = new Container();
   readonly departments = new Container();
@@ -88,10 +107,13 @@ export class LayerManager {
   }
 }
 
+const DEFAULT_MORPH_MS = 160;
+
 export class DiagramRenderer {
   readonly layers = new LayerManager();
   private destroyed = false;
   private nodeBoxes = new Map<string, NodeWorldBox>();
+  private contourSession: ContourSession | null = null;
   private drag: {
     positionId: string;
     node: PersonNodeView;
@@ -99,6 +121,8 @@ export class DiagramRenderer {
     originY: number;
     pointerId: number;
     moved: boolean;
+    previewCol: number | null;
+    previewRow: number | null;
   } | null = null;
 
   mount(stage: Container): void {
@@ -134,6 +158,8 @@ export class DiagramRenderer {
     options: RenderOptions = {},
   ): Promise<void> {
     if (this.destroyed) return;
+    this.cancelContourMorphs();
+    this.contourSession = null;
     this.layers.clear();
     this.nodeBoxes.clear();
     this.drag = null;
@@ -156,8 +182,17 @@ export class DiagramRenderer {
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
+    this.cancelContourMorphs();
+    this.contourSession = null;
     this.layers.clear();
     this.layers.root.destroy({ children: true });
+  }
+
+  private cancelContourMorphs(): void {
+    const session = this.contourSession;
+    if (!session) return;
+    for (const handle of session.morphHandles.values()) handle.cancel();
+    session.morphHandles.clear();
   }
 
   private drawSelection(selected: NodeRef | null): void {
@@ -175,6 +210,167 @@ export class DiagramRenderer {
 
   private rememberBox(box: NodeWorldBox): void {
     this.nodeBoxes.set(box.id, box);
+  }
+
+  private beginContourSession(args: {
+    inputs: ContourPositionInput[];
+    compute: ContourComputer;
+    magnet: ContourMagnetConfig;
+    style: DepartmentBlobStyle;
+    lod: LodLevel;
+    morphMs: number;
+    deptNames: Map<string, string>;
+    personCounts: Map<string, number>;
+  }): ContourSession {
+    this.cancelContourMorphs();
+    const cloned = args.inputs.map((p) => ({ ...p }));
+    this.contourSession = {
+      ...args,
+      baseInputs: cloned.map((p) => ({ ...p })),
+      inputs: cloned,
+      blobsByDept: new Map(),
+      morphHandles: new Map(),
+      previewGen: 0,
+    };
+    return this.contourSession;
+  }
+
+  private contourPoints(result: DeptContourResult): { x: number; y: number }[] {
+    if (result.points.length >= 2) return result.points.map((p) => ({ x: p.x, y: p.y }));
+    return parseSvgPath(result.path)?.points.map((p) => ({ x: p.x, y: p.y })) ?? [];
+  }
+
+  private applyContourResults(results: DeptContourResult[], morph: boolean): void {
+    const session = this.contourSession;
+    if (!session) return;
+
+    const byDept = new Map<string, DeptContourResult[]>();
+    for (const r of results) {
+      const list = byDept.get(r.departmentId) ?? [];
+      list.push(r);
+      byDept.set(r.departmentId, list);
+    }
+
+    for (const [deptId, blobs] of [...session.blobsByDept.entries()]) {
+      if (byDept.has(deptId)) continue;
+      for (const blob of blobs) {
+        session.morphHandles.get(blob)?.cancel();
+        session.morphHandles.delete(blob);
+        this.layers.departments.removeChild(blob);
+        blob.destroy();
+      }
+      session.blobsByDept.delete(deptId);
+    }
+
+    for (const [deptId, contours] of byDept) {
+      let blobs = session.blobsByDept.get(deptId);
+      if (!blobs) {
+        blobs = [];
+        session.blobsByDept.set(deptId, blobs);
+      }
+
+      const label = session.deptNames.get(deptId) ?? deptId;
+      const count = session.personCounts.get(deptId);
+
+      if (blobs.length !== contours.length) {
+        for (const blob of blobs) {
+          session.morphHandles.get(blob)?.cancel();
+          session.morphHandles.delete(blob);
+          this.layers.departments.removeChild(blob);
+          blob.destroy();
+        }
+        blobs.length = 0;
+        for (const contour of contours) {
+          const blob = DepartmentBlobView.fromPoints(
+            this.contourPoints(contour),
+            label,
+            session.style,
+            session.lod,
+            count,
+          );
+          blobs.push(blob);
+          this.layers.departments.addChild(blob);
+        }
+        continue;
+      }
+
+      for (let i = 0; i < contours.length; i += 1) {
+        const blob = blobs[i]!;
+        const to = this.contourPoints(contours[i]!);
+        const from = blob.getDrawnPoints().map((p) => ({ x: p.x, y: p.y }));
+        session.morphHandles.get(blob)?.cancel();
+        session.morphHandles.delete(blob);
+
+        if (!morph || session.morphMs <= 0 || from.length < 2 || to.length < 2) {
+          blob.redrawPoints(to, session.style, session.lod, count);
+          continue;
+        }
+
+        const handle = runPointMorph({
+          from,
+          to,
+          durationMs: session.morphMs,
+          onUpdate: (pts) => {
+            blob.redrawPoints(pts, session.style, session.lod, count);
+          },
+        });
+        session.morphHandles.set(blob, handle);
+      }
+    }
+  }
+
+  private async paintContours(
+    inputs: ContourPositionInput[],
+    data: DiagramData,
+    theme: NodeTheme,
+    config: RenderConfig,
+    options: RenderOptions,
+  ): Promise<void> {
+    const compute = options.computeContours ?? computeAllContours;
+    const magnet: ContourMagnetConfig = {
+      paddingCells: config.paddingCells,
+      cellWidth: config.cellWidth,
+      cellHeight: config.cellHeight,
+      smoothIterations: config.smoothIterations,
+      magnetRadius: config.magnetRadius,
+    };
+    const lod = options.lod ?? 'near';
+    const deptNames = new Map(data.departments.map((d) => [d.id, d.name]));
+    const personCounts = countPositionsByDept(data.positions);
+    this.beginContourSession({
+      inputs,
+      compute,
+      magnet,
+      style: theme.department,
+      lod,
+      morphMs: options.contourMorphMs ?? DEFAULT_MORPH_MS,
+      deptNames,
+      personCounts,
+    });
+    const contours = await compute(inputs, magnet);
+    if (this.destroyed || !this.contourSession) return;
+    this.applyContourResults(contours, false);
+  }
+
+  private async restoreContoursAfterFailedDrag(): Promise<void> {
+    const session = this.contourSession;
+    if (!session) return;
+    session.inputs = session.baseInputs.map((p) => ({ ...p }));
+    const gen = ++session.previewGen;
+    const results = await session.compute(session.inputs, session.magnet);
+    if (this.destroyed || !this.contourSession || gen !== this.contourSession.previewGen) return;
+    this.applyContourResults(results, true);
+  }
+
+  private async previewDragContours(positionId: string, col: number, row: number): Promise<void> {
+    const session = this.contourSession;
+    if (!session || col < 0 || row < 0) return;
+    const inputs = session.inputs.map((p) => (p.id === positionId ? { ...p, col, row } : p));
+    const gen = ++session.previewGen;
+    const results = await session.compute(inputs, session.magnet);
+    if (this.destroyed || !this.contourSession || gen !== this.contourSession.previewGen) return;
+    this.contourSession.inputs = inputs;
+    this.applyContourResults(results, true);
   }
 
   private bindPersonInteractions(
@@ -217,6 +413,8 @@ export class DiagramRenderer {
         originY: node.y,
         pointerId: e.pointerId,
         moved: false,
+        previewCol: null,
+        previewRow: null,
       };
       e.stopPropagation();
     });
@@ -231,6 +429,13 @@ export class DiagramRenderer {
         this.drag.moved = true;
       }
       node.position.set(nx, ny);
+      if (!this.drag.moved) return;
+      const snap = snapToGrid(nx, ny, config.cellWidth, config.cellHeight);
+      if (snap.col < 0 || snap.row < 0) return;
+      if (snap.col === this.drag.previewCol && snap.row === this.drag.previewRow) return;
+      this.drag.previewCol = snap.col;
+      this.drag.previewRow = snap.row;
+      void this.previewDragContours(positionId, snap.col, snap.row);
     });
 
     const endDrag = (e: { pointerId: number }) => {
@@ -245,6 +450,7 @@ export class DiagramRenderer {
       const snap = snapToGrid(node.x, node.y, config.cellWidth, config.cellHeight);
       if (snap.col < 0 || snap.row < 0) {
         node.position.set(originX, originY);
+        void this.restoreContoursAfterFailedDrag();
         return;
       }
       options.onPersonDragEnd?.(positionId, snap.col, snap.row);
@@ -292,32 +498,11 @@ export class DiagramRenderer {
           };
         });
 
-      const computeContours = options.computeContours ?? computeAllContours;
-      const contours = await computeContours(contourInputs, {
-        paddingCells: config.paddingCells,
-        cellWidth: config.cellWidth,
-        cellHeight: config.cellHeight,
-        smoothIterations: config.smoothIterations,
-        magnetRadius: config.magnetRadius,
-      });
-
-      const deptById = new Map(data.departments.map((d) => [d.id, d]));
-      const countByDept = countPositionsByDept(data.positions);
-      const lod = options.lod ?? 'near';
-      for (const contour of contours) {
-        const dept = deptById.get(contour.departmentId);
-        const blob = DepartmentBlobView.fromPath(
-          contour.path,
-          dept?.name ?? contour.departmentId,
-          theme.department,
-          lod,
-          countByDept.get(contour.departmentId),
-        );
-        this.layers.departments.addChild(blob);
-      }
+      await this.paintContours(contourInputs, data, theme, config, options);
 
       this.layers.edges.addChild(StaffEdgesView.fromLayout(canvas.edges, canvas.positionNodes));
 
+      const lod = options.lod ?? 'near';
       for (const n of canvas.positionNodes) {
         const position = positionById.get(n.id);
         if (!position) continue;
@@ -387,27 +572,9 @@ export class DiagramRenderer {
     }
 
     const contourInputs = diagramPositionsToContourInputs(data.positions);
-    const computeContours = options.computeContours ?? computeAllContours;
-    const deptById = new Map(data.departments.map((d) => [d.id, d]));
+    await this.paintContours(contourInputs, data, theme, config, options);
+
     const personById = new Map(data.persons.map((p) => [p.id, p]));
-    const contours = await computeContours(contourInputs, {
-      paddingCells: config.paddingCells,
-      cellWidth: config.cellWidth,
-      cellHeight: config.cellHeight,
-      smoothIterations: config.smoothIterations,
-      magnetRadius: config.magnetRadius,
-    });
-    for (const contour of contours) {
-      const dept = deptById.get(contour.departmentId);
-      const blob = DepartmentBlobView.fromPath(
-        contour.path,
-        dept?.name ?? contour.departmentId,
-        theme.department,
-        options.lod ?? 'near',
-        countPositionsByDept(data.positions).get(contour.departmentId),
-      );
-      this.layers.departments.addChild(blob);
-    }
     for (const position of data.positions) {
       if (!position.gridCell) continue;
       const person = position.personId ? personById.get(position.personId) : undefined;

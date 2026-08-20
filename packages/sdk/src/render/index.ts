@@ -20,6 +20,13 @@ export type {
   StaffEdgeSegment,
 } from './staffEdgeGeometry.js';
 export { parseSvgPath } from './svgPath.js';
+export {
+  resampleClosedRing,
+  lerpClosedRings,
+  runPointMorph,
+  easeOutCubic,
+} from './contourMorph.js';
+export type { MorphPoint } from './contourMorph.js';
 export { resolveTheme, getOrgSymbolUrl } from './theme.js';
 export {
   defaultNodeTheme,

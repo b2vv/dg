@@ -31,4 +31,4 @@
 ## Out of scope
 
 - Full worker-built search index for 2M (still backlog)
-- G8 contour morph animation during drag
+- TD07 promote overlay
