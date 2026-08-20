@@ -1,41 +1,27 @@
 # TD03 — Drift конфігурації контуру (spec vs impl)
 
 **Пріоритет:** середній  
-**Статус:** відкрито  
+**Статус:** closed (T07)  
 **Дата:** 2026-08-20
 
 ## Опис
 
-У `docs/REQUIREMENTS.md` §4.6.1 описано `ContourMagnetConfig` з полями:
+Уніфіковано `ContourMagnetConfig` між SPEC / Rust / TS:
 
-```ts
-magnetRadius, padding, corridorMin, preferNotch, smooth, smoothIterations
-```
+| Field | Rust | TS |
+|-------|------|-----|
+| magnetRadius | `magnet_radius` default 1.5 | `magnetRadius` |
+| padding | `padding_cells` | `paddingCells` |
+| corridor | `corridor_cells` | `corridorCells` |
+| cell size | `cell_width/height` | `cellWidth/Height` |
+| smoothIterations | `smooth_iterations` | `smoothIterations` |
+| preferNotch | `prefer_notch` (documented) | `preferNotch` |
 
-У Rust impl (`packages/core/src/types.rs`, `contour.rs`) використовується інший набір:
-
-```rust
-padding_cells, corridor_cells, cell_width, cell_height, smooth_iterations
-```
-
-SDK bridge (`packages/sdk/src/contour/bridge.ts`) мапить camelCase → snake_case для Rust.
-
-## Наслідки
-
-- `magnetRadius` (G1) **не імплементовано** — злиття відбувається через flood-fill без радіусного обмеження
-- `preferNotch` — implicit через алгоритм, без окремого flag
-- `smooth: 'none'|'chaikin'|'bezier'` — лише Chaikin (iterations=0 → no smooth)
-- Документація може вводити в оману integratorів
-
-## Рекомендовані дії
-
-1. Уніфікувати API: або оновити REQUIREMENTS під impl, або доповнити Rust
-2. Додати `magnetRadius` для M4/G1 (union-find з distance limit)
-3. Документувати mapping у `work/SPEC.md` §3.2 (частково зроблено)
-4. Версіонувати breaking changes у public API
+`magnetRadius` реалізовано як Manhattan clustering own cells (M4).  
+G6 — implicit via foreign flood block.
 
 ## Критерії закриття
 
-- [ ] Один canonical `ContourMagnetConfig` у docs + Rust + TS
-- [ ] magnetRadius або явно deprecated з поясненням flood-fill поведінки
-- [ ] Тести на config edge cases
+- [x] Один canonical `ContourMagnetConfig` у docs + Rust + TS
+- [x] magnetRadius імплементовано
+- [x] Тести на config edge cases (T07)

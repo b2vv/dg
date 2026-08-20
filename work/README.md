@@ -54,13 +54,13 @@ npm run dev          # http://localhost:3000
 7. [T10-react-context-menu.md](./tasks/T10-react-context-menu.md) — ✅ React context menu + node payload
 8. [T05-export.md](./tasks/T05-export.md) — ✅ SVG / PNG / PDF / print
 9. [T06-demo-app-rsbuild.md](./tasks/T06-demo-app-rsbuild.md) — ✅
-10. [T07-contour-algorithm-gaps.md](./tasks/T07-contour-algorithm-gaps.md) — M4, magnetRadius, G6 явно
+10. [T07-contour-algorithm-gaps.md](./tasks/T07-contour-algorithm-gaps.md) — ✅ M4 / magnetRadius / config
 
 ## Технічний борг
 
 - [TD01-git-remote-and-ci.md](./tech-debt/TD01-git-remote-and-ci.md)
 - [TD02-legacy-web-rspack.md](./tech-debt/TD02-legacy-web-rspack.md)
-- [TD03-contour-config-drift.md](./tech-debt/TD03-contour-config-drift.md)
+- [TD03-contour-config-drift.md](./tech-debt/TD03-contour-config-drift.md) — ✅ closed (T07)
 - [TD04-sdk-skeleton-no-render.md](./tech-debt/TD04-sdk-skeleton-no-render.md)
 - [TD05-wasm-pkg-in-repo.md](./tech-debt/TD05-wasm-pkg-in-repo.md)
 - [TD06-vitest-not-configured.md](./tech-debt/TD06-vitest-not-configured.md)
