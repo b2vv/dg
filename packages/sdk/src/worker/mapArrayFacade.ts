@@ -13,6 +13,9 @@ export type ChunkMapperFn<TItem, TChunkOut> = (
 
 export type ChunkMergeFn<TChunkOut, TOut> = (parts: TChunkOut[]) => TOut | Promise<TOut>;
 
+/** Per-item mapper (what hosts usually write). */
+export type ItemMapperFn<TItem, TOut> = (item: TItem) => TOut | Promise<TOut>;
+
 export interface PooledArrayMapperConfig<TItem, TChunkOut, TOut> {
   /**
    * Registry key in transform.worker.ts (used when running in workers).
@@ -28,6 +31,26 @@ export interface PooledArrayMapperConfig<TItem, TChunkOut, TOut> {
   chunkSize?: number;
   chunkSizeOptions?: ChunkSizeOptions;
   /** Prefer workers when `mapperKey` + Worker exist (default true). */
+  useWorker?: boolean;
+}
+
+export interface PooledItemMapperConfig<TItem, TOut, TFinal = TOut[]> {
+  /** Map one item → one result. Facade chunks the array for you. */
+  mapItem: ItemMapperFn<TItem, TOut>;
+  /**
+   * Combine flat item results (default: identity array).
+   * Called once with all mapped items in order.
+   */
+  merge?: (results: TOut[]) => TFinal | Promise<TFinal>;
+  /**
+   * Optional worker registry key that maps `TItem[] → TOut[]`
+   * (same semantics as `chunk.map(mapItem)`). Closures cannot cross workers.
+   */
+  mapperKey?: string;
+  workerFactory?: () => Worker;
+  poolSize?: number;
+  chunkSize?: number;
+  chunkSizeOptions?: ChunkSizeOptions;
   useWorker?: boolean;
 }
 
@@ -66,6 +89,72 @@ export function createPooledArrayMapper<TItem, TChunkOut, TOut>(
   config: PooledArrayMapperConfig<TItem, TChunkOut, TOut>,
 ): (items: TItem[], options?: PooledMapOptions) => Promise<PooledMapResult<TOut>> {
   return (items, options) => mapArrayInPool(items, config, options);
+}
+
+/**
+ * Facade for the common case: `array500k + mapItem` — chunks/pool/merge are internal.
+ *
+ * @example
+ * const mapPeople = createPooledItemMapper({
+ *   mapItem: (row) => ({ id: row.id, name: row.label }),
+ * });
+ * const { data } = await mapPeople(rows500k);
+ *
+ * // one-shot:
+ * await mapArrayItems(rows500k, (row) => transform(row));
+ */
+export function createPooledItemMapper<TItem, TOut, TFinal = TOut[]>(
+  config: PooledItemMapperConfig<TItem, TOut, TFinal>,
+): (items: TItem[], options?: PooledMapOptions) => Promise<PooledMapResult<TFinal>> {
+  const mapChunk: ChunkMapperFn<TItem, TOut[]> = async (chunk) => {
+    const out: TOut[] = new Array(chunk.length);
+    for (let i = 0; i < chunk.length; i += 1) {
+      out[i] = await config.mapItem(chunk[i]!);
+    }
+    return out;
+  };
+
+  const mergeParts: ChunkMergeFn<TOut[], TFinal> = async (parts) => {
+    const flat = parts.flat();
+    if (config.merge) return config.merge(flat);
+    return flat as unknown as TFinal;
+  };
+
+  return createPooledArrayMapper<TItem, TOut[], TFinal>({
+    mapperKey: config.mapperKey,
+    mapChunk,
+    merge: mergeParts,
+    workerFactory: config.workerFactory,
+    poolSize: config.poolSize,
+    chunkSize: config.chunkSize,
+    chunkSizeOptions: config.chunkSizeOptions,
+    // Without mapperKey, stay on main (mapItem is a closure).
+    useWorker: config.mapperKey ? (config.useWorker ?? true) : false,
+  });
+}
+
+/** One-shot: `mapArrayItems(array500k, mapItem)`. */
+export function mapArrayItems<TItem, TOut, TFinal = TOut[]>(
+  items: TItem[],
+  mapItem: ItemMapperFn<TItem, TOut>,
+  options?: PooledMapOptions & {
+    merge?: (results: TOut[]) => TFinal | Promise<TFinal>;
+    mapperKey?: string;
+    workerFactory?: () => Worker;
+    chunkSizeOptions?: ChunkSizeOptions;
+  },
+): Promise<PooledMapResult<TFinal>> {
+  const { merge, mapperKey, workerFactory, chunkSizeOptions, ...runOpts } = options ?? {};
+  return createPooledItemMapper<TItem, TOut, TFinal>({
+    mapItem,
+    merge,
+    mapperKey,
+    workerFactory,
+    chunkSizeOptions,
+    poolSize: runOpts.poolSize,
+    chunkSize: runOpts.chunkSize,
+    useWorker: runOpts.useWorker,
+  })(items, runOpts);
 }
 
 /**

@@ -4,7 +4,7 @@ import {
   recommendChunkSize,
   recommendWorkerPoolSize,
 } from './poolSizing.js';
-import { createPooledArrayMapper, mapArrayInPool } from './mapArrayFacade.js';
+import { createPooledArrayMapper, mapArrayInPool, mapArrayItems, createPooledItemMapper } from './mapArrayFacade.js';
 import { mapFlatRowsInPool } from './flatRowsPool.js';
 import type { FlatDiagramRow } from '../mappers/flatToDiagram.js';
 import { WorkerPool } from './bridge.js';
@@ -100,6 +100,32 @@ describe('mapArrayInPool facade', () => {
     );
     expect(result.data).toBe(0);
     expect(result.chunkCount).toBe(0);
+  });
+});
+
+describe('mapArrayItems / createPooledItemMapper', () => {
+  it('success: array + mapItem produces flat mapped results', async () => {
+    const { data, chunkCount } = await mapArrayItems([1, 2, 3, 4, 5], (n) => n * 10, {
+      chunkSize: 2,
+    });
+    expect(data).toEqual([10, 20, 30, 40, 50]);
+    expect(chunkCount).toBe(3);
+  });
+
+  it('success: createPooledItemMapper with custom merge', async () => {
+    const sumIds = createPooledItemMapper({
+      mapItem: (row: { id: number }) => row.id,
+      merge: (ids) => ids.reduce((a, b) => a + b, 0),
+      chunkSize: 2,
+    });
+    const { data } = await sumIds([{ id: 1 }, { id: 2 }, { id: 3 }]);
+    expect(data).toBe(6);
+  });
+
+  it('failure: empty array + mapItem → []', async () => {
+    const { data, chunkCount } = await mapArrayItems([], (n: number) => n);
+    expect(data).toEqual([]);
+    expect(chunkCount).toBe(0);
   });
 });
 

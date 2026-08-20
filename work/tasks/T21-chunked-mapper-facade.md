@@ -13,6 +13,7 @@
 - [x] `recommendChunkSize` / `adaptChunkSize` stay within min/max
 - [x] `createPooledArrayMapper` chunks + merges on main (`useWorker: false`)
 - [x] worker path via mock pool doubles items and preserves order
+- [x] `mapArrayItems` / `createPooledItemMapper` — array + mapItem
 - [x] `mapFlatRowsInPool` falls back to main on worker error
 
 ### Failure
@@ -21,21 +22,28 @@
 
 ---
 
-## Delivered
+## Usage
 
 ```ts
+// What you wanted: array + mapItem
+const { data } = await mapArrayItems(rows500k, (row) => transform(row));
+
+// Or reusable facade
+const mapPeople = createPooledItemMapper({
+  mapItem: (row) => ({ id: row.id, name: row.label }),
+});
+await mapPeople(rows500k);
+
+// Chunk-level (DiagramData partials, etc.)
 const mapRows = createPooledArrayMapper({
   mapperKey: 'flatRowsToDiagram',
   mapChunk: flatRowsToDiagram,
-  merge: (parts) => parts.reduce(mergeDiagramData, emptyDiagramData()),
+  merge: (parts) => normalizeDiagram(parts.reduce(mergeDiagramData, emptyDiagramData())),
 });
-const { data, recommendedNextChunkSize } = await mapRows(halfMillionRows);
 ```
 
-- `recommendWorkerPoolSize` / `recommendChunkSize` / `adaptChunkSize`
-- `createPooledArrayMapper` / `mapArrayInPool` (generics facade)
-- `mapFlatRowsInPool` convenience
-- `WorkerPool` default size = `recommendWorkerPoolSize()`
+Note: `mapItem` is a closure → runs on main in chunks (still non-blocking between chunks).
+Pass `mapperKey` only when the worker registry has an equivalent `TItem[] → TOut[]` handler.
 
 ## Out of scope
 
