@@ -6,6 +6,8 @@ import {
   type DeptContourResult,
 } from '../contour/bridge.js';
 import { diagramPositionsToContourInputs } from '../contour/config.js';
+import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
+import type { StaffLayoutOptions } from '../layout/staff/types.js';
 import { computeOrgLayout } from '../layout/rowTreeLayout.js';
 import type { OrgLayoutOptions } from '../layout/types.js';
 import { DepartmentBlobView } from './DepartmentBlob.js';
@@ -25,6 +27,13 @@ export interface RenderOptions {
   computeContours?: ContourComputer;
   orgLayout?: OrgLayoutOptions;
   onOrgClick?: (orgId: string) => void;
+  /** Tier-3 org card drill in staff canvas */
+  onStaffOrgDrill?: (orgId: string) => void;
+  /** Staff 3-tier focus; if omitted and positions exist, uses sole org or first with positions */
+  staff?: {
+    currentOrgId?: string;
+    layout?: StaffLayoutOptions;
+  };
 }
 
 export class LayerManager {
@@ -72,9 +81,9 @@ export class DiagramRenderer {
     if (this.destroyed) return;
     this.layers.clear();
 
-    const hasStaffGrid = data.positions.some((p) => p.gridCell);
-    if (hasStaffGrid) {
-      await this.renderStaff(data, theme, config, options);
+    const hasStaff = data.positions.length > 0;
+    if (hasStaff) {
+      await this.renderStaff(data, theme, resolvedTheme, config, options);
     } else if (data.organizations.length > 0) {
       await this.renderOrganizations(data, theme, resolvedTheme, options);
     }
@@ -90,31 +99,112 @@ export class DiagramRenderer {
   private async renderStaff(
     data: DiagramData,
     theme: NodeTheme,
+    resolvedTheme: 'light' | 'dark',
     config: RenderConfig,
     options: RenderOptions,
   ): Promise<void> {
+    const currentOrgId =
+      options.staff?.currentOrgId ??
+      inferStaffCurrentOrgId(data);
+
+    if (currentOrgId && data.organizations.some((o) => o.id === currentOrgId)) {
+      const canvas = await layoutStaffCanvas(
+        {
+          organizations: data.organizations,
+          positions: data.positions,
+          reports: data.reportLines,
+          groups: data.groups,
+          departments: data.departments,
+          persons: data.persons,
+        },
+        currentOrgId,
+        options.staff?.layout,
+      );
+
+      const personById = new Map(data.persons.map((p) => [p.id, p]));
+      const positionById = new Map(data.positions.map((p) => [p.id, p]));
+
+      const contourInputs: ContourPositionInput[] = canvas.positionNodes
+        .filter((n) => positionById.get(n.id)?.departmentId)
+        .map((n) => {
+          const p = positionById.get(n.id)!;
+          return {
+            id: n.id,
+            departmentId: p.departmentId!,
+            col: Math.round(n.x / config.cellWidth),
+            row: Math.round(n.y / config.cellHeight),
+          };
+        });
+
+      const computeContours = options.computeContours ?? computeAllContours;
+      const contours = await computeContours(contourInputs, {
+        paddingCells: config.paddingCells,
+        cellWidth: config.cellWidth,
+        cellHeight: config.cellHeight,
+        smoothIterations: config.smoothIterations,
+      });
+
+      const deptById = new Map(data.departments.map((d) => [d.id, d]));
+      for (const contour of contours) {
+        const dept = deptById.get(contour.departmentId);
+        const blob = DepartmentBlobView.fromPath(
+          contour.path,
+          dept?.name ?? contour.departmentId,
+          theme.department,
+        );
+        this.layers.departments.addChild(blob);
+      }
+
+      for (const n of canvas.positionNodes) {
+        const position = positionById.get(n.id);
+        if (!position) continue;
+        const person = position.personId ? personById.get(position.personId) : undefined;
+        const node = PersonNodeView.create(person, position, theme.person);
+        node.position.set(n.x, n.y);
+        this.layers.persons.addChild(node);
+      }
+
+      for (const card of canvas.orgCards) {
+        const org = data.organizations.find((o) => o.id === card.orgId);
+        if (!org) continue;
+        const view = OrganizationNodeView.create(
+          org,
+          undefined,
+          resolvedTheme,
+          theme.organization,
+        );
+        view.position.set(card.x, card.y);
+        view.eventMode = 'static';
+        view.cursor = 'pointer';
+        view.on('pointertap', () => {
+          options.onStaffOrgDrill?.(card.orgId);
+          options.onOrgClick?.(card.orgId);
+        });
+        this.layers.organizations.addChild(view);
+      }
+      return;
+    }
+
+    // Legacy: raw gridCell placement without org focus
     const contourInputs = diagramPositionsToContourInputs(data.positions);
     const computeContours = options.computeContours ?? computeAllContours;
-
     const deptById = new Map(data.departments.map((d) => [d.id, d]));
     const personById = new Map(data.persons.map((p) => [p.id, p]));
-
-    const contourConfig: ContourMagnetConfig = {
+    const contours = await computeContours(contourInputs, {
       paddingCells: config.paddingCells,
       cellWidth: config.cellWidth,
       cellHeight: config.cellHeight,
       smoothIterations: config.smoothIterations,
-    };
-
-    const contours = await computeContours(contourInputs, contourConfig);
-
+    });
     for (const contour of contours) {
       const dept = deptById.get(contour.departmentId);
-      const label = dept?.name ?? contour.departmentId;
-      const blob = DepartmentBlobView.fromPath(contour.path, label, theme.department);
+      const blob = DepartmentBlobView.fromPath(
+        contour.path,
+        dept?.name ?? contour.departmentId,
+        theme.department,
+      );
       this.layers.departments.addChild(blob);
     }
-
     for (const position of data.positions) {
       if (!position.gridCell) continue;
       const person = position.personId ? personById.get(position.personId) : undefined;
@@ -158,4 +248,14 @@ export class DiagramRenderer {
       this.layers.organizations.addChild(node);
     }
   }
+}
+
+function inferStaffCurrentOrgId(data: DiagramData): string | undefined {
+  const orgIds = [...new Set(data.positions.map((p) => p.organizationId))];
+  if (orgIds.length === 1) return orgIds[0];
+  if (data.organizations.length === 1) return data.organizations[0]!.id;
+  // Prefer org that has isHead position and is not only a parent of others
+  const withHead = data.positions.filter((p) => p.isHead).map((p) => p.organizationId);
+  if (withHead.length === 1) return withHead[0];
+  return orgIds[0];
 }

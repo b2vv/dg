@@ -64,10 +64,17 @@ export interface DiagramPosition {
   personId?: string;
   status: PositionStatus;
   isTemporary: boolean;
-  /** Примітивні координати (після drag) */
+  /** Керівна посада org (staff root); рівно одна на org */
+  isHead?: boolean;
+  /** Розмір картки (staff layout AABB) */
+  width?: number;
+  height?: number;
+  /** Примітивні координати (після drag) — локальні px org */
   layoutX?: number;
   layoutY?: number;
-  /** Grid slot для tetris pack */
+  /** Альтернатива layoutX/Y */
+  layoutCoords?: Point2D;
+  /** Grid slot для matrix / contour */
   gridCell?: GridCell;
 }
 

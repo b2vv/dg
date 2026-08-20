@@ -97,6 +97,11 @@ export {
   swapMatrixOrder,
   placeOrgAtMatrixCell,
   findExpandedRootId,
+  layoutStaffCanvas,
+  layoutStaffOrgBlock,
+  resolveStaffHead,
+  StaffLayoutError,
+  DEFAULT_STAFF_LAYOUT_OPTIONS,
 } from './layout/index.js';
 export type {
   OrgDisplayMode,
@@ -105,6 +110,10 @@ export type {
   OrgLayoutNode,
   OrgLayoutEdge,
   OrgLayoutOptions,
+  StaffCoordMode,
+  StaffLayoutOptions,
+  StaffCanvasResult,
+  StaffOrgBlockResult,
 } from './layout/index.js';
 export interface OrgHierarchyConfig<TRaw = DiagramData> {
   data: TRaw | DiagramData;
@@ -119,6 +128,8 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
   /** Custom worker factory (transform.worker.ts) */
   workerFactory?: () => Worker;
   callbacks?: OrgHierarchyCallbacks;
+  /** Staff 3-tier focus organization id */
+  staffCurrentOrgId?: string;
 }
 
 /** Embed SDK — Pixi render + data/mappers + worker contour */
@@ -131,7 +142,7 @@ export class OrgHierarchyDiagram {
   private useWorker = true;
   private workerPool: WorkerPool | null = null;
   private callbacks: OrgHierarchyCallbacks = {};
-
+  private staffCurrentOrgId: string | undefined;
   static async create<TRaw>(
     container: HTMLElement,
     config: OrgHierarchyConfig<TRaw>,
@@ -145,6 +156,7 @@ export class OrgHierarchyDiagram {
     instance.renderConfig = { ...defaultRenderConfig, ...config.render };
     instance.useWorker = config.useWorker ?? typeof Worker !== 'undefined';
     instance.callbacks = config.callbacks ?? {};
+    instance.staffCurrentOrgId = config.staffCurrentOrgId;
 
     const workerFactory = config.workerFactory ?? createTransformWorker;
     configureContourWorker({
@@ -182,8 +194,14 @@ export class OrgHierarchyDiagram {
     const computeContours = this.useWorker ? computeAllContoursInWorker : computeAllContoursMain;
     await this.host.renderer.render(this.data, this.nodeTheme, resolved, this.renderConfig, {
       computeContours,
+      staff: this.staffCurrentOrgId
+        ? { currentOrgId: this.staffCurrentOrgId }
+        : undefined,
       onOrgClick: (orgId) => {
         this.callbacks.onNodeClick?.({ kind: 'organization', id: orgId });
+      },
+      onStaffOrgDrill: (orgId) => {
+        void this.focusStaffOrg(orgId);
       },
     });
   }
@@ -281,6 +299,21 @@ export class OrgHierarchyDiagram {
       const mapped = await mappers.toDiagram(chunk);
       this.data = mergePartial(this.data, mapped);
     }
+    await this.render();
+  }
+
+  /** Staff focus org (Tier-2). Pass `null` to clear and use auto-inference. */
+  setStaffFocus(orgId: string | null): void {
+    this.staffCurrentOrgId = orgId ?? undefined;
+  }
+
+  getStaffFocus(): string | undefined {
+    return this.staffCurrentOrgId;
+  }
+
+  /** Apply staff focus and re-render (drill into Tier-3 org card). */
+  async focusStaffOrg(orgId: string | null): Promise<void> {
+    this.setStaffFocus(orgId);
     await this.render();
   }
 

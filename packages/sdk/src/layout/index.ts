@@ -34,3 +34,18 @@ export {
   OrgHierarchyError,
   orgsToSingleRootTree,
 } from './orgTree.js';
+
+export {
+  layoutStaffCanvas,
+  layoutStaffOrgBlock,
+  resolveStaffHead,
+  positionHasCoords,
+  StaffLayoutError,
+  DEFAULT_STAFF_LAYOUT_OPTIONS,
+} from './staff/index.js';
+export type {
+  StaffCoordMode,
+  StaffLayoutOptions,
+  StaffCanvasResult,
+  StaffOrgBlockResult,
+} from './staff/index.js';
