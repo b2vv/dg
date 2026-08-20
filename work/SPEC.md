@@ -604,7 +604,7 @@ diagram.destroy();
 | 2 Org modes | matrix, row-tree, search, D&D org | ✅ v1 (T03–T04) |
 | 3 Staff | 3 яруси, matrix\|tree\|hybrid, contour Pixi, D&D person | ✅ v1 (T07–T09, T04) |
 | 4 Polish | context menu, export, docs | ✅ v1 (T05, T10) |
-| **5 v1.x Improve** | **Pixi + HTML/React promote overlay** (custom node content, Chart.js у картці); після стабільної v1 | ⚪ backlog |
+| **5 v1.x Improve** | **Pixi + HTML/React promote overlay** (custom node content, Chart.js у картці); після стабільної v1 | ✅ T26 / TD07 |
 
 ---
 

@@ -10,8 +10,13 @@ import {
 import {
   createReactContextMenuHost,
   DefaultReactContextMenu,
+  createReactPromoteOverlay,
+  DefaultPromoteCard,
   type ReactContextMenuHost,
+  type ReactPromoteOverlay,
+  type PromoteSlotProps,
 } from '@org-hierarchy/sdk/react';
+import { createElement } from 'react';
 import { buildVariantBData } from '../scenarios/variantB.js';
 import { buildFlatOrgsData } from '../scenarios/flatOrgs.js';
 import { buildStaffTreeData } from '../scenarios/staffTree.js';
@@ -33,6 +38,7 @@ export class App {
   private contourControls: ContourControls = { paddingCells: 0, smoothIterations: 2 };
   private flatOrgsData = buildFlatOrgsData(24);
   private contextMenu: ReactContextMenuHost | null = null;
+  private promote: ReactPromoteOverlay | null = null;
 
   private readonly mountEl: HTMLElement;
   private readonly statusEl: HTMLElement;
@@ -144,6 +150,8 @@ export class App {
   }
 
   private async reload(): Promise<void> {
+    this.promote?.dispose();
+    this.promote = null;
     this.diagram?.destroy();
     this.diagram = null;
     this.mountEl.innerHTML = '';
@@ -186,6 +194,12 @@ export class App {
             this.showToast(`Layout: ${messages[0]}${messages.length > 1 ? ` (+${messages.length - 1})` : ''}`);
           },
         },
+      });
+      this.promote = createReactPromoteOverlay({
+        diagram: this.diagram,
+        mount: this.mountEl,
+        mode: 'near-selection',
+        component: DemoPromoteCard,
       });
       if (this.tab === 'staff-tree') {
         this.setStatus(`staff-tree · focus ${this.diagram.getStaffFocus() ?? 'ops'} · ${this.theme}`);
@@ -353,4 +367,28 @@ export class App {
   private setStatus(text: string): void {
     this.statusEl.textContent = text;
   }
+}
+
+/** Demo promote card with a placeholder “chart” slot (host can swap for Chart.js). */
+function DemoPromoteCard(props: PromoteSlotProps) {
+  return createElement(
+    DefaultPromoteCard,
+    props,
+    createElement(
+      'div',
+      {
+        style: {
+          height: 36,
+          borderRadius: 4,
+          background: 'linear-gradient(90deg, #dbeafe, #93c5fd)',
+          fontSize: 10,
+          color: '#1e3a8a',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+      },
+      'Host slot · Chart.js / actions',
+    ),
+  );
 }

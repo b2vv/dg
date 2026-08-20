@@ -70,6 +70,7 @@ npm run dev          # http://localhost:3000
 23. [T23-node-media-textures.md](./tasks/T23-node-media-textures.md) — ✅ person photo + org symbol sprites
 24. [T24-layout-diagnostics.md](./tasks/T24-layout-diagnostics.md) — ✅ layout diagnostics API
 25. [T25-demo-github-pages.md](./tasks/T25-demo-github-pages.md) — ✅ Pages workflow (needs public repo / paid)
+26. [T26-promote-overlay.md](./tasks/T26-promote-overlay.md) — ✅ React promote overlay (TD07)
 
 ## Технічний борг
 
@@ -79,7 +80,7 @@ npm run dev          # http://localhost:3000
 - [TD04-sdk-skeleton-no-render.md](./tech-debt/TD04-sdk-skeleton-no-render.md) — ✅ closed (T01)
 - [TD05-wasm-pkg-in-repo.md](./tech-debt/TD05-wasm-pkg-in-repo.md)
 - [TD06-vitest-not-configured.md](./tech-debt/TD06-vitest-not-configured.md) — ✅
-- [TD07-pixi-react-promote-overlay.md](./tech-debt/TD07-pixi-react-promote-overlay.md) — v1.x backlog
+- [TD07-pixi-react-promote-overlay.md](./tech-debt/TD07-pixi-react-promote-overlay.md) — ✅ first slice (T26)
 
 ## CI
 
