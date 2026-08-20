@@ -12,6 +12,7 @@ import {
   resolveTheme,
   type NodeTheme,
   type RenderConfig,
+  type CameraMotionOptions,
 } from './render/index.js';
 import { resolveLodLevel, type LodLevel } from './render/lod.js';
 import {
@@ -140,6 +141,7 @@ export type {
   RenderConfig,
   ContourComputer,
   ViewportTransform,
+  CameraMotionOptions,
   LodLevel,
   LodThresholds,
 } from './render/index.js';
@@ -654,7 +656,7 @@ export class OrgHierarchyDiagram {
       this.host?.renderer.getNodeBox(nodeId) ??
       (ref.positionId ? this.host?.renderer.getNodeBox(ref.positionId) : undefined);
     if (box) {
-      this.host?.panTo(box.x + box.width / 2, box.y + box.height / 2);
+      this.host?.panTo(box.x + box.width / 2, box.y + box.height / 2, { animate: true });
     }
     return true;
   }
@@ -679,21 +681,25 @@ export class OrgHierarchyDiagram {
     this.host?.setZoom(scale);
   }
 
-  panTo(worldX: number, worldY: number): void {
-    this.host?.panTo(worldX, worldY);
+  panTo(worldX: number, worldY: number, motion: CameraMotionOptions = { animate: true }): void {
+    this.host?.panTo(worldX, worldY, motion);
   }
 
   /** Fit all rendered nodes into the viewport. Returns false if empty. */
-  fitView(padding = 48): boolean {
-    const ok = this.host?.fitView(padding) ?? false;
-    if (ok) this.onViewportTransform(this.host?.getZoom() ?? 1);
+  fitView(padding = 48, motion: CameraMotionOptions = { animate: true }): boolean {
+    const ok = this.host?.fitView(padding, motion) ?? false;
+    if (ok && motion.animate !== true) {
+      this.onViewportTransform(this.host?.getZoom() ?? 1);
+    }
     return ok;
   }
 
   /** Reset camera to identity (scale 1, origin). */
-  resetView(): void {
-    this.host?.resetView();
-    this.onViewportTransform(1);
+  resetView(motion: CameraMotionOptions = { animate: true }): void {
+    this.host?.resetView(motion);
+    if (motion.animate !== true) {
+      this.onViewportTransform(1);
+    }
   }
 
   async movePersonToCell(positionId: string, col: number, row: number): Promise<void> {

@@ -2,7 +2,7 @@ export type { ContourComputer, RenderOptions } from './DiagramRenderer.js';
 export { DiagramRenderer, LayerManager } from './DiagramRenderer.js';
 export { PixiHost } from './PixiHost.js';
 export { Viewport } from './Viewport.js';
-export type { ViewportTransform, ViewportOptions } from './Viewport.js';
+export type { ViewportTransform, ViewportOptions, CameraMotionOptions } from './Viewport.js';
 export { resolveLodLevel, simplifyPolyline, defaultLodThresholds } from './lod.js';
 export type { LodLevel, LodThresholds } from './lod.js';
 export { DepartmentBlobView } from './DepartmentBlob.js';

@@ -63,6 +63,7 @@ npm run dev          # http://localhost:3000
 16. [T16-incremental-contours-search.md](./tasks/T16-incremental-contours-search.md) — ✅ incremental contours + search scale
 17. [T17-g8-contour-morph.md](./tasks/T17-g8-contour-morph.md) — ✅ G8 contour morph during drag
 18. [T18-worker-search-index.md](./tasks/T18-worker-search-index.md) — ✅ worker/pool search index
+19. [T19-camera-tween.md](./tasks/T19-camera-tween.md) — ✅ animated fitView / resetView / panTo
 
 ## Технічний борг
 

@@ -64,6 +64,10 @@ _Avoid_: Path-string tween, SVG morph
 Building `SearchIndex` off the main thread (single worker or WorkerPool chunks) for large diagrams.
 _Avoid_: Main-thread-only index at 2M scale
 
+**Camera tween**:
+Animated pan/zoom of the Pixi viewport (`fitView` / `resetView` / `panTo` with `animate: true`).
+_Avoid_: Instant jump (when motion is requested)
+
 **Promote overlay**:
 v1.x idea: HTML/React node chrome over Pixi (TD07) — not in v1.
 _Avoid_: Hybrid node, React card on canvas (for v1)

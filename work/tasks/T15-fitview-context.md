@@ -27,5 +27,5 @@
 
 ## Out of scope
 
-- Animated camera tween
+- Animated camera tween — see T19
 - TD07 promote overlay
