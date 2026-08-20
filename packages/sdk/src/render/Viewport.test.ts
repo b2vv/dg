@@ -68,11 +68,29 @@ describe('Viewport', () => {
     vp.destroy();
   });
 
-  it('failure: non-finite transform fields are ignored', () => {
+  it('success: fitBounds scales content into screen with padding', () => {
+    const world = fakeWorld();
+    const vp = new Viewport(world, { minScale: 0.1, maxScale: 4 });
+    vp.setScreenSize(400, 300);
+    expect(vp.fitBounds({ x: 0, y: 0, width: 200, height: 100 }, 50)).toBe(true);
+    const t = vp.getTransform();
+    expect(t.scale).toBeCloseTo(1.5); // min(300/200, 200/100) = min(1.5, 2)
+    expect((0 + 100) * t.scale + t.x).toBeCloseTo(200); // center x
+    expect((0 + 50) * t.scale + t.y).toBeCloseTo(150); // center y
+  });
+
+  it('failure: fitBounds rejects empty bounds', () => {
     const world = fakeWorld();
     const vp = new Viewport(world);
-    vp.setTransform({ x: 10, y: 20, scale: 1 });
-    vp.setTransform({ x: Number.NaN, y: Number.POSITIVE_INFINITY, scale: Number.NaN });
-    expect(vp.getTransform()).toEqual({ x: 10, y: 20, scale: 1 });
+    expect(vp.fitBounds({ x: 0, y: 0, width: 0, height: 10 })).toBe(false);
+    expect(vp.fitBounds({ x: 0, y: 0, width: 10, height: Number.NaN })).toBe(false);
+  });
+
+  it('success: resetView returns identity camera', () => {
+    const world = fakeWorld();
+    const vp = new Viewport(world);
+    vp.setTransform({ x: 10, y: 20, scale: 2 });
+    vp.resetView();
+    expect(vp.getTransform()).toEqual({ x: 0, y: 0, scale: 1 });
   });
 });

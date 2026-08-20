@@ -87,6 +87,53 @@ export class Viewport {
     return this.scale;
   }
 
+  getScreenSize(): { width: number; height: number } {
+    return { width: this.screenWidth, height: this.screenHeight };
+  }
+
+  /**
+   * Zoom/pan so `bounds` (world units) fits in the screen with padding.
+   * Returns false when bounds are empty/invalid.
+   */
+  fitBounds(
+    bounds: { x: number; y: number; width: number; height: number },
+    padding = 48,
+  ): boolean {
+    if (
+      !Number.isFinite(bounds.x) ||
+      !Number.isFinite(bounds.y) ||
+      !Number.isFinite(bounds.width) ||
+      !Number.isFinite(bounds.height) ||
+      bounds.width <= 0 ||
+      bounds.height <= 0
+    ) {
+      return false;
+    }
+    const pad = Math.max(0, padding);
+    const availW = Math.max(1, this.screenWidth - pad * 2);
+    const availH = Math.max(1, this.screenHeight - pad * 2);
+    const nextScale = clamp(
+      Math.min(availW / bounds.width, availH / bounds.height),
+      this.minScale,
+      this.maxScale,
+    );
+    const cx = bounds.x + bounds.width / 2;
+    const cy = bounds.y + bounds.height / 2;
+    this.scale = nextScale;
+    this.x = this.screenWidth / 2 - cx * this.scale;
+    this.y = this.screenHeight / 2 - cy * this.scale;
+    this.apply();
+    return true;
+  }
+
+  /** Identity camera: origin top-left, scale 1. */
+  resetView(): void {
+    this.x = 0;
+    this.y = 0;
+    this.scale = 1;
+    this.apply();
+  }
+
   /** Wheel zoom on the canvas (pan is driven via beginPan/movePan/endPan from Pixi). */
   attachWheel(canvas: HTMLCanvasElement): void {
     this.detachWheel?.();
