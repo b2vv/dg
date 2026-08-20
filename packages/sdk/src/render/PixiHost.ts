@@ -1,6 +1,6 @@
 import { Application, Rectangle } from 'pixi.js';
 import { DiagramRenderer } from './DiagramRenderer.js';
-import { Viewport, type ViewportTransform } from './Viewport.js';
+import { Viewport, type ViewportTransform, type CameraMotionOptions } from './Viewport.js';
 
 export interface PixiHostOptions {
   background?: number;
@@ -50,19 +50,19 @@ export class PixiHost {
   }
 
   /** Pan world so (worldX, worldY) is near viewport center. */
-  panTo(worldX: number, worldY: number): void {
-    this.viewport?.panTo(worldX, worldY);
+  panTo(worldX: number, worldY: number, motion?: CameraMotionOptions): void {
+    this.viewport?.panTo(worldX, worldY, motion);
   }
 
   /** Fit content bounds into the screen. Returns false if nothing to fit. */
-  fitView(padding = 48): boolean {
+  fitView(padding = 48, motion?: CameraMotionOptions): boolean {
     const bounds = this.renderer.getContentBounds();
     if (!bounds || !this.viewport) return false;
-    return this.viewport.fitBounds(bounds, padding);
+    return this.viewport.fitBounds(bounds, padding, motion);
   }
 
-  resetView(): void {
-    this.viewport?.resetView();
+  resetView(motion?: CameraMotionOptions): void {
+    this.viewport?.resetView(motion);
   }
 
   setOnViewportChange(handler: ((t: ViewportTransform) => void) | null): void {

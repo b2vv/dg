@@ -1,3 +1,5 @@
+import { easeOutCubic } from './contourMorph.js';
+
 export interface ViewportTransform {
   x: number;
   y: number;
@@ -11,9 +13,19 @@ export interface ViewportOptions {
   wheelIntensity?: number;
 }
 
+/** Camera tween options (injectable clock for tests). */
+export interface CameraMotionOptions {
+  animate?: boolean;
+  durationMs?: number;
+  now?: () => number;
+  requestFrame?: (cb: (time: number) => void) => number;
+  cancelFrame?: (id: number) => void;
+}
+
 const DEFAULT_MIN_SCALE = 0.15;
 const DEFAULT_MAX_SCALE = 4;
 const DEFAULT_WHEEL = 0.0015;
+const DEFAULT_CAMERA_MS = 280;
 
 /**
  * Pan/zoom camera applied to a world root container.
@@ -34,6 +46,7 @@ export class Viewport {
   private screenWidth = 800;
   private screenHeight = 600;
   private onChange: ((t: ViewportTransform) => void) | null = null;
+  private animCancel: (() => void) | null = null;
 
   constructor(
     private readonly world: {
@@ -57,6 +70,7 @@ export class Viewport {
   }
 
   setTransform(next: Partial<ViewportTransform>): void {
+    this.cancelAnimation();
     if (typeof next.x === 'number' && Number.isFinite(next.x)) this.x = next.x;
     if (typeof next.y === 'number' && Number.isFinite(next.y)) this.y = next.y;
     if (typeof next.scale === 'number' && Number.isFinite(next.scale)) {
@@ -71,13 +85,17 @@ export class Viewport {
   }
 
   /** Place world point at viewport center (keeps current scale). */
-  panTo(worldX: number, worldY: number): void {
-    this.x = this.screenWidth / 2 - worldX * this.scale;
-    this.y = this.screenHeight / 2 - worldY * this.scale;
-    this.apply();
+  panTo(worldX: number, worldY: number, motion?: CameraMotionOptions): void {
+    const target: ViewportTransform = {
+      x: this.screenWidth / 2 - worldX * this.scale,
+      y: this.screenHeight / 2 - worldY * this.scale,
+      scale: this.scale,
+    };
+    this.goTo(target, motion);
   }
 
   setZoom(scale: number, anchorScreenX?: number, anchorScreenY?: number): void {
+    this.cancelAnimation();
     const ax = anchorScreenX ?? this.screenWidth / 2;
     const ay = anchorScreenY ?? this.screenHeight / 2;
     this.zoomAt(scale, ax, ay);
@@ -91,14 +109,11 @@ export class Viewport {
     return { width: this.screenWidth, height: this.screenHeight };
   }
 
-  /**
-   * Zoom/pan so `bounds` (world units) fits in the screen with padding.
-   * Returns false when bounds are empty/invalid.
-   */
-  fitBounds(
+  /** Compute fit camera without applying. */
+  computeFitTransform(
     bounds: { x: number; y: number; width: number; height: number },
     padding = 48,
-  ): boolean {
+  ): ViewportTransform | null {
     if (
       !Number.isFinite(bounds.x) ||
       !Number.isFinite(bounds.y) ||
@@ -107,7 +122,7 @@ export class Viewport {
       bounds.width <= 0 ||
       bounds.height <= 0
     ) {
-      return false;
+      return null;
     }
     const pad = Math.max(0, padding);
     const availW = Math.max(1, this.screenWidth - pad * 2);
@@ -119,19 +134,110 @@ export class Viewport {
     );
     const cx = bounds.x + bounds.width / 2;
     const cy = bounds.y + bounds.height / 2;
-    this.scale = nextScale;
-    this.x = this.screenWidth / 2 - cx * this.scale;
-    this.y = this.screenHeight / 2 - cy * this.scale;
-    this.apply();
+    return {
+      scale: nextScale,
+      x: this.screenWidth / 2 - cx * nextScale,
+      y: this.screenHeight / 2 - cy * nextScale,
+    };
+  }
+
+  /**
+   * Zoom/pan so `bounds` (world units) fits in the screen with padding.
+   * Returns false when bounds are empty/invalid.
+   */
+  fitBounds(
+    bounds: { x: number; y: number; width: number; height: number },
+    padding = 48,
+    motion?: CameraMotionOptions,
+  ): boolean {
+    const target = this.computeFitTransform(bounds, padding);
+    if (!target) return false;
+    this.goTo(target, motion);
     return true;
   }
 
   /** Identity camera: origin top-left, scale 1. */
-  resetView(): void {
-    this.x = 0;
-    this.y = 0;
-    this.scale = 1;
-    this.apply();
+  resetView(motion?: CameraMotionOptions): void {
+    this.goTo({ x: 0, y: 0, scale: 1 }, motion);
+  }
+
+  /** Tween camera to target; cancels any in-flight tween. */
+  animateTo(
+    target: ViewportTransform,
+    motion: CameraMotionOptions = {},
+  ): { cancel: () => void; done: Promise<void> } {
+    this.cancelAnimation();
+    const durationMs = Math.max(0, motion.durationMs ?? DEFAULT_CAMERA_MS);
+    const from = this.getTransform();
+    const to: ViewportTransform = {
+      x: target.x,
+      y: target.y,
+      scale: clamp(target.scale, this.minScale, this.maxScale),
+    };
+
+    if (durationMs === 0 || motion.animate === false) {
+      this.x = to.x;
+      this.y = to.y;
+      this.scale = to.scale;
+      this.apply();
+      return { cancel: () => {}, done: Promise.resolve() };
+    }
+
+    const now = motion.now ?? (() => performance.now());
+    const requestFrame =
+      motion.requestFrame ?? ((cb) => requestAnimationFrame((t) => cb(t)));
+    const cancelFrame = motion.cancelFrame ?? ((id) => cancelAnimationFrame(id));
+
+    let frameId = 0;
+    let cancelled = false;
+    const start = now();
+    let resolveDone!: () => void;
+    const done = new Promise<void>((resolve) => {
+      resolveDone = resolve;
+    });
+
+    const finish = () => {
+      this.x = to.x;
+      this.y = to.y;
+      this.scale = to.scale;
+      this.apply();
+      this.animCancel = null;
+      resolveDone();
+    };
+
+    const tick = () => {
+      if (cancelled) {
+        resolveDone();
+        return;
+      }
+      const elapsed = now() - start;
+      const t = easeOutCubic(elapsed / durationMs);
+      this.x = from.x + (to.x - from.x) * t;
+      this.y = from.y + (to.y - from.y) * t;
+      this.scale = from.scale + (to.scale - from.scale) * t;
+      this.apply();
+      if (elapsed >= durationMs) {
+        finish();
+        return;
+      }
+      frameId = requestFrame(tick);
+    };
+
+    frameId = requestFrame(tick);
+    const cancel = () => {
+      if (cancelled) return;
+      cancelled = true;
+      cancelFrame(frameId);
+      this.animCancel = null;
+      resolveDone();
+    };
+    this.animCancel = cancel;
+    return { cancel, done };
+  }
+
+  cancelAnimation(): void {
+    this.animCancel?.();
+    this.animCancel = null;
   }
 
   /** Wheel zoom on the canvas (pan is driven via beginPan/movePan/endPan from Pixi). */
@@ -140,6 +246,7 @@ export class Viewport {
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      this.cancelAnimation();
       const rect = canvas.getBoundingClientRect?.() ?? { left: 0, top: 0 };
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
@@ -155,6 +262,7 @@ export class Viewport {
   }
 
   beginPan(pointerId: number, screenX: number, screenY: number): void {
+    this.cancelAnimation();
     this.panning = true;
     this.panPointerId = pointerId;
     this.lastScreenX = screenX;
@@ -177,9 +285,24 @@ export class Viewport {
   }
 
   destroy(): void {
+    this.cancelAnimation();
     this.detachWheel?.();
     this.panning = false;
     this.panPointerId = null;
+  }
+
+  private goTo(target: ViewportTransform, motion?: CameraMotionOptions): void {
+    // Opt-in animation (omit motion → instant, preserves sync call sites / tests).
+    const animate = motion?.animate === true;
+    if (!animate) {
+      this.cancelAnimation();
+      this.x = target.x;
+      this.y = target.y;
+      this.scale = clamp(target.scale, this.minScale, this.maxScale);
+      this.apply();
+      return;
+    }
+    void this.animateTo(target, motion);
   }
 
   private zoomAt(nextScale: number, screenX: number, screenY: number): void {

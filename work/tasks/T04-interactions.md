@@ -37,4 +37,4 @@ Public API: `search`, `revealPath`, `focusNode`, `select`, `movePersonToCell`, `
 Demo: toolbar search → revealPath + focus.
 
 ### Follow-up
-- Floating HTML context menu UI
+- (none — floating HTML menu delivered in T10 + demo host)

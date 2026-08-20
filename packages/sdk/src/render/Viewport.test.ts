@@ -93,4 +93,115 @@ describe('Viewport', () => {
     vp.resetView();
     expect(vp.getTransform()).toEqual({ x: 0, y: 0, scale: 1 });
   });
+
+  it('success: animateTo reaches target and cancel stops mid-flight', async () => {
+    const world = fakeWorld();
+    const vp = new Viewport(world);
+    vp.setScreenSize(200, 200);
+    vp.setTransform({ x: 0, y: 0, scale: 1 });
+
+    let time = 0;
+    const queue: Array<(t: number) => void> = [];
+    const handle = vp.animateTo(
+      { x: 100, y: 50, scale: 2 },
+      {
+        durationMs: 100,
+        now: () => time,
+        requestFrame: (cb) => {
+          queue.push(cb);
+          return queue.length;
+        },
+        cancelFrame: () => {
+          queue.length = 0;
+        },
+      },
+    );
+
+    while (queue.length) {
+      time += 40;
+      const cb = queue.shift()!;
+      cb(time);
+    }
+    await handle.done;
+    expect(vp.getTransform().x).toBeCloseTo(100);
+    expect(vp.getZoom()).toBeCloseTo(2);
+
+    time = 0;
+    const queue2: Array<(t: number) => void> = [];
+    vp.setTransform({ x: 0, y: 0, scale: 1 });
+    const h2 = vp.animateTo(
+      { x: 80, y: 0, scale: 1 },
+      {
+        durationMs: 200,
+        now: () => time,
+        requestFrame: (cb) => {
+          queue2.push(cb);
+          return 1;
+        },
+        cancelFrame: vi.fn(),
+      },
+    );
+    time = 20;
+    queue2.shift()?.(time);
+    h2.cancel();
+    await h2.done;
+    expect(vp.getTransform().x).toBeGreaterThan(0);
+    expect(vp.getTransform().x).toBeLessThan(80);
+  });
+
+  it('success: fitBounds with animate:true tweens toward fit', async () => {
+    const world = fakeWorld();
+    const vp = new Viewport(world, { minScale: 0.1, maxScale: 4 });
+    vp.setScreenSize(400, 300);
+    let time = 0;
+    const queue: Array<(t: number) => void> = [];
+    expect(
+      vp.fitBounds(
+        { x: 0, y: 0, width: 200, height: 100 },
+        50,
+        {
+          animate: true,
+          durationMs: 80,
+          now: () => time,
+          requestFrame: (cb) => {
+            queue.push(cb);
+            return queue.length;
+          },
+          cancelFrame: () => {
+            queue.length = 0;
+          },
+        },
+      ),
+    ).toBe(true);
+    while (queue.length) {
+      time += 40;
+      queue.shift()!(time);
+    }
+    expect(vp.getZoom()).toBeCloseTo(1.5);
+  });
+
+  it('failure: beginPan cancels in-flight camera tween', async () => {
+    const world = fakeWorld();
+    const vp = new Viewport(world);
+    let time = 0;
+    const queue: Array<(t: number) => void> = [];
+    const handle = vp.animateTo(
+      { x: 200, y: 0, scale: 1 },
+      {
+        durationMs: 200,
+        now: () => time,
+        requestFrame: (cb) => {
+          queue.push(cb);
+          return 1;
+        },
+        cancelFrame: vi.fn(),
+      },
+    );
+    time = 10;
+    queue.shift()?.(time);
+    vp.beginPan(1, 0, 0);
+    await handle.done;
+    const xAfterCancel = vp.getTransform().x;
+    expect(xAfterCancel).toBeLessThan(200);
+  });
 });

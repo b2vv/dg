@@ -106,12 +106,12 @@ describe('OrgHierarchyDiagram', () => {
       useWorker: false,
     });
 
-    expect(diagram.fitView()).toBe(true);
+    expect(diagram.fitView(48, { animate: false })).toBe(true);
     const vp = diagram.getViewport();
     expect(vp.scale).toBeGreaterThan(0);
     expect(Number.isFinite(vp.x)).toBe(true);
 
-    diagram.resetView();
+    diagram.resetView({ animate: false });
     expect(diagram.getViewport()).toEqual({ x: 0, y: 0, scale: 1 });
 
     diagram.destroy();
