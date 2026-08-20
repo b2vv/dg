@@ -12,6 +12,7 @@ export interface ExportContext {
   app: Application | null;
   renderConfig: RenderConfig;
   currentOrgId?: string;
+  expandedOrgIds?: readonly string[];
   background?: string;
 }
 
@@ -37,6 +38,7 @@ export async function exportDiagram(
       background: options.background ?? ctx.background,
       includeLabels: options.includeLabels,
       currentOrgId: ctx.currentOrgId,
+      expandedOrgIds: ctx.expandedOrgIds,
     });
   }
 

@@ -160,7 +160,12 @@ export class App {
             }
             if (this.tab === 'staff-tree') {
               const focus = this.diagram?.getStaffFocus() ?? 'ops';
-              this.setStatus(`staff-tree · focus ${focus} · click ${node.kind}:${node.id}`);
+              const expanded = this.diagram?.getStaffExpandedOrgIds() ?? [];
+              const exp =
+                expanded.length > 0 ? ` · expanded ${expanded.join(',')}` : '';
+              this.setStatus(
+                `staff-tree · focus ${focus}${exp} · click ${node.kind}:${node.id}`,
+              );
             }
           },
           onContextMenu: (request) => {

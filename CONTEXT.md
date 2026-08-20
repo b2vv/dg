@@ -68,6 +68,10 @@ _Avoid_: Main-thread-only index at 2M scale
 Animated pan/zoom of the Pixi viewport (`fitView` / `resetView` / `panTo` with `animate: true`).
 _Avoid_: Instant jump (when motion is requested)
 
+**Expand-in-place**:
+Showing a tier-3 org’s staff under its card without changing staff focus (`toggleStaffOrgExpand`).
+_Avoid_: Drill (that’s `focusStaffOrg`)
+
 **Promote overlay**:
 v1.x idea: HTML/React node chrome over Pixi (TD07) — not in v1.
 _Avoid_: Hybrid node, React card on canvas (for v1)

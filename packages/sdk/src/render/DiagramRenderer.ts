@@ -36,6 +36,9 @@ export interface RenderOptions {
   /** Contour morph duration during drag (ms). `0` = snap. Default 160. */
   contourMorphMs?: number;
   onOrgClick?: (orgId: string) => void;
+  /** Tier-3 card click: toggle expand-in-place (preferred). */
+  onStaffOrgExpandToggle?: (orgId: string) => void;
+  /** Explicit drill (change focus); used when expand toggle is not provided. */
   onStaffOrgDrill?: (orgId: string) => void;
   onPersonClick?: (personId: string, positionId: string) => void;
   onPersonContextMenu?: (
@@ -53,6 +56,8 @@ export interface RenderOptions {
   staff?: {
     currentOrgId?: string;
     layout?: StaffLayoutOptions;
+    /** Tier-3 orgs expanded in place under their cards. */
+    expandedOrgIds?: readonly string[];
   };
 }
 
@@ -480,7 +485,10 @@ export class DiagramRenderer {
           persons: data.persons,
         },
         currentOrgId,
-        options.staff?.layout,
+        {
+          ...options.staff?.layout,
+          expandedOrgIds: options.staff?.expandedOrgIds ?? options.staff?.layout?.expandedOrgIds,
+        },
       );
 
       const personById = new Map(data.persons.map((p) => [p.id, p]));
@@ -550,7 +558,11 @@ export class DiagramRenderer {
         });
         view.on('pointertap', (e) => {
           e.stopPropagation();
-          options.onStaffOrgDrill?.(card.orgId);
+          if (options.onStaffOrgExpandToggle) {
+            options.onStaffOrgExpandToggle(card.orgId);
+          } else {
+            options.onStaffOrgDrill?.(card.orgId);
+          }
           options.onOrgClick?.(card.orgId);
         });
         view.on('pointerdown', (e) => {

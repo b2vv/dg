@@ -174,6 +174,73 @@ describe('layoutStaffCanvas', () => {
     expect(canvas.positionNodes.filter((n) => n.organizationId === 'current').length).toBe(2);
   });
 
+  it('success: expand-in-place places child staff under the card', async () => {
+    const organizations = [
+      org('mgr'),
+      org('current', 'mgr'),
+      org('sub', 'current'),
+      org('sib', 'current'),
+    ];
+    const positions = [
+      pos('mgr-ceo', 'mgr', { isHead: true, gridCell: { col: 0, row: 0 } }),
+      pos('ceo', 'current', { isHead: true }),
+      pos('dev', 'current'),
+      pos('sub-head', 'sub', { isHead: true }),
+      pos('sub-dev', 'sub'),
+    ];
+    const reports: DiagramReportLine[] = [
+      { fromId: 'ceo', toId: 'dev', kind: 'admin' },
+      { fromId: 'sub-head', toId: 'sub-dev', kind: 'admin' },
+    ];
+    const input = { organizations, positions, reports, groups: [], departments: [], persons: [] };
+
+    const canvas = await layoutStaffCanvas(input, 'current', { expandedOrgIds: ['sub'] });
+    const card = canvas.orgCards.find((c) => c.orgId === 'sub')!;
+    expect(card.expanded).toBe(true);
+    const subNodes = canvas.positionNodes.filter((n) => n.organizationId === 'sub');
+    expect(subNodes.length).toBe(2);
+    expect(subNodes.every((n) => n.y >= card.y + card.height)).toBe(true);
+    expect(canvas.currentOrgId).toBe('current');
+
+    const sib = canvas.orgCards.find((c) => c.orgId === 'sib')!;
+    expect(sib.x).toBeGreaterThanOrEqual(card.x + card.width);
+  });
+
+  it('success: empty expanded child does not throw', async () => {
+    const organizations = [org('current'), org('empty', 'current')];
+    const canvas = await layoutStaffCanvas(
+      {
+        organizations,
+        positions: [pos('ceo', 'current', { isHead: true })],
+        reports: [],
+        groups: [],
+        departments: [],
+        persons: [],
+      },
+      'current',
+      { expandedOrgIds: ['empty'] },
+    );
+    expect(canvas.orgCards.find((c) => c.orgId === 'empty')?.expanded).toBe(true);
+    expect(canvas.positionNodes.every((n) => n.organizationId !== 'empty')).toBe(true);
+  });
+
+  it('failure: unknown expand id is ignored with diagnostic', async () => {
+    const canvas = await layoutStaffCanvas(
+      {
+        organizations: [org('current'), org('sub', 'current')],
+        positions: [pos('ceo', 'current', { isHead: true })],
+        reports: [],
+        groups: [],
+        departments: [],
+        persons: [],
+      },
+      'current',
+      { expandedOrgIds: ['not-a-child'] },
+    );
+    expect(canvas.diagnostics.some((d) => d.includes('not-a-child'))).toBe(true);
+    expect(canvas.positionNodes.every((n) => n.organizationId === 'current')).toBe(true);
+  });
+
   it('failure: unknown currentOrgId throws', async () => {
     await expect(
       layoutStaffCanvas(

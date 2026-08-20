@@ -21,9 +21,18 @@ export interface StaffLayoutOptions {
   /** Org card size in tier 3 */
   orgCardWidth?: number;
   orgCardHeight?: number;
+  /**
+   * Tier-3 orgs whose staff is laid out under the card (expand-in-place).
+   * Only direct children of the current org are honored.
+   */
+  expandedOrgIds?: readonly string[];
+  /** Cap simultaneous expands (default 1). */
+  maxExpandedOrgCards?: number;
 }
 
-export const DEFAULT_STAFF_LAYOUT_OPTIONS: Required<StaffLayoutOptions> = {
+export const DEFAULT_STAFF_LAYOUT_OPTIONS: Required<
+  Omit<StaffLayoutOptions, 'expandedOrgIds'>
+> & { expandedOrgIds: readonly string[] } = {
   staffCoordMode: 'hybrid',
   nodeWidth: 120,
   nodeHeight: 64,
@@ -35,6 +44,8 @@ export const DEFAULT_STAFF_LAYOUT_OPTIONS: Required<StaffLayoutOptions> = {
   tierGap: 48,
   orgCardWidth: 200,
   orgCardHeight: 72,
+  expandedOrgIds: [],
+  maxExpandedOrgCards: 1,
 };
 
 export interface StaffNodeBox {
@@ -67,6 +78,8 @@ export interface StaffOrgCard {
   width: number;
   height: number;
   positionCount: number;
+  /** True when staff is expanded under this card. */
+  expanded?: boolean;
 }
 
 export interface StaffTierBand {
