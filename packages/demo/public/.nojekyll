@@ -1,0 +1,1 @@
+# Silence Jekyll so WASM / dotted paths are served as-is on GitHub Pages.

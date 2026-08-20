@@ -18,6 +18,10 @@ npm run build:wasm   # requires rustup + wasm-pack
 npm run dev          # http://localhost:3000
 ```
 
+**Online demo (GitHub Pages):** after the repo is public (or Pages is enabled on a paid plan), open  
+**https://b2vv.github.io/dg/**  
+Deploy runs on every push to `main` (`.github/workflows/pages.yml`).
+
 ```ts
 import { OrgHierarchyDiagram } from '@org-hierarchy/sdk';
 

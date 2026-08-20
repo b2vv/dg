@@ -5,6 +5,9 @@ import { defineConfig } from '@rsbuild/core';
 const demoDir = path.dirname(fileURLToPath(import.meta.url));
 const sdkSrc = path.join(demoDir, '../sdk/src/index.ts');
 
+/** GitHub project Pages: https://<user>.github.io/<repo>/ */
+const assetPrefix = process.env.DEMO_BASE_PATH ?? '/';
+
 export default defineConfig({
   html: {
     template: './src/index.html',
@@ -25,6 +28,7 @@ export default defineConfig({
   },
   output: {
     distPath: { root: 'dist' },
+    assetPrefix,
   },
   tools: {
     rspack: {
