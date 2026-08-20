@@ -34,4 +34,4 @@ Default roles: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human
 
 ### Domain docs
 
-Single-context: root `CONTEXT.md` + `docs/adr/` (created lazily). Also read `docs/REQUIREMENTS.md`, `work/SPEC.md`. See `docs/agents/domain.md`.
+Single-context: root [`CONTEXT.md`](./CONTEXT.md) + `docs/adr/` (ADRs lazy). Also read `docs/REQUIREMENTS.md`, `work/SPEC.md`. See `docs/agents/domain.md`.

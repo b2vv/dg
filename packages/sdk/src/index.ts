@@ -619,6 +619,19 @@ export class OrgHierarchyDiagram {
     this.host?.panTo(worldX, worldY);
   }
 
+  /** Fit all rendered nodes into the viewport. Returns false if empty. */
+  fitView(padding = 48): boolean {
+    const ok = this.host?.fitView(padding) ?? false;
+    if (ok) this.onViewportTransform(this.host?.getZoom() ?? 1);
+    return ok;
+  }
+
+  /** Reset camera to identity (scale 1, origin). */
+  resetView(): void {
+    this.host?.resetView();
+    this.onViewportTransform(1);
+  }
+
   async movePersonToCell(positionId: string, col: number, row: number): Promise<void> {
     try {
       this.data = {

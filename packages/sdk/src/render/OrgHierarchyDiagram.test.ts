@@ -93,4 +93,28 @@ describe('OrgHierarchyDiagram', () => {
     diagram.destroy();
     document.body.removeChild(container);
   });
+
+  it('success: fitView returns true and frames content', async () => {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+    document.body.appendChild(container);
+
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: makeVariantBDiagram(),
+      theme: 'light',
+      useWorker: false,
+    });
+
+    expect(diagram.fitView()).toBe(true);
+    const vp = diagram.getViewport();
+    expect(vp.scale).toBeGreaterThan(0);
+    expect(Number.isFinite(vp.x)).toBe(true);
+
+    diagram.resetView();
+    expect(diagram.getViewport()).toEqual({ x: 0, y: 0, scale: 1 });
+
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
 });

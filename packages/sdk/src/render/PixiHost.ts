@@ -54,6 +54,17 @@ export class PixiHost {
     this.viewport?.panTo(worldX, worldY);
   }
 
+  /** Fit content bounds into the screen. Returns false if nothing to fit. */
+  fitView(padding = 48): boolean {
+    const bounds = this.renderer.getContentBounds();
+    if (!bounds || !this.viewport) return false;
+    return this.viewport.fitBounds(bounds, padding);
+  }
+
+  resetView(): void {
+    this.viewport?.resetView();
+  }
+
   setOnViewportChange(handler: ((t: ViewportTransform) => void) | null): void {
     this.viewport?.setOnChange(handler);
   }

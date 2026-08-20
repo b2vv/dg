@@ -109,6 +109,23 @@ export class DiagramRenderer {
     return this.nodeBoxes.get(id);
   }
 
+  /** Axis-aligned union of remembered node boxes (world space). */
+  getContentBounds(): { x: number; y: number; width: number; height: number } | null {
+    if (this.nodeBoxes.size === 0) return null;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const box of this.nodeBoxes.values()) {
+      minX = Math.min(minX, box.x);
+      minY = Math.min(minY, box.y);
+      maxX = Math.max(maxX, box.x + box.width);
+      maxY = Math.max(maxY, box.y + box.height);
+    }
+    if (!Number.isFinite(minX) || !Number.isFinite(minY)) return null;
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  }
+
   async render(
     data: DiagramData,
     theme: NodeTheme,

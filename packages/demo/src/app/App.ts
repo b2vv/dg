@@ -72,6 +72,12 @@ export class App {
       void this.reload();
     });
 
+    requireElement('fit-view').addEventListener('click', () => {
+      if (this.diagram?.fitView()) {
+        this.setStatus(`${this.tab} · fit · zoom ${this.diagram.getZoom().toFixed(2)}`);
+      }
+    });
+
     requireElement('collapse-all').addEventListener('click', () => {
       if (this.tab === 'flat-orgs') {
         void this.diagram?.collapseAllOrgs();
@@ -176,6 +182,7 @@ export class App {
       } else {
         this.setStatus(`${this.tab} · ${this.theme} theme`);
       }
+      this.diagram.fitView();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       showError(this.mountEl, msg);
