@@ -1,4 +1,4 @@
-import { Container } from 'pixi.js';
+import { Container, Graphics } from 'pixi.js';
 import {
   computeAllContours,
   type ContourMagnetConfig,
@@ -10,6 +10,8 @@ import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
 import type { StaffLayoutOptions } from '../layout/staff/types.js';
 import { computeOrgLayout } from '../layout/rowTreeLayout.js';
 import type { OrgLayoutOptions } from '../layout/types.js';
+import { snapToGrid } from '../interaction/positionMove.js';
+import type { NodeRef } from '../interaction/types.js';
 import { DepartmentBlobView } from './DepartmentBlob.js';
 import { OrgEdgesView } from './OrgEdgesView.js';
 import { StaffEdgesView } from './StaffEdgesView.js';
@@ -28,14 +30,26 @@ export interface RenderOptions {
   computeContours?: ContourComputer;
   orgLayout?: OrgLayoutOptions;
   onOrgClick?: (orgId: string) => void;
-  /** Tier-3 org card drill in staff canvas */
   onStaffOrgDrill?: (orgId: string) => void;
   onPersonClick?: (personId: string, positionId: string) => void;
-  /** Staff 3-tier focus; if omitted and positions exist, uses sole org or first with positions */
+  onPersonContextMenu?: (personId: string, positionId: string) => void;
+  onOrgContextMenu?: (orgId: string) => void;
+  onPersonDragEnd?: (positionId: string, col: number, row: number) => void;
+  onCanvasClick?: () => void;
+  selected?: NodeRef | null;
   staff?: {
     currentOrgId?: string;
     layout?: StaffLayoutOptions;
   };
+}
+
+export interface NodeWorldBox {
+  id: string;
+  kind: 'person' | 'organization' | 'position';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export class LayerManager {
@@ -68,9 +82,22 @@ export class LayerManager {
 export class DiagramRenderer {
   readonly layers = new LayerManager();
   private destroyed = false;
+  private nodeBoxes = new Map<string, NodeWorldBox>();
+  private drag: {
+    positionId: string;
+    node: PersonNodeView;
+    originX: number;
+    originY: number;
+    pointerId: number;
+    moved: boolean;
+  } | null = null;
 
   mount(stage: Container): void {
     stage.addChild(this.layers.root);
+  }
+
+  getNodeBox(id: string): NodeWorldBox | undefined {
+    return this.nodeBoxes.get(id);
   }
 
   async render(
@@ -82,6 +109,12 @@ export class DiagramRenderer {
   ): Promise<void> {
     if (this.destroyed) return;
     this.layers.clear();
+    this.nodeBoxes.clear();
+    this.drag = null;
+
+    this.layers.root.eventMode = 'static';
+    this.layers.root.removeAllListeners('pointertap');
+    this.layers.root.on('pointertap', () => options.onCanvasClick?.());
 
     const hasStaff = data.positions.length > 0;
     if (hasStaff) {
@@ -89,6 +122,8 @@ export class DiagramRenderer {
     } else if (data.organizations.length > 0) {
       await this.renderOrganizations(data, theme, resolvedTheme, options);
     }
+
+    this.drawSelection(options.selected ?? null);
   }
 
   destroy(): void {
@@ -98,6 +133,92 @@ export class DiagramRenderer {
     this.layers.root.destroy({ children: true });
   }
 
+  private drawSelection(selected: NodeRef | null): void {
+    if (!selected) return;
+    const box =
+      this.nodeBoxes.get(selected.id) ??
+      (selected.positionId ? this.nodeBoxes.get(selected.positionId) : undefined) ??
+      (selected.personId ? this.nodeBoxes.get(selected.personId) : undefined);
+    if (!box) return;
+    const g = new Graphics();
+    g.rect(box.x - 3, box.y - 3, box.width + 6, box.height + 6);
+    g.stroke({ color: 0x2563eb, width: 2 });
+    this.layers.overlay.addChild(g);
+  }
+
+  private rememberBox(box: NodeWorldBox): void {
+    this.nodeBoxes.set(box.id, box);
+  }
+
+  private bindPersonInteractions(
+    node: PersonNodeView,
+    personId: string | undefined,
+    positionId: string,
+    box: NodeWorldBox,
+    config: RenderConfig,
+    options: RenderOptions,
+  ): void {
+    this.rememberBox(box);
+    if (personId) {
+      this.rememberBox({ ...box, id: personId, kind: 'person' });
+    }
+
+    node.on('pointertap', (e) => {
+      if (this.drag?.moved) return;
+      e.stopPropagation();
+      if (personId) options.onPersonClick?.(personId, positionId);
+    });
+
+    node.on('rightclick', (e) => {
+      e.stopPropagation();
+      if (personId) options.onPersonContextMenu?.(personId, positionId);
+    });
+
+    node.on('pointerdown', (e) => {
+      this.drag = {
+        positionId,
+        node,
+        originX: node.x,
+        originY: node.y,
+        pointerId: e.pointerId,
+        moved: false,
+      };
+      e.stopPropagation();
+    });
+
+    node.on('globalpointermove', (e) => {
+      if (!this.drag || this.drag.positionId !== positionId) return;
+      if (e.pointerId !== this.drag.pointerId) return;
+      const local = this.layers.persons.toLocal(e.global);
+      const nx = local.x - box.width / 2;
+      const ny = local.y - box.height / 2;
+      if (Math.hypot(nx - this.drag.originX, ny - this.drag.originY) > 4) {
+        this.drag.moved = true;
+      }
+      node.position.set(nx, ny);
+    });
+
+    const endDrag = (e: { pointerId: number }) => {
+      if (!this.drag || this.drag.positionId !== positionId) return;
+      if (e.pointerId !== this.drag.pointerId) return;
+      const { originX, originY, moved } = this.drag;
+      this.drag = null;
+      if (!moved) {
+        node.position.set(originX, originY);
+        return;
+      }
+      const snap = snapToGrid(node.x, node.y, config.cellWidth, config.cellHeight);
+      if (snap.col < 0 || snap.row < 0) {
+        node.position.set(originX, originY);
+        return;
+      }
+      options.onPersonDragEnd?.(positionId, snap.col, snap.row);
+    };
+
+    node.on('pointerup', endDrag);
+    node.on('pointerupoutside', endDrag);
+  }
+
   private async renderStaff(
     data: DiagramData,
     theme: NodeTheme,
@@ -105,9 +226,7 @@ export class DiagramRenderer {
     config: RenderConfig,
     options: RenderOptions,
   ): Promise<void> {
-    const currentOrgId =
-      options.staff?.currentOrgId ??
-      inferStaffCurrentOrgId(data);
+    const currentOrgId = options.staff?.currentOrgId ?? inferStaffCurrentOrgId(data);
 
     if (currentOrgId && data.organizations.some((o) => o.id === currentOrgId)) {
       const canvas = await layoutStaffCanvas(
@@ -157,9 +276,7 @@ export class DiagramRenderer {
         this.layers.departments.addChild(blob);
       }
 
-      this.layers.edges.addChild(
-        StaffEdgesView.fromLayout(canvas.edges, canvas.positionNodes),
-      );
+      this.layers.edges.addChild(StaffEdgesView.fromLayout(canvas.edges, canvas.positionNodes));
 
       for (const n of canvas.positionNodes) {
         const position = positionById.get(n.id);
@@ -167,11 +284,21 @@ export class DiagramRenderer {
         const person = position.personId ? personById.get(position.personId) : undefined;
         const node = PersonNodeView.create(person, position, theme.person);
         node.position.set(n.x, n.y);
-        if (options.onPersonClick && position.personId) {
-          const personId = position.personId;
-          const positionId = position.id;
-          node.on('pointertap', () => options.onPersonClick!(personId, positionId));
-        }
+        this.bindPersonInteractions(
+          node,
+          position.personId,
+          position.id,
+          {
+            id: position.id,
+            kind: 'position',
+            x: n.x,
+            y: n.y,
+            width: n.width,
+            height: n.height,
+          },
+          config,
+          options,
+        );
         this.layers.persons.addChild(node);
       }
 
@@ -187,16 +314,28 @@ export class DiagramRenderer {
         view.position.set(card.x, card.y);
         view.eventMode = 'static';
         view.cursor = 'pointer';
-        view.on('pointertap', () => {
+        this.rememberBox({
+          id: card.orgId,
+          kind: 'organization',
+          x: card.x,
+          y: card.y,
+          width: card.width,
+          height: card.height,
+        });
+        view.on('pointertap', (e) => {
+          e.stopPropagation();
           options.onStaffOrgDrill?.(card.orgId);
           options.onOrgClick?.(card.orgId);
+        });
+        view.on('rightclick', (e) => {
+          e.stopPropagation();
+          options.onOrgContextMenu?.(card.orgId);
         });
         this.layers.organizations.addChild(view);
       }
       return;
     }
 
-    // Legacy: raw gridCell placement without org focus
     const contourInputs = diagramPositionsToContourInputs(data.positions);
     const computeContours = options.computeContours ?? computeAllContours;
     const deptById = new Map(data.departments.map((d) => [d.id, d]));
@@ -220,9 +359,23 @@ export class DiagramRenderer {
       if (!position.gridCell) continue;
       const person = position.personId ? personById.get(position.personId) : undefined;
       const node = PersonNodeView.create(person, position, theme.person);
-      node.position.set(
-        position.gridCell.col * config.cellWidth + 10,
-        position.gridCell.row * config.cellHeight + 10,
+      const x = position.gridCell.col * config.cellWidth + 10;
+      const y = position.gridCell.row * config.cellHeight + 10;
+      node.position.set(x, y);
+      this.bindPersonInteractions(
+        node,
+        position.personId,
+        position.id,
+        {
+          id: position.id,
+          kind: 'position',
+          x,
+          y,
+          width: theme.person.width,
+          height: theme.person.height,
+        },
+        config,
+        options,
       );
       this.layers.persons.addChild(node);
     }
@@ -253,9 +406,22 @@ export class DiagramRenderer {
       const group = primaryGroupId ? groupById.get(primaryGroupId) : undefined;
       const node = OrganizationNodeView.create(org, group, resolvedTheme, theme.organization);
       node.position.set(ln.x, ln.y);
-      if (options.onOrgClick) {
-        node.on('pointertap', () => options.onOrgClick!(org.id));
-      }
+      this.rememberBox({
+        id: org.id,
+        kind: 'organization',
+        x: ln.x,
+        y: ln.y,
+        width: ln.width,
+        height: ln.height,
+      });
+      node.on('pointertap', (e) => {
+        e.stopPropagation();
+        options.onOrgClick?.(org.id);
+      });
+      node.on('rightclick', (e) => {
+        e.stopPropagation();
+        options.onOrgContextMenu?.(org.id);
+      });
       this.layers.organizations.addChild(node);
     }
   }
@@ -265,7 +431,6 @@ function inferStaffCurrentOrgId(data: DiagramData): string | undefined {
   const orgIds = [...new Set(data.positions.map((p) => p.organizationId))];
   if (orgIds.length === 1) return orgIds[0];
   if (data.organizations.length === 1) return data.organizations[0]!.id;
-  // Prefer org that has isHead position and is not only a parent of others
   const withHead = data.positions.filter((p) => p.isHead).map((p) => p.organizationId);
   if (withHead.length === 1) return withHead[0];
   return orgIds[0];

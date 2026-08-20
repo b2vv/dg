@@ -29,6 +29,14 @@ export class PixiHost {
     return this.app;
   }
 
+  /** Pan world so (worldX, worldY) is near viewport center. */
+  panTo(worldX: number, worldY: number): void {
+    if (!this.app) return;
+    const w = this.app.screen.width;
+    const h = this.app.screen.height;
+    this.renderer.layers.root.position.set(w / 2 - worldX, h / 2 - worldY);
+  }
+
   private async init(container: HTMLElement, options: PixiHostOptions): Promise<void> {
     this.container = container;
     const width = Math.max(container.clientWidth || 800, 320);

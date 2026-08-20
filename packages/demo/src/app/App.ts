@@ -61,6 +61,15 @@ export class App {
       }
     });
 
+    const search = requireElement('search-input') as HTMLInputElement;
+    let searchTimer: ReturnType<typeof setTimeout> | undefined;
+    search.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        void this.runSearch(search.value);
+      }, 150);
+    });
+
     const padding = requireElement('padding-slider') as HTMLInputElement;
     const smooth = requireElement('smooth-slider') as HTMLInputElement;
     padding.addEventListener('input', () => {
@@ -165,6 +174,22 @@ export class App {
       default:
         return { ...base, data: buildVariantBData() };
     }
+  }
+
+  private async runSearch(query: string): Promise<void> {
+    if (!this.diagram) return;
+    const hits = await this.diagram.search(query);
+    if (!query.trim()) {
+      this.setStatus(`${this.tab} · ${this.theme}`);
+      return;
+    }
+    if (hits.length === 0) {
+      this.setStatus(`search · no hits for “${query}”`);
+      return;
+    }
+    const top = hits[0]!;
+    await this.diagram.revealPath(top.node.positionId ?? top.node.id);
+    this.setStatus(`search · ${hits.length} hits · focus ${top.label}`);
   }
 
   private async loadMapperFile(file: File): Promise<void> {

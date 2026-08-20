@@ -76,6 +76,8 @@ export interface DiagramPosition {
   layoutCoords?: Point2D;
   /** Grid slot для matrix / contour */
   gridCell?: GridCell;
+  /** Staff hierarchy band (block shift) */
+  hierarchyLevel?: number;
 }
 
 export interface DiagramReportLine {

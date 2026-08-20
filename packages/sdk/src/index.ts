@@ -24,6 +24,21 @@ import {
 } from './layout/index.js';
 import type { OrgHierarchyCallbacks, LayoutPatch } from './callbacks.js';
 import { createTransformWorker, WorkerPool } from './worker/index.js';
+import {
+  buildSearchIndex,
+  searchIndex as querySearchIndex,
+  revealOrgPath,
+  resolveOrganizationIdForNode,
+  movePositionToCell,
+  shiftPositionBlock,
+  selectNode,
+  defaultContextMenuItems,
+  type SearchIndex,
+  type NodeRef,
+  type SearchResult,
+  type MenuItem,
+  InteractionError,
+} from './interaction/index.js';
 
 export type {
   DiagramData,
@@ -86,6 +101,17 @@ export {
 export type { NodeTheme, ThemeMode, RenderConfig, ContourComputer } from './render/index.js';
 export type { LayoutPatch, OrgHierarchyCallbacks } from './callbacks.js';
 
+export type { NodeRef, SearchResult, MenuItem, NodeKind } from './interaction/index.js';
+export {
+  buildSearchIndex,
+  searchIndex as runSearchIndex,
+  revealOrgPath,
+  movePositionToCell,
+  shiftPositionBlock,
+  InteractionError,
+  defaultContextMenuItems,
+} from './interaction/index.js';
+
 export {
   detectOrgMode,
   computeOrgLayout,
@@ -143,6 +169,8 @@ export class OrgHierarchyDiagram {
   private workerPool: WorkerPool | null = null;
   private callbacks: OrgHierarchyCallbacks = {};
   private staffCurrentOrgId: string | undefined;
+  private searchIdx: SearchIndex | null = null;
+  private selection: NodeRef | null = null;
   static async create<TRaw>(
     container: HTMLElement,
     config: OrgHierarchyConfig<TRaw>,
@@ -170,9 +198,42 @@ export class OrgHierarchyDiagram {
     }
 
     await instance.applyConfig(config);
+    instance.rebuildSearchIndex();
     instance.host = await PixiHost.create(container);
     await instance.render();
     return instance;
+  }
+
+  private rebuildSearchIndex(): void {
+    this.searchIdx = buildSearchIndex(this.data);
+  }
+
+  private applySelection(next: NodeRef | null): void {
+    const result = selectNode(this.selection, next);
+    if (!result.changed) return;
+    this.selection = result.selection;
+    this.callbacks.onSelectionChange?.(result.selection ? [result.selection] : []);
+  }
+
+  private personNodeRef(personId: string, positionId: string): NodeRef {
+    const position = this.data.positions.find((p) => p.id === positionId);
+    return {
+      kind: 'person',
+      id: personId,
+      organizationId: position?.organizationId,
+      departmentId: position?.departmentId,
+      positionId,
+      personId,
+    };
+  }
+
+  private orgNodeRef(orgId: string): NodeRef {
+    return { kind: 'organization', id: orgId, organizationId: orgId };
+  }
+
+  private emitContextMenu(node: NodeRef): void {
+    const defaults = defaultContextMenuItems(node);
+    this.callbacks.onContextMenu?.(node, defaults);
   }
 
   private async applyConfig<TRaw>(config: OrgHierarchyConfig<TRaw>): Promise<void> {
@@ -197,14 +258,34 @@ export class OrgHierarchyDiagram {
       staff: this.staffCurrentOrgId
         ? { currentOrgId: this.staffCurrentOrgId }
         : undefined,
+      selected: this.selection,
+      onCanvasClick: () => {
+        this.applySelection(null);
+        void this.render();
+      },
       onOrgClick: (orgId) => {
-        this.callbacks.onNodeClick?.({ kind: 'organization', id: orgId });
+        const node = this.orgNodeRef(orgId);
+        this.applySelection(node);
+        this.callbacks.onNodeClick?.(node);
+        void this.render();
       },
       onStaffOrgDrill: (orgId) => {
         void this.focusStaffOrg(orgId);
       },
-      onPersonClick: (personId) => {
-        this.callbacks.onNodeClick?.({ kind: 'person', id: personId });
+      onPersonClick: (personId, positionId) => {
+        const node = this.personNodeRef(personId, positionId);
+        this.applySelection(node);
+        this.callbacks.onNodeClick?.(node);
+        void this.render();
+      },
+      onPersonContextMenu: (personId, positionId) => {
+        this.emitContextMenu(this.personNodeRef(personId, positionId));
+      },
+      onOrgContextMenu: (orgId) => {
+        this.emitContextMenu(this.orgNodeRef(orgId));
+      },
+      onPersonDragEnd: (positionId, col, row) => {
+        void this.movePersonToCell(positionId, col, row);
       },
     });
   }
@@ -301,7 +382,10 @@ export class OrgHierarchyDiagram {
     } else if (mappers?.toDiagram) {
       const mapped = await mappers.toDiagram(chunk);
       this.data = mergePartial(this.data, mapped);
+    } else {
+      throw new InteractionError('appendData requires mappers.append or mappers.toDiagram');
     }
+    this.rebuildSearchIndex();
     await this.render();
   }
 
@@ -318,6 +402,100 @@ export class OrgHierarchyDiagram {
   async focusStaffOrg(orgId: string | null): Promise<void> {
     this.setStaffFocus(orgId);
     await this.render();
+  }
+
+  async search(query: string): Promise<SearchResult[]> {
+    return querySearchIndex(this.searchIdx, query);
+  }
+
+  getSelection(): NodeRef | null {
+    return this.selection;
+  }
+
+  async select(node: NodeRef | null): Promise<void> {
+    this.applySelection(node);
+    await this.render();
+  }
+
+  /**
+   * Expand org path to root for a person/position/org id, then focus.
+   * Unknown id → no-op (returns false).
+   */
+  async revealPath(nodeId: string): Promise<boolean> {
+    const orgId = resolveOrganizationIdForNode(this.data, nodeId);
+    if (!orgId) return false;
+    this.data = {
+      ...this.data,
+      organizations: revealOrgPath(this.data.organizations, orgId),
+    };
+    this.callbacks.onOrgModeChange?.(this.getOrgMode());
+    await this.focusNode(nodeId);
+    return true;
+  }
+
+  /**
+   * Select + pan to node. Unknown id → no-op, returns false.
+   */
+  async focusNode(nodeId: string): Promise<boolean> {
+    const ref = this.resolveNodeRef(nodeId);
+    if (!ref) return false;
+    this.applySelection(ref);
+    await this.render();
+    const box =
+      this.host?.renderer.getNodeBox(nodeId) ??
+      (ref.positionId ? this.host?.renderer.getNodeBox(ref.positionId) : undefined);
+    if (box) {
+      this.host?.panTo(box.x + box.width / 2, box.y + box.height / 2);
+    }
+    return true;
+  }
+
+  async movePersonToCell(positionId: string, col: number, row: number): Promise<void> {
+    try {
+      this.data = {
+        ...this.data,
+        positions: movePositionToCell(this.data.positions, positionId, col, row),
+      };
+    } catch (err) {
+      if (err instanceof InteractionError) {
+        await this.render();
+        return;
+      }
+      throw err;
+    }
+    const patch: LayoutPatch = { type: 'position-move', positionId, col, row };
+    this.callbacks.onLayoutChange?.(patch);
+    await this.render();
+  }
+
+  async shiftBlock(seedPositionId: string, deltaLevel: number): Promise<void> {
+    const { positions, positionIds } = shiftPositionBlock(
+      this.data.positions,
+      seedPositionId,
+      deltaLevel,
+    );
+    this.data = { ...this.data, positions };
+    this.callbacks.onLayoutChange?.({ type: 'block-shift', positionIds, deltaLevel });
+    await this.render();
+  }
+
+  private resolveNodeRef(nodeId: string): NodeRef | null {
+    const org = this.data.organizations.find((o) => o.id === nodeId);
+    if (org) return this.orgNodeRef(org.id);
+    const position = this.data.positions.find((p) => p.id === nodeId);
+    if (position?.personId) return this.personNodeRef(position.personId, position.id);
+    if (position) {
+      return {
+        kind: 'position',
+        id: position.id,
+        organizationId: position.organizationId,
+        departmentId: position.departmentId,
+        positionId: position.id,
+      };
+    }
+    const byPerson = this.data.positions.find((p) => p.personId === nodeId);
+    if (byPerson?.personId) return this.personNodeRef(byPerson.personId, byPerson.id);
+    return null;
   }
 
   destroy(): void {

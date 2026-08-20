@@ -1,4 +1,5 @@
 import type { OrgDisplayMode } from './layout/index.js';
+import type { MenuItem, NodeRef } from './interaction/types.js';
 
 export type LayoutPatch =
   | { type: 'position-move'; positionId: string; col: number; row: number }
@@ -7,7 +8,9 @@ export type LayoutPatch =
   | { type: 'block-shift'; positionIds: string[]; deltaLevel: number };
 
 export interface OrgHierarchyCallbacks {
-  onNodeClick?(node: { kind: 'organization' | 'person'; id: string }): void;
+  onNodeClick?(node: NodeRef): void;
+  onContextMenu?(node: NodeRef, defaultItems: MenuItem[]): MenuItem[] | void;
   onLayoutChange?(patch: LayoutPatch): void;
   onOrgModeChange?(mode: OrgDisplayMode): void;
+  onSelectionChange?(nodes: NodeRef[]): void;
 }

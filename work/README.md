@@ -33,7 +33,7 @@ work/
 | Staff 3-tier layout + edges | ✅ T08–T09 |
 | Demo app (Rsbuild) | ✅ `packages/demo` — `npm run dev` |
 | Export SVG/PNG/PDF | ❌ T05 |
-| Interactions (D&D, search) | ❌ T04 |
+| Interactions (D&D, search) | ✅ T04 v1 core |
 
 ## Запуск demo
 
@@ -50,7 +50,7 @@ npm run dev          # http://localhost:3000
 3. [T03-org-matrix-row-tree.md](./tasks/T03-org-matrix-row-tree.md) — ✅
 4. [T08-staff-3-tier-layout.md](./tasks/T08-staff-3-tier-layout.md) — ✅
 5. [T09-staff-edges-demo.md](./tasks/T09-staff-edges-demo.md) — ✅ edges + Staff tree demo
-6. [T04-interactions.md](./tasks/T04-interactions.md) — D&D, search, context menu, block shift
+6. [T04-interactions.md](./tasks/T04-interactions.md) — ✅ v1 core (search, reveal, drag, block shift)
 7. [T05-export.md](./tasks/T05-export.md) — SVG, PNG, PDF, print
 8. [T06-demo-app-rsbuild.md](./tasks/T06-demo-app-rsbuild.md) — ✅
 9. [T07-contour-algorithm-gaps.md](./tasks/T07-contour-algorithm-gaps.md) — M4, magnetRadius, G6 явно
