@@ -32,8 +32,15 @@ export interface RenderOptions {
   onOrgClick?: (orgId: string) => void;
   onStaffOrgDrill?: (orgId: string) => void;
   onPersonClick?: (personId: string, positionId: string) => void;
-  onPersonContextMenu?: (personId: string, positionId: string) => void;
-  onOrgContextMenu?: (orgId: string) => void;
+  onPersonContextMenu?: (
+    personId: string,
+    positionId: string,
+    pointer: { clientX: number; clientY: number; canvasX: number; canvasY: number },
+  ) => void;
+  onOrgContextMenu?: (
+    orgId: string,
+    pointer: { clientX: number; clientY: number; canvasX: number; canvasY: number },
+  ) => void;
   onPersonDragEnd?: (positionId: string, col: number, row: number) => void;
   onCanvasClick?: () => void;
   selected?: NodeRef | null;
@@ -171,7 +178,15 @@ export class DiagramRenderer {
 
     node.on('rightclick', (e) => {
       e.stopPropagation();
-      if (personId) options.onPersonContextMenu?.(personId, positionId);
+      e.preventDefault?.();
+      if (personId) {
+        options.onPersonContextMenu?.(personId, positionId, {
+          clientX: e.clientX,
+          clientY: e.clientY,
+          canvasX: e.global.x,
+          canvasY: e.global.y,
+        });
+      }
     });
 
     node.on('pointerdown', (e) => {
@@ -329,7 +344,13 @@ export class DiagramRenderer {
         });
         view.on('rightclick', (e) => {
           e.stopPropagation();
-          options.onOrgContextMenu?.(card.orgId);
+          e.preventDefault?.();
+          options.onOrgContextMenu?.(card.orgId, {
+            clientX: e.clientX,
+            clientY: e.clientY,
+            canvasX: e.global.x,
+            canvasY: e.global.y,
+          });
         });
         this.layers.organizations.addChild(view);
       }
@@ -420,7 +441,13 @@ export class DiagramRenderer {
       });
       node.on('rightclick', (e) => {
         e.stopPropagation();
-        options.onOrgContextMenu?.(org.id);
+        e.preventDefault?.();
+        options.onOrgContextMenu?.(org.id, {
+          clientX: e.clientX,
+          clientY: e.clientY,
+          canvasX: e.global.x,
+          canvasY: e.global.y,
+        });
       });
       this.layers.organizations.addChild(node);
     }

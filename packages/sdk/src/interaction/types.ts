@@ -21,6 +21,12 @@ export interface MenuItem {
   disabled?: boolean;
 }
 
+export type {
+  ContextMenuNodeData,
+  ContextMenuPointer,
+  ContextMenuRequest,
+} from './contextMenuPayload.js';
+
 export class InteractionError extends Error {
   constructor(message: string) {
     super(message);

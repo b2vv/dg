@@ -13,6 +13,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      '@org-hierarchy/sdk/react': path.join(demoDir, '../sdk/src/react/index.ts'),
       '@org-hierarchy/sdk': path.join(demoDir, '../sdk/src/index.ts'),
     },
   },

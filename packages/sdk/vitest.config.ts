@@ -6,5 +6,12 @@ export default defineConfig({
     include: ['src/**/*.test.ts'],
     setupFiles: ['./vitest.setup.ts'],
     testTimeout: 15_000,
+    deps: {
+      optimizer: {
+        web: {
+          include: ['react', 'react-dom'],
+        },
+      },
+    },
   },
 });

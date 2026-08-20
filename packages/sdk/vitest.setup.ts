@@ -145,6 +145,9 @@ vi.stubGlobal(
 );
 
 beforeAll(async () => {
+  // React 19 act() in jsdom
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
   const wasmPath = join(
     dirname(fileURLToPath(import.meta.url)),
     'src/wasm/pkg/org_hierarchy_core_bg.wasm',

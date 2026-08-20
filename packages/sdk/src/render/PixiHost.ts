@@ -53,6 +53,7 @@ export class PixiHost {
 
     this.app = app;
     container.appendChild(app.canvas);
+    app.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     this.renderer.mount(app.stage);
 
     this.resizeObserver = new ResizeObserver(() => {

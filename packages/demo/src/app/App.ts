@@ -5,6 +5,11 @@ import {
   mapInWorker,
   type FlatDiagramRow,
 } from '@org-hierarchy/sdk';
+import {
+  createReactContextMenuHost,
+  DefaultReactContextMenu,
+  type ReactContextMenuHost,
+} from '@org-hierarchy/sdk/react';
 import { buildVariantBData } from '../scenarios/variantB.js';
 import { buildFlatOrgsData } from '../scenarios/flatOrgs.js';
 import { buildStaffTreeData } from '../scenarios/staffTree.js';
@@ -26,6 +31,7 @@ export class App {
   private theme: 'light' | 'dark' = 'light';
   private contourControls: ContourControls = { paddingCells: 0, smoothIterations: 2 };
   private flatOrgsData = buildFlatOrgsData(24);
+  private contextMenu: ReactContextMenuHost | null = null;
 
   private readonly mountEl: HTMLElement;
   private readonly statusEl: HTMLElement;
@@ -36,6 +42,17 @@ export class App {
   }
 
   async init(): Promise<void> {
+    this.contextMenu = createReactContextMenuHost({
+      component: DefaultReactContextMenu,
+      onAction: (item, request) => {
+        void this.diagram?.runContextMenuAction(item.id, request);
+        const label =
+          request.node.person?.fullName ??
+          request.node.organization?.name ??
+          request.node.ref.id;
+        this.setStatus(`menu · ${item.id} · ${label}`);
+      },
+    });
     this.bindToolbar();
     await this.loadTab('variant-b');
     this.setStatus('Ready');
@@ -118,6 +135,7 @@ export class App {
         ...config,
         callbacks: {
           onNodeClick: (node) => {
+            this.contextMenu?.close();
             if (node.kind === 'organization' && this.tab === 'flat-orgs') {
               void this.diagram?.expandOrg(node.id);
             }
@@ -125,6 +143,15 @@ export class App {
               const focus = this.diagram?.getStaffFocus() ?? 'ops';
               this.setStatus(`staff-tree · focus ${focus} · click ${node.kind}:${node.id}`);
             }
+          },
+          onContextMenu: (request) => {
+            this.contextMenu?.handleContextMenu(request);
+            const label =
+              request.node.person?.fullName ??
+              request.node.organization?.name ??
+              request.node.position?.title ??
+              request.node.ref.id;
+            this.setStatus(`context · ${request.node.ref.kind} · ${label}`);
           },
           onOrgModeChange: (mode) => {
             this.setStatus(`${this.tab} · ${mode} · ${this.theme}`);

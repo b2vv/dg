@@ -38,6 +38,10 @@ import {
   type SearchResult,
   type MenuItem,
   InteractionError,
+  resolveContextMenuNodeData,
+  type ContextMenuRequest,
+  type ContextMenuNodeData,
+  type ContextMenuPointer,
 } from './interaction/index.js';
 
 export type {
@@ -101,7 +105,15 @@ export {
 export type { NodeTheme, ThemeMode, RenderConfig, ContourComputer } from './render/index.js';
 export type { LayoutPatch, OrgHierarchyCallbacks } from './callbacks.js';
 
-export type { NodeRef, SearchResult, MenuItem, NodeKind } from './interaction/index.js';
+export type {
+  NodeRef,
+  SearchResult,
+  MenuItem,
+  NodeKind,
+  ContextMenuRequest,
+  ContextMenuNodeData,
+  ContextMenuPointer,
+} from './interaction/index.js';
 export {
   buildSearchIndex,
   searchIndex as runSearchIndex,
@@ -110,6 +122,7 @@ export {
   shiftPositionBlock,
   InteractionError,
   defaultContextMenuItems,
+  resolveContextMenuNodeData,
 } from './interaction/index.js';
 
 export {
@@ -231,9 +244,65 @@ export class OrgHierarchyDiagram {
     return { kind: 'organization', id: orgId, organizationId: orgId };
   }
 
-  private emitContextMenu(node: NodeRef): void {
+  private emitContextMenu(
+    node: NodeRef,
+    pointer: { clientX: number; clientY: number; canvasX?: number; canvasY?: number },
+  ): void {
     const defaults = defaultContextMenuItems(node);
-    this.callbacks.onContextMenu?.(node, defaults);
+    const request: ContextMenuRequest = {
+      node: resolveContextMenuNodeData(this.data, node),
+      items: defaults,
+      pointer: {
+        clientX: pointer.clientX,
+        clientY: pointer.clientY,
+        canvasX: pointer.canvasX,
+        canvasY: pointer.canvasY,
+      },
+    };
+    const result = this.callbacks.onContextMenu?.(request);
+    if (result === false) return;
+    if (Array.isArray(result)) {
+      request.items = result;
+    }
+    this.lastContextMenu = request;
+  }
+
+  /** Last context-menu request (for hosts that render async React menus). */
+  private lastContextMenu: ContextMenuRequest | null = null;
+
+  getLastContextMenu(): ContextMenuRequest | null {
+    return this.lastContextMenu;
+  }
+
+  /** Invoke a menu action (from React menu item click). */
+  async runContextMenuAction(itemId: string, request?: ContextMenuRequest): Promise<void> {
+    const req = request ?? this.lastContextMenu;
+    if (!req) return;
+    const item = req.items.find((i) => i.id === itemId);
+    if (!item || item.disabled) return;
+    this.callbacks.onContextMenuAction?.(item, req);
+
+    const ref = req.node.ref;
+    switch (item.id) {
+      case 'expand':
+        if (ref.organizationId) await this.expandOrg(ref.organizationId);
+        break;
+      case 'collapse':
+        if (ref.organizationId) await this.collapseOrg(ref.organizationId);
+        break;
+      case 'focus':
+      case 'focus-subtree':
+        await this.focusNode(ref.positionId ?? ref.personId ?? ref.id);
+        break;
+      case 'copy-id':
+        if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(ref.id);
+        }
+        break;
+      default:
+        break;
+    }
+    this.lastContextMenu = null;
   }
 
   private async applyConfig<TRaw>(config: OrgHierarchyConfig<TRaw>): Promise<void> {
@@ -278,11 +347,11 @@ export class OrgHierarchyDiagram {
         this.callbacks.onNodeClick?.(node);
         void this.render();
       },
-      onPersonContextMenu: (personId, positionId) => {
-        this.emitContextMenu(this.personNodeRef(personId, positionId));
+      onPersonContextMenu: (personId, positionId, pointer) => {
+        this.emitContextMenu(this.personNodeRef(personId, positionId), pointer);
       },
-      onOrgContextMenu: (orgId) => {
-        this.emitContextMenu(this.orgNodeRef(orgId));
+      onOrgContextMenu: (orgId, pointer) => {
+        this.emitContextMenu(this.orgNodeRef(orgId), pointer);
       },
       onPersonDragEnd: (positionId, col, row) => {
         void this.movePersonToCell(positionId, col, row);
