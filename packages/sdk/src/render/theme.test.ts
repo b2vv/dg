@@ -23,7 +23,7 @@ describe('resolveNodeTheme', () => {
     const dark = resolveNodeTheme('dark');
     expect(dark.person.background).toBe(0x1e293b);
     expect(dark.person.nameColor).toBe(0xf1f5f9);
-    expect(dark.department.stroke).toBe(0x60a5fa);
+    expect(dark.department.stroke).toBe(0x93c5fd);
   });
 
   it('success: light palette keeps white person cards', () => {
