@@ -40,6 +40,16 @@ export interface WasmContourModule {
   ) => DeptContourResult[];
   computeLayout: (...args: unknown[]) => unknown;
   buildFromFlat: (items: unknown) => unknown;
+  computeOrgRowTreeLayout: (
+    organizations: unknown,
+    expandedRootId: string,
+    direction?: string | null,
+    nodeWidth?: number | null,
+    nodeHeight?: number | null,
+    hGap?: number | null,
+    vGap?: number | null,
+    margin?: number | null,
+  ) => unknown;
 }
 
 import { toRustConfig } from './config.js';

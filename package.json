@@ -7,7 +7,7 @@
     "packages/demo"
   ],
   "scripts": {
-    "build:wasm": "cd packages/core && wasm-pack build --target web --out-dir ../sdk/src/wasm/pkg",
+    "build:wasm": "cd packages/core && wasm-pack build --target web --out-dir ../sdk/src/wasm/pkg && cargo test export_rust_types --features ts-export",
     "build": "npm run build -w @org-hierarchy/sdk",
     "build:demo": "npm run build -w @org-hierarchy/demo",
     "dev": "npm run dev -w @org-hierarchy/demo",

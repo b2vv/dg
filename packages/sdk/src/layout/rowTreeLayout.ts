@@ -1,29 +1,23 @@
-import { initContourWasm } from '../contour/bridge.js';
 import type { DiagramOrganization, DiagramOrgLink } from '../data/types.js';
 import { computeMatrixLayout } from './matrixLayout.js';
 import { detectOrgMode, findExpandedRootId } from './orgMode.js';
-import { extractSubtree, subtreeToFlatNodes, validateOrgHierarchy } from './orgTree.js';
+import { validateOrgHierarchy } from './orgTree.js';
 import {
   DEFAULT_ORG_LAYOUT_OPTIONS,
   type OrgLayoutOptions,
   type OrgLayoutResult,
 } from './types.js';
+import {
+  computeOrgRowTreeLayoutWasm,
+  type OrgFlatInput,
+} from '../wasm/layoutBridge.js';
 
-interface WasmLayoutNode {
-  id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  parentId?: string;
-}
-
-interface WasmLayoutResult {
-  nodes: WasmLayoutNode[];
-  edges: Array<{ fromId: string; toId: string; path: string }>;
-  width: number;
-  height: number;
-  direction: string;
+function toOrgFlatInput(organizations: DiagramOrganization[]): OrgFlatInput[] {
+  return organizations.map((o) => ({
+    id: o.id,
+    parentOrgId: o.parentOrgId ?? null,
+    name: o.name,
+  }));
 }
 
 export async function computeOrgRowTreeLayout(
@@ -32,36 +26,28 @@ export async function computeOrgRowTreeLayout(
   options: OrgLayoutOptions = {},
 ): Promise<OrgLayoutResult> {
   validateOrgHierarchy(organizations);
-  const subtree = extractSubtree(organizations, expandedRootId);
-  const flat = subtreeToFlatNodes(subtree, expandedRootId);
-
-  const wasm = await initContourWasm();
-  const root = wasm.buildFromFlat(flat) as { children?: unknown[] };
   const opts = { ...DEFAULT_ORG_LAYOUT_OPTIONS, ...options };
 
-  const raw = wasm.computeLayout(
-    root,
-    'vertical',
-    opts.nodeWidth,
-    opts.nodeHeight,
-    opts.horizontalGap,
-    opts.verticalGap,
-    opts.margin,
-  ) as WasmLayoutResult;
-
-  const depthById = computeDepths(subtree, expandedRootId);
+  const raw = await computeOrgRowTreeLayoutWasm(toOrgFlatInput(organizations), expandedRootId, {
+    direction: 'vertical',
+    nodeWidth: opts.nodeWidth,
+    nodeHeight: opts.nodeHeight,
+    horizontalGap: opts.horizontalGap,
+    verticalGap: opts.verticalGap,
+    margin: opts.margin,
+  });
 
   return {
     mode: 'row-tree',
     nodes: raw.nodes.map((n) => ({
       id: n.id,
-      orgId: n.id,
+      orgId: n.orgId,
       x: n.x,
       y: n.y,
       width: n.width,
       height: n.height,
-      depth: depthById.get(n.id) ?? 0,
-      parentId: n.parentId,
+      depth: n.depth,
+      parentId: n.parentId ?? undefined,
     })),
     edges: raw.edges.map((e) => ({
       fromId: e.fromId,
@@ -72,19 +58,6 @@ export async function computeOrgRowTreeLayout(
     width: raw.width,
     height: raw.height,
   };
-}
-
-function computeDepths(
-  organizations: DiagramOrganization[],
-  rootId: string,
-): Map<string, number> {
-  const depths = new Map<string, number>();
-  const walk = (id: string, d: number) => {
-    depths.set(id, d);
-    organizations.filter((o) => o.parentOrgId === id).forEach((c) => walk(c.id, d + 1));
-  };
-  walk(rootId, 0);
-  return depths;
 }
 
 export async function computeOrgLayout(

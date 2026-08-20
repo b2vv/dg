@@ -1,6 +1,8 @@
 mod hierarchy;
 mod layout;
 mod contour;
+mod org_layout;
+mod org_tree;
 mod types;
 
 use wasm_bindgen::prelude::*;
@@ -8,6 +10,8 @@ use serde_wasm_bindgen::{from_value, to_value};
 
 pub use hierarchy::build_from_flat;
 pub use layout::compute_tree_layout;
+pub use org_layout::compute_org_row_tree_layout;
+pub use org_tree::{extract_subtree, validate_org_hierarchy, OrgTreeError};
 pub use contour::{compute_dept_contour, compute_all_contours};
 pub use types::*;
 
@@ -44,6 +48,35 @@ pub fn wasm_compute_layout(
     };
 
     let result = compute_tree_layout(&node, &opts);
+    to_value(&result).map_err(|e| JsValue::from_str(&format!("serialize error: {e}")))
+}
+
+/// Row-tree layout для org: validate → subtree → Reingold-Tilford (єдиний WASM entry)
+#[wasm_bindgen(js_name = computeOrgRowTreeLayout)]
+pub fn wasm_compute_org_row_tree_layout(
+    organizations: JsValue,
+    expanded_root_id: String,
+    direction: Option<String>,
+    node_width: Option<f64>,
+    node_height: Option<f64>,
+    h_gap: Option<f64>,
+    v_gap: Option<f64>,
+    margin: Option<f64>,
+) -> Result<JsValue, JsValue> {
+    let orgs: Vec<OrgFlatInput> = from_value(organizations)
+        .map_err(|e| JsValue::from_str(&format!("parse error: {e}")))?;
+
+    let opts = LayoutOptions {
+        direction: direction.unwrap_or_else(|| "vertical".into()),
+        node_width: node_width.unwrap_or(200.0) as f32,
+        node_height: node_height.unwrap_or(72.0) as f32,
+        horizontal_gap: h_gap.unwrap_or(40.0) as f32,
+        vertical_gap: v_gap.unwrap_or(60.0) as f32,
+        margin: margin.unwrap_or(24.0) as f32,
+    };
+
+    let result = compute_org_row_tree_layout(orgs, &expanded_root_id, &opts)
+        .map_err(|e| JsValue::from_str(&e.message()))?;
     to_value(&result).map_err(|e| JsValue::from_str(&format!("serialize error: {e}")))
 }
 

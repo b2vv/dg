@@ -28,6 +28,7 @@ describe('computeOrgRowTreeLayout', () => {
   });
 
   it('failure: unknown expandedRootId throws', async () => {
-    await expect(computeOrgRowTreeLayout([], 'missing')).rejects.toThrow(/unknown/i);
+    const orgs = [org('a')];
+    await expect(computeOrgRowTreeLayout(orgs, 'missing')).rejects.toThrow(/unknown/i);
   });
 });

@@ -279,6 +279,7 @@ fn collect<'a>(
     };
 
     let parent_id = internal.parent.map(|p| unsafe { (*p).node.id.clone() });
+    let depth = internal.y as u32;
 
     out.push(LayoutNode {
         id: internal.node.id.clone(),
@@ -292,7 +293,9 @@ fn collect<'a>(
         y,
         width: opts.node_width,
         height: opts.node_height,
+        depth,
         parent_id,
+        org_id: internal.node.id.clone(),
     });
 
     for child in &internal.children {
