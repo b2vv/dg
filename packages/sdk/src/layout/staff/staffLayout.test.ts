@@ -73,7 +73,7 @@ describe('position coords', () => {
       refCellWidth: 100,
       refCellHeight: 50,
     });
-    expect(box).toEqual({ x: 240, y: 60, width: 80, height: 40 });
+    expect(box).toEqual({ x: 250, y: 65, width: 80, height: 40 });
   });
 
   it('failure: no coords → hasCoords false', () => {

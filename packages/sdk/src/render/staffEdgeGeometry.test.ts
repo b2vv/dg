@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildStaffEdgeSegments, staffEdgeEndpoints } from './staffEdgeGeometry.js';
+import {
+  buildStaffEdgeSegments,
+  staffEdgeEndpoints,
+  staffEdgePolyline,
+} from './staffEdgeGeometry.js';
 
 describe('staffEdgeGeometry', () => {
   it('success: parent bottom-center to child top-center', () => {
@@ -11,6 +15,26 @@ describe('staffEdgeGeometry', () => {
       x2: 100,
       y2: 100,
     });
+  });
+
+  it('success: aligned nodes use a straight segment', () => {
+    const from = { id: 'mgr', x: 0, y: 0, width: 100, height: 40 };
+    const to = { id: 'rep', x: 0, y: 100, width: 100, height: 40 };
+    expect(staffEdgePolyline(from, to)).toEqual([
+      { x: 50, y: 40 },
+      { x: 50, y: 100 },
+    ]);
+  });
+
+  it('success: staggered nodes use an orthogonal elbow', () => {
+    const from = { id: 'mgr', x: 0, y: 0, width: 100, height: 40 };
+    const to = { id: 'rep', x: 50, y: 100, width: 100, height: 40 };
+    expect(staffEdgePolyline(from, to)).toEqual([
+      { x: 50, y: 40 },
+      { x: 50, y: 70 },
+      { x: 100, y: 70 },
+      { x: 100, y: 100 },
+    ]);
   });
 
   it('success: builds segments for known endpoints', () => {
@@ -27,7 +51,9 @@ describe('staffEdgeGeometry', () => {
     );
     expect(segs).toHaveLength(2);
     expect(segs[0]).toMatchObject({ fromId: 'a', toId: 'b', kind: 'admin', x1: 10, y1: 10 });
+    expect(segs[0]?.points).toHaveLength(2);
     expect(segs[1]?.kind).toBe('matrix');
+    expect(segs[1]?.points.length).toBeGreaterThan(2);
   });
 
   it('failure: missing endpoint skipped', () => {

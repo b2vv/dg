@@ -57,16 +57,17 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
 
     const positionById = new Map(data.positions.map((p) => [p.id, p]));
     const contourInputs = canvas.positionNodes
-      .filter((n) => positionById.get(n.id)?.departmentId)
-      .map((n) => {
-        const p = positionById.get(n.id)!;
-        return {
-          id: n.id,
-          departmentId: p.departmentId!,
-          col: Math.round(n.x / config.cellWidth),
-          row: Math.round(n.y / config.cellHeight),
-        };
-      });
+      .map((n) => positionById.get(n.id))
+      .filter(
+        (p): p is NonNullable<typeof p> & { departmentId: string; gridCell: { col: number; row: number } } =>
+          !!p?.departmentId && !!p.gridCell,
+      )
+      .map((p) => ({
+        id: p.id,
+        departmentId: p.departmentId,
+        col: p.gridCell.col,
+        row: p.gridCell.row,
+      }));
 
     const contours =
       contourInputs.length > 0
@@ -91,9 +92,8 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
     const segments = buildStaffEdgeSegments(canvas.edges, canvas.positionNodes);
     parts.push('<g id="edges">');
     for (const s of segments) {
-      parts.push(
-        `<line x1="${s.x1}" y1="${s.y1}" x2="${s.x2}" y2="${s.y2}" stroke="#64748b" stroke-width="2"/>`,
-      );
+      const d = s.points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x} ${p.y}`).join(' ');
+      parts.push(`<path d="${d}" fill="none" stroke="#64748b" stroke-width="1.75"/>`);
     }
     parts.push('</g>');
 
@@ -105,13 +105,15 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
       const person = position.personId ? personById.get(position.personId) : undefined;
       parts.push(
         `<g data-position="${esc(n.id)}" transform="translate(${n.x},${n.y})">`,
-        `<rect width="${n.width}" height="${n.height}" rx="8" fill="#fff" stroke="#94a3b8"/>`,
+        `<rect width="${n.width}" height="${n.height}" rx="10" fill="#fff" stroke="#94a3b8"/>`,
       );
       if (includeLabels) {
         const name = person?.fullName ?? '—';
+        const nameY = Math.round(n.height * 0.55);
+        const titleY = Math.round(n.height * 0.72);
         parts.push(
-          `<text x="8" y="24" font-size="12" fill="#0f172a">${esc(name)}</text>`,
-          `<text x="8" y="40" font-size="11" fill="#64748b">${esc(position.title)}</text>`,
+          `<text x="8" y="${nameY}" font-size="12" fill="#0f172a">${esc(name)}</text>`,
+          `<text x="8" y="${titleY}" font-size="11" fill="#64748b">${esc(position.title)}</text>`,
         );
       }
       parts.push('</g>');
@@ -152,21 +154,25 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
 
     const personById = new Map(data.persons.map((p) => [p.id, p]));
     parts.push('<g id="persons">');
+    const cardW = 128;
+    const cardH = 148;
+    const insetX = (config.cellWidth - cardW) / 2;
+    const insetY = (config.cellHeight - cardH) / 2;
     for (const position of data.positions) {
       if (!position.gridCell) continue;
-      const x = position.gridCell.col * config.cellWidth + 10;
-      const y = position.gridCell.row * config.cellHeight + 10;
-      width = Math.max(width, x + 140);
-      height = Math.max(height, y + 80);
+      const x = position.gridCell.col * config.cellWidth + insetX;
+      const y = position.gridCell.row * config.cellHeight + insetY;
+      width = Math.max(width, x + cardW + 24);
+      height = Math.max(height, y + cardH + 24);
       const person = position.personId ? personById.get(position.personId) : undefined;
       parts.push(
         `<g data-position="${esc(position.id)}" transform="translate(${x},${y})">`,
-        `<rect width="120" height="64" rx="8" fill="#fff" stroke="#94a3b8"/>`,
+        `<rect width="${cardW}" height="${cardH}" rx="10" fill="#fff" stroke="#94a3b8"/>`,
       );
       if (includeLabels) {
         parts.push(
-          `<text x="8" y="24" font-size="12" fill="#0f172a">${esc(person?.fullName ?? '—')}</text>`,
-          `<text x="8" y="40" font-size="11" fill="#64748b">${esc(position.title)}</text>`,
+          `<text x="8" y="82" font-size="12" fill="#0f172a">${esc(person?.fullName ?? '—')}</text>`,
+          `<text x="8" y="102" font-size="11" fill="#64748b">${esc(position.title)}</text>`,
         );
       }
       parts.push('</g>');

@@ -3,20 +3,21 @@ import {
   buildStaffEdgeSegments,
   type StaffEdgeBox,
   type StaffEdgeLink,
+  type StaffEdgePoint,
 } from './staffEdgeGeometry.js';
 
 const STROKE_LIGHT: Record<StaffEdgeLink['kind'], { color: number; width: number; dash?: number[] }> = {
-  admin: { color: 0x64748b, width: 2 },
-  'cross-tier': { color: 0x64748b, width: 2 },
-  matrix: { color: 0x94a3b8, width: 1.5, dash: [6, 4] },
-  dotted: { color: 0xa8a29e, width: 1.5, dash: [2, 4] },
+  admin: { color: 0x64748b, width: 1.75 },
+  'cross-tier': { color: 0x64748b, width: 1.75 },
+  matrix: { color: 0x94a3b8, width: 1.35, dash: [6, 4] },
+  dotted: { color: 0xa8a29e, width: 1.35, dash: [2, 4] },
 };
 
 const STROKE_DARK: Record<StaffEdgeLink['kind'], { color: number; width: number; dash?: number[] }> = {
-  admin: { color: 0x94a3b8, width: 2 },
-  'cross-tier': { color: 0x94a3b8, width: 2 },
-  matrix: { color: 0x64748b, width: 1.5, dash: [6, 4] },
-  dotted: { color: 0xa8a29e, width: 1.5, dash: [2, 4] },
+  admin: { color: 0x94a3b8, width: 1.75 },
+  'cross-tier': { color: 0x94a3b8, width: 1.75 },
+  matrix: { color: 0x64748b, width: 1.35, dash: [6, 4] },
+  dotted: { color: 0xa8a29e, width: 1.35, dash: [2, 4] },
 };
 
 /** Report lines between staff position boxes (admin solid; matrix/dotted dashed). */
@@ -49,13 +50,25 @@ export class StaffEdgesView extends Container {
     for (const seg of segments) {
       const style = stroke[seg.kind] ?? stroke.admin;
       if (style.dash) {
-        drawDashed(this.graphics, seg.x1, seg.y1, seg.x2, seg.y2, style.dash);
+        drawDashedPolyline(this.graphics, seg.points, style.dash);
       } else {
-        this.graphics.moveTo(seg.x1, seg.y1);
-        this.graphics.lineTo(seg.x2, seg.y2);
+        const pts = seg.points;
+        if (pts.length < 2) continue;
+        this.graphics.moveTo(pts[0]!.x, pts[0]!.y);
+        for (let i = 1; i < pts.length; i += 1) {
+          this.graphics.lineTo(pts[i]!.x, pts[i]!.y);
+        }
       }
       this.graphics.stroke({ color: style.color, width: style.width });
     }
+  }
+}
+
+function drawDashedPolyline(g: Graphics, points: StaffEdgePoint[], pattern: number[]): void {
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const a = points[i]!;
+    const b = points[i + 1]!;
+    drawDashed(g, a.x, a.y, b.x, b.y, pattern);
   }
 }
 

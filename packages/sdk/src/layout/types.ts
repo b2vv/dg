@@ -45,11 +45,11 @@ export interface OrgLayoutResult {
 }
 
 export const DEFAULT_ORG_LAYOUT_OPTIONS: Required<OrgLayoutOptions> = {
-  nodeWidth: 220,
-  nodeHeight: 72,
-  horizontalGap: 40,
-  verticalGap: 60,
-  margin: 24,
+  nodeWidth: 200,
+  nodeHeight: 64,
+  horizontalGap: 28,
+  verticalGap: 36,
+  margin: 32,
   matrixShape: 'auto',
   matrixRows: 0,
   matrixColumns: 0,

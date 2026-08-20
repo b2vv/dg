@@ -27,6 +27,8 @@ import {
   placeOrgAtMatrixCell,
   assignMatrixCells,
   type OrgDisplayMode,
+  type OrgLayoutOptions,
+  type StaffLayoutOptions,
 } from './layout/index.js';
 import type { OrgHierarchyCallbacks, LayoutPatch } from './callbacks.js';
 import { createTransformWorker, WorkerPool } from './worker/index.js';
@@ -263,6 +265,10 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
   callbacks?: OrgHierarchyCallbacks;
   /** Staff 3-tier focus organization id */
   staffCurrentOrgId?: string;
+  /** Staff layout (node/cell pitch — keep refCell* aligned with render.cell* for contours). */
+  staffLayout?: StaffLayoutOptions;
+  /** Org matrix / row-tree layout. */
+  orgLayout?: OrgLayoutOptions;
 }
 
 /** Embed SDK — Pixi render + data/mappers + worker contour */
@@ -278,6 +284,8 @@ export class OrgHierarchyDiagram {
   private workerPool: WorkerPool | null = null;
   private callbacks: OrgHierarchyCallbacks = {};
   private staffCurrentOrgId: string | undefined;
+  private staffLayout: StaffLayoutOptions = {};
+  private orgLayout: OrgLayoutOptions = {};
   private staffExpandedOrgIds = new Set<string>();
   private searchIdx: SearchIndex | null = null;
   private selection: NodeRef | null = null;
@@ -303,6 +311,8 @@ export class OrgHierarchyDiagram {
     instance.useWorker = config.useWorker ?? typeof Worker !== 'undefined';
     instance.callbacks = config.callbacks ?? {};
     instance.staffCurrentOrgId = config.staffCurrentOrgId;
+    instance.staffLayout = config.staffLayout ?? {};
+    instance.orgLayout = config.orgLayout ?? {};
 
     const workerFactory = config.workerFactory ?? createTransformWorker;
     instance.workerFactory = workerFactory;
@@ -496,9 +506,11 @@ export class OrgHierarchyDiagram {
     await this.host.renderer.render(this.data, this.nodeTheme, resolved, this.renderConfig, {
       computeContours,
       lod: this.lodLevel,
+      orgLayout: this.orgLayout,
       staff: this.staffCurrentOrgId
         ? {
             currentOrgId: this.staffCurrentOrgId,
+            layout: this.staffLayout,
             expandedOrgIds: [...this.staffExpandedOrgIds],
           }
         : undefined,

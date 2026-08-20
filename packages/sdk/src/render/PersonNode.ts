@@ -84,7 +84,7 @@ export class PersonNodeView extends Container {
     this.card.clear();
 
     if (lod === 'far') {
-      const r = 7;
+      const r = Math.max(6, Math.min(width, height) * 0.18);
       this.card.circle(width / 2, height / 2, r);
       this.card.fill({ color: style.avatarColor });
       this.card.stroke({ color: style.border, width: 1 });
@@ -92,13 +92,14 @@ export class PersonNodeView extends Container {
       return;
     }
 
-    const h = lod === 'mid' ? Math.min(height, 72) : height;
+    const h = lod === 'mid' ? Math.min(height, Math.max(56, height * 0.48)) : height;
     this.card.roundRect(0, 0, width, h, borderRadius);
     this.card.fill({ color: style.background });
     this.card.stroke({ color: style.border, width: style.borderWidth });
 
     if (lod === 'near') {
-      this.card.circle(width / 2, 36, 24);
+      const r = Math.min(width, height) * 0.155;
+      this.card.circle(width / 2, height * 0.26, r);
       this.card.fill({ color: style.avatarColor });
     }
 
@@ -119,28 +120,37 @@ export class PersonNodeView extends Container {
       return;
     }
 
+    const pad = Math.max(6, style.width * 0.06);
+    const maxTextW = Math.max(24, style.width - pad * 2);
     const name = person?.fullName ?? '—';
     this.nameText.visible = true;
     this.nameText.text = name;
-    this.nameText.position.set(8, lod === 'mid' ? 12 : 68);
+    this.nameText.style.fontSize = style.nameFontSize;
+    this.nameText.style.fill = style.nameColor;
+    truncatePixiText(this.nameText, maxTextW);
+    this.nameText.position.set(pad, lod === 'mid' ? style.height * 0.18 : style.height * 0.48);
 
     if (lod === 'mid') {
       this.titleText.visible = false;
     } else {
       this.titleText.visible = true;
       this.titleText.text = position.title;
-      this.titleText.position.set(8, 88);
+      this.titleText.style.fontSize = style.titleFontSize;
+      this.titleText.style.fill = style.titleColor;
+      truncatePixiText(this.titleText, maxTextW);
+      this.titleText.position.set(pad, style.height * 0.64);
     }
 
     const showBadge = position.isTemporary;
     this.badge.visible = showBadge;
     this.badgeLabel.visible = showBadge;
     if (showBadge) {
+      const br = Math.max(7, style.width * 0.06);
       this.badge.clear();
-      this.badge.circle(style.width - 12, 12, 8);
+      this.badge.circle(style.width - br - 4, br + 4, br);
       this.badge.fill({ color: style.badgeColor });
       this.badgeLabel.anchor.set(0.5);
-      this.badgeLabel.position.set(style.width - 12, 12);
+      this.badgeLabel.position.set(style.width - br - 4, br + 4);
     }
   }
 
@@ -164,8 +174,8 @@ export class PersonNodeView extends Container {
 
   private showPhoto(texture: Texture, style: PersonNodeStyle): void {
     const cx = style.width / 2;
-    const cy = 36;
-    const r = 24;
+    const cy = style.height * 0.26;
+    const r = Math.min(style.width, style.height) * 0.155;
     const size = r * 2;
 
     this.photoSprite.texture = texture;
@@ -187,4 +197,14 @@ export class PersonNodeView extends Container {
     this.photoSprite.mask = null;
     this.photoMask.visible = false;
   }
+}
+
+function truncatePixiText(label: Text, maxWidth: number): void {
+  const raw = label.text;
+  if (!raw) return;
+  const fontSize = Number(label.style.fontSize) || 12;
+  // Avoid CanvasTextMetrics in unit tests / headless — estimate glyph width.
+  const maxChars = Math.max(1, Math.floor(maxWidth / (fontSize * 0.58)));
+  if (raw.length <= maxChars) return;
+  label.text = `${raw.slice(0, Math.max(1, maxChars - 1))}…`;
 }

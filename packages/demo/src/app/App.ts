@@ -35,7 +35,7 @@ export class App {
   private diagram: OrgHierarchyDiagram | null = null;
   private tab: DemoTab = 'variant-b';
   private theme: 'light' | 'dark' = 'light';
-  private contourControls: ContourControls = { paddingCells: 0, smoothIterations: 2 };
+  private contourControls: ContourControls = { paddingCells: 0, smoothIterations: 0 };
   private flatOrgsData = buildFlatOrgsData(24);
   private contextMenu: ReactContextMenuHost | null = null;
   private promote: ReactPromoteOverlay | null = null;
@@ -220,8 +220,8 @@ export class App {
       useWorker: true,
       workerPoolSize: recommendWorkerPoolSize(),
       render: {
-        cellWidth: 100,
-        cellHeight: 80,
+        cellWidth: 148,
+        cellHeight: 168,
         paddingCells: this.contourControls.paddingCells,
         smoothIterations: this.contourControls.smoothIterations,
       },
@@ -233,20 +233,74 @@ export class App {
           ...base,
           data: buildVariantBData(),
           staffCurrentOrgId: 'org1',
-          render: { ...base.render, magnetRadius: 8 },
+          // Gap 0 so staff pitch == contour cell size (aligned grid).
+          staffLayout: {
+            horizontalGap: 0,
+            verticalGap: 0,
+            refCellWidth: 148,
+            refCellHeight: 168,
+            nodeWidth: 128,
+            nodeHeight: 148,
+          },
+          render: { ...base.render, magnetRadius: 8, smoothIterations: this.contourControls.smoothIterations },
         };
       case 'staff-tree':
-        return { ...base, data: buildStaffTreeData(), staffCurrentOrgId: 'ops' };
+        return {
+          ...base,
+          data: buildStaffTreeData(),
+          staffCurrentOrgId: 'ops',
+          staffLayout: {
+            horizontalGap: 36,
+            verticalGap: 44,
+            tierGap: 64,
+            nodeWidth: 128,
+            nodeHeight: 148,
+            orgCardWidth: 200,
+            orgCardHeight: 64,
+            refCellWidth: 148,
+            refCellHeight: 168,
+          },
+        };
       case 'flat-orgs':
-        return { ...base, data: this.flatOrgsData };
+        return {
+          ...base,
+          data: this.flatOrgsData,
+          orgLayout: {
+            nodeWidth: 200,
+            nodeHeight: 64,
+            horizontalGap: 36,
+            verticalGap: 44,
+            margin: 40,
+          },
+        };
       case 'mapper':
         return {
           ...base,
           data: SAMPLE_MAPPER_ROWS,
           mappers: { toDiagram: flatRowsToDiagram },
+          orgLayout: {
+            nodeWidth: 200,
+            nodeHeight: 64,
+            horizontalGap: 36,
+            verticalGap: 44,
+            margin: 40,
+          },
         } as OrgHierarchyConfig<unknown>;
       case 'worker':
-        return { ...base, data: buildVariantBData() };
+        return {
+          ...base,
+          data: buildVariantBData(),
+          staffCurrentOrgId: 'org1',
+          staffLayout: {
+            horizontalGap: 0,
+            verticalGap: 0,
+            refCellWidth: 148,
+            refCellHeight: 168,
+            nodeWidth: 128,
+            nodeHeight: 148,
+          },
+          render: { ...base.render, magnetRadius: 8 },
+        };
       default:
         return { ...base, data: buildVariantBData() };
     }

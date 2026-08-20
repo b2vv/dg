@@ -57,8 +57,8 @@ export function resolvePositionAABB(
     const pitchX = geom.refCellWidth + geom.horizontalGap;
     const pitchY = geom.refCellHeight + geom.verticalGap;
     return {
-      x: p.gridCell.col * pitchX,
-      y: p.gridCell.row * pitchY,
+      x: p.gridCell.col * pitchX + (geom.refCellWidth - width) / 2,
+      y: p.gridCell.row * pitchY + (geom.refCellHeight - height) / 2,
       width,
       height,
     };

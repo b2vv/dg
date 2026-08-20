@@ -526,6 +526,11 @@ export class DiagramRenderer {
         },
         currentOrgId,
         {
+          // Keep staff boxes on the same pitch as contour cells.
+          nodeWidth: theme.person.width,
+          nodeHeight: theme.person.height,
+          refCellWidth: config.cellWidth,
+          refCellHeight: config.cellHeight,
           ...options.staff?.layout,
           expandedOrgIds: options.staff?.expandedOrgIds ?? options.staff?.layout?.expandedOrgIds,
         },
@@ -536,19 +541,24 @@ export class DiagramRenderer {
       const personById = new Map(data.persons.map((p) => [p.id, p]));
       const positionById = new Map(data.positions.map((p) => [p.id, p]));
 
+      // Contours only for authored grid cells — remapping tree/hybrid world
+      // coords into the cell grid produces crooked “macaroni” blobs.
       const contourInputs: ContourPositionInput[] = canvas.positionNodes
-        .filter((n) => positionById.get(n.id)?.departmentId)
-        .map((n) => {
-          const p = positionById.get(n.id)!;
-          return {
-            id: n.id,
-            departmentId: p.departmentId!,
-            col: Math.round(n.x / config.cellWidth),
-            row: Math.round(n.y / config.cellHeight),
-          };
-        });
+        .map((n) => positionById.get(n.id))
+        .filter(
+          (p): p is NonNullable<typeof p> & { departmentId: string; gridCell: { col: number; row: number } } =>
+            !!p?.departmentId && !!p.gridCell,
+        )
+        .map((p) => ({
+          id: p.id,
+          departmentId: p.departmentId,
+          col: p.gridCell.col,
+          row: p.gridCell.row,
+        }));
 
-      await this.paintContours(contourInputs, data, theme, config, options);
+      if (contourInputs.length > 0) {
+        await this.paintContours(contourInputs, data, theme, config, options);
+      }
 
       this.layers.edges.addChild(
         StaffEdgesView.fromLayout(canvas.edges, canvas.positionNodes, resolvedTheme),
@@ -559,7 +569,12 @@ export class DiagramRenderer {
         const position = positionById.get(n.id);
         if (!position) continue;
         const person = position.personId ? personById.get(position.personId) : undefined;
-        const node = PersonNodeView.create(person, position, theme.person, lod);
+        const personStyle = {
+          ...theme.person,
+          width: n.width,
+          height: n.height,
+        };
+        const node = PersonNodeView.create(person, position, personStyle, lod);
         node.position.set(n.x, n.y);
         this.bindPersonInteractions(
           node,
@@ -584,11 +599,16 @@ export class DiagramRenderer {
       for (const card of canvas.orgCards) {
         const org = data.organizations.find((o) => o.id === card.orgId);
         if (!org) continue;
+        const orgStyle = {
+          ...theme.organization,
+          width: card.width,
+          height: card.height,
+        };
         const view = OrganizationNodeView.create(
           org,
           undefined,
           resolvedTheme,
-          theme.organization,
+          orgStyle,
           lod,
         );
         view.position.set(card.x, card.y);
@@ -638,8 +658,10 @@ export class DiagramRenderer {
       if (!position.gridCell) continue;
       const person = position.personId ? personById.get(position.personId) : undefined;
       const node = PersonNodeView.create(person, position, theme.person, options.lod ?? 'near');
-      const x = position.gridCell.col * config.cellWidth + 10;
-      const y = position.gridCell.row * config.cellHeight + 10;
+      const insetX = (config.cellWidth - theme.person.width) / 2;
+      const insetY = (config.cellHeight - theme.person.height) / 2;
+      const x = position.gridCell.col * config.cellWidth + insetX;
+      const y = position.gridCell.row * config.cellHeight + insetY;
       node.position.set(x, y);
       this.bindPersonInteractions(
         node,
