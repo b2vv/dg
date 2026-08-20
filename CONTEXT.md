@@ -80,6 +80,10 @@ _Avoid_: One worker per chunk, unbounded concurrency
 Demo mapper upload + worker bench call `mapFlatRowsInPool` / `mapArrayItems` with `recommendWorkerPoolSize`.
 _Avoid_: Single unbounded `mapInWorker` for large JSON
 
+**Node media**:
+Cached Pixi texture load for `photoUrl` (person near) and org `symbolUrl*` sprites; placeholder on failure.
+_Avoid_: Blocking create() on network; React overlay for photos (TD07)
+
 **Promote overlay**:
 v1.x idea: HTML/React node chrome over Pixi (TD07) — not in v1.
 _Avoid_: Hybrid node, React card on canvas (for v1)

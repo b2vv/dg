@@ -1,5 +1,6 @@
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js';
 import type { DiagramGroup, DiagramOrganization } from '../data/types.js';
+import { loadNodeTexture } from './nodeMedia.js';
 import { getOrgSymbolUrl } from './theme.js';
 import type { LodLevel } from './lod.js';
 import type { OrganizationNodeStyle } from './types.js';
@@ -7,9 +8,12 @@ import type { OrganizationNodeStyle } from './types.js';
 export class OrganizationNodeView extends Container {
   readonly resolvedSymbolUrl: string | undefined;
   readonly lod: LodLevel;
+  /** Settles when optional symbol load finishes (or immediately if none). */
+  readonly mediaReady: Promise<void>;
   private readonly card = new Graphics();
   private readonly nameText: Text;
   private readonly groupText: Text;
+  private readonly symbolSprite = new Sprite();
 
   private constructor(
     org: DiagramOrganization,
@@ -17,9 +21,11 @@ export class OrganizationNodeView extends Container {
     theme: 'light' | 'dark',
     style: OrganizationNodeStyle,
     lod: LodLevel,
+    mediaReady: Promise<void>,
   ) {
     super();
     this.lod = lod;
+    this.mediaReady = mediaReady;
     this.eventMode = 'static';
     this.cursor = 'pointer';
     this.resolvedSymbolUrl = getOrgSymbolUrl(org, theme);
@@ -33,7 +39,8 @@ export class OrganizationNodeView extends Container {
       style: { fill: style.groupColor, fontSize: style.groupFontSize },
     });
 
-    this.addChild(this.card, this.nameText, this.groupText);
+    this.symbolSprite.visible = false;
+    this.addChild(this.card, this.symbolSprite, this.nameText, this.groupText);
     this.drawCard(style, lod);
     this.layoutTexts(style, lod);
   }
@@ -45,7 +52,13 @@ export class OrganizationNodeView extends Container {
     style: OrganizationNodeStyle,
     lod: LodLevel = 'near',
   ): OrganizationNodeView {
-    return new OrganizationNodeView(org, group, theme, style, lod);
+    let resolveMedia!: () => void;
+    const mediaReady = new Promise<void>((resolve) => {
+      resolveMedia = resolve;
+    });
+    const view = new OrganizationNodeView(org, group, theme, style, lod, mediaReady);
+    void view.applySymbol(style, lod).finally(resolveMedia);
+    return view;
   }
 
   findText(text: string): Text | undefined {
@@ -53,6 +66,10 @@ export class OrganizationNodeView extends Container {
       if (child instanceof Text && child.visible && child.text === text) return child;
     }
     return undefined;
+  }
+
+  hasSymbolSprite(): boolean {
+    return this.symbolSprite.visible;
   }
 
   private drawCard(style: OrganizationNodeStyle, lod: LodLevel): void {
@@ -91,5 +108,33 @@ export class OrganizationNodeView extends Container {
     const textX = 8 + style.symbolSize + 10;
     this.nameText.position.set(textX, lod === 'mid' ? 24 : 14);
     this.groupText.position.set(textX, 38);
+  }
+
+  private async applySymbol(style: OrganizationNodeStyle, lod: LodLevel): Promise<void> {
+    const url = this.resolvedSymbolUrl;
+    if (!url?.trim()) {
+      this.symbolSprite.visible = false;
+      return;
+    }
+
+    const texture = await loadNodeTexture(url);
+    if (!texture || this.destroyed) {
+      this.symbolSprite.visible = false;
+      return;
+    }
+    this.showSymbol(texture, style, lod);
+  }
+
+  private showSymbol(texture: Texture, style: OrganizationNodeStyle, lod: LodLevel): void {
+    const size =
+      lod === 'far' ? Math.min(style.symbolSize, 36) : style.symbolSize;
+    const y =
+      lod === 'far' ? (style.height - size) / 2 : (style.height - style.symbolSize) / 2;
+
+    this.symbolSprite.texture = texture;
+    this.symbolSprite.width = size;
+    this.symbolSprite.height = size;
+    this.symbolSprite.position.set(lod === 'far' ? 0 : 8, y);
+    this.symbolSprite.visible = true;
   }
 }

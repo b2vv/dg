@@ -589,11 +589,11 @@ diagram.destroy();
 
 ---
 
-## 10. Відкриті питання
+## 10. Відкриті питання — resolved
 
-1. Context menu — фіксований SDK набір vs повністю custom від host?
-2. Persist drag — `onLayoutChange` callback vs SDK → API?
-3. Theme — CSS variables vs prop `theme: 'light'|'dark'|'auto'`?
+1. Context menu — SDK defaults + host override via `onContextMenu` / React host (T10).
+2. Persist drag — host via `onLayoutChange` (no SDK→API).
+3. Theme — prop `theme: 'light'|'dark'|'auto'` (`resolveTheme`).
 
 ---
 
