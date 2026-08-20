@@ -1,4 +1,5 @@
 import type { DiagramOrganization, DiagramOrgLink } from '../data/types.js';
+import { assignMatrixCells, placeOrgAtMatrixCell, resolveMatrixDimensions } from './matrixGrid.js';
 import {
   DEFAULT_ORG_LAYOUT_OPTIONS,
   type OrgLayoutEdge,
@@ -6,6 +7,8 @@ import {
   type OrgLayoutOptions,
   type OrgLayoutResult,
 } from './types.js';
+
+export { placeOrgAtMatrixCell } from './matrixGrid.js';
 
 export function computeMatrixLayout(
   organizations: DiagramOrganization[],
@@ -17,27 +20,25 @@ export function computeMatrixLayout(
     return { mode: 'matrix', nodes: [], edges: [], width: 0, height: 0 };
   }
 
-  const sorted = [...organizations].sort(
-    (a, b) => (a.matrixOrder ?? 0) - (b.matrixOrder ?? 0) || a.id.localeCompare(b.id),
-  );
-
-  const cols =
-    opts.matrixColumns > 0 ? opts.matrixColumns : Math.max(1, Math.ceil(Math.sqrt(sorted.length)));
+  const dims = resolveMatrixDimensions(organizations.length, opts);
+  const assignments = assignMatrixCells(organizations, dims);
   const cellW = opts.nodeWidth + opts.horizontalGap;
   const cellH = opts.nodeHeight + opts.verticalGap;
 
-  const nodes: OrgLayoutNode[] = sorted.map((org, index) => {
-    const col = index % cols;
-    const row = Math.floor(index / cols);
+  const nodes: OrgLayoutNode[] = organizations.map((org) => {
+    const cell = assignments.get(org.id) ?? { row: 0, col: 0, inMatrix: true };
     return {
       id: org.id,
       orgId: org.id,
-      x: opts.margin + col * cellW,
-      y: opts.margin + row * cellH,
+      x: opts.margin + cell.col * cellW,
+      y: opts.margin + cell.row * cellH,
       width: opts.nodeWidth,
       height: opts.nodeHeight,
       depth: 0,
       parentId: org.parentOrgId,
+      inMatrix: cell.inMatrix,
+      matrixRow: cell.row,
+      matrixCol: cell.col,
     };
   });
 

@@ -16,7 +16,10 @@ export {
   findExpandedRootId,
 } from './orgMode.js';
 
-export { computeMatrixLayout, swapMatrixOrder } from './matrixLayout.js';
+export { computeMatrixLayout, swapMatrixOrder, placeOrgAtMatrixCell } from './matrixLayout.js';
+export { assignMatrixCells, resolveMatrixDimensions } from './matrixGrid.js';
+export type { MatrixDimensions, MatrixCellAssignment } from './matrixGrid.js';
+export type { MatrixShape } from './types.js';
 
 export {
   computeOrgLayout,

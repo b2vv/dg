@@ -18,6 +18,8 @@ import {
   detectOrgMode,
   expandOrg,
   swapMatrixOrder,
+  placeOrgAtMatrixCell,
+  assignMatrixCells,
   type OrgDisplayMode,
 } from './layout/index.js';
 import type { OrgHierarchyCallbacks, LayoutPatch } from './callbacks.js';
@@ -93,11 +95,13 @@ export {
   expandOrg,
   collapseOrg,
   swapMatrixOrder,
+  placeOrgAtMatrixCell,
   findExpandedRootId,
 } from './layout/index.js';
 export type {
   OrgDisplayMode,
   OrgLayoutResult,
+  MatrixShape,
   OrgLayoutNode,
   OrgLayoutEdge,
   OrgLayoutOptions,
@@ -221,6 +225,33 @@ export class OrgHierarchyDiagram {
       organizations: swapMatrixOrder(this.data.organizations, orgId, newIndex),
     };
     const patch: LayoutPatch = { type: 'matrix-reorder', orgId, newIndex };
+    this.callbacks.onLayoutChange?.(patch);
+    await this.render();
+  }
+
+  /** Foreign/outside-matrix org at (row,col) ejects current occupant to overflow */
+  async placeOrgAtMatrixCell(
+    orgId: string,
+    row: number,
+    col: number,
+    grid?: { rows: number; cols: number },
+  ): Promise<void> {
+    const n = this.data.organizations.length;
+    const side = Math.max(1, Math.ceil(Math.sqrt(n)));
+    const dims = grid ?? { rows: side, cols: side };
+    const before = assignMatrixCells(this.data.organizations, { ...dims, bounded: true });
+    let ejectedOrgId: string | undefined;
+    for (const [id, cell] of before) {
+      if (id !== orgId && cell.row === row && cell.col === col) {
+        ejectedOrgId = id;
+        break;
+      }
+    }
+    this.data = {
+      ...this.data,
+      organizations: placeOrgAtMatrixCell(this.data.organizations, orgId, row, col, dims),
+    };
+    const patch: LayoutPatch = { type: 'matrix-cell', orgId, row, col, ejectedOrgId };
     this.callbacks.onLayoutChange?.(patch);
     await this.render();
   }

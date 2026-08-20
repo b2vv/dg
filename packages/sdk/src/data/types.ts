@@ -26,6 +26,11 @@ export interface DiagramOrganization {
   collapsed?: boolean;
   /** Порядок у matrix mode (D&D reorder) */
   matrixOrder?: number;
+  /** false — org поза фіксованою матрицею (може виштовхувати інші) */
+  inMatrix?: boolean;
+  /** Явна позиція у matrix grid (row/col) */
+  matrixRow?: number;
+  matrixCol?: number;
 }
 
 export interface DiagramGroup {

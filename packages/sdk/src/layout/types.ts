@@ -1,11 +1,16 @@
 export type OrgDisplayMode = 'matrix' | 'row-tree';
 
+/** auto — розширювана сітка; square/rectangle — фіксована матриця з overflow */
+export type MatrixShape = 'auto' | 'square' | 'rectangle';
+
 export interface OrgLayoutOptions {
   nodeWidth?: number;
   nodeHeight?: number;
   horizontalGap?: number;
   verticalGap?: number;
   margin?: number;
+  matrixShape?: MatrixShape;
+  matrixRows?: number;
   matrixColumns?: number;
 }
 
@@ -18,6 +23,10 @@ export interface OrgLayoutNode {
   height: number;
   depth: number;
   parentId?: string;
+  /** false — overflow або foreign-нода поза офіційною матрицею */
+  inMatrix?: boolean;
+  matrixRow?: number;
+  matrixCol?: number;
 }
 
 export interface OrgLayoutEdge {
@@ -41,5 +50,7 @@ export const DEFAULT_ORG_LAYOUT_OPTIONS: Required<OrgLayoutOptions> = {
   horizontalGap: 40,
   verticalGap: 60,
   margin: 24,
+  matrixShape: 'auto',
+  matrixRows: 0,
   matrixColumns: 0,
 };
