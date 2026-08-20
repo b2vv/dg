@@ -43,6 +43,12 @@ import {
   type ContextMenuNodeData,
   type ContextMenuPointer,
 } from './interaction/index.js';
+import {
+  exportDiagram as runExport,
+  printDiagram,
+  ExportError,
+  type ExportOptions,
+} from './export/index.js';
 
 export type {
   DiagramData,
@@ -124,6 +130,15 @@ export {
   defaultContextMenuItems,
   resolveContextMenuNodeData,
 } from './interaction/index.js';
+
+export {
+  exportDiagram as runExportDiagram,
+  printDiagram,
+  buildDiagramSvg,
+  filterDiagramSubtree,
+  ExportError,
+} from './export/index.js';
+export type { ExportOptions, ExportFormat, ExportScope } from './export/index.js';
 
 export {
   detectOrgMode,
@@ -546,6 +561,35 @@ export class OrgHierarchyDiagram {
     this.data = { ...this.data, positions };
     this.callbacks.onLayoutChange?.({ type: 'block-shift', positionIds, deltaLevel });
     await this.render();
+  }
+
+  async export(options: ExportOptions): Promise<Blob | string> {
+    if (!this.host) {
+      throw new ExportError('Cannot export before the diagram is mounted');
+    }
+    return runExport(
+      {
+        data: this.data,
+        mounted: true,
+        app: this.host.getApplication(),
+        renderConfig: this.renderConfig,
+        currentOrgId: this.staffCurrentOrgId,
+      },
+      options,
+    );
+  }
+
+  async print(
+    options?: Pick<ExportOptions, 'scope' | 'subtreeRootId' | 'background' | 'includeLabels'>,
+  ): Promise<void> {
+    const svg = (await this.export({
+      format: 'svg',
+      scope: options?.scope ?? 'full',
+      subtreeRootId: options?.subtreeRootId,
+      background: options?.background ?? '#ffffff',
+      includeLabels: options?.includeLabels,
+    })) as string;
+    printDiagram(svg);
   }
 
   private resolveNodeRef(nodeId: string): NodeRef | null {

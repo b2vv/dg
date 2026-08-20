@@ -78,6 +78,19 @@ export class App {
       }
     });
 
+    requireElement('export-png').addEventListener('click', () => {
+      void this.downloadExport('png');
+    });
+    requireElement('export-svg').addEventListener('click', () => {
+      void this.downloadExport('svg');
+    });
+    requireElement('export-pdf').addEventListener('click', () => {
+      void this.downloadExport('pdf');
+    });
+    requireElement('export-print').addEventListener('click', () => {
+      void this.diagram?.print({ scope: 'full' });
+    });
+
     const search = requireElement('search-input') as HTMLInputElement;
     let searchTimer: ReturnType<typeof setTimeout> | undefined;
     search.addEventListener('input', () => {
@@ -201,6 +214,31 @@ export class App {
       default:
         return { ...base, data: buildVariantBData() };
     }
+  }
+
+  private async downloadExport(format: 'png' | 'svg' | 'pdf'): Promise<void> {
+    if (!this.diagram) return;
+    try {
+      const result = await this.diagram.export({ format, scope: 'full' });
+      if (format === 'svg') {
+        const blob = new Blob([result as string], { type: 'image/svg+xml' });
+        this.triggerDownload(blob, `org-diagram.${format}`);
+      } else {
+        this.triggerDownload(result as Blob, `org-diagram.${format}`);
+      }
+      this.setStatus(`export · ${format} ready`);
+    } catch (err) {
+      this.showToast(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  private triggerDownload(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   private async runSearch(query: string): Promise<void> {
