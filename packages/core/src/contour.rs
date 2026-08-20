@@ -95,29 +95,205 @@ fn is_inside(set: &HashSet<Cell>, c: Cell) -> bool {
     set.contains(&c)
 }
 
+/// Flood from bbox border through cells that are not `inside` (outside air).
+fn flood_outside(inside: &HashSet<Cell>, bbox: &BBox) -> HashSet<Cell> {
+    let mut outside = HashSet::new();
+    let mut queue = VecDeque::new();
+
+    let mut seed = |c: Cell| {
+        if c.col < bbox.min_col
+            || c.col > bbox.max_col
+            || c.row < bbox.min_row
+            || c.row > bbox.max_row
+        {
+            return;
+        }
+        if inside.contains(&c) || !outside.insert(c) {
+            return;
+        }
+        queue.push_back(c);
+    };
+
+    for col in bbox.min_col..=bbox.max_col {
+        seed(Cell {
+            col,
+            row: bbox.min_row,
+        });
+        seed(Cell {
+            col,
+            row: bbox.max_row,
+        });
+    }
+    for row in bbox.min_row..=bbox.max_row {
+        seed(Cell {
+            col: bbox.min_col,
+            row,
+        });
+        seed(Cell {
+            col: bbox.max_col,
+            row,
+        });
+    }
+
+    while let Some(cur) = queue.pop_front() {
+        for nb in cur.neighbors4() {
+            if nb.col < bbox.min_col
+                || nb.col > bbox.max_col
+                || nb.row < bbox.min_row
+                || nb.row > bbox.max_row
+            {
+                continue;
+            }
+            if inside.contains(&nb) || outside.contains(&nb) {
+                continue;
+            }
+            outside.insert(nb);
+            queue.push_back(nb);
+        }
+    }
+    outside
+}
+
+/// G5: convert enclosed holes into C-notches by cutting shortest corridors through empty fill.
+/// Own cells are never removed.
+fn apply_prefer_notch(inside: &mut HashSet<Cell>, own: &HashSet<Cell>, bbox: &BBox) {
+    for _ in 0..64 {
+        let outside = flood_outside(inside, bbox);
+        let mut enclosed = false;
+        let mut start_candidates: Vec<Cell> = Vec::new();
+
+        for row in bbox.min_row..=bbox.max_row {
+            for col in bbox.min_col..=bbox.max_col {
+                let c = Cell { col, row };
+                if inside.contains(&c) || outside.contains(&c) {
+                    continue;
+                }
+                enclosed = true;
+                for nb in c.neighbors4() {
+                    if inside.contains(&nb) && !own.contains(&nb) {
+                        start_candidates.push(nb);
+                    }
+                }
+            }
+        }
+
+        if !enclosed {
+            break;
+        }
+        if start_candidates.is_empty() {
+            // Hole touches only own cells — open by clearing one empty neighbor of outside
+            // reachable via expanding; if none, stop (topology stuck).
+            break;
+        }
+
+        let mut parent: std::collections::HashMap<Cell, Option<Cell>> =
+            std::collections::HashMap::new();
+        let mut queue = VecDeque::new();
+        start_candidates.sort_by_key(|c| (c.row, c.col));
+        start_candidates.dedup();
+        for s in &start_candidates {
+            if parent.contains_key(s) {
+                continue;
+            }
+            parent.insert(*s, None);
+            queue.push_back(*s);
+        }
+
+        let mut goal: Option<Cell> = None;
+        while let Some(cur) = queue.pop_front() {
+            let touches_exterior = cur.neighbors4().iter().any(|nb| {
+                outside.contains(nb)
+                    || nb.col < bbox.min_col
+                    || nb.col > bbox.max_col
+                    || nb.row < bbox.min_row
+                    || nb.row > bbox.max_row
+            });
+            if touches_exterior {
+                goal = Some(cur);
+                break;
+            }
+            let mut nbs = cur.neighbors4();
+            nbs.sort_by_key(|c| (c.row, c.col));
+            for nb in nbs {
+                if !inside.contains(&nb) || own.contains(&nb) || parent.contains_key(&nb) {
+                    continue;
+                }
+                parent.insert(nb, Some(cur));
+                queue.push_back(nb);
+            }
+        }
+
+        let Some(end) = goal else {
+            break;
+        };
+
+        let mut cur = end;
+        loop {
+            if !own.contains(&cur) {
+                inside.remove(&cur);
+            }
+            match parent.get(&cur).copied().flatten() {
+                Some(p) => cur = p,
+                None => break,
+            }
+        }
+    }
+}
+
+fn signed_area(path: &[(i32, i32)]) -> i64 {
+    if path.len() < 3 {
+        return 0;
+    }
+    let mut area: i64 = 0;
+    for i in 0..path.len() {
+        let (x0, y0) = path[i];
+        let (x1, y1) = path[(i + 1) % path.len()];
+        area += i64::from(x0) * i64::from(y1) - i64::from(x1) * i64::from(y0);
+    }
+    area
+}
+
+fn count_true_corners(path: &[(i32, i32)]) -> u32 {
+    if path.len() < 3 {
+        return path.len() as u32;
+    }
+    let mut count = 0u32;
+    let n = path.len();
+    for i in 0..n {
+        let (x0, y0) = path[(i + n - 1) % n];
+        let (x1, y1) = path[i];
+        let (x2, y2) = path[(i + 1) % n];
+        let dx0 = x1 - x0;
+        let dy0 = y1 - y0;
+        let dx1 = x2 - x1;
+        let dy1 = y2 - y1;
+        if dx0 * dy1 != dy0 * dx1 {
+            count += 1;
+        }
+    }
+    count
+}
+
 /// Orthogonal perimeter as grid-corner points (G4).
-/// Corners are at (col, row) grid intersections.
+/// Deterministic: traces all cycles and returns the largest-area ring (outer).
 fn trace_orthogonal_contour(inside: &HashSet<Cell>, _bbox: &BBox) -> Vec<(i32, i32)> {
-    // Collect boundary edges: directed (from)->(to) on grid lines
-    // North edge of cell (c,r): top horizontal from (c,r) to (c+1,r) if inside(c,r) && !inside(c,r-1)
     let mut edges: Vec<((i32, i32), (i32, i32))> = Vec::new();
 
-    for &cell in inside {
+    let mut cells: Vec<Cell> = inside.iter().copied().collect();
+    cells.sort_by_key(|c| (c.row, c.col));
+
+    for cell in cells {
         let c = cell.col;
         let r = cell.row;
-        // top
         if !is_inside(inside, Cell { col: c, row: r - 1 }) {
             edges.push(((c, r), (c + 1, r)));
         }
-        // right
         if !is_inside(inside, Cell { col: c + 1, row: r }) {
             edges.push(((c + 1, r), (c + 1, r + 1)));
         }
-        // bottom
         if !is_inside(inside, Cell { col: c, row: r + 1 }) {
             edges.push(((c + 1, r + 1), (c, r + 1)));
         }
-        // left
         if !is_inside(inside, Cell { col: c - 1, row: r }) {
             edges.push(((c, r + 1), (c, r)));
         }
@@ -127,31 +303,57 @@ fn trace_orthogonal_contour(inside: &HashSet<Cell>, _bbox: &BBox) -> Vec<(i32, i
         return Vec::new();
     }
 
-    // Chain edges into closed polygon (clockwise outer)
-    let mut edge_map: std::collections::HashMap<(i32, i32), (i32, i32)> =
+    // Vertex → remaining outgoing targets (handles rings; overwrites are unsafe for holes).
+    let mut adj: std::collections::HashMap<(i32, i32), Vec<(i32, i32)>> =
         std::collections::HashMap::new();
     for (a, b) in edges {
-        edge_map.insert(a, b);
+        adj.entry(a).or_default().push(b);
+    }
+    for v in adj.values_mut() {
+        v.sort();
     }
 
-    let start = *edge_map.keys().next().unwrap();
-    let mut path = vec![start];
-    let mut cur = start;
+    let mut cycles: Vec<Vec<(i32, i32)>> = Vec::new();
     loop {
-        let Some(&next) = edge_map.get(&cur) else {
-            break;
+        let start = {
+            let mut keys: Vec<(i32, i32)> = adj
+                .iter()
+                .filter(|(_, v)| !v.is_empty())
+                .map(|(k, _)| *k)
+                .collect();
+            if keys.is_empty() {
+                break;
+            }
+            keys.sort();
+            keys[0]
         };
-        if next == start {
-            break;
+
+        let mut path = vec![start];
+        let mut cur = start;
+        for _ in 0..(adj.len() * 4 + 8) {
+            let Some(outs) = adj.get_mut(&cur) else {
+                break;
+            };
+            if outs.is_empty() {
+                break;
+            }
+            let next = outs.remove(0);
+            if next == start {
+                break;
+            }
+            path.push(next);
+            cur = next;
         }
-        path.push(next);
-        cur = next;
-        if path.len() > edge_map.len() + 2 {
-            break;
+        if path.len() >= 4 {
+            cycles.push(path);
         }
+        adj.retain(|_, v| !v.is_empty());
     }
 
-    path
+    cycles
+        .into_iter()
+        .max_by_key(|p| signed_area(p).unsigned_abs())
+        .unwrap_or_default()
 }
 
 /// Chaikin corner cutting (G4 smooth).
@@ -245,9 +447,13 @@ pub fn compute_dept_contour(
     for own in clusters {
         let own_set: HashSet<Cell> = own.iter().copied().collect();
         let all_cells: HashSet<Cell> = own_set.iter().chain(foreign.iter()).copied().collect();
+        // +1 keeps a border ring so outside-flood / notch cutting has room.
         let bbox = compute_bbox(all_cells, pad + 1);
 
-        let inside = flood_inside(&own_set, &foreign, &bbox);
+        let mut inside = flood_inside(&own_set, &foreign, &bbox);
+        if config.prefer_notch {
+            apply_prefer_notch(&mut inside, &own_set, &bbox);
+        }
         let raw_corners = trace_orthogonal_contour(&inside, &bbox);
 
         let smooth_pts = if config.smooth_iterations > 0 {
@@ -384,9 +590,54 @@ mod tests {
         let rs = compute_dept_contour("IT", &positions, &default_cfg()).unwrap();
         assert_eq!(rs.len(), 1);
         let r = &rs[0];
-        assert!(r.corner_count >= 6, "notch contour has >= 6 corners");
+        // L / C-notch around CEO: at least 6 true corners (not a 4-gon hole or AABB).
+        let grid: Vec<(i32, i32)> = r
+            .points
+            .iter()
+            .map(|p| {
+                (
+                    (p.x / default_cfg().cell_width).round() as i32,
+                    (p.y / default_cfg().cell_height).round() as i32,
+                )
+            })
+            .collect();
+        let turns = count_true_corners(&grid);
+        assert!(
+            turns >= 6,
+            "notch contour needs >= 6 true corners, got {turns} (vertices={})",
+            r.corner_count
+        );
+        assert!(r.corner_count >= 6, "notch contour has >= 6 vertices");
         assert!(r.path.starts_with('M'));
         assert!(r.path.ends_with('Z'));
+        // CEO cell center must stay outside the fill polygon (M2).
+        let cx = 0.5 * default_cfg().cell_width;
+        let cy = 1.5 * default_cfg().cell_height;
+        assert!(
+            !point_in_poly(cx, cy, &r.points),
+            "CEO center must not be inside IT fill"
+        );
+    }
+
+    fn point_in_poly(x: f32, y: f32, pts: &[ContourPoint]) -> bool {
+        // Ray cast; ContourPoint polygon in px.
+        let n = pts.len();
+        if n < 3 {
+            return false;
+        }
+        let mut inside = false;
+        let mut j = n - 1;
+        for i in 0..n {
+            let pi = &pts[i];
+            let pj = &pts[j];
+            let intersect = ((pi.y > y) != (pj.y > y))
+                && (x < (pj.x - pi.x) * (y - pi.y) / (pj.y - pi.y + f32::EPSILON) + pi.x);
+            if intersect {
+                inside = !inside;
+            }
+            j = i;
+        }
+        inside
     }
 
     #[test]

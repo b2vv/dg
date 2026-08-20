@@ -340,7 +340,7 @@ SDK bridge: `packages/sdk/src/contour/bridge.ts`
 | M1 | Лише own dept positions | ✅ |
 | M2 | Foreign не в fill | ✅ |
 | M3 | Empty між own = internal | ✅ |
-| M4 | Disconnected own → multiple contours | ❌ не реалізовано |
+| M4 | Disconnected own → multiple contours | ✅ `magnet_radius` clustering |
 
 ### 3.4 Канонічні тест-кейси
 
