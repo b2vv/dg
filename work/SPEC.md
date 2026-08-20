@@ -331,9 +331,9 @@ SDK bridge: `packages/sdk/src/contour/bridge.ts`
 | G3 | No internal edges | ✅ perimeter walk лише зовнішній |
 | G4 | Orthogonal first → smooth | ✅ trace + Chaikin |
 | G5 | Prefer notch (C-notch) | ✅ `prefer_notch` corridor cut (holes → C) |
-| G6 | No far-side wall | ⚠️ implicit; немає окремого post-pass |
+| G6 | No far-side wall | ✅ `apply_g6_clear_far_side_fill` |
 | G7 | Padding snap | ✅ `paddingCells` у bbox |
-| G8 | Stable under drag | ❌ потребує incremental recompute + Pixi |
+| G8 | Stable under drag | ✅ recompute on drag end (morph anim — polish) |
 
 | ID | Membership | Статус |
 |----|------------|--------|

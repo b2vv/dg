@@ -58,6 +58,7 @@ npm run dev          # http://localhost:3000
 11. [T11-ci-hygiene.md](./tasks/T11-ci-hygiene.md) — ✅ CI + debt hygiene
 12. [T12-setdata-readme.md](./tasks/T12-setdata-readme.md) — ✅ `setData` + root README
 13. [T13-lod-viewport.md](./tasks/T13-lod-viewport.md) — ✅ LOD far/mid/near by zoom
+14. [T14-contour-g6.md](./tasks/T14-contour-g6.md) — ✅ G6 no far-side wall
 
 ## Технічний борг
 

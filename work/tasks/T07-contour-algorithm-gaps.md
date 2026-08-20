@@ -26,7 +26,7 @@
 - `ContourMagnetConfig.magnet_radius` (default **1.5**) + `prefer_notch`
 - Own-cell union-find clustering → `compute_dept_contour` → `Vec<DeptContourResult>`
 - TS: `computeDeptContour` → `Promise<DeptContourResult[]>`; `toRustConfig` + `RenderConfig.magnetRadius`
-- G6: documented as implicit (foreign blocks flood); test `g6_implicit_foreign_blocks_flood`
+- G6: explicit far-side fill clear — see [T14](./T14-contour-g6.md); plus `g6_implicit_foreign_blocks_flood`
 - WASM pkg rebuilt
 
 Variant B demo uses `magnetRadius: 8` to keep classic single IT notch blob.

@@ -274,6 +274,35 @@ fn count_true_corners(path: &[(i32, i32)]) -> u32 {
     count
 }
 
+/// G6: remove empty fill on foreign faces that have no own beyond (far side).
+/// That drops walls such as the vertical to the right of Variant-B CEO (P4).
+fn apply_g6_clear_far_side_fill(
+    inside: &mut HashSet<Cell>,
+    foreign: &HashSet<Cell>,
+    own: &HashSet<Cell>,
+) {
+    let mut remove: Vec<Cell> = Vec::new();
+    for &f in foreign {
+        for (dc, dr) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+            let nb = Cell {
+                col: f.col + dc,
+                row: f.row + dr,
+            };
+            if own.contains(&nb) {
+                continue;
+            }
+            if inside.contains(&nb) && !own.contains(&nb) {
+                remove.push(nb);
+            }
+        }
+    }
+    remove.sort_by_key(|c| (c.row, c.col));
+    remove.dedup();
+    for c in remove {
+        inside.remove(&c);
+    }
+}
+
 /// Orthogonal perimeter as grid-corner points (G4).
 /// Deterministic: traces all cycles and returns the largest-area ring (outer).
 fn trace_orthogonal_contour(inside: &HashSet<Cell>, _bbox: &BBox) -> Vec<(i32, i32)> {
@@ -454,6 +483,7 @@ pub fn compute_dept_contour(
         if config.prefer_notch {
             apply_prefer_notch(&mut inside, &own_set, &bbox);
         }
+        apply_g6_clear_far_side_fill(&mut inside, &foreign, &own_set);
         let raw_corners = trace_orthogonal_contour(&inside, &bbox);
 
         let smooth_pts = if config.smooth_iterations > 0 {
@@ -655,12 +685,25 @@ mod tests {
         let r = &rs[0];
         assert!(r.corner_count >= 8, "got {}", r.corner_count);
         let cfg = default_cfg();
-        let inside_foreign = r.points.iter().all(|p| {
-            let cx = 1.5 * cfg.cell_width;
-            let cy = 1.5 * cfg.cell_height;
-            !((p.x - cx).abs() < 10.0 && (p.y - cy).abs() < 10.0)
+        // G6: no vertical contour segment on the right edge of P4 (x = 2 * cell_w, y in [cell_h, 2*cell_h]).
+        let right_x = 2.0 * cfg.cell_width;
+        let y0 = cfg.cell_height;
+        let y1 = 2.0 * cfg.cell_height;
+        let wall = r.points.windows(2).any(|w| {
+            let a = &w[0];
+            let b = &w[1];
+            if (a.x - right_x).abs() >= 1.0 || (b.x - right_x).abs() >= 1.0 {
+                return false;
+            }
+            let seg_lo = a.y.min(b.y);
+            let seg_hi = a.y.max(b.y);
+            // Strict interior overlap with P4's right edge (exclude touching only at a corner).
+            seg_lo < y1 - 1.0 && seg_hi > y0 + 1.0
         });
-        assert!(inside_foreign || r.corner_count >= 8);
+        assert!(!wall, "G6: vertical wall right of P4 must be absent, path={}", r.path);
+        let ceo_cx = 1.5 * cfg.cell_width;
+        let ceo_cy = 1.5 * cfg.cell_height;
+        assert!(!point_in_poly(ceo_cx, ceo_cy, &r.points), "CEO must stay outside IT fill");
     }
 
     #[test]
