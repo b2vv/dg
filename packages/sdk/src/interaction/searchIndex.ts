@@ -1,4 +1,4 @@
-import type { DiagramData } from '../data/types.js';
+import type { DiagramData, DiagramOrganization, DiagramPerson, DiagramPosition } from '../data/types.js';
 import type { NodeRef, SearchResult } from './types.js';
 
 export interface SearchIndexEntry {
@@ -11,6 +11,40 @@ export interface SearchIndex {
   entries: SearchIndexEntry[];
   /** Entries that contain this character (for candidate narrowing). */
   byChar: Map<string, number[]>;
+}
+
+/** Structured-clone / JSON-friendly form for worker transfer. */
+export interface SearchIndexDTO {
+  entries: SearchIndexEntry[];
+  byChar: [string, number[]][];
+}
+
+/** Denormalized position row for worker chunks (no full persons array). */
+export interface PositionSearchRow {
+  positionId: string;
+  title: string;
+  organizationId: string;
+  departmentId?: string;
+  personId?: string;
+  label: string;
+}
+
+export function emptySearchIndex(): SearchIndex {
+  return { entries: [], byChar: new Map() };
+}
+
+export function searchIndexToDTO(index: SearchIndex): SearchIndexDTO {
+  return {
+    entries: index.entries,
+    byChar: [...index.byChar.entries()],
+  };
+}
+
+export function searchIndexFromDTO(dto: SearchIndexDTO): SearchIndex {
+  return {
+    entries: dto.entries,
+    byChar: new Map(dto.byChar),
+  };
 }
 
 function pushEntry(index: SearchIndex, entry: SearchIndexEntry): void {
@@ -26,48 +60,87 @@ function pushEntry(index: SearchIndex, entry: SearchIndexEntry): void {
   }
 }
 
-export function buildSearchIndex(data: DiagramData): SearchIndex {
-  const index: SearchIndex = { entries: [], byChar: new Map() };
-
-  for (const org of data.organizations) {
+export function buildOrgSearchIndex(organizations: DiagramOrganization[]): SearchIndex {
+  const index = emptySearchIndex();
+  for (const org of organizations) {
     pushEntry(index, {
       node: { kind: 'organization', id: org.id, organizationId: org.id },
       label: org.name,
       haystack: org.name.toLowerCase(),
     });
   }
+  return index;
+}
 
-  const personById = new Map(data.persons.map((p) => [p.id, p]));
-  for (const position of data.positions) {
+export function flattenPositionSearchRows(
+  positions: DiagramPosition[],
+  persons: DiagramPerson[],
+): PositionSearchRow[] {
+  const personById = new Map(persons.map((p) => [p.id, p]));
+  return positions.map((position) => {
     const person = position.personId ? personById.get(position.personId) : undefined;
-    const label = person?.fullName ?? position.title;
+    return {
+      positionId: position.id,
+      title: position.title,
+      organizationId: position.organizationId,
+      departmentId: position.departmentId,
+      personId: position.personId,
+      label: person?.fullName ?? position.title,
+    };
+  });
+}
+
+export function buildSearchIndexFromPositionRows(rows: PositionSearchRow[]): SearchIndex {
+  const index = emptySearchIndex();
+  for (const row of rows) {
     pushEntry(index, {
       node: {
         kind: 'person',
-        id: person?.id ?? position.id,
-        organizationId: position.organizationId,
-        departmentId: position.departmentId,
-        positionId: position.id,
-        personId: position.personId,
+        id: row.personId ?? row.positionId,
+        organizationId: row.organizationId,
+        departmentId: row.departmentId,
+        positionId: row.positionId,
+        personId: row.personId,
       },
-      label,
-      haystack: `${label} ${position.title}`.toLowerCase(),
+      label: row.label,
+      haystack: `${row.label} ${row.title}`.toLowerCase(),
     });
     pushEntry(index, {
       node: {
         kind: 'position',
-        id: position.id,
-        organizationId: position.organizationId,
-        departmentId: position.departmentId,
-        positionId: position.id,
-        personId: position.personId,
+        id: row.positionId,
+        organizationId: row.organizationId,
+        departmentId: row.departmentId,
+        positionId: row.positionId,
+        personId: row.personId,
       },
-      label: position.title,
-      haystack: `${position.title} ${label}`.toLowerCase(),
+      label: row.title,
+      haystack: `${row.title} ${row.label}`.toLowerCase(),
     });
   }
-
   return index;
+}
+
+/** Merge partial indexes; remaps byChar offsets. */
+export function mergeSearchIndexes(parts: SearchIndex[]): SearchIndex {
+  const out = emptySearchIndex();
+  for (const part of parts) {
+    const offset = out.entries.length;
+    for (const entry of part.entries) out.entries.push(entry);
+    for (const [ch, idxs] of part.byChar) {
+      const bucket = out.byChar.get(ch) ?? [];
+      for (const i of idxs) bucket.push(i + offset);
+      out.byChar.set(ch, bucket);
+    }
+  }
+  return out;
+}
+
+export function buildSearchIndex(data: DiagramData): SearchIndex {
+  return mergeSearchIndexes([
+    buildOrgSearchIndex(data.organizations),
+    buildSearchIndexFromPositionRows(flattenPositionSearchRows(data.positions, data.persons)),
+  ]);
 }
 
 /**
@@ -78,57 +151,24 @@ export async function buildSearchIndexAsync(
   options?: { chunkSize?: number; onChunk?: (done: number, total: number) => void },
 ): Promise<SearchIndex> {
   const chunkSize = Math.max(1, options?.chunkSize ?? 2_000);
-  const index: SearchIndex = { entries: [], byChar: new Map() };
+  const parts: SearchIndex[] = [];
 
   const orgTotal = data.organizations.length;
   for (let i = 0; i < orgTotal; i += chunkSize) {
-    for (const org of data.organizations.slice(i, i + chunkSize)) {
-      pushEntry(index, {
-        node: { kind: 'organization', id: org.id, organizationId: org.id },
-        label: org.name,
-        haystack: org.name.toLowerCase(),
-      });
-    }
+    parts.push(buildOrgSearchIndex(data.organizations.slice(i, i + chunkSize)));
     options?.onChunk?.(Math.min(i + chunkSize, orgTotal), orgTotal);
     await Promise.resolve();
   }
 
-  const personById = new Map(data.persons.map((p) => [p.id, p]));
-  const posTotal = data.positions.length;
+  const rows = flattenPositionSearchRows(data.positions, data.persons);
+  const posTotal = rows.length;
   for (let i = 0; i < posTotal; i += chunkSize) {
-    for (const position of data.positions.slice(i, i + chunkSize)) {
-      const person = position.personId ? personById.get(position.personId) : undefined;
-      const label = person?.fullName ?? position.title;
-      pushEntry(index, {
-        node: {
-          kind: 'person',
-          id: person?.id ?? position.id,
-          organizationId: position.organizationId,
-          departmentId: position.departmentId,
-          positionId: position.id,
-          personId: position.personId,
-        },
-        label,
-        haystack: `${label} ${position.title}`.toLowerCase(),
-      });
-      pushEntry(index, {
-        node: {
-          kind: 'position',
-          id: position.id,
-          organizationId: position.organizationId,
-          departmentId: position.departmentId,
-          positionId: position.id,
-          personId: position.personId,
-        },
-        label: position.title,
-        haystack: `${position.title} ${label}`.toLowerCase(),
-      });
-    }
+    parts.push(buildSearchIndexFromPositionRows(rows.slice(i, i + chunkSize)));
     options?.onChunk?.(Math.min(i + chunkSize, posTotal), posTotal);
     await Promise.resolve();
   }
 
-  return index;
+  return mergeSearchIndexes(parts);
 }
 
 export function searchIndex(

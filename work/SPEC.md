@@ -443,7 +443,8 @@ Host raw data
 ├──────────────────────────────────────────────────────────┤
 │ Web Worker(s)                                            │
 │  • mapInWorker / WorkerPool / createWorkerPipeline       │
-│  • WASM: layout, contour, (future: dept tetris pack)     │
+│  • WASM: layout, contour                                  │
+│  • search index build (T18)                               │
 ├──────────────────────────────────────────────────────────┤
 │ WASM (org-hierarchy-core)                                │
 │  • buildFromFlat, computeLayout, treeStats               │

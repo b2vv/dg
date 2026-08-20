@@ -9,8 +9,16 @@ export {
   buildSearchIndex,
   buildSearchIndexAsync,
   searchIndex,
+  mergeSearchIndexes,
+  flattenPositionSearchRows,
+  buildOrgSearchIndex,
+  buildSearchIndexFromPositionRows,
+  searchIndexToDTO,
+  searchIndexFromDTO,
   type SearchIndex,
   type SearchIndexEntry,
+  type SearchIndexDTO,
+  type PositionSearchRow,
 } from './searchIndex.js';
 export { revealOrgPath, resolveOrganizationIdForNode } from './revealPath.js';
 export {
