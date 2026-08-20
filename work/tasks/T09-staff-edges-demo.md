@@ -1,7 +1,7 @@
 # T09 — Staff report edges + demo drill
 
 **Пріоритет:** P0  
-**Статус:** in progress  
+**Статус:** done  
 **Залежності:** T08 ✅
 
 ---
@@ -9,14 +9,14 @@
 ## TDD
 
 ### Success
-- [ ] admin edge: segment from parent bottom-center → child top-center
-- [ ] matrix/dotted edges use distinct stroke style (dashed)
-- [ ] DiagramRenderer staff path draws `canvas.edges`
-- [ ] Demo `staff-tree` tab: tree layout + Tier-3 drill via `focusStaffOrg`
+- [x] admin edge: segment from parent bottom-center → child top-center
+- [x] matrix/dotted edges use distinct stroke style (dashed)
+- [x] DiagramRenderer staff path draws `canvas.edges`
+- [x] Demo `staff-tree` tab: tree layout + Tier-3 drill via `focusStaffOrg`
 
 ### Failure
-- [ ] edge with missing endpoint id → skipped (no throw)
-- [ ] empty edges → empty graphics / no crash
+- [x] edge with missing endpoint id → skipped (no throw)
+- [x] empty edges → empty graphics / no crash
 
 ---
 
