@@ -16,6 +16,11 @@ describe('DepartmentBlobView', () => {
     expect(view.children.length).toBeGreaterThanOrEqual(1);
   });
 
+  it('failure: invalid path logs warn and still creates view', () => {
+    const view = DepartmentBlobView.fromPath('M 0 0 Q bad', 'Bad', defaultNodeTheme.department);
+    expect(view).toBeInstanceOf(DepartmentBlobView);
+  });
+
   it('success: redrawPoints updates drawn ring for morph', () => {
     const view = DepartmentBlobView.fromPoints(
       [
