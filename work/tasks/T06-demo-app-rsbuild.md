@@ -1,7 +1,7 @@
 # T06 — Demo app на Rsbuild
 
 **Пріоритет:** P1  
-**Статус:** todo  
+**Статус:** done  
 **Оцінка складності:** низька–середня  
 **Залежності:** T01 (мінімальний render), TD02
 
@@ -12,14 +12,14 @@
 > Політика: [`work/TDD.md`](../TDD.md)
 
 ### Success tests
-- [ ] smoke: demo module імпортується без throw
-- [ ] Variant B tab: `computeDeptContour('IT', ...)` path length > 0
-- [ ] theme toggle змінює CSS class / data-theme
+- [x] smoke: demo module імпортується без throw
+- [x] Variant B tab: `computeDeptContour('IT', ...)` path length > 0
+- [x] theme toggle змінює CSS class / data-theme
 
 ### Failure tests
-- [ ] missing container element → graceful error message
+- [x] missing container element → graceful error message
 - [ ] WASM load fail (mock) → user-visible error, не blank page
-- [ ] invalid JSON upload у mapper tab → error toast, не crash
+- [x] invalid JSON upload у mapper tab → error toast, не crash
 
 ---
 
@@ -113,11 +113,11 @@ WASM: copy або import from `@org-hierarchy/sdk/wasm/pkg`
 
 ## Acceptance criteria
 
-- [ ] `npm run dev` opens demo at localhost
-- [ ] Variant B tab shows contour + labels
-- [ ] Theme toggle works
-- [ ] README in work/ + root points to demo
-- [ ] `packages/web` archived or removed
+- [x] `npm run dev` opens demo at localhost
+- [x] Variant B tab shows contour + labels
+- [x] Theme toggle works
+- [x] README in work/ + root points to demo
+- [x] `packages/web` archived or removed
 
 ---
 

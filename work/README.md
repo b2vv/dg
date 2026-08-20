@@ -27,10 +27,16 @@ work/
 | SDK contour bridge | ✅ реалізовано |
 | Pixi renderer | ❌ не розпочато |
 | Org matrix / row-tree | ❌ WASM layout є, SDK інтеграції немає |
-| Demo app (Rsbuild) | ❌ частковий scaffold у `packages/web` |
+| Demo app (Rsbuild) | ✅ `packages/demo` — `npm run dev` |
 | Export SVG/PNG/PDF | ❌ не розпочато |
 
-## Гілки
+## Запуск demo
+
+```bash
+npm install
+npm run build:wasm   # якщо wasm pkg не зібраний
+npm run dev          # http://localhost:3000
+```
 
 | Гілка | Зміст |
 |-------|-------|

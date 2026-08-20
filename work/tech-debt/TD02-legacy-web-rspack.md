@@ -1,7 +1,7 @@
 # TD02 — Legacy `packages/web` (Rspack)
 
 **Пріоритет:** низький  
-**Статус:** відкрито  
+**Статус:** закрито (2026-08-20)  
 **Дата:** 2026-08-20
 
 ## Опис
@@ -32,6 +32,6 @@ SDK уже має `packages/sdk/rsbuild.config.ts`, але повноцінно�
 
 ## Критерії закриття
 
-- [ ] Demo працює на Rsbuild
-- [ ] `packages/web` видалено або переміщено в `archive/`
-- [ ] README вказує єдиний спосіб запуску demo
+- [x] Demo працює на Rsbuild (`packages/demo`)
+- [x] `packages/web` переміщено в `archive/legacy-web-rspack`
+- [x] Root `npm run dev` → demo

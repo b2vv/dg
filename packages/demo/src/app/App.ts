@@ -1,0 +1,212 @@
+import type { OrgHierarchyConfig } from '@org-hierarchy/sdk';
+import {
+  OrgHierarchyDiagram,
+  flatRowsToDiagram,
+  mapInWorker,
+  type FlatDiagramRow,
+} from '@org-hierarchy/sdk';
+import { buildVariantBData } from '../scenarios/variantB.js';
+import { buildFlatOrgsData, collapseAllOrgs, toggleOrgExpanded } from '../scenarios/flatOrgs.js';
+import { SAMPLE_MAPPER_JSON, SAMPLE_MAPPER_ROWS } from '../scenarios/sampleMapper.js';
+import { parseJsonFile } from '../utils/json.js';
+import { requireElement, setThemeAttribute, showError } from '../utils/dom.js';
+import { createTransformWorker } from '../worker/createTransformWorker.js';
+
+export type DemoTab = 'variant-b' | 'flat-orgs' | 'mapper' | 'worker';
+
+export interface ContourControls {
+  paddingCells: number;
+  smoothIterations: number;
+}
+
+export class App {
+  private diagram: OrgHierarchyDiagram | null = null;
+  private tab: DemoTab = 'variant-b';
+  private theme: 'light' | 'dark' = 'light';
+  private contourControls: ContourControls = { paddingCells: 0, smoothIterations: 2 };
+  private flatOrgsData = buildFlatOrgsData(24);
+
+  private readonly mountEl: HTMLElement;
+  private readonly statusEl: HTMLElement;
+
+  constructor() {
+    this.mountEl = requireElement('diagram-mount');
+    this.statusEl = requireElement('status');
+  }
+
+  async init(): Promise<void> {
+    this.bindToolbar();
+    await this.loadTab('variant-b');
+    this.setStatus('Ready');
+  }
+
+  private bindToolbar(): void {
+    document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab as DemoTab;
+        void this.loadTab(tab);
+      });
+    });
+
+    requireElement('theme-toggle').addEventListener('click', () => {
+      this.theme = this.theme === 'light' ? 'dark' : 'light';
+      setThemeAttribute(this.theme);
+      void this.reload();
+    });
+
+    requireElement('collapse-all').addEventListener('click', () => {
+      if (this.tab === 'flat-orgs') {
+        this.flatOrgsData = collapseAllOrgs(this.flatOrgsData);
+        void this.reload();
+      }
+    });
+
+    const padding = requireElement('padding-slider') as HTMLInputElement;
+    const smooth = requireElement('smooth-slider') as HTMLInputElement;
+    padding.addEventListener('input', () => {
+      this.contourControls.paddingCells = Number(padding.value);
+      if (this.tab === 'variant-b') void this.reload();
+    });
+    smooth.addEventListener('input', () => {
+      this.contourControls.smoothIterations = Number(smooth.value);
+      if (this.tab === 'variant-b') void this.reload();
+    });
+
+    requireElement('json-file').addEventListener('change', (e) => {
+      const input = e.target as HTMLInputElement;
+      const file = input.files?.[0];
+      if (file) void this.loadMapperFile(file);
+      input.value = '';
+    });
+
+    requireElement('load-sample-json').addEventListener('click', () => {
+      void this.loadMapperJson(SAMPLE_MAPPER_JSON);
+    });
+
+    requireElement('run-worker-bench').addEventListener('click', () => {
+      void this.runWorkerBench();
+    });
+  }
+
+  private async loadTab(tab: DemoTab): Promise<void> {
+    this.tab = tab;
+    document.querySelectorAll('[data-tab]').forEach((el) => {
+      el.classList.toggle('active', (el as HTMLElement).dataset.tab === tab);
+    });
+    document.body.dataset.activeTab = tab;
+    await this.reload();
+  }
+
+  private async reload(): Promise<void> {
+    this.diagram?.destroy();
+    this.diagram = null;
+    this.mountEl.innerHTML = '';
+
+    const config = this.buildConfig();
+    try {
+      this.setStatus('Loading…');
+      this.diagram = await OrgHierarchyDiagram.create(this.mountEl, config);
+      this.setStatus(`${this.tab} · ${this.theme} theme`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showError(this.mountEl, msg);
+      this.setStatus(`Error: ${msg}`);
+    }
+  }
+
+  private buildConfig(): OrgHierarchyConfig<unknown> {
+    const base = {
+      theme: this.theme,
+      render: {
+        cellWidth: 100,
+        cellHeight: 80,
+        paddingCells: this.contourControls.paddingCells,
+        smoothIterations: this.contourControls.smoothIterations,
+      },
+    };
+
+    switch (this.tab) {
+      case 'variant-b':
+        return { ...base, data: buildVariantBData() };
+      case 'flat-orgs':
+        return { ...base, data: this.flatOrgsData };
+      case 'mapper':
+        return {
+          ...base,
+          data: SAMPLE_MAPPER_ROWS,
+          mappers: { toDiagram: flatRowsToDiagram },
+        } as OrgHierarchyConfig<unknown>;
+      case 'worker':
+        return { ...base, data: buildVariantBData() };
+      default:
+        return { ...base, data: buildVariantBData() };
+    }
+  }
+
+  private async loadMapperFile(file: File): Promise<void> {
+    this.tab = 'mapper';
+    const parsed = await parseJsonFile<FlatDiagramRow[]>(file);
+    if (!parsed.ok) {
+      this.showToast(parsed.error.message);
+      return;
+    }
+    await this.loadMapperJson(JSON.stringify(parsed.data));
+  }
+
+  private async loadMapperJson(text: string): Promise<void> {
+    const { parseJsonText } = await import('../utils/json.js');
+    const parsed = parseJsonText<FlatDiagramRow[]>(text);
+    if (!parsed.ok) {
+      this.showToast(parsed.error.message);
+      return;
+    }
+
+    this.tab = 'mapper';
+    this.diagram?.destroy();
+    this.mountEl.innerHTML = '';
+    this.diagram = await OrgHierarchyDiagram.create(this.mountEl, {
+      data: parsed.data,
+      mappers: { toDiagram: flatRowsToDiagram },
+      theme: this.theme,
+    });
+    this.setStatus(`mapper · ${parsed.data.length} rows`);
+  }
+
+  private async runWorkerBench(): Promise<void> {
+    this.setStatus('Worker bench…');
+    const rows = buildFlatOrgsData(100).organizations.map((o) => ({
+      id: o.id,
+      kind: 'organization' as const,
+      label: o.name,
+      parentId: o.parentOrgId ?? null,
+    }));
+    const worker = createTransformWorker();
+    const t0 = performance.now();
+    try {
+      await mapInWorker(worker, 'flatRowsToDiagram', rows);
+      const ms = Math.round(performance.now() - t0);
+      this.showToast(`Worker map: ${rows.length} rows in ${ms}ms`);
+      this.setStatus(`worker bench · ${ms}ms`);
+    } catch (err) {
+      this.showToast(err instanceof Error ? err.message : String(err));
+    } finally {
+      worker.terminate();
+    }
+  }
+
+  expandOrg(orgId: string): void {
+    this.flatOrgsData = toggleOrgExpanded(this.flatOrgsData, orgId);
+    if (this.tab === 'flat-orgs') void this.reload();
+  }
+
+  private showToast(message: string): void {
+    const toast = requireElement('toast');
+    toast.textContent = message;
+    toast.classList.add('visible');
+    setTimeout(() => toast.classList.remove('visible'), 4000);
+  }
+
+  private setStatus(text: string): void {
+    this.statusEl.textContent = text;
+  }
+}

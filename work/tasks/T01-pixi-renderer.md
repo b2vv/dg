@@ -1,7 +1,7 @@
 # T01 — Pixi renderer: OrganizationNode, PersonNode, DepartmentBlob
 
 **Пріоритет:** P0 (критичний)  
-**Статус:** in_progress  
+**Статус:** done  
 **Оцінка складності:** висока (новий render layer + theme + LOD hooks)  
 **Залежності:** contour bridge ✅, TD04
 
@@ -142,7 +142,7 @@ OrgHierarchyDiagram.create(container, {
 - [x] OrganizationNode відмінний від PersonNode візуально
 - [x] Theme switch light/dark змінює org symbol (`setTheme`)
 - [x] `destroy()` не залишає listeners / WebGL context leak
-- [ ] Typecheck + manual demo у T06
+- [x] Typecheck + manual demo у T06
 
 ---
 

@@ -4,15 +4,16 @@
   "private": true,
   "workspaces": [
     "packages/sdk",
-    "packages/web"
+    "packages/demo"
   ],
   "scripts": {
     "build:wasm": "cd packages/core && wasm-pack build --target web --out-dir ../sdk/src/wasm/pkg",
     "build": "npm run build -w @org-hierarchy/sdk",
-    "dev": "npm run dev -w @org-hierarchy/sdk",
+    "build:demo": "npm run build -w @org-hierarchy/demo",
+    "dev": "npm run dev -w @org-hierarchy/demo",
+    "test": "npm run test -w @org-hierarchy/sdk && npm run test -w @org-hierarchy/demo",
     "test:rust": "cd packages/core && cargo test",
-    "test": "npm run test -w @org-hierarchy/sdk",
-    "typecheck": "npm run typecheck -w @org-hierarchy/sdk"
+    "typecheck": "npm run typecheck -w @org-hierarchy/sdk && npm run typecheck -w @org-hierarchy/demo"
   },
   "engines": {
     "node": ">=20"
