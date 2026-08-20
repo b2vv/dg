@@ -22,4 +22,9 @@ export interface OrgHierarchyCallbacks {
   onContextMenuAction?(item: MenuItem, request: ContextMenuRequest): void;
   /** Fired after setData / create mapping completes */
   onDataMapped?(stats: { orgs: number; persons: number; positions: number; ms: number }): void;
+  /**
+   * Soft layout warnings from the last render (anchor overlap, skipped expands, etc.).
+   * Empty array when layout is clean.
+   */
+  onLayoutDiagnostics?(messages: readonly string[]): void;
 }

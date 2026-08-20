@@ -119,6 +119,7 @@ export class DiagramRenderer {
   private destroyed = false;
   private nodeBoxes = new Map<string, NodeWorldBox>();
   private contourSession: ContourSession | null = null;
+  private lastDiagnostics: string[] = [];
   private drag: {
     positionId: string;
     node: PersonNodeView;
@@ -136,6 +137,11 @@ export class DiagramRenderer {
 
   getNodeBox(id: string): NodeWorldBox | undefined {
     return this.nodeBoxes.get(id);
+  }
+
+  /** Soft layout warnings from the last successful `render` (may be empty). */
+  getLayoutDiagnostics(): readonly string[] {
+    return this.lastDiagnostics;
   }
 
   /** Axis-aligned union of remembered node boxes (world space). */
@@ -167,6 +173,7 @@ export class DiagramRenderer {
     this.contourSession = null;
     this.layers.clear();
     this.nodeBoxes.clear();
+    this.lastDiagnostics = [];
     this.drag = null;
 
     this.layers.root.eventMode = 'static';
@@ -490,6 +497,8 @@ export class DiagramRenderer {
           expandedOrgIds: options.staff?.expandedOrgIds ?? options.staff?.layout?.expandedOrgIds,
         },
       );
+
+      this.lastDiagnostics = [...canvas.diagnostics];
 
       const personById = new Map(data.persons.map((p) => [p.id, p]));
       const positionById = new Map(data.positions.map((p) => [p.id, p]));
