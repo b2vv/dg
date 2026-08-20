@@ -52,6 +52,10 @@ _Avoid_: Layer, strip, band (prefer tier in staff docs)
 Viewport zoom class `far` | `mid` | `near` controlling node/contour detail.
 _Avoid_: Zoom level (alone), detail mode
 
+**Incremental contour computer**:
+Caches per-department contour fingerprints so only dirty departments recompute after layout edits.
+_Avoid_: Contour memo, blob cache (prefer this name in SDK docs)
+
 **Promote overlay**:
 v1.x idea: HTML/React node chrome over Pixi (TD07) — not in v1.
 _Avoid_: Hybrid node, React card on canvas (for v1)
