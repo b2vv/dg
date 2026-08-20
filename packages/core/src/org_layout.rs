@@ -1,5 +1,5 @@
 use crate::hierarchy::build_from_flat;
-use crate::layout::compute_tree_layout;
+use crate::layout::compute_tidy_tree_layout;
 use crate::org_tree::{extract_subtree, validate_org_hierarchy, OrgTreeError};
 use crate::types::{
     FlatNodeInput, LayoutOptions, OrgFlatInput, OrgRowTreeLayoutResult,
@@ -34,7 +34,7 @@ pub fn compute_org_row_tree_layout(
     let root = build_from_flat(flat)
         .map_err(|e| OrgTreeError::UnknownOrg(format!("{expanded_root_id}: {e}")))?;
 
-    let layout = compute_tree_layout(&root, opts);
+    let layout = compute_tidy_tree_layout(&root, opts);
     Ok(OrgRowTreeLayoutResult {
         mode: "row-tree".into(),
         nodes: layout.nodes,

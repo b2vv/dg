@@ -1,45 +1,66 @@
+//! Tidy tree layout — Reingold–Tilford (1981) з нитками Walker (1989).
+//!
+//! Index-based реалізація (без raw pointers) — стабільна для будь-якої глибини/ширини.
+//!
+//! Властивості:
+//! - батько по центру над дітьми;
+//! - піддерева не перетинаються;
+//! - depth → row (y);
+//! - O(n) час, O(n) пам'ять.
+
 use crate::types::{HierarchyNode, LayoutEdge, LayoutNode, LayoutOptions, LayoutResult};
 
-struct InternalNode<'a> {
-    node: &'a HierarchyNode,
+struct InternalNode {
+    source: usize,
     prelim: f32,
     mod_: f32,
     shift: f32,
     change: f32,
     number: usize,
-    parent: Option<*mut InternalNode<'a>>,
-    children: Vec<InternalNode<'a>>,
-    thread: Option<*mut InternalNode<'a>>,
-    ancestor: *mut InternalNode<'a>,
+    parent: Option<usize>,
+    children: Vec<usize>,
+    thread: Option<usize>,
+    ancestor: usize,
     x: f32,
     y: f32,
 }
 
+pub fn compute_tidy_tree_layout(root: &HierarchyNode, opts: &LayoutOptions) -> LayoutResult {
+    compute_tree_layout_impl(root, opts)
+}
+
+/// Alias для сумісності з попереднім API.
 pub fn compute_tree_layout(root: &HierarchyNode, opts: &LayoutOptions) -> LayoutResult {
-    let mut internal = build_internal(root, None, 0);
-    first_walk(&mut internal, opts);
-    second_walk(&mut internal, 0.0, 0.0);
+    compute_tidy_tree_layout(root, opts)
+}
+
+fn compute_tree_layout_impl(root: &HierarchyNode, opts: &LayoutOptions) -> LayoutResult {
+    let mut sources: Vec<&HierarchyNode> = Vec::new();
+    let mut nodes: Vec<InternalNode> = Vec::new();
+    let root_idx = build_index_tree(root, None, 0, &mut sources, &mut nodes);
+
+    first_walk(root_idx, &mut nodes, opts);
+    second_walk(root_idx, &mut nodes, 0.0, 0.0);
 
     let horizontal = opts.direction == "horizontal";
-    let mut nodes: Vec<LayoutNode> = Vec::new();
-    collect(&internal, &mut nodes, horizontal, opts);
+    let mut out: Vec<LayoutNode> = Vec::new();
+    collect_nodes(root_idx, &nodes, &sources, &mut out, horizontal, opts);
 
-    let (min_x, min_y, max_x, max_y) = bounds(&nodes);
+    let (min_x, min_y, max_x, max_y) = bounds(&out);
     let ox = opts.margin - min_x;
     let oy = opts.margin - min_y;
-
-    for n in &mut nodes {
+    for n in &mut out {
         n.x += ox;
         n.y += oy;
     }
 
-    let node_map: std::collections::HashMap<String, (f32, f32, f32, f32)> = nodes
+    let node_map: std::collections::HashMap<String, (f32, f32, f32, f32)> = out
         .iter()
         .map(|n| (n.id.clone(), (n.x, n.y, n.width, n.height)))
         .collect();
 
     let mut edges = Vec::new();
-    for n in &nodes {
+    for n in &out {
         if let Some(pid) = &n.parent_id {
             if let (Some(p), Some(c)) = (node_map.get(pid), node_map.get(&n.id)) {
                 edges.push(LayoutEdge {
@@ -55,18 +76,24 @@ pub fn compute_tree_layout(root: &HierarchyNode, opts: &LayoutOptions) -> Layout
         width: max_x - min_x + opts.margin * 2.0,
         height: max_y - min_y + opts.margin * 2.0,
         direction: opts.direction.clone(),
-        nodes,
+        nodes: out,
         edges,
     }
 }
 
-fn build_internal<'a>(
+fn build_index_tree<'a>(
     node: &'a HierarchyNode,
-    parent: Option<*mut InternalNode<'a>>,
+    parent: Option<usize>,
     index: usize,
-) -> InternalNode<'a> {
-    let mut internal = InternalNode {
-        node,
+    sources: &mut Vec<&'a HierarchyNode>,
+    nodes: &mut Vec<InternalNode>,
+) -> usize {
+    let source = sources.len();
+    sources.push(node);
+
+    let idx = nodes.len();
+    nodes.push(InternalNode {
+        source,
         prelim: 0.0,
         mod_: 0.0,
         shift: 0.0,
@@ -75,195 +102,189 @@ fn build_internal<'a>(
         parent,
         children: Vec::new(),
         thread: None,
-        ancestor: std::ptr::null_mut(),
+        ancestor: idx,
         x: 0.0,
         y: 0.0,
-    };
-    internal.ancestor = &mut internal as *mut _;
-    internal.children = node
+    });
+
+    let child_ids: Vec<usize> = node
         .children
         .iter()
         .enumerate()
-        .map(|(i, c)| build_internal(c, Some(&mut internal as *mut _), i))
+        .map(|(i, c)| build_index_tree(c, Some(idx), i, sources, nodes))
         .collect();
-    internal
+
+    nodes[idx].children = child_ids;
+    idx
 }
 
 fn sep(opts: &LayoutOptions) -> f32 {
     opts.node_width + opts.horizontal_gap
 }
 
-fn first_walk<'a>(v: &mut InternalNode<'a>, opts: &LayoutOptions) {
-    if v.children.is_empty() {
-        let left = left_sibling(v);
-        v.prelim = left
-            .map(|s| unsafe { (*s).prelim + sep(opts) })
+fn first_walk(root: usize, nodes: &mut [InternalNode], opts: &LayoutOptions) {
+    if nodes[root].children.is_empty() {
+        let prelim = left_sibling(root, nodes)
+            .map(|s| nodes[s].prelim + sep(opts))
             .unwrap_or(0.0);
+        nodes[root].prelim = prelim;
+        return;
+    }
+
+    let mut default_ancestor = nodes[root].children[0];
+    for &child in &nodes[root].children.clone() {
+        first_walk(child, nodes, opts);
+        default_ancestor = apportion(child, default_ancestor, nodes, opts);
+    }
+
+    execute_shifts(root, nodes);
+
+    let first = nodes[root].children[0];
+    let last = *nodes[root].children.last().unwrap();
+    let mid = (nodes[first].prelim + nodes[last].prelim) / 2.0;
+
+    if let Some(ls) = left_sibling(root, nodes) {
+        nodes[root].prelim = nodes[ls].prelim + sep(opts);
+        nodes[root].mod_ = nodes[root].prelim - mid;
     } else {
-        let mut default_ancestor = &mut v.children[0] as *mut InternalNode<'a>;
-        for child in &mut v.children {
-            first_walk(child, opts);
-            default_ancestor = apportion(child, default_ancestor, opts);
-        }
-        execute_shifts(v);
-        let mid = (v.children.first().unwrap().prelim + v.children.last().unwrap().prelim) / 2.0;
-        if let Some(ls) = left_sibling(v) {
-            let ls_prelim = unsafe { (*ls).prelim };
-            v.prelim = ls_prelim + sep(opts);
-            v.mod_ = v.prelim - mid;
-        } else {
-            v.prelim = mid;
-        }
+        nodes[root].prelim = mid;
     }
 }
 
-fn second_walk<'a>(v: &mut InternalNode<'a>, mod_sum: f32, depth: f32) {
-    v.x = v.prelim + mod_sum;
-    v.y = depth;
-    for child in &mut v.children {
-        second_walk(child, mod_sum + v.mod_, depth + 1.0);
+fn second_walk(root: usize, nodes: &mut [InternalNode], mod_sum: f32, depth: f32) {
+    nodes[root].x = nodes[root].prelim + mod_sum;
+    nodes[root].y = depth;
+    let next_mod = mod_sum + nodes[root].mod_;
+    for &child in &nodes[root].children.clone() {
+        second_walk(child, nodes, next_mod, depth + 1.0);
     }
 }
 
-fn left_sibling<'a>(v: &InternalNode<'a>) -> Option<*mut InternalNode<'a>> {
-    if v.number == 0 {
+fn left_sibling(v: usize, nodes: &[InternalNode]) -> Option<usize> {
+    let node = &nodes[v];
+    if node.number == 0 {
         return None;
     }
-    v.parent.map(|p| unsafe {
-        let parent = &mut *p;
-        &mut parent.children[v.number - 1] as *mut _
-    })
+    let parent = node.parent?;
+    Some(nodes[parent].children[node.number - 1])
 }
 
-fn apportion<'a>(
-    v: &mut InternalNode<'a>,
-    mut default_ancestor: *mut InternalNode<'a>,
+fn apportion(
+    v: usize,
+    mut default_ancestor: usize,
+    nodes: &mut [InternalNode],
     opts: &LayoutOptions,
-) -> *mut InternalNode<'a> {
-    let left = match left_sibling(v) {
-        Some(l) => l,
-        None => return default_ancestor,
+) -> usize {
+    let Some(left) = left_sibling(v, nodes) else {
+        return default_ancestor;
     };
 
-    let mut vir: *mut InternalNode<'a> = v as *mut _;
-    let mut vor: *mut InternalNode<'a> = v as *mut _;
-    let mut vil: *mut InternalNode<'a> = left;
-    let parent = unsafe { &*v.parent.unwrap() };
-    let mut vol: *mut InternalNode<'a> = &parent.children[0] as *const _ as *mut _;
+    let parent = nodes[v].parent.expect("node with left sibling has parent");
+    let mut vir = v;
+    let mut vor = v;
+    let mut vil = left;
+    let mut vol = nodes[parent].children[0];
 
-    let mut sir = unsafe { (*vir).mod_ };
-    let mut sor = unsafe { (*vor).mod_ };
-    let mut sil = unsafe { (*vil).mod_ };
-    let mut sol = unsafe { (*vol).mod_ };
+    let mut sir = nodes[vir].mod_;
+    let mut sor = nodes[vor].mod_;
+    let mut sil = nodes[vil].mod_;
+    let mut sol = nodes[vol].mod_;
 
-    let mut nr = next_right(vil);
-    let mut nl = next_left(vir);
+    let mut nr = next_right(vil, nodes);
+    let mut nl = next_left(vir, nodes);
 
     while nr.is_some() && nl.is_some() {
         vil = nr.unwrap();
         vir = nl.unwrap();
-        vol = next_left(vol).unwrap();
-        vor = next_right(vor).unwrap();
+        vol = next_left(vol, nodes).unwrap();
+        vor = next_right(vor, nodes).unwrap();
 
-        unsafe {
-            (*vor).ancestor = v as *mut _;
-            let shift = (*vil).prelim + sil - ((*vir).prelim + sir) + sep(opts);
-            if shift > 0.0 {
-                move_subtree(get_ancestor(vil, v, default_ancestor), v as *mut _, shift);
-                sir += shift;
-                sor += shift;
-            }
-            sil += (*vil).mod_;
-            sir += (*vir).mod_;
-            sol += (*vol).mod_;
-            sor += (*vor).mod_;
+        nodes[vor].ancestor = v;
+        let shift = nodes[vil].prelim + sil - (nodes[vir].prelim + sir) + sep(opts);
+        if shift > 0.0 {
+            move_subtree(ancestor(vil, v, default_ancestor, nodes), v, shift, nodes);
+            sir += shift;
+            sor += shift;
         }
-        nr = next_right(vil);
-        nl = next_left(vir);
+        sil += nodes[vil].mod_;
+        sir += nodes[vir].mod_;
+        sol += nodes[vol].mod_;
+        sor += nodes[vor].mod_;
+
+        nr = next_right(vil, nodes);
+        nl = next_left(vir, nodes);
     }
 
-    if nr.is_some() && next_right(vor).is_none() {
-        unsafe {
-            (*vor).thread = nr;
-            (*vor).mod_ += sil - sor;
-        }
+    if nr.is_some() && next_right(vor, nodes).is_none() {
+        nodes[vor].thread = nr;
+        nodes[vor].mod_ += sil - sor;
     }
-    if nl.is_some() && next_left(vol).is_none() {
-        unsafe {
-            (*vol).thread = nl;
-            (*vol).mod_ += sir - sol;
-            default_ancestor = v as *mut _;
-        }
+    if nl.is_some() && next_left(vol, nodes).is_none() {
+        nodes[vol].thread = nl;
+        nodes[vol].mod_ += sir - sol;
+        default_ancestor = v;
     }
     default_ancestor
 }
 
-fn move_subtree<'a>(wl: *mut InternalNode<'a>, wr: *mut InternalNode<'a>, shift: f32) {
-    unsafe {
-        let subtrees = (*wr).number as f32 - (*wl).number as f32;
-        if subtrees <= 0.0 {
-            return;
-        }
-        (*wr).change -= shift / subtrees;
-        (*wr).shift += shift;
-        (*wl).change += shift / subtrees;
-        (*wr).prelim += shift;
-        (*wr).mod_ += shift;
+fn move_subtree(wl: usize, wr: usize, shift: f32, nodes: &mut [InternalNode]) {
+    let subtrees = nodes[wr].number as f32 - nodes[wl].number as f32;
+    if subtrees <= 0.0 {
+        return;
     }
+    nodes[wr].change -= shift / subtrees;
+    nodes[wr].shift += shift;
+    nodes[wl].change += shift / subtrees;
+    nodes[wr].prelim += shift;
+    nodes[wr].mod_ += shift;
 }
 
-fn execute_shifts<'a>(v: &mut InternalNode<'a>) {
+fn execute_shifts(v: usize, nodes: &mut [InternalNode]) {
+    let children: Vec<usize> = nodes[v].children.clone();
     let mut shift = 0.0f32;
     let mut change = 0.0f32;
-    for child in v.children.iter_mut().rev() {
-        child.prelim += shift;
-        child.mod_ += shift;
-        change += child.change;
-        shift += child.shift + change;
+    for child in children.into_iter().rev() {
+        nodes[child].prelim += shift;
+        nodes[child].mod_ += shift;
+        change += nodes[child].change;
+        shift += nodes[child].shift + change;
     }
 }
 
-fn get_ancestor<'a>(
-    vil: *mut InternalNode<'a>,
-    v: &InternalNode<'a>,
-    default: *mut InternalNode<'a>,
-) -> *mut InternalNode<'a> {
-    unsafe {
-        if (*(*vil).ancestor).parent == v.parent {
-            (*vil).ancestor
-        } else {
-            default
-        }
+fn ancestor(vil: usize, v: usize, default: usize, nodes: &[InternalNode]) -> usize {
+    if nodes[nodes[vil].ancestor].parent == nodes[v].parent {
+        nodes[vil].ancestor
+    } else {
+        default
     }
 }
 
-fn next_left<'a>(v: *mut InternalNode<'a>) -> Option<*mut InternalNode<'a>> {
-    unsafe {
-        if (*v).children.is_empty() {
-            (*v).thread
-        } else {
-            Some(&mut (*v).children[0] as *mut _)
-        }
+fn next_left(v: usize, nodes: &[InternalNode]) -> Option<usize> {
+    if nodes[v].children.is_empty() {
+        nodes[v].thread
+    } else {
+        Some(nodes[v].children[0])
     }
 }
 
-fn next_right<'a>(v: *mut InternalNode<'a>) -> Option<*mut InternalNode<'a>> {
-    unsafe {
-        if (*v).children.is_empty() {
-            (*v).thread
-        } else {
-            let len = (*v).children.len();
-            Some(&mut (*v).children[len - 1] as *mut _)
-        }
+fn next_right(v: usize, nodes: &[InternalNode]) -> Option<usize> {
+    if nodes[v].children.is_empty() {
+        nodes[v].thread
+    } else {
+        Some(*nodes[v].children.last().unwrap())
     }
 }
 
-fn collect<'a>(
-    internal: &InternalNode<'a>,
+fn collect_nodes(
+    idx: usize,
+    nodes: &[InternalNode],
+    sources: &[&HierarchyNode],
     out: &mut Vec<LayoutNode>,
     horizontal: bool,
     opts: &LayoutOptions,
 ) {
+    let internal = &nodes[idx];
+    let source = sources[internal.source];
     let sep_x = opts.node_width + opts.horizontal_gap;
     let sep_y = opts.node_height + opts.vertical_gap;
 
@@ -278,28 +299,29 @@ fn collect<'a>(
         internal.y * sep_y
     };
 
-    let parent_id = internal.parent.map(|p| unsafe { (*p).node.id.clone() });
-    let depth = internal.y as u32;
+    let parent_id = internal
+        .parent
+        .map(|p| sources[nodes[p].source].id.clone());
 
     out.push(LayoutNode {
-        id: internal.node.id.clone(),
-        label: internal.node.label.clone(),
-        node_type: internal.node.node_type.clone(),
-        position: internal.node.position.clone(),
-        person: internal.node.person.clone(),
-        department: internal.node.department.clone(),
-        status: internal.node.status.clone(),
+        id: source.id.clone(),
+        label: source.label.clone(),
+        node_type: source.node_type.clone(),
+        position: source.position.clone(),
+        person: source.person.clone(),
+        department: source.department.clone(),
+        status: source.status.clone(),
         x,
         y,
         width: opts.node_width,
         height: opts.node_height,
-        depth,
+        depth: internal.y as u32,
         parent_id,
-        org_id: internal.node.id.clone(),
+        org_id: source.id.clone(),
     });
 
-    for child in &internal.children {
-        collect(child, out, horizontal, opts);
+    for &child in &internal.children {
+        collect_nodes(child, nodes, sources, out, horizontal, opts);
     }
 }
 
@@ -332,5 +354,120 @@ fn edge_path(from: &(f32, f32, f32, f32), to: &(f32, f32, f32, f32), horizontal:
         let y2 = to.1;
         let mid = (y1 + y2) / 2.0;
         format!("M {x1} {y1} V {mid} H {x2} V {y2}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::HierarchyNode;
+
+    fn default_opts() -> LayoutOptions {
+        LayoutOptions {
+            direction: "vertical".into(),
+            node_width: 100.0,
+            node_height: 40.0,
+            horizontal_gap: 20.0,
+            vertical_gap: 30.0,
+            margin: 10.0,
+        }
+    }
+
+    fn org_node(id: &str, children: Vec<HierarchyNode>) -> HierarchyNode {
+        HierarchyNode {
+            id: id.into(),
+            label: id.into(),
+            node_type: "organization".into(),
+            position: None,
+            person: None,
+            department: None,
+            status: "filled".into(),
+            children,
+        }
+    }
+
+    fn center_x(n: &LayoutNode) -> f32 {
+        n.x + n.width / 2.0
+    }
+
+    #[test]
+    fn tidy_tree_parent_centered_over_children() {
+        let root = org_node(
+            "root",
+            vec![
+                org_node("a", vec![]),
+                org_node("b", vec![]),
+                org_node("c", vec![]),
+            ],
+        );
+        let layout = compute_tidy_tree_layout(&root, &default_opts());
+        let by_id: std::collections::HashMap<_, _> =
+            layout.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+
+        let r = by_id["root"];
+        let a = by_id["a"];
+        let c = by_id["c"];
+        let expected = (center_x(a) + center_x(c)) / 2.0;
+        assert!((center_x(r) - expected).abs() < 0.01);
+    }
+
+    #[test]
+    fn tidy_tree_siblings_do_not_overlap() {
+        let root = org_node(
+            "root",
+            vec![
+                org_node("a", vec![org_node("a1", vec![]), org_node("a2", vec![])]),
+                org_node("b", vec![org_node("b1", vec![])]),
+                org_node("c", vec![]),
+            ],
+        );
+        let opts = default_opts();
+        let layout = compute_tidy_tree_layout(&root, &opts);
+
+        let mut by_depth: std::collections::HashMap<u32, Vec<&LayoutNode>> =
+            std::collections::HashMap::new();
+        for n in &layout.nodes {
+            by_depth.entry(n.depth).or_default().push(n);
+        }
+
+        for nodes_at_depth in by_depth.values() {
+            let mut sorted: Vec<_> = nodes_at_depth.iter().copied().collect();
+            sorted.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap());
+            for pair in sorted.windows(2) {
+                let left = pair[0];
+                let right = pair[1];
+                let gap = right.x - (left.x + left.width);
+                assert!(
+                    gap + 0.01 >= opts.horizontal_gap,
+                    "overlap at depth {} between {} and {} (gap={gap})",
+                    left.depth,
+                    left.id,
+                    right.id
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn tidy_tree_depth_maps_to_rows() {
+        let root = org_node("root", vec![org_node("c1", vec![org_node("gc", vec![])])]);
+        let opts = default_opts();
+        let row_step = opts.node_height + opts.vertical_gap;
+        let layout = compute_tidy_tree_layout(&root, &opts);
+
+        for n in &layout.nodes {
+            let expected_y = opts.margin + n.depth as f32 * row_step;
+            assert!((n.y - expected_y).abs() < 0.01, "{} y={} expected {}", n.id, n.y, expected_y);
+        }
+    }
+
+    #[test]
+    fn tidy_tree_single_node_has_margin() {
+        let root = org_node("solo", vec![]);
+        let opts = default_opts();
+        let layout = compute_tidy_tree_layout(&root, &opts);
+        assert_eq!(layout.nodes.len(), 1);
+        assert!((layout.nodes[0].x - opts.margin).abs() < 0.01);
+        assert!((layout.nodes[0].y - opts.margin).abs() < 0.01);
     }
 }
