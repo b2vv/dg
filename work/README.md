@@ -64,11 +64,8 @@ npm run dev          # http://localhost:3000
 17. [T17-g8-contour-morph.md](./tasks/T17-g8-contour-morph.md) — ✅ G8 contour morph during drag
 18. [T18-worker-search-index.md](./tasks/T18-worker-search-index.md) — ✅ worker/pool search index
 19. [T19-camera-tween.md](./tasks/T19-camera-tween.md) — ✅ animated fitView / resetView / panTo
-<<<<<<< HEAD
-20. [T21-chunked-mapper-facade.md](./tasks/T21-chunked-mapper-facade.md) — ✅ pooled array mapper facade
-=======
 20. [T20-staff-expand-inplace.md](./tasks/T20-staff-expand-inplace.md) — ✅ tier-3 expand-in-place
->>>>>>> origin/main
+21. [T21-chunked-mapper-facade.md](./tasks/T21-chunked-mapper-facade.md) — ✅ pooled array mapper facade
 
 ## Технічний борг
 

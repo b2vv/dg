@@ -68,15 +68,13 @@ _Avoid_: Main-thread-only index at 2M scale
 Animated pan/zoom of the Pixi viewport (`fitView` / `resetView` / `panTo` with `animate: true`).
 _Avoid_: Instant jump (when motion is requested)
 
-<<<<<<< HEAD
-**Pooled array mapper**:
-Facade that chunks an input array across a bounded WorkerPool (`createPooledArrayMapper` / `mapFlatRowsInPool`).
-_Avoid_: One worker per chunk, unbounded concurrency
-=======
 **Expand-in-place**:
 Showing a tier-3 org’s staff under its card without changing staff focus (`toggleStaffOrgExpand`).
 _Avoid_: Drill (that’s `focusStaffOrg`)
->>>>>>> origin/main
+
+**Pooled array mapper**:
+Facade that chunks an input array across a bounded WorkerPool (`createPooledArrayMapper` / `mapArrayItems` / `mapFlatRowsInPool`).
+_Avoid_: One worker per chunk, unbounded concurrency
 
 **Promote overlay**:
 v1.x idea: HTML/React node chrome over Pixi (TD07) — not in v1.
