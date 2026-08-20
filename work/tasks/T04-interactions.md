@@ -7,6 +7,25 @@
 
 ---
 
+## TDD (обов'язково — перед кодом)
+
+> Політика: [`work/TDD.md`](../TDD.md)
+
+### Success tests
+- [ ] click PersonNode → `onNodeClick` з правильним `NodeRef`
+- [ ] `search('Alice')` → non-empty `SearchResult[]`
+- [ ] `revealPath(nodeId)` → expanded orgs на шляху до root
+- [ ] drag person → `onLayoutChange({ type: 'position-move', ... })`
+
+### Failure tests
+- [ ] `search('')` → `[]`
+- [ ] `search` без index → reject або empty (до init)
+- [ ] drag на invalid cell → snap back / reject
+- [ ] `appendData` з invalid mapper → throw
+- [ ] `focusNode('unknown')` → no-op або throw за spec
+
+---
+
 ## Мета
 
 Реалізувати user interactions з `docs/REQUIREMENTS.md` §4.7.

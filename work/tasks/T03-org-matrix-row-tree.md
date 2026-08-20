@@ -7,6 +7,24 @@
 
 ---
 
+## TDD (обов'язково — перед кодом)
+
+> Політика: [`work/TDD.md`](../TDD.md)
+
+### Success tests
+- [ ] `detectOrgMode(all collapsed)` → `'matrix'`
+- [ ] `detectOrgMode(one expanded)` → `'row-tree'`
+- [ ] `computeOrgRowTreeLayout(10 org, rootId)` → nodes з monotonic depth по y
+- [ ] matrix D&D swap → `matrixOrder` оновлюється
+
+### Failure tests
+- [ ] cycle у `parentOrgId` → throw або broken cycle detection
+- [ ] `expandedRootId` не існує → throw
+- [ ] empty organizations → empty layout, без throw
+- [ ] duplicate org ids → reject
+
+---
+
 ## Мета
 
 Реалізувати два режими відображення організацій з автоматичним перемиканням за станом `collapsed`.

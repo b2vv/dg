@@ -7,6 +7,23 @@
 
 ---
 
+## TDD (обов'язково — перед кодом)
+
+> Політика: [`work/TDD.md`](../TDD.md)
+
+### Success tests
+- [ ] `export({ format: 'png', scope: 'viewport' })` → Blob type `image/png`
+- [ ] `export({ format: 'svg' })` → string містить `<path d="M`
+- [ ] `export({ format: 'pdf' })` → Blob, valid PDF header `%PDF`
+
+### Failure tests
+- [ ] export до mount diagram → throw
+- [ ] `format: 'invalid'` → throw
+- [ ] cross-origin photo taint → PNG з placeholder, не crash
+- [ ] `scope: 'subtree'` без `subtreeRootId` → throw
+
+---
+
 ## Мета
 
 Експорт поточного viewport або повного diagram у формати з REQUIREMENTS §0 п.7.

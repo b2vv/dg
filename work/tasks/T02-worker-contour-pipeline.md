@@ -7,6 +7,23 @@
 
 ---
 
+## TDD (обов'язково — перед кодом)
+
+> Політика: [`work/TDD.md`](../TDD.md)
+
+### Success tests
+- [ ] `computeDeptContourInWorker('IT', VARIANT_B)` → `path` starts with `M`, ends with `Z`
+- [ ] `mapInWorker(flatRowsToDiagram, 1000 rows)` → DiagramData з очікуваною кількістю org
+- [ ] pipeline `.step('contours')` повертає масив contours для кожного dept
+
+### Failure tests
+- [ ] worker timeout → Promise reject з message
+- [ ] WASM init failure → fallback main thread або reject
+- [ ] invalid worker message payload → error response, не silent hang
+- [ ] empty positions array → reject / empty result за spec
+
+---
+
 ## Мета
 
 Перенести важкі обчислення (**contour**, **layout**, **mappers**) off main thread через існуючий worker infrastructure.

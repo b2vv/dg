@@ -8,9 +8,15 @@
 work/
   README.md              ← цей файл (навігація)
   SPEC.md                ← специфікація + алгоритми (за результатами обговорення)
+  TDD.md                 ← політика: тести ПЕРЕД кодом (success + failure)
   tech-debt/             ← зафіксований технічний борг
   tasks/                 ← детальні задачі для розробки
 ```
+
+## Процес розробки (TDD)
+
+**Обов'язково:** перед production-кодом — тести на **success** і **failure** кейси.  
+Цикл: **Red → Green → Refactor**. Деталі: [TDD.md](./TDD.md).
 
 ## Статус проєкту (2026-08-20)
 
@@ -56,4 +62,5 @@ work/
 | `docs/REQUIREMENTS.md` | Бізнес-вимоги, UI, magnetism rules |
 | `docs/TECH_STACK.md` | Архітектура та стек |
 | `work/SPEC.md` | Алгоритми, API, стан імплементації |
+| `work/TDD.md` | TDD: тести перед кодом, success + failure |
 | `packages/core/src/contour.rs` | Референс contour algorithm |

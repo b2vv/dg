@@ -7,6 +7,22 @@
 
 ---
 
+## TDD (обов'язково — перед кодом)
+
+> Політика: [`work/TDD.md`](../TDD.md)
+
+### Success tests
+- [ ] smoke: demo module імпортується без throw
+- [ ] Variant B tab: `computeDeptContour('IT', ...)` path length > 0
+- [ ] theme toggle змінює CSS class / data-theme
+
+### Failure tests
+- [ ] missing container element → graceful error message
+- [ ] WASM load fail (mock) → user-visible error, не blank page
+- [ ] invalid JSON upload у mapper tab → error toast, не crash
+
+---
+
 ## Мета
 
 Створити **офіційне demo** для manual QA та embed documentation, замінивши legacy `packages/web` (Rspack).

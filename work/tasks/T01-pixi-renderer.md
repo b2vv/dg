@@ -7,6 +7,24 @@
 
 ---
 
+## TDD (обов'язково — перед кодом)
+
+> Політика: [`work/TDD.md`](../TDD.md)
+
+### Success tests
+- [ ] `create(container, config)` монтує canvas з non-zero розмірами
+- [ ] `DepartmentBlob.fromPath(VARIANT_B IT path)` створює Graphics з ≥8 corners
+- [ ] `PersonNode` рендерить ПІБ + title + badge при `isTemporary: true`
+- [ ] `OrganizationNode` перемикає symbol URL при `theme: 'dark'`
+
+### Failure tests
+- [ ] `create(null, config)` → throw
+- [ ] `DepartmentBlob.fromPath('')` → empty Graphics, без throw
+- [ ] `destroy()` двічі → без leak / без throw
+- [ ] invalid `contour.path` (malformed SVG) → fallback, warn
+
+---
+
 ## Мета
 
 Реалізувати WebGL рендер через **Pixi.js** для трьох візуальних профілів, описаних у `docs/REQUIREMENTS.md` §4.5.

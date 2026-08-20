@@ -7,6 +7,23 @@
 
 ---
 
+## TDD (обов'язково — перед кодом)
+
+> Політика: [`work/TDD.md`](../TDD.md)
+
+### Success tests
+- [ ] `disconnected_own_two_contours` — 2 paths для одного dept
+- [ ] `magnet_radius_limits_merge` — cells поза radius не зливаються
+- [ ] variant A/B tests — **залишаються green** після змін
+
+### Failure tests
+- [ ] `compute_dept_contour("IT", &[], cfg)` → `Err`
+- [ ] unknown departmentId (no own cells) → `Err`
+- [ ] negative `padding_cells` → clamp або `Err` (за spec)
+- [ ] `magnet_radius: 0` → кожна own cell окремий contour (M4 edge)
+
+---
+
 ## Мета
 
 Закрити розрив між **специфікацією magnetism** (REQUIREMENTS §4.6.1) та **поточною impl** у `packages/core/src/contour.rs`.

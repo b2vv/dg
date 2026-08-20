@@ -396,3 +396,45 @@ diagram.destroy();
 | 2 Org modes | matrix, row-tree, search, D&D org | 🔴 |
 | 3 Staff | 3 renderers, contour Pixi, D&D person, block shift | 🟡 contour WASM ✅ |
 | 4 Polish | context menu, export, docs | 🔴 |
+
+---
+
+## 12. Процес розробки — TDD (обов'язково)
+
+> Повна політика: [`work/TDD.md`](./TDD.md)
+
+### Правило
+
+**Перед написанням production-коду — спочатку тести.** Кожна feature проходить цикл **Red → Green → Refactor**.
+
+### Два обов'язкові класи тестів
+
+| Клас | Що перевіряємо |
+|------|------------------|
+| **Success** | Happy path — коректний вхід → очікуваний результат |
+| **Failure** | Invalid/empty/boundary — помилка, reject, `Err`, throw |
+
+Без обох класів задача **не вважається завершеною**.
+
+### Інструменти
+
+| Шар | Runner | Команда |
+|-----|--------|---------|
+| Rust WASM | `cargo test` | `npm run test:rust` |
+| TypeScript SDK | Vitest (додати) | `npm run test -w @org-hierarchy/sdk` |
+
+### Workflow на задачу
+
+1. Acceptance criteria з `work/tasks/T*.md` → список success + failure тестів
+2. Commit тестів (RED — падають)
+3. Мінімальний impl (GREEN)
+4. Refactor без зміни поведінки
+5. CI: tests + typecheck + build:wasm
+
+### Приклад (contour)
+
+```
+RED:    test compute_contour_empty_dept_returns_err  → FAIL (no test yet)
+GREEN:  impl returns Err for empty own cells       → PASS
+REFACTOR: extract helper if needed                 → PASS
+```
