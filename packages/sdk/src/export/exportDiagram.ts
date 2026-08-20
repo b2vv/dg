@@ -1,0 +1,89 @@
+import type { Application } from 'pixi.js';
+import type { DiagramData } from '../data/types.js';
+import type { RenderConfig } from '../render/types.js';
+import { assertExportOptions, ExportError, type ExportOptions } from './types.js';
+import { filterDiagramSubtree } from './subtree.js';
+import { buildDiagramSvg } from './svgExport.js';
+import { extractPngFromPixi, pngBlobToPdfBlob } from './pngExport.js';
+
+export interface ExportContext {
+  data: DiagramData;
+  mounted: boolean;
+  app: Application | null;
+  renderConfig: RenderConfig;
+  currentOrgId?: string;
+  background?: string;
+}
+
+export async function exportDiagram(
+  ctx: ExportContext,
+  options: ExportOptions,
+): Promise<Blob | string> {
+  if (!ctx.mounted) {
+    throw new ExportError('Cannot export before the diagram is mounted');
+  }
+  assertExportOptions(options);
+
+  const scope = options.scope ?? 'viewport';
+  let data = ctx.data;
+  if (scope === 'subtree') {
+    data = filterDiagramSubtree(data, options.subtreeRootId!);
+  }
+
+  if (options.format === 'svg') {
+    return buildDiagramSvg({
+      data,
+      config: ctx.renderConfig,
+      background: options.background ?? ctx.background,
+      includeLabels: options.includeLabels,
+      currentOrgId: ctx.currentOrgId,
+    });
+  }
+
+  if (options.format === 'png') {
+    if (ctx.app) {
+      return extractPngFromPixi(ctx.app);
+    }
+    // No Pixi — rasterize via empty canvas placeholder (still image/png)
+    const canvas = document.createElement('canvas');
+    canvas.width = options.width ?? 800;
+    canvas.height = 600;
+    const c = canvas.getContext('2d');
+    if (c) {
+      c.fillStyle = options.background ?? '#f8fafc';
+      c.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    const { canvasToPngBlob } = await import('./pngExport.js');
+    return canvasToPngBlob(canvas);
+  }
+
+  // pdf
+  if (ctx.app) {
+    const png = await extractPngFromPixi(ctx.app);
+    return pngBlobToPdfBlob(png, options.width ?? 800, 600);
+  }
+  // Headless / no Pixi: emit a solid-page PDF directly (avoids jsdom canvas Blob quirks)
+  const w = options.width ?? 800;
+  const h = 600;
+  const { rgbImageToPdf, solidRgb } = await import('./pdfExport.js');
+  const bytes = rgbImageToPdf(w, h, solidRgb(w, h, 248, 250, 252));
+  const copy = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(copy).set(bytes);
+  return new Blob([copy], { type: 'application/pdf' });
+}
+
+export function printDiagram(svg: string): void {
+  if (typeof window === 'undefined') {
+    throw new ExportError('print() requires a browser window');
+  }
+  const w = window.open('', '_blank', 'noopener,noreferrer');
+  if (!w) {
+    throw new ExportError('Unable to open print window (popup blocked?)');
+  }
+  w.document.write(`<!doctype html><html><head><title>Print</title>
+<style>@page{margin:12mm}body{margin:0}svg{max-width:100%;height:auto}</style>
+</head><body>${svg}</body></html>`);
+  w.document.close();
+  w.focus();
+  w.print();
+}

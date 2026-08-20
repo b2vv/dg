@@ -1,0 +1,59 @@
+{
+  "name": "@org-hierarchy/sdk",
+  "version": "0.1.0",
+  "description": "Org hierarchy diagram SDK — data, mappers, worker helpers",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./react": {
+      "import": "./dist/react/index.js",
+      "types": "./dist/react/index.d.ts"
+    },
+    "./worker": {
+      "import": "./dist/worker/index.js",
+      "types": "./dist/worker/index.d.ts"
+    },
+    "./mappers": {
+      "import": "./dist/mappers/index.js",
+      "types": "./dist/mappers/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rsbuild build && tsc --emitDeclarationOnly --declaration --outDir dist",
+    "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
+    "dev": "rsbuild dev",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true },
+    "react-dom": { "optional": true }
+  },
+  "devDependencies": {
+    "@rsbuild/core": "^1.2.0",
+    "@rsbuild/plugin-type-check": "^1.2.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "jsdom": "^25.0.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.2.7"
+  },
+  "dependencies": {
+    "pixi.js": "^8.19.0"
+  }
+}

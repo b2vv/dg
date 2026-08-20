@@ -1,0 +1,17 @@
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    environment: 'jsdom',
+    include: ['src/**/*.test.ts'],
+    setupFiles: ['./vitest.setup.ts'],
+    testTimeout: 15_000,
+    deps: {
+      optimizer: {
+        web: {
+          include: ['react', 'react-dom'],
+        },
+      },
+    },
+  },
+});

@@ -1,0 +1,754 @@
+# Специфікація Org Hierarchy SDK — алгоритми та стан
+
+> Документ зафіксовано за результатами обговорення та поточної імплементації.  
+> Дата: 2026-08-20. Версія scope: **v1**.
+
+---
+
+## 1. Продукт
+
+**Embed-бібліотека** `@org-hierarchy/sdk` для діаграм:
+
+- **Організаційної ієрархії** (~50 000 org, matrix / row-tree)
+- **Штатно-посадової структури** (dept contours, person nodes)
+
+Host завантажує дані зовні → передає через `DataMapper` → `OrgHierarchyDiagram.create()`.
+
+| Параметр | Значення |
+|----------|----------|
+| Масштаб dataset | ~50k org, ~2M persons |
+| Одночасний рендер | viewport + LOD (не всі 2M nodes) |
+| Логіка | клієнт (browser) |
+| Threading | Web Worker (не Service Worker) |
+| Core compute | Rust → WASM |
+| Render | Pixi.js WebGL |
+| Bundler | Rsbuild |
+| Export (v1) | SVG, PNG, PDF, print |
+
+---
+
+## 2. Режими відображення
+
+### 2.1 Організації
+
+```mermaid
+stateDiagram-v2
+  [*] --> Matrix: всі org collapsed
+  Matrix --> RowTree: expand ≥1 org
+  RowTree --> Matrix: collapse всі
+```
+
+| Режим | Умова | Layout |
+|-------|-------|--------|
+| **Matrix** | Усі org `collapsed: true` | Sparse adjacency між org; порядок змінюється D&D |
+| **Row-tree** | ≥1 org expanded | Рядки за depth: row 1, 2, 3… |
+
+**Алгоритм row-tree** (WASM `layout.rs` — Reingold-Tilford variant):
+
+1. Побудувати `HierarchyNode` з flat/parent links
+2. `first_walk` — prelim coords, resolve subtree overlap
+3. `second_walk` — final x,y з mod accumulators
+4. Зібрати `LayoutNode[]` + `LayoutEdge[]` (orthogonal edge paths)
+5. Normalize bounds + margin offset
+
+**Matrix layout** (planned, не в WASM):
+
+1. Collapsed org → node у sparse grid або force-directed adjacency
+2. Edges між org за `orgLinks` / parent-child
+3. D&D → reorder index у matrix row/column
+
+### 2.2 Штатка (staff) — три вертикальні яруси
+
+Staff — **окреме сімейство діаграми** від org matrix/row-tree (інший layout engine, інші стилі/шаблони).
+
+Полотно розбите на **три вертикальні блоки** (яруси). Поточна org завжди в **ярусі 2**.
+
+```text
+┌─────────────────────────────────────────────┐
+│ Ярус 1 — керуюча організація (optional)     │
+│ керівний склад; може бути відсутній         │
+├─────────────────────────────────────────────┤
+│ Ярус 2 — поточна організація (focus)        │
+│ ROOT = керівник поточної org                │
+│ може report-итись на посаду з ярусу 1       │
+├─────────────────────────────────────────────┤
+│ Ярус 3 — підпорядковані org / групи org     │
+│ у кожної org — свій блок посад              │
+└─────────────────────────────────────────────┘
+```
+
+| Ярус | Зміст |
+|------|--------|
+| **1** | Керуюча org (якщо є) — керівний склад |
+| **2** | Поточна org — повна штатка (посади, dept, person) |
+| **3** | Підпорядковані організації та групи організацій зі своїми посадами |
+
+**Root ярусу 2** = керівник поточної організації. Cross-tier edge на ярус 1 (якщо є) — **не** parent у тому ж дереві посад для tidy; окремий між’ярусний зв’язок.
+
+Групування всередині org-блоку: department → positions; Dept = **один** DepartmentBlob (магнетизм), Person/Position — окремі ноди.
+
+#### 2.2.1 Координати посад: matrix або дерево
+
+Розрахунок **відносно кожної організації** (локальна СК блоку → compose в world через offset ярусу + блоку).
+
+| Умова (у межах однієї org) | Layout |
+|----------------------------|--------|
+| **У всіх** видимих посад є coords | Чистий **matrix** |
+| **У жодної** немає coords | Чисте **дерево** за `reportLines` |
+| **Мікс** (частина з coords, частина без) | **Hybrid anchors** — див. нижче |
+
+Посада «має coords», якщо задано хоча б одне з: `gridCell` / `col+row` / `layoutCoords` (локальні до org).
+
+##### Мікс даних (канон) — Hybrid anchors
+
+Не ігнорувати вже розставлені посади і не вимагати all-or-nothing від host.
+
+```text
+1. ANCHORS  = positions WITH coords  → фіксуємо як є (перешкоди)
+2. FLOATING = positions WITHOUT coords
+3. Для кожного floating:
+     - якщо report-батько є anchor (або вже розміщений) → підвісити в дерево
+       відносно батька (локальний tidy / слоти під батьком)
+     - якщо батько теж floating → потрапляє в спільне floating-дерево/ліс
+4. Pack floating forest у вільне місце org-блоку (праворуч / нижче anchors),
+   без overlap з anchors; при конфлікті — eject floating, anchors не рухаємо
+5. Contour dept — після фінальних cells усього блоку
+```
+
+| Роль | Поведінка |
+|------|-----------|
+| **Anchor** (є coords) | Нерухомий для auto-pass; D&D може змінити coords явно |
+| **Floating** (немає coords) | Дерево / піддерево; може бути виштовхнутий при колізії з anchor |
+
+**Інваріанти міксу:**
+
+- Anchor **ніколи** не зсуваємо auto-layout’ом (інакше «зламається» ручний matrix).
+- Floating **не** перезаписує coords anchors.
+- Після першого успішного auto-place floating host **може** (опційно) persist-ити отримані coords через `onLayoutChange` — тоді наступний pass стає чистішим matrix; це не обов’язково в layout engine.
+
+**Режими host (опція, default = hybrid):**
+
+| `staffCoordMode` | Поведінка |
+|------------------|-----------|
+| `'hybrid'` (default) | Anchors + floating tree/pack |
+| `'tree'` | Ігнорувати всі coords org → чисте дерево |
+| `'matrix'` | Лише positions з coords; floating **не показувати** або показати в overflow-колонці з попередженням у diagnostics |
+| `'strict'` | Мікс у org → помилка валідації mapper/layout (fail fast) |
+
+##### Чому не «будь-який без coords → все в дерево»
+
+Ламає частковий D&D: користувач розставив 10 посад, прийшли 2 нові без coords — і всі 10 стрибають. Це класичний костиль.
+
+##### Чому не «все в matrix і дірки»
+
+Без report-структури auto-matrix для floating здогадується гірше, ніж дерево від батька. Дерево від report-батька зберігає ієрархію.
+
+Auto-tree root у чистому дереві: керівна посада org (ярус 2) або локальний head sub-org (ярус 3). У hybrid кожне floating-піддерево має свій локальний корінь (найвищий floating без розміщеного предка, або дитина anchor).
+
+##### Геометрія: розміри нод і відступи (обов’язково)
+
+Координати **недостатні** без розміру ноди та gap. І tree, і matrix працюють у **піксельних AABB** локальної СК org.
+
+**Розмір посади** (пріоритет):
+
+```text
+position.width / position.height
+  ?? template/staff style для kind
+  ?? layoutOptions.nodeWidth / nodeHeight
+```
+
+**Відступи (layout options / theme):**
+
+| Параметр | Дерево (tidy) | Matrix / anchors |
+|----------|---------------|------------------|
+| `horizontalGap` / peer margin | між sibling (tidy `peer_margin`) | мінімальний зазор між AABB по X |
+| `verticalGap` / parent–child margin | батько→дитина (tidy `parent_child_margin`) | мінімальний зазор між AABB по Y |
+| `margin` | край org-блоку | край org-блоку / ярусу |
+
+**Дерево (немає coords / floating):**  
+Ploeg/tidy вже приймає **per-node width/height** + margins — auto враховує різні розміри карток. Не дублювати окремий «grid pitch».
+
+**Matrix (є coords):**
+
+| Форма coords | Інтерпретація |
+|--------------|----------------|
+| `layoutCoords: {x,y}` | Точка прив’язки в **px** локальної СК (default: top-left ноди). AABB = `(x, y, width, height)`. Gap — для overlap-тестів і pack floating. |
+| `gridCell` / `col,row` | Логічний слот. Світові px: |
+
+```text
+cellPitchX = refCellWidth  + horizontalGap
+cellPitchY = refCellHeight + verticalGap
+x = col * cellPitchX
+y = row * cellPitchY
+```
+
+`refCellWidth/Height` — з options (або max ширини/висоти нод у блоці, якщо увімкнено `matrixPitch: 'max-node'`).  
+Сама нода може бути **менша/більша** за ref cell: малюємо за своїм `width/height`; для колізій і contour sampling використовуємо **фактичний AABB**, не лише слот.
+
+**Overlap після застосування розмірів:**
+
+- Два anchors перетинаються (з урахуванням gap) → **diagnostics** (warn); v1 не розсуваємо anchors auto (зберігаємо ручний matrix). Host/D&D має виправити.
+- Floating vs anchor → eject/pack floating (hybrid), з урахуванням AABB+gap, не лише center points.
+
+**Contour (dept):** після фінальних AABB → дискретизація в grid cells для magnetism (існуючий pipeline); різні розміри нод ⇒ різні набори cells.
+
+**Інваріант:** будь-який staff layout pass (tree / matrix / hybrid) на виході дає для кожної видимої посади `{ x, y, width, height }` у локальних px org — єдиний контракт для render і compose в яруси.
+
+#### 2.2.2 Два візуальні сімейства
+
+| Сімейство | Layout | Шаблони |
+|-----------|--------|---------|
+| **Організації** | matrix / row-tree | org card, emblem, org edges |
+| **Посади (штатка)** | 3 яруси + per-org matrix\|tree | стилі ярусу, посади, dept contour, person |
+
+Спільне: `DiagramData`, mappers, theme tokens, export, worker.  
+Різне: layout engine, gesture contract, session lifetime (зміна current org / сімейства → reset session).
+
+#### 2.2.3 Рішення v1 (зафіксовано 2026-08-20)
+
+##### Root ярусу 2 (неоднозначність)
+
+Порядок вибору керівної посади **поточної** org:
+
+```text
+1. position з isHead === true (у цій org) — якщо рівно одна
+2. інакше рівно одна position без report-батька в цій org (parentless)
+3. інакше → помилка валідації (fail fast), layout staff не стартує
+```
+
+Якщо кілька `isHead` або кілька parentless — теж error (не здогадуватись).
+
+##### Ярус 3 — картки + drill (не повні дерева одразу)
+
+**Проблема:** у холдингу під поточною org можуть бути десятки/сотні підлеглих org. Якщо в ярусі 3 одразу малювати **повну штатку** кожної — полотно вибухає (тисячі нод, повільний tidy, нечитабельно).
+
+**v1 поведінка ярусу 3:**
+
+```text
+За замовчуванням кожна підлегла org / група =
+  компактна Картка (назва, emblem, опційно count посад)
+  БЕЗ внутрішнього дерева/matrix посад
+
+Drill-in (жест користувача) =
+  клік по картці → ця org стає новою «поточною»
+  → перебудова полотна: вона в ярусі 2, її діти в ярусі 3
+  (або expand-in-place блоку — follow-up; v1 = зміна current org)
+```
+
+| Стан ярусу 3 | Що на екрані |
+|--------------|--------------|
+| Default | Картки org / рамки груп |
+| Після drill | Колишня «дитина» стає focus (ярус 2) з повною штаткою |
+
+Так ярус 3 лишається оглядовим; важка штатка — лише в focus (ярус 2).
+
+##### Owner координат посад
+
+- **Host** — канон при `setData` / mapper: що прийшло в `DiagramData`, те й правда.
+- **SDK** **може** після hybrid auto-layout емітити запропоновані coords для floating через `onLayoutChange` (напр. `{ type: 'position-auto-place', … }`).
+- Persist у host — **опційно** (host записує собі і наступного разу шле вже з coords). SDK **не** вважає in-memory допис єдиним джерелом правди між `setData`.
+
+##### Другий зв’язок (matrix / dotted report)
+
+У v1 — лише **decorative edge** поверх основного дерева (`reportLines` admin = ієрархія layout).  
+Друга лінія **не** будує друге tidy-дерево і не змінює parent для layout.
+
+---
+
+## 3. Алгоритм контуру департаменту (магнетизм)
+
+**Референс:** `packages/core/src/contour.rs`  
+**Правила:** `docs/REQUIREMENTS.md` §4.6, §4.6.1
+
+### 3.1 Вхід / вихід
+
+```ts
+interface ContourPositionInput {
+  id: string;
+  departmentId: string;
+  col: number;   // grid column
+  row: number;   // grid row
+}
+
+interface ContourMagnetConfig {
+  paddingCells?: number;      // default 0
+  corridorCells?: number;     // default 0 — gap до foreign (G2)
+  cellWidth?: number;         // default 100 px
+  cellHeight?: number;        // default 80 px
+  smoothIterations?: number;  // Chaikin, default 2
+}
+
+interface DeptContourResult {
+  departmentId: string;
+  points: { x: number; y: number }[];
+  path: string;               // SVG path "M … L … Z"
+  cornerCount: number;        // до smoothing
+}
+```
+
+WASM exports: `computeDeptContour`, `computeAllContours`  
+SDK bridge: `packages/sdk/src/contour/bridge.ts`
+
+### 3.2 Кроки алгоритму (реалізовано)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. OWN CELLS                                                │
+│    own = { (col,row) | position.departmentId == targetDept }│
+├─────────────────────────────────────────────────────────────┤
+│ 2. FOREIGN EXPANSION (G2)                                   │
+│    foreign = cells інших dept, розширені на ±corridorCells   │
+├─────────────────────────────────────────────────────────────┤
+│ 3. BBOX                                                     │
+│    bbox = union(own ∪ foreign) + padding                    │
+├─────────────────────────────────────────────────────────────┤
+│ 4. FLOOD-FILL INSIDE (M2, M3, G5)                           │
+│    inside = BFS від own cells:                                │
+│      • додає reachable empty cells                          │
+│      • блокує foreign cells                                   │
+│    → empty між own стають internal space, не internal lines  │
+├─────────────────────────────────────────────────────────────┤
+│ 5. ORTHOGONAL PERIMETER WALK (G3, G4)                       │
+│    Для кожної inside cell — 4 boundary edges                │
+│    Chain edges → closed polygon (clockwise)                 │
+│    G6 (no far-side wall) — implicit через flood exclusion   │
+├─────────────────────────────────────────────────────────────┤
+│ 6. CHAIKIN SMOOTHING (G4)                                   │
+│    smoothIterations ітерацій corner cutting                 │
+├─────────────────────────────────────────────────────────────┤
+│ 7. OUTPUT                                                   │
+│    points (px) = grid × cellWidth/Height                    │
+│    path = SVG M/L/Z                                         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 3.3 Правила магнетизму (G1–G8)
+
+| ID | Правило | Статус impl |
+|----|---------|-------------|
+| G1 | Attract own — злиття own cells | ✅ `magnetRadius` clustering + flood |
+| G2 | Repel foreign — gap/corridor | ✅ `corridorCells` expansion |
+| G3 | No internal edges | ✅ perimeter walk лише зовнішній |
+| G4 | Orthogonal first → smooth | ✅ trace + Chaikin |
+| G5 | Prefer notch (C-notch) | ✅ flood не включає foreign |
+| G6 | No far-side wall | ⚠️ implicit; немає окремого post-pass |
+| G7 | Padding snap | ✅ `paddingCells` у bbox |
+| G8 | Stable under drag | ❌ потребує incremental recompute + Pixi |
+
+| ID | Membership | Статус |
+|----|------------|--------|
+| M1 | Лише own dept positions | ✅ |
+| M2 | Foreign не в fill | ✅ |
+| M3 | Empty між own = internal | ✅ |
+| M4 | Disconnected own → multiple contours | ❌ не реалізовано |
+
+### 3.4 Канонічні тест-кейси
+
+**Variant A (2×2, notch):**
+
+```
+         col0     col1
+row0      P1       P2      IT
+row1      P4       P3      P4=CEO
+```
+
+**Variant B (фінальний ескіз):**
+
+```
+         col0     col1     col2
+row0      P1       P2       P3      IT
+row1               P4              CEO
+row2      P5                P6      IT
+```
+
+Критично: **справа від P4 (CEO) немає вертикальної лінії** контуру IT.
+
+Demo positions: `VARIANT_B_POSITIONS` у `packages/sdk/src/contour/bridge.ts`
+
+### 3.5 Pseudocode (повний)
+
+```text
+function computeDeptContour(deptId, positions, config):
+  own ← cells where departmentId == deptId
+  if own.empty: error
+
+  foreign ← ∅
+  for p in positions where p.departmentId != deptId:
+    for dc, dr in [-corridor..+corridor]²:
+      foreign.add(expand(p, dc, dr))
+
+  bbox ← boundingBox(own ∪ foreign, pad = paddingCells + 1)
+  inside ← floodFill(seeds=own, blocked=foreign, bounds=bbox)
+  corners ← traceOrthogonalPerimeter(inside)
+  smooth ← chaikin(corners, smoothIterations)
+  return { points: scale(smooth), path: toSvg(smooth) }
+```
+
+---
+
+## 4. Модель даних (DiagramData)
+
+```ts
+interface DiagramData {
+  organizations: DiagramOrganization[];
+  groups: DiagramGroup[];
+  departments: DiagramDepartment[];
+  persons: DiagramPerson[];
+  positions: DiagramPosition[];
+  reportLines: ReportLine[];
+  orgLinks?: OrgLink[];
+}
+```
+
+**Position** (staff):
+
+```ts
+interface DiagramPosition {
+  id: string;
+  title: string;
+  organizationId: string;
+  departmentId?: string;
+  col?: number;              // matrix grid (якщо є → не tree)
+  row?: number;
+  layoutCoords?: Point2D;    // drag override / absolute local
+  isTemporary: boolean;
+  status: 'filled' | 'vacant' | 'acting';
+  assignments: PositionAssignment[];
+}
+```
+
+> Немає coords у посадах org → layout блоку як **дерево** (§2.2.1). Є coords → matrix. Contour (dept) будується після розміщення cells.
+
+**Mapper flow:**
+
+```
+Host raw data
+  → DataMapper.toDiagram(raw)
+  → optional normalize
+  → DiagramData in OrgHierarchyDiagram
+  → optional WorkerPool chunks (2M rows)
+```
+
+---
+
+## 5. Архітектура runtime
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ Main thread                                               │
+│  • Pixi Application + viewport                           │
+│  • OrganizationNode / PersonNode / DepartmentBlob        │
+│  • Input: click, context menu, D&D                       │
+│  • Theme (light/dark org symbols)                        │
+├──────────────────────────────────────────────────────────┤
+│ Web Worker(s)                                            │
+│  • mapInWorker / WorkerPool / createWorkerPipeline       │
+│  • WASM: layout, contour, (future: dept tetris pack)     │
+├──────────────────────────────────────────────────────────┤
+│ WASM (org-hierarchy-core)                                │
+│  • buildFromFlat, computeLayout, treeStats               │
+│  • computeDeptContour, computeAllContours                │
+└──────────────────────────────────────────────────────────┘
+```
+
+### 5.1 LOD / viewport
+
+| Zoom | Person | Department | Organization |
+|------|--------|------------|--------------|
+| Far | dot / hidden | simplified polygon + count badge | icon only |
+| Mid | compact card | full contour | card |
+| Near | full card + photo | full contour + label | full card + emblem |
+
+**v1:** увесь LOD і ноди — **лише Pixi** (WebGL). HTML лише для popup / context menu / modal **поза** полотном нод (не React-картка на кожну ноду).
+
+**v1.x (після готової v1 — покращення UX):** опційний шар **HTML/React/SVG promote** поверх Pixi-підкладки:
+
+- Pixi лишається камерою, pan/zoom, масою нод, edges, contours;
+- при near-zoom / selection / viewport — promote обраних нод у React (кнопки, img, вкладений Chart.js тощо);
+- один world→screen з Pixi viewport; не дублювати layout у tree-lib.
+
+Повертатись до v1.x **лише коли v1 стабільна** (org + staff vertical slice, export, жести). Не блокує v1.
+
+Деталі / acceptance — [`TD07-pixi-react-promote-overlay.md`](./tech-debt/TD07-pixi-react-promote-overlay.md); roadmap §11 фаза 5.
+
+### 5.2 Incremental data
+
+```
+appendData(chunk) → mapper.append? → mergePartial(DiagramData)
+  → diff visible viewport nodes
+  → recompute affected dept contours only
+```
+
+---
+
+## 6. Три візуальні профілі
+
+| Profile | Class | Shape | Fields |
+|---------|-------|-------|--------|
+| OrganizationNode | matrix, row-tree | Horizontal card | name, group, emblem, theme symbol |
+| DepartmentBlob | staff | Organic SVG path | label on contour, fill/stroke |
+| PersonNode | staff | Vertical card | photo, ПІБ, title, temp badge |
+
+**Pixi layering (planned):**
+
+```
+z-order bottom → top:
+  1. DepartmentBlob (Graphics from contour.path)
+  2. Report lines / edges
+  3. PersonNode / PositionNode
+  4. OrganizationNode (org modes)
+  5. Selection / focus overlay
+```
+
+---
+
+## 7. Взаємодія (planned)
+
+| Дія | Поведінка | Залежності |
+|-----|-----------|------------|
+| Click | select / focus | Pixi hit areas |
+| Context menu | SDK items + host override | callbacks |
+| Search | find → expand path → focus | org tree + person index |
+| D&D org (matrix) | reorder | matrix layout state |
+| D&D person | update col/row or layoutCoords | contour recompute (G8) |
+| Block shift ↑↓ | shift hierarchyLevel block | WASM pack + contour |
+| Export | SVG/PNG/PDF/print | Pixi extract / custom SVG |
+
+---
+
+## 8. Поточна імплементація
+
+### 8.1 Готово
+
+| Компонент | Шлях | Примітки |
+|-----------|------|----------|
+| Contour WASM | `packages/core/src/contour.rs` | 4 unit tests |
+| Layout WASM | `packages/core/src/layout.rs` | Reingold-Tilford, не підключено до SDK |
+| Hierarchy build | `packages/core/src/hierarchy.rs` | flat → tree |
+| WASM bindings | `packages/core/src/lib.rs` | buildFromFlat, computeLayout, contour |
+| SDK types | `packages/sdk/src/data/types.ts` | DiagramData |
+| Mappers | `packages/sdk/src/mappers/` | flatRowsToDiagram, compose |
+| Worker | `packages/sdk/src/worker/` | WorkerPool, pipeline, bridge |
+| Contour bridge | `packages/sdk/src/contour/bridge.ts` | initContourWasm, compute* |
+| SDK skeleton | `packages/sdk/src/index.ts` | OrgHierarchyDiagram без render |
+
+### 8.2 Не реалізовано
+
+- Pixi renderer (всі 3 node types)
+- Org matrix layout
+- Row-tree інтеграція в SDK
+- Search + path expand
+- D&D, block shift
+- Export
+- Rsbuild demo (замість legacy `packages/web`)
+- Contour M4 (multiple components per dept)
+- Explicit G6 post-processing
+
+---
+
+## 9. Публічний API (target)
+
+```ts
+import {
+  OrgHierarchyDiagram,
+  computeDeptContour,
+  computeAllContours,
+  VARIANT_B_POSITIONS,
+  flatRowsToDiagram,
+  WorkerPool,
+} from '@org-hierarchy/sdk';
+
+// Mount
+const diagram = await OrgHierarchyDiagram.create(container, {
+  data: rawRows,
+  mappers: { toDiagram: myMapper },
+  theme: 'auto',
+  workerPoolSize: 4,
+  onNodeClick: (node) => {},
+  onLayoutChange: (patch) => {},
+});
+
+// Contour (main or worker)
+const contour = await computeDeptContour('IT', positions, {
+  paddingCells: 0,
+  corridorCells: 0,
+  cellWidth: 100,
+  cellHeight: 80,
+  smoothIterations: 2,
+});
+// contour.path → Pixi DepartmentBlob
+
+diagram.destroy();
+```
+
+---
+
+## 10. Відкриті питання
+
+1. Context menu — фіксований SDK набір vs повністю custom від host?
+2. Persist drag — `onLayoutChange` callback vs SDK → API?
+3. Theme — CSS variables vs prop `theme: 'light'|'dark'|'auto'`?
+
+---
+
+## 11. Фази (roadmap)
+
+| Фаза | Scope | Статус |
+|------|-------|--------|
+| 1 Foundation | monorepo, WASM, mappers, worker, types | ✅ |
+| 2 Org modes | matrix, row-tree, search, D&D org | ✅ v1 (T03–T04) |
+| 3 Staff | 3 яруси, matrix\|tree\|hybrid, contour Pixi, D&D person | ✅ v1 (T07–T09, T04) |
+| 4 Polish | context menu, export, docs | ✅ v1 (T05, T10) |
+| **5 v1.x Improve** | **Pixi + HTML/React promote overlay** (custom node content, Chart.js у картці); після стабільної v1 | ⚪ backlog |
+
+---
+
+## 12. Процес розробки — TDD (обов'язково)
+
+> Повна політика: [`work/TDD.md`](./TDD.md)
+
+### Правило
+
+**Перед написанням production-коду — спочатку тести.** Кожна feature проходить цикл **Red → Green → Refactor**.
+
+### Два обов'язкові класи тестів
+
+| Клас | Що перевіряємо |
+|------|------------------|
+| **Success** | Happy path — коректний вхід → очікуваний результат |
+| **Failure** | Invalid/empty/boundary — помилка, reject, `Err`, throw |
+
+Без обох класів задача **не вважається завершеною**.
+
+### Інструменти
+
+| Шар | Runner | Команда |
+|-----|--------|---------|
+| Rust WASM | `cargo test` | `npm run test:rust` |
+| TypeScript SDK | Vitest (додати) | `npm run test -w @org-hierarchy/sdk` |
+
+### Workflow на задачу
+
+1. Acceptance criteria з `work/tasks/T*.md` → список success + failure тестів
+2. Commit тестів (RED — падають)
+3. Мінімальний impl (GREEN)
+4. Refactor без зміни поведінки
+5. CI: tests + typecheck + build:wasm
+
+### Приклад (contour)
+
+```
+RED:    test compute_contour_empty_dept_returns_err  → FAIL (no test yet)
+GREEN:  impl returns Err for empty own cells       → PASS
+REFACTOR: extract helper if needed                 → PASS
+```
+
+---
+
+## 13. Стандарти TypeScript-коду (обов’язково)
+
+> Повна політика: [`work/CODING_STANDARDS.md`](./CODING_STANDARDS.md)
+
+TypeScript у `packages/sdk` / `packages/demo` пишеться за правилами **Clean Code**, **Clean Architecture**, **SOLID**, **DRY**, **KISS** і вибіркових **GoF**-патернів.  
+**Стиль TypeScript** — за рекомендаціями **Matt Pocock** (Total TypeScript). Повна політика: [`CODING_STANDARDS.md`](./CODING_STANDARDS.md).
+
+### 13.1 Ієрархія при конфлікті
+
+```
+KISS → SOLID → DRY → Clean Code → Clean Architecture → GoF
+Matt Pocock TS rules — як писати типи (паралельно до архітектури)
+```
+
+Патерн або шар абстракції **не додаємо** «на виріст». Якщо принцип суперечить простоті на ранньому етапі — спочатку KISS, поки не з’явиться другий споживач або вимір (профіль).
+
+### 13.2 Clean Code (коротко)
+
+| Вимога | Деталі |
+|--------|--------|
+| Імена | Намір у назві (`expandOrg`, не `handle`) |
+| Функції | Одна дія; мало аргументів; options-object якщо >3 |
+| Pure compute | Layout / validate / map — без DOM/Pixi |
+| Fail fast | Invalid → throw/`Err`, не тихий wrong state |
+| Boy Scout | Кожен PR чистить зачеплений модуль |
+
+### 13.2b Matt Pocock — TypeScript (обов’язково)
+
+| Правило | Вимога |
+|---------|--------|
+| Без `enum` | `as const` + derived union |
+| Infer за замовчуванням | Return type не на кожній внутрішній функції |
+| Library exports | Публічний SDK API — **явні** param + return types |
+| `satisfies` | Конфіги/maps без втрати infer |
+| Без `any` | `unknown` + narrowing |
+| Generics | Лише коли тип динамічний і впливає на результат |
+| Межі | Zod (або еквівалент) для host/worker входу |
+| Exhaustiveness | `assertNever` у `switch` по union |
+| Compiler | `strict`; бажано `noUncheckedIndexedAccess` |
+
+Референс: [totaltypescript.com](https://www.totaltypescript.com/) (Matt Pocock).
+
+### 13.3 Clean Architecture — Dependency Rule
+
+Залежності лише **всередину**:
+
+```
+Pixi / Worker / WASM glue
+        ↓
+Adapters (bridges, mappers, Diagram facade)
+        ↓
+Application (expand/collapse → layout, setData)
+        ↓
+Domain (DiagramData, layout contracts, org rules)
+```
+
+- `DiagramData` — єдине джерело правди стану.
+- `LayoutResult` — view-model; не мутує domain «по дорозі».
+- Domain **не** імпортує `render/`, Pixi, Worker.
+
+### 13.4 SOLID у цьому SDK
+
+| Принцип | Застосування |
+|---------|--------------|
+| **S** | Окремі модулі: matrix / row-tree / renderer / worker |
+| **O** | Новий layout/edge style через strategy/options, не гігантський `switch` |
+| **L** | Вузли/результати layout взаємозамінні без ламких `instanceof` |
+| **I** | Вузькі callbacks замість одного God-interface |
+| **D** | Renderer залежить від портів (`ContourComputer`), не від конкретного wasm-файлу |
+
+### 13.5 DRY / KISS
+
+- DRY — **одна правда** бізнес-правила (collapse, eject, validate), не заборона схожих рядків glue.
+- KISS — без DI-container / EventBus «на майбутнє»; stateful tidy-session лише після обґрунтування (часті expand/collapse + профіль).
+
+### 13.6 GoF (дозволений мінімум)
+
+| Патерн | Де очікуємо |
+|--------|-------------|
+| Facade | `OrgHierarchyDiagram` |
+| Adapter | `layoutBridge`, mappers, wasm |
+| Strategy | matrix vs row-tree; edge style |
+| Observer | host callbacks |
+| Factory | `create()`, worker factory |
+| Command (легкий) | `LayoutPatch` |
+
+Заборонено AbstractFactory / глибокі ієрархії class заради патерну.
+
+### 13.7 Definition of Done (фрагмент)
+
+Окрім TDD success+failure:
+
+- [ ] Немає порушення Dependency Rule
+- [ ] Немає необґрунтованого `any` / `@ts-ignore` / нового `enum`
+- [ ] Публічні SDK exports з явними return types (Matt Pocock library rule)
+- [ ] Немає роз’їзду правил TS↔Rust без позначеного source of truth
+- [ ] Немає нового GoF-шару без другого споживача
+
+### 13.8 Зв’язок з expand/collapse
+
+Частий relayout **не** виправдовує змішування шарів (layout усередині Pixi click-handler). Жест:
+
+1. Application змінює `DiagramData` (collapsed)
+2. Один виклик layout (adapter → WASM)
+3. Renderer застосовує `LayoutResult` (+ опційна анімація from→to)
+
+Так уникаємо «GoJS-костилів»: два джерела правди і layout посеред анімації.

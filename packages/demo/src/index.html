@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="uk" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Org Hierarchy — Demo</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="toolbar">
+    <h1>Org Hierarchy SDK</h1>
+    <nav class="tabs">
+      <button type="button" data-tab="variant-b" class="active">Variant B</button>
+      <button type="button" data-tab="staff-tree">Staff tree</button>
+      <button type="button" data-tab="flat-orgs">Flat orgs</button>
+      <button type="button" data-tab="mapper">Mapper</button>
+      <button type="button" data-tab="worker">Worker</button>
+    </nav>
+    <div class="controls">
+      <label class="control">
+        Search
+        <input id="search-input" type="search" placeholder="Alice…" />
+      </label>
+      <label class="control">
+        Padding
+        <input id="padding-slider" type="range" min="0" max="2" step="1" value="0" />
+      </label>
+      <label class="control">
+        Smooth
+        <input id="smooth-slider" type="range" min="0" max="4" step="1" value="2" />
+      </label>
+      <button type="button" id="theme-toggle">Theme</button>
+      <button type="button" id="collapse-all">Collapse all</button>
+      <button type="button" id="export-png">PNG</button>
+      <button type="button" id="export-svg">SVG</button>
+      <button type="button" id="export-pdf">PDF</button>
+      <button type="button" id="export-print">Print</button>
+    </div>
+    <span id="status" class="status">Init…</span>
+  </header>
+
+  <aside class="sidebar" data-show-tab="mapper">
+    <h2>Mapper</h2>
+    <button type="button" id="load-sample-json">Load sample JSON</button>
+    <label class="file-label">
+      Upload JSON
+      <input id="json-file" type="file" accept="application/json,.json" />
+    </label>
+  </aside>
+
+  <aside class="sidebar" data-show-tab="worker">
+    <h2>Worker bench</h2>
+    <button type="button" id="run-worker-bench">Run mapInWorker (100 orgs)</button>
+  </aside>
+
+  <main class="stage">
+    <div id="diagram-mount" class="diagram-mount"></div>
+  </main>
+
+  <div id="toast" class="toast" role="status"></div>
+</body>
+</html>

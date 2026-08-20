@@ -1,1 +1,62 @@
-# dg
+# Org Hierarchy SDK (`dg`)
+
+Embeddable org / staff diagram library: **Rust WASM** (contours + tidy tree) + **Pixi.js** render + **Web Worker** pipelines.
+
+## Packages
+
+| Package | Role |
+|---------|------|
+| `@org-hierarchy/sdk` | Public embed API, layout, Pixi, export, React context-menu host |
+| `@org-hierarchy/demo` | Rsbuild demo (`npm run dev`) |
+| `packages/core` | Rust → WASM (`contour`, Ploeg tidy layout) |
+
+## Quick start
+
+```bash
+npm install
+npm run build:wasm   # requires rustup + wasm-pack
+npm run dev          # http://localhost:3000
+```
+
+```ts
+import { OrgHierarchyDiagram } from '@org-hierarchy/sdk';
+
+const diagram = await OrgHierarchyDiagram.create(container, {
+  data: diagramData,
+  staffCurrentOrgId: 'org1',
+  callbacks: {
+    onNodeClick: (node) => console.log(node),
+    onContextMenu: (request) => menu.handleContextMenu(request),
+  },
+});
+
+await diagram.setData(nextData);
+await diagram.export({ format: 'png' });
+```
+
+React context menu (optional peer):
+
+```ts
+import { createReactContextMenuHost, DefaultReactContextMenu } from '@org-hierarchy/sdk/react';
+```
+
+## Scripts
+
+| Command | What |
+|---------|------|
+| `npm test` | SDK + demo Vitest |
+| `npm run test:rust` | `cargo test` in `packages/core` |
+| `npm run typecheck` | SDK + emit `.d.ts` + demo |
+| `npm run build:wasm` | Rebuild WASM pkg under `packages/sdk/src/wasm/pkg` |
+
+## Docs
+
+- [`docs/REQUIREMENTS.md`](./docs/REQUIREMENTS.md) — product requirements
+- [`docs/TECH_STACK.md`](./docs/TECH_STACK.md) — architecture
+- [`work/SPEC.md`](./work/SPEC.md) — algorithms + API status
+- [`work/TDD.md`](./work/TDD.md) — test-first policy
+- [`work/README.md`](./work/README.md) — task / tech-debt index
+
+## License
+
+Private / TBD.
