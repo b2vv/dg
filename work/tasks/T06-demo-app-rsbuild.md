@@ -18,7 +18,7 @@
 
 ### Failure tests
 - [x] missing container element → graceful error message
-- [ ] WASM load fail (mock) → user-visible error, не blank page
+- [x] WASM load fail (mock) → user-visible error, не blank page
 - [x] invalid JSON upload у mapper tab → error toast, не crash
 
 ---

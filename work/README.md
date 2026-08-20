@@ -60,7 +60,7 @@ npm run dev          # http://localhost:3000
 
 ## Технічний борг
 
-- [TD01-git-remote-and-ci.md](./tech-debt/TD01-git-remote-and-ci.md) — CI ✅; remote ⏳
+- [TD01-git-remote-and-ci.md](./tech-debt/TD01-git-remote-and-ci.md) — ✅ closed (`b2vv/dg`)
 - [TD02-legacy-web-rspack.md](./tech-debt/TD02-legacy-web-rspack.md) — ✅
 - [TD03-contour-config-drift.md](./tech-debt/TD03-contour-config-drift.md) — ✅ closed (T07)
 - [TD04-sdk-skeleton-no-render.md](./tech-debt/TD04-sdk-skeleton-no-render.md) — ✅ closed (T01)
