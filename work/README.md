@@ -19,7 +19,7 @@ work/
 **Обов’язково:** перед production-кодом — тести на **success** і **failure** кейси.  
 Цикл: **Red → Green → Refactor**. Деталі: [TDD.md](./TDD.md).
 
-**Стандарти TS-коду:** [CODING_STANDARDS.md](./CODING_STANDARDS.md) (Clean Code, Clean Architecture, SOLID, DRY, KISS, GoF) — також §13 у [SPEC.md](./SPEC.md).
+**Стандарти TS-коду:** [CODING_STANDARDS.md](./CODING_STANDARDS.md) — Clean Code / Architecture / SOLID / DRY / KISS / GoF + **Matt Pocock (Total TypeScript)**; також SPEC §13.
 
 ## Статус проєкту (2026-08-20)
 

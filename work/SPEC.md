@@ -445,12 +445,14 @@ REFACTOR: extract helper if needed                 → PASS
 
 > Повна політика: [`work/CODING_STANDARDS.md`](./CODING_STANDARDS.md)
 
-TypeScript у `packages/sdk` / `packages/demo` пишеться за правилами **Clean Code**, **Clean Architecture**, **SOLID**, **DRY**, **KISS** і вибіркових **GoF**-патернів. Додатково враховано практики індустрії (Meta Better Engineering / continuous code improvement; MetaMask TypeScript guidelines).
+TypeScript у `packages/sdk` / `packages/demo` пишеться за правилами **Clean Code**, **Clean Architecture**, **SOLID**, **DRY**, **KISS** і вибіркових **GoF**-патернів.  
+**Стиль TypeScript** — за рекомендаціями **Matt Pocock** (Total TypeScript). Повна політика: [`CODING_STANDARDS.md`](./CODING_STANDARDS.md).
 
 ### 13.1 Ієрархія при конфлікті
 
 ```
 KISS → SOLID → DRY → Clean Code → Clean Architecture → GoF
+Matt Pocock TS rules — як писати типи (паралельно до архітектури)
 ```
 
 Патерн або шар абстракції **не додаємо** «на виріст». Якщо принцип суперечить простоті на ранньому етапі — спочатку KISS, поки не з’явиться другий споживач або вимір (профіль).
@@ -463,8 +465,23 @@ KISS → SOLID → DRY → Clean Code → Clean Architecture → GoF
 | Функції | Одна дія; мало аргументів; options-object якщо >3 |
 | Pure compute | Layout / validate / map — без DOM/Pixi |
 | Fail fast | Invalid → throw/`Err`, не тихий wrong state |
-| Types | `strict`; без `any` у публічному API; `unknown` + narrowing |
 | Boy Scout | Кожен PR чистить зачеплений модуль |
+
+### 13.2b Matt Pocock — TypeScript (обов’язково)
+
+| Правило | Вимога |
+|---------|--------|
+| Без `enum` | `as const` + derived union |
+| Infer за замовчуванням | Return type не на кожній внутрішній функції |
+| Library exports | Публічний SDK API — **явні** param + return types |
+| `satisfies` | Конфіги/maps без втрати infer |
+| Без `any` | `unknown` + narrowing |
+| Generics | Лише коли тип динамічний і впливає на результат |
+| Межі | Zod (або еквівалент) для host/worker входу |
+| Exhaustiveness | `assertNever` у `switch` по union |
+| Compiler | `strict`; бажано `noUncheckedIndexedAccess` |
+
+Референс: [totaltypescript.com](https://www.totaltypescript.com/) (Matt Pocock).
 
 ### 13.3 Clean Architecture — Dependency Rule
 
@@ -517,8 +534,8 @@ Domain (DiagramData, layout contracts, org rules)
 Окрім TDD success+failure:
 
 - [ ] Немає порушення Dependency Rule
-- [ ] Немає необґрунтованого `any` / `@ts-ignore`
-- [ ] Публічні exports з явними типами
+- [ ] Немає необґрунтованого `any` / `@ts-ignore` / нового `enum`
+- [ ] Публічні SDK exports з явними return types (Matt Pocock library rule)
 - [ ] Немає роз’їзду правил TS↔Rust без позначеного source of truth
 - [ ] Немає нового GoF-шару без другого споживача
 

@@ -1,11 +1,11 @@
 # Стандарти коду TypeScript — Org Hierarchy SDK
 
 > Обов’язкові вимоги до TS-коду в `packages/sdk`, `packages/demo`.  
-> Джерела: Clean Code / Clean Architecture (R. Martin), SOLID, DRY, KISS, GoF;  
-> практики індустрії (Meta Better Engineering / continuous code improvement; MetaMask TS guidelines).  
+> **Архітектура / дизайн:** Clean Code, Clean Architecture (R. Martin), SOLID, DRY, KISS, GoF.  
+> **TypeScript-стиль:** [Matt Pocock](https://www.totaltypescript.com/) / Total TypeScript tips & articles.  
 > Пов’язано: [`SPEC.md`](./SPEC.md) §13, [`TDD.md`](./TDD.md).
 
-**Дата:** 2026-08-20
+**Дата:** 2026-08-20 (оновлено: джерело TS — Matt Pocock)
 
 ---
 
@@ -18,6 +18,7 @@ DRY   →  одна правда для знання (не копіпаста л
 Clean Code → читабельність імена/функції/помилки
 Clean Architecture → напрям залежностей між шарами
 GoF → патерн лише коли вже є ≥2–3 повторення проблеми
+Matt Pocock TS → як саме писати типи в TypeScript
 ```
 
 **Правило конфлікту:** якщо SOLID/GoF суперечать KISS на ранньому етапі — **перемагає KISS**, поки abstraction не доведена профілем або другим споживачем.
@@ -37,14 +38,62 @@ GoF → патерн лише коли вже є ≥2–3 повторення �
 | Boy Scout Rule | кожен PR залишає модуль чистішим (імена, мертвий код, типи) |
 | Law of Demeter | не тягнути `a.b.c.d`; працювати з прямими залежностями |
 
-### TypeScript-специфіка (індустрія)
+---
 
-- `strict: true` у tsconfig (як мінімум `strictNullChecks`, `noImplicitAny`, `noImplicitReturns`).
-- **Без `any`** у публічному API. Для невідомого — `unknown` + narrowing.
-- Prefer inference всередині модуля; **явні типи** на exports / публічних функціях.
-- `import type { … }` для type-only imports.
-- Без `@ts-ignore` / `@ts-expect-error` без коментаря *чому* і ticket/TODO.
-- Не дублювати типи Rust↔TS вручну, якщо є codegen (`ts-rs` / generated).
+## 1b. TypeScript за Matt Pocock (Total TypeScript)
+
+Канонічний TS-стиль проєкту. Джерела: [totaltypescript.com](https://www.totaltypescript.com/) (tips, articles).
+
+### Типи й імена
+
+| Правило | Вимога |
+|---------|--------|
+| Singular types | Тип у однині (`OrgLayoutNode`), множина лише для масивів |
+| Різний casing value vs type | values `camelCase`, types `PascalCase` — щоб не плутати рівні |
+| Generics prefix `T` | `TData`, `TRaw`; один параметр можна `T`; уникати `T, U, V` |
+| Без Hungarian | не `IUser` / `TOrganization` як префікс «класу типу» |
+| Без `enum` | prefer `as const` object + derived union (`typeof X[keyof typeof X]`) |
+
+Чому без enum (Pocock): enums ламають structural typing (стають nominal), numeric/string enums компіляться по-різному, зайвий runtime. `as const` — ідіоматичний TS.
+
+### Inference vs annotations
+
+| Правило | Вимога |
+|---------|--------|
+| Default: infer return | Не вимагати return type на кожній функції (application code) |
+| Return type обов’язково | **Library / публічний SDK API**; функції з кількома гілками (`if`/`switch`); рідкісні perf-кейси infer |
+| Prefer `satisfies` | Перевірити тип **без** втрати вузького infer (конфіги, maps, const objects) |
+| Уникати `as` / `!` | Assertion лише на межі з обґрунтуванням |
+| Без `any` | `unknown` + narrowing; `any` заражає залежний код |
+| `import type` | Type-only imports |
+
+Для `@org-hierarchy/sdk` як **бібліотеки**: усі **exported** функції/методи — з явними типами параметрів і return (виняток Pocock для library code).
+
+### Generics
+
+- Generic лише коли тип **динамічний** і впливає на результат.
+- Якщо всі форми відомі наперед — **union**, не generic.
+- Не вводити generic «про запас».
+
+### Runtime validation (межі)
+
+- Зовнішній / напівдовірений вхід (host data, worker messages) — валідація на межі (Zod або еквівалент), не довіра лише до compile-time типів.
+- Внутрішні чисті виклики після валідації — типи без повторного parse.
+
+### Exhaustiveness
+
+```ts
+// switch по discriminated union — default: assertNever(x)
+function assertNever(x: never): never {
+  throw new Error(`Unexpected: ${String(x)}`);
+}
+```
+
+### Compiler
+
+- `strict: true`
+- Бажано `noUncheckedIndexedAccess` (індекс → `T | undefined`)
+- Без ігнорування помилок TS у збірці
 
 ---
 
@@ -130,19 +179,17 @@ GoF → патерн лише коли вже є ≥2–3 повторення �
 
 ---
 
-## 7. Практики рівня Meta / індустрія (Better Engineering)
-
-Джерела: Meta continuous code improvement / Better Engineering culture; MetaMask TypeScript guidelines.
+## 7. Якість коду в процесі (Boy Scout + TDD Refactor)
 
 | Практика | Вимога |
 |----------|--------|
-| Perfective maintenance | Регулярні дрібні покращення (імена, dead code, типи) — нормальні PR, не лише features |
-| Dead code | Видаляти, не коментувати; archive лише з позначкою (`archive/`) |
-| Metrics before rewrite | Великий reengineering — після виміру (розмір модуля, час layout, flake tests) |
-| Consistent abstractions | Один спосіб робити layout call, один спосіб worker message — не 3 паралельні стилі |
+| Perfective в кожному PR | Дрібні покращення імен/типів/мертвого коду в зачеплених файлах — норма |
+| Dead code | Видаляти, не коментувати; archive лише в `archive/` |
+| Consistent abstractions | Один стиль layout call, один стиль worker message |
+| TDD Refactor step | Після GREEN — вирівняти під Clean Code + Matt Pocock TS rules |
 | Review checklist | Див. §9 |
 
-Орієнтир індустрії: виділяти помітну частку зусиль на якість коду (у Meta BE часто згадують порядок ~20–30% для команд) — у нашому процесі це відображається як обов’язковий Refactor у TDD і окремі tech-debt задачі.
+Великий rewrite — лише після виміру (розмір модуля, час layout, flake tests), не «перепишемо все під патерни».
 
 ---
 
@@ -166,7 +213,8 @@ PR / задача не done, якщо:
 - [ ] Немає success **і** failure тестів ([TDD.md](./TDD.md))
 - [ ] Порушено Dependency Rule (domain ← frameworks)
 - [ ] З’явився `any` / `@ts-ignore` без обґрунтування
-- [ ] Публічний API без явних типів
+- [ ] Новий `enum` замість `as const` + union (без винятку в PR)
+- [ ] Публічний SDK export без явного return type (library rule, Matt Pocock)
 - [ ] Дубль бізнес-правила в TS і Rust без позначки source of truth
 - [ ] God-module розрісся без винесення SRP
 - [ ] Патерн GoF додано «на майбутнє» без другого споживача
@@ -175,34 +223,43 @@ PR / задача не done, якщо:
 
 ## 10. Приклади для нашого контексту
 
-### ✅ Добре
+### ✅ Добре (Matt Pocock + Clean Architecture)
+
+```ts
+export const OrgDisplayMode = {
+  Matrix: 'matrix',
+  RowTree: 'row-tree',
+} as const;
+
+export type OrgDisplayMode = (typeof OrgDisplayMode)[keyof typeof OrgDisplayMode];
+
+// Library export — явний return type
+export async function computeOrgRowTreeLayout(
+  organizations: DiagramOrganization[],
+  expandedRootId: string,
+  options?: OrgLayoutOptions,
+): Promise<OrgLayoutResult> {
+  /* … */
+}
+```
 
 ```ts
 // Application: один жест → один layout
 async expandOrg(orgId: string): Promise<void> {
   this.data = { ...this.data, organizations: expandOrg(this.data.organizations, orgId) };
-  await this.relayout(); // єдиний прохід
+  await this.relayout();
 }
-```
-
-```ts
-// Adapter: typed bridge, domain не знає wasm
-export async function computeOrgRowTreeLayoutWasm(
-  organizations: OrgFlatInput[],
-  expandedRootId: string,
-  options?: WasmRowTreeOptions,
-): Promise<OrgRowTreeLayoutResult> { /* … */ }
 ```
 
 ### ❌ Погано
 
 ```ts
-// Side effect + layout + pixi + any в одній функції
+enum Mode { Matrix, RowTree } // nominal enum — уникати
+
 function click(n: any) {
   n.collapsed = false;
   wasm.layout(n);
-  app.stage.addChild(new Graphics().rect(n.x, n.y, 10, 10));
-  localStorage.setItem('x', JSON.stringify(n));
+  app.stage.addChild(/* … */);
 }
 ```
 
@@ -211,8 +268,11 @@ function click(n: any) {
 ## 11. Референси
 
 1. Robert C. Martin — *Clean Code*; *Clean Architecture* (Dependency Rule)
-2. GoF — *Design Patterns* (застосовувати вибірково)
-3. SOLID — класичні п’ять принципів ООП/модульного дизайну
-4. DRY / KISS — прагматичні евристики простоти
-5. Meta — Code Improvement / Better Engineering practices (continuous perfective work, dead code removal)
-6. MetaMask Contributor Docs — TypeScript guidelines (strictness, inference, no unsafe escape hatches)
+2. GoF — *Design Patterns* (вибірково)
+3. SOLID / DRY / KISS — прагматичні принципи дизайну
+4. **Matt Pocock / Total TypeScript** — [totaltypescript.com](https://www.totaltypescript.com/)  
+   - Naming types, return types, generics  
+   - Why I don’t like enums / `as const`  
+   - `satisfies`, `unknown` vs `any`  
+   - When to use Zod  
+5. ts-rs / generated types — single source з Rust, де застосовно
