@@ -60,6 +60,10 @@ _Avoid_: Contour memo, blob cache (prefer this name in SDK docs)
 Point-ring lerp of department blobs while dragging a person across snap cells (G8 polish).
 _Avoid_: Path-string tween, SVG morph
 
+**Worker search index**:
+Building `SearchIndex` off the main thread (single worker or WorkerPool chunks) for large diagrams.
+_Avoid_: Main-thread-only index at 2M scale
+
 **Promote overlay**:
 v1.x idea: HTML/React node chrome over Pixi (TD07) — not in v1.
 _Avoid_: Hybrid node, React card on canvas (for v1)

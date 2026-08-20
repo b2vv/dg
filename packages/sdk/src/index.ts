@@ -47,6 +47,10 @@ import {
   type ContextMenuPointer,
 } from './interaction/index.js';
 import {
+  buildSearchIndexForScale,
+  configureSearchWorker,
+} from './interaction/searchWorker.js';
+import {
   exportDiagram as runExport,
   printDiagram,
   ExportError,
@@ -154,6 +158,8 @@ export {
   buildSearchIndex,
   buildSearchIndexAsync,
   searchIndex as runSearchIndex,
+  mergeSearchIndexes,
+  flattenPositionSearchRows,
   revealOrgPath,
   movePositionToCell,
   shiftPositionBlock,
@@ -161,6 +167,13 @@ export {
   defaultContextMenuItems,
   resolveContextMenuNodeData,
 } from './interaction/index.js';
+export {
+  buildSearchIndexInWorker,
+  buildSearchIndexInPool,
+  buildSearchIndexForScale,
+  configureSearchWorker,
+  searchHandlerKeys,
+} from './interaction/searchWorker.js';
 
 export {
   exportDiagram as runExportDiagram,
@@ -225,6 +238,7 @@ export class OrgHierarchyDiagram {
   private nodeTheme = mergeTheme();
   private renderConfig: RenderConfig = { ...defaultRenderConfig };
   private useWorker = true;
+  private workerFactory: () => Worker = createTransformWorker;
   private workerPool: WorkerPool | null = null;
   private callbacks: OrgHierarchyCallbacks = {};
   private staffCurrentOrgId: string | undefined;
@@ -249,7 +263,12 @@ export class OrgHierarchyDiagram {
     instance.staffCurrentOrgId = config.staffCurrentOrgId;
 
     const workerFactory = config.workerFactory ?? createTransformWorker;
+    instance.workerFactory = workerFactory;
     configureContourWorker({
+      workerFactory,
+      fallbackToMainThread: true,
+    });
+    configureSearchWorker({
       workerFactory,
       fallbackToMainThread: true,
     });
@@ -295,11 +314,15 @@ export class OrgHierarchyDiagram {
 
   private async rebuildSearchIndexForScale(): Promise<void> {
     const n = this.data.organizations.length + this.data.positions.length;
-    if (n >= OrgHierarchyDiagram.SEARCH_ASYNC_THRESHOLD) {
-      await this.rebuildSearchIndexAsync();
-    } else {
+    if (n < OrgHierarchyDiagram.SEARCH_ASYNC_THRESHOLD) {
       this.rebuildSearchIndex();
+      return;
     }
+    this.searchIdx = await buildSearchIndexForScale(this.data, {
+      useWorker: this.useWorker,
+      pool: this.workerPool,
+      workerFactory: this.workerFactory,
+    });
   }
 
   private getContourComputer(): IncrementalContourComputer {

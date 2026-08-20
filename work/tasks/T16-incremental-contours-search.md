@@ -30,5 +30,4 @@
 
 ## Out of scope
 
-- Full worker-built search index for 2M (still backlog)
 - TD07 promote overlay
