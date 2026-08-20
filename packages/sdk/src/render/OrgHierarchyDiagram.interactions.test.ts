@@ -129,4 +129,43 @@ describe('OrgHierarchyDiagram interactions', () => {
     diagram.destroy();
     document.body.removeChild(container);
   });
+
+  it('success: setData replaces data and fires onDataMapped', async () => {
+    const onDataMapped = vi.fn();
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: makeData(),
+      staffCurrentOrgId: 'org1',
+      useWorker: false,
+      callbacks: { onDataMapped },
+    });
+    const next = {
+      ...makeData(),
+      organizations: [{ id: 'solo', name: 'Solo', groupIds: [] }],
+      positions: [],
+      persons: [],
+      departments: [],
+    };
+    await diagram.setData(next);
+    expect(diagram.getData().organizations).toHaveLength(1);
+    expect(diagram.getData().organizations[0]!.id).toBe('solo');
+    expect(onDataMapped).toHaveBeenCalled();
+    expect(onDataMapped.mock.calls.at(-1)?.[0]).toMatchObject({
+      orgs: 1,
+      persons: 0,
+      positions: 0,
+    });
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
+
+  it('failure: setData without DiagramData or mapper throws', async () => {
+    const { container, diagram } = await mount();
+    await expect(diagram.setData({ foo: 1 } as never)).rejects.toThrow(/DiagramData/i);
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
 });

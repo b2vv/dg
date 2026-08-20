@@ -20,4 +20,6 @@ export interface OrgHierarchyCallbacks {
   onSelectionChange?(nodes: NodeRef[]): void;
   /** Fired when a context-menu item is activated (SDK defaults or host menu). */
   onContextMenuAction?(item: MenuItem, request: ContextMenuRequest): void;
+  /** Fired after setData / create mapping completes */
+  onDataMapped?(stats: { orgs: number; persons: number; positions: number; ms: number }): void;
 }

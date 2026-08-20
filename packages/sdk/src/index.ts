@@ -446,6 +446,31 @@ export class OrgHierarchyDiagram {
     return this.data;
   }
 
+  /**
+   * Replace diagram data (host fetch → map → setData).
+   * Rebuilds search index and re-renders. Clears selection.
+   */
+  async setData<TRaw>(
+    data: TRaw | DiagramData,
+    mappers?: DiagramMappers<TRaw>,
+  ): Promise<void> {
+    const t0 =
+      typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+    await this.applyConfig({ data, mappers } as OrgHierarchyConfig<TRaw>);
+    this.rebuildSearchIndex();
+    this.applySelection(null);
+    const ms =
+      (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()) - t0;
+    this.callbacks.onDataMapped?.({
+      orgs: this.data.organizations.length,
+      persons: this.data.persons.length,
+      positions: this.data.positions.length,
+      ms: Math.round(ms),
+    });
+    this.callbacks.onOrgModeChange?.(this.getOrgMode());
+    await this.render();
+  }
+
   getCanvas(): HTMLCanvasElement | null {
     return this.host?.getCanvas() ?? null;
   }
