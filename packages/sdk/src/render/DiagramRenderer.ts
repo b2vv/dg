@@ -343,6 +343,9 @@ export class DiagramRenderer {
           options.onStaffOrgDrill?.(card.orgId);
           options.onOrgClick?.(card.orgId);
         });
+        view.on('pointerdown', (e) => {
+          e.stopPropagation();
+        });
         view.on('rightclick', (e) => {
           e.stopPropagation();
           e.preventDefault?.();
@@ -440,6 +443,9 @@ export class DiagramRenderer {
       node.on('pointertap', (e) => {
         e.stopPropagation();
         options.onOrgClick?.(org.id);
+      });
+      node.on('pointerdown', (e) => {
+        e.stopPropagation();
       });
       node.on('rightclick', (e) => {
         e.stopPropagation();

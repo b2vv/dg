@@ -104,11 +104,18 @@ export {
   OrganizationNodeView,
   DiagramRenderer,
   PixiHost,
+  Viewport,
   parseSvgPath,
   defaultNodeTheme,
   mergeTheme,
 } from './render/index.js';
-export type { NodeTheme, ThemeMode, RenderConfig, ContourComputer } from './render/index.js';
+export type {
+  NodeTheme,
+  ThemeMode,
+  RenderConfig,
+  ContourComputer,
+  ViewportTransform,
+} from './render/index.js';
 export type { LayoutPatch, OrgHierarchyCallbacks } from './callbacks.js';
 
 export type {
@@ -557,6 +564,26 @@ export class OrgHierarchyDiagram {
       this.host?.panTo(box.x + box.width / 2, box.y + box.height / 2);
     }
     return true;
+  }
+
+  getViewport(): { x: number; y: number; scale: number } {
+    return this.host?.getViewport() ?? { x: 0, y: 0, scale: 1 };
+  }
+
+  setViewport(next: Partial<{ x: number; y: number; scale: number }>): void {
+    this.host?.setViewport(next);
+  }
+
+  getZoom(): number {
+    return this.host?.getZoom() ?? 1;
+  }
+
+  setZoom(scale: number): void {
+    this.host?.setZoom(scale);
+  }
+
+  panTo(worldX: number, worldY: number): void {
+    this.host?.panTo(worldX, worldY);
   }
 
   async movePersonToCell(positionId: string, col: number, row: number): Promise<void> {

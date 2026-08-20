@@ -1,13 +1,17 @@
-import { Application } from 'pixi.js';
+import { Application, Rectangle } from 'pixi.js';
 import { DiagramRenderer } from './DiagramRenderer.js';
+import { Viewport, type ViewportTransform } from './Viewport.js';
 
 export interface PixiHostOptions {
   background?: number;
+  minScale?: number;
+  maxScale?: number;
 }
 
 export class PixiHost {
   private app: Application | null = null;
   readonly renderer = new DiagramRenderer();
+  private viewport: Viewport | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private container: HTMLElement | null = null;
   private destroyed = false;
@@ -29,12 +33,25 @@ export class PixiHost {
     return this.app;
   }
 
+  getViewport(): ViewportTransform {
+    return this.viewport?.getTransform() ?? { x: 0, y: 0, scale: 1 };
+  }
+
+  setViewport(next: Partial<ViewportTransform>): void {
+    this.viewport?.setTransform(next);
+  }
+
+  getZoom(): number {
+    return this.viewport?.getZoom() ?? 1;
+  }
+
+  setZoom(scale: number): void {
+    this.viewport?.setZoom(scale);
+  }
+
   /** Pan world so (worldX, worldY) is near viewport center. */
   panTo(worldX: number, worldY: number): void {
-    if (!this.app) return;
-    const w = this.app.screen.width;
-    const h = this.app.screen.height;
-    this.renderer.layers.root.position.set(w / 2 - worldX, h / 2 - worldY);
+    this.viewport?.panTo(worldX, worldY);
   }
 
   private async init(container: HTMLElement, options: PixiHostOptions): Promise<void> {
@@ -56,13 +73,49 @@ export class PixiHost {
     app.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     this.renderer.mount(app.stage);
 
+    this.viewport = new Viewport(this.renderer.layers.root, {
+      minScale: options.minScale,
+      maxScale: options.maxScale,
+    });
+    this.viewport.setScreenSize(width, height);
+    this.viewport.attachWheel(app.canvas);
+    this.bindPan(app);
+
     this.resizeObserver = new ResizeObserver(() => {
       if (!this.app || this.destroyed) return;
       const w = Math.max(container.clientWidth, 320);
       const h = Math.max(container.clientHeight, 240);
       this.app.renderer.resize(w, h);
+      this.viewport?.setScreenSize(w, h);
+      this.syncStageHitArea(w, h);
     });
     this.resizeObserver.observe(container);
+  }
+
+  private bindPan(app: Application): void {
+    const stage = app.stage;
+    stage.eventMode = 'static';
+    this.syncStageHitArea(app.screen.width, app.screen.height);
+
+    stage.on('pointerdown', (e) => {
+      // Nodes call stopPropagation; background hits reach the stage.
+      if (e.button !== 0 && e.button !== 1) return;
+      this.viewport?.beginPan(e.pointerId, e.global.x, e.global.y);
+    });
+    stage.on('globalpointermove', (e) => {
+      this.viewport?.movePan(e.pointerId, e.global.x, e.global.y);
+    });
+    const end = (e: { pointerId: number }) => {
+      this.viewport?.endPan(e.pointerId);
+    };
+    stage.on('pointerup', end);
+    stage.on('pointerupoutside', end);
+    stage.on('pointercancel', end);
+  }
+
+  private syncStageHitArea(width: number, height: number): void {
+    if (!this.app) return;
+    this.app.stage.hitArea = new Rectangle(0, 0, width, height);
   }
 
   destroy(): void {
@@ -71,6 +124,9 @@ export class PixiHost {
 
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+
+    this.viewport?.destroy();
+    this.viewport = null;
 
     this.renderer.destroy();
 

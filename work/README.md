@@ -28,7 +28,7 @@ work/
 | Rust WASM contour (magnetism) | ✅ реалізовано |
 | SDK data + mappers + worker helpers | ✅ |
 | SDK contour bridge | ✅ |
-| Pixi renderer | ✅ T01 |
+| Pixi renderer | ✅ T01 (+ pan/zoom viewport) |
 | Org matrix / row-tree | ✅ T03 |
 | Staff 3-tier layout + edges | ✅ T08–T09 |
 | Demo app (Rsbuild) | ✅ `packages/demo` — `npm run dev` |
