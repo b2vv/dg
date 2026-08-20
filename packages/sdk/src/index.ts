@@ -2,8 +2,9 @@ import { emptyDiagramData, computeStats } from './data/types.js';
 import type { DiagramData } from './data/types.js';
 import type { DiagramMappers } from './mappers/types.js';
 import { configureContourWorker } from './contour/worker-bridge.js';
-import { computeAllContoursInWorker } from './contour/worker-bridge.js';
-import { computeAllContours as computeAllContoursMain } from './contour/bridge.js';
+import { computeAllContoursInWorker, computeDeptContourInWorker } from './contour/worker-bridge.js';
+import { computeAllContours as computeAllContoursMain, computeDeptContour as computeDeptContourMain } from './contour/bridge.js';
+import { createIncrementalContourComputer, type IncrementalContourComputer } from './contour/incremental.js';
 import { PixiHost } from './render/PixiHost.js';
 import {
   defaultRenderConfig,
@@ -28,6 +29,7 @@ import { createTransformWorker, WorkerPool } from './worker/index.js';
 import {
   buildSearchIndex,
   searchIndex as querySearchIndex,
+  buildSearchIndexAsync,
   revealOrgPath,
   resolveOrganizationIdForNode,
   movePositionToCell,
@@ -94,6 +96,9 @@ export {
   computeAllContoursInWorker,
   configureContourWorker,
 } from './contour/worker-bridge.js';
+export {
+  createIncrementalContourComputer,
+} from './contour/incremental.js';
 export type {
   ContourPositionInput,
   ContourMagnetConfig,
@@ -101,6 +106,11 @@ export type {
   DeptContourResult,
   ContourWasmLoader,
 } from './contour/bridge.js';
+export type {
+  ContourComputerFn,
+  DeptContourComputerFn,
+  IncrementalContourComputer,
+} from './contour/incremental.js';
 export type { ContourWorkerOptions } from './contour/worker-bridge.js';
 
 export {
@@ -139,6 +149,7 @@ export type {
 } from './interaction/index.js';
 export {
   buildSearchIndex,
+  buildSearchIndexAsync,
   searchIndex as runSearchIndex,
   revealOrgPath,
   movePositionToCell,
@@ -218,6 +229,7 @@ export class OrgHierarchyDiagram {
   private selection: NodeRef | null = null;
   private lodLevel: LodLevel = 'near';
   private lodRenderQueued = false;
+  private contourComputer: IncrementalContourComputer | null = null;
   static async create<TRaw>(
     container: HTMLElement,
     config: OrgHierarchyConfig<TRaw>,
@@ -267,8 +279,33 @@ export class OrgHierarchyDiagram {
     });
   }
 
+  /** Prefer chunked async rebuild once org+position count exceeds this. */
+  private static readonly SEARCH_ASYNC_THRESHOLD = 10_000;
+
   private rebuildSearchIndex(): void {
     this.searchIdx = buildSearchIndex(this.data);
+  }
+
+  private async rebuildSearchIndexAsync(): Promise<void> {
+    this.searchIdx = await buildSearchIndexAsync(this.data);
+  }
+
+  private async rebuildSearchIndexForScale(): Promise<void> {
+    const n = this.data.organizations.length + this.data.positions.length;
+    if (n >= OrgHierarchyDiagram.SEARCH_ASYNC_THRESHOLD) {
+      await this.rebuildSearchIndexAsync();
+    } else {
+      this.rebuildSearchIndex();
+    }
+  }
+
+  private getContourComputer(): IncrementalContourComputer {
+    if (!this.contourComputer) {
+      const computeAll = this.useWorker ? computeAllContoursInWorker : computeAllContoursMain;
+      const computeDept = this.useWorker ? computeDeptContourInWorker : computeDeptContourMain;
+      this.contourComputer = createIncrementalContourComputer(computeAll, computeDept);
+    }
+    return this.contourComputer;
   }
 
   private applySelection(next: NodeRef | null): void {
@@ -371,7 +408,7 @@ export class OrgHierarchyDiagram {
   private async render(): Promise<void> {
     if (!this.host) return;
     const resolved = resolveTheme(this.themeMode);
-    const computeContours = this.useWorker ? computeAllContoursInWorker : computeAllContoursMain;
+    const computeContours = this.getContourComputer();
     await this.host.renderer.render(this.data, this.nodeTheme, resolved, this.renderConfig, {
       computeContours,
       lod: this.lodLevel,
@@ -493,7 +530,8 @@ export class OrgHierarchyDiagram {
     const t0 =
       typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
     await this.applyConfig({ data, mappers } as OrgHierarchyConfig<TRaw>);
-    this.rebuildSearchIndex();
+    this.contourComputer?.invalidate();
+    await this.rebuildSearchIndexForScale();
     this.applySelection(null);
     const ms =
       (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()) - t0;
@@ -530,7 +568,7 @@ export class OrgHierarchyDiagram {
     } else {
       throw new InteractionError('appendData requires mappers.append or mappers.toDiagram');
     }
-    this.rebuildSearchIndex();
+    await this.rebuildSearchIndexForScale();
     await this.render();
   }
 
@@ -710,6 +748,8 @@ export class OrgHierarchyDiagram {
   }
 
   destroy(): void {
+    this.contourComputer?.invalidate();
+    this.contourComputer = null;
     this.workerPool?.dispose();
     this.workerPool = null;
     this.host?.destroy();

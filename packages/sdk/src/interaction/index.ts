@@ -5,7 +5,13 @@ export type {
   ContextMenuRequest,
 } from './contextMenuPayload.js';
 export { InteractionError } from './types.js';
-export { buildSearchIndex, searchIndex, type SearchIndex, type SearchIndexEntry } from './searchIndex.js';
+export {
+  buildSearchIndex,
+  buildSearchIndexAsync,
+  searchIndex,
+  type SearchIndex,
+  type SearchIndexEntry,
+} from './searchIndex.js';
 export { revealOrgPath, resolveOrganizationIdForNode } from './revealPath.js';
 export {
   snapToGrid,
