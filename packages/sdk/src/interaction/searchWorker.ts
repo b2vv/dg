@@ -1,5 +1,5 @@
 import type { DiagramData } from '../data/types.js';
-import { mapInWorker, WorkerPool, chunkArray } from '../worker/bridge.js';
+import { mapInWorker, WorkerPool } from '../worker/bridge.js';
 import { createTransformWorker } from '../worker/createWorker.js';
 import {
   buildOrgSearchIndex,
@@ -98,10 +98,13 @@ export async function buildSearchIndexInPool(
 
   const payloads = chunkArray(rows, Math.max(1, chunkSize));
   try {
-    const dtos = await pool.mapChunks<PositionSearchRow[], SearchIndexDTO>(
+    // Pre-chunked: each pool item is already a PositionSearchRow[] payload.
+    // WorkerPool.mapChunks would wrap again, so run one payload per call via chunkSize=items.length sentinel —
+    // instead map flat rows and let the pool slice.
+    const dtos = await pool.mapChunks<PositionSearchRow, SearchIndexDTO>(
       searchHandlerKeys.buildSearchIndexPositions,
-      payloads,
-      1,
+      rows,
+      Math.max(1, chunkSize),
     );
     const parts = dtos.map(searchIndexFromDTO);
     return mergeSearchIndexes([orgPart, ...parts]);

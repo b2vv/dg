@@ -140,7 +140,10 @@ describe('search worker bridge', () => {
     const factory = () =>
       mockWorker((payload, key) => {
         expect(key).toBe(searchHandlerKeys.buildSearchIndexPositions);
-        return handleBuildSearchIndexPositions(payload as ReturnType<typeof flattenPositionSearchRows>);
+        expect(Array.isArray(payload)).toBe(true);
+        return handleBuildSearchIndexPositions(
+          payload as ReturnType<typeof flattenPositionSearchRows>,
+        );
       });
     const pool = new WorkerPool(factory, 2);
     const idx = await buildSearchIndexInPool(pool, sampleData(), 1);
