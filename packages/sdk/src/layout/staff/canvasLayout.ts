@@ -100,13 +100,50 @@ export async function layoutStaffCanvas(
   // Cross-tier: if current head reports to tier1 position (matrix/admin across orgs) — decorative only when from different org
   // v1: skip auto cross edges unless report connects ids already in positionNodes
 
-  // Tier 3 — subordinate org cards
+  // Tier 3 — subordinate org cards (+ optional expand-in-place staff)
   const children = data.organizations.filter((o) => o.parentOrgId === currentOrgId);
+  const childIdSet = new Set(children.map((c) => c.id));
+  const requestedExpand = (opts.expandedOrgIds ?? []).filter((id) => childIdSet.has(id));
+  const maxExpand = Math.max(0, opts.maxExpandedOrgCards ?? 1);
+  const expandedSet = new Set(requestedExpand.slice(0, maxExpand));
+  for (const id of (opts.expandedOrgIds ?? []).filter((x) => !childIdSet.has(x))) {
+    diagnostics.push(`Tier3 expand ignored (not a child of ${currentOrgId}): ${id}`);
+  }
+
   const cards: StaffOrgCard[] = [];
   let cardX = opts.margin;
   const cardY = cursorY;
+  let tier3ContentHeight = 0;
+
   for (const child of children) {
     const count = data.positions.filter((p) => p.organizationId === child.id).length;
+    const expanded = expandedSet.has(child.id);
+    let columnWidth = opts.orgCardWidth;
+    let columnHeight = opts.orgCardHeight;
+
+    if (expanded) {
+      const block = await layoutStaffOrgBlock(
+        data.positions,
+        data.reports,
+        child.id,
+        options,
+      );
+      const originX = cardX;
+      const originY = cardY + opts.orgCardHeight + opts.verticalGap;
+      for (const n of block.nodes) {
+        positionNodes.push({
+          ...n,
+          x: n.x + originX,
+          y: n.y + originY,
+          tier: 3,
+        });
+      }
+      edges.push(...block.edges);
+      diagnostics.push(...block.diagnostics);
+      columnWidth = Math.max(opts.orgCardWidth, block.width);
+      columnHeight = opts.orgCardHeight + (block.height > 0 ? opts.verticalGap + block.height : 0);
+    }
+
     cards.push({
       orgId: child.id,
       name: child.name,
@@ -115,11 +152,14 @@ export async function layoutStaffCanvas(
       width: opts.orgCardWidth,
       height: opts.orgCardHeight,
       positionCount: count,
+      expanded,
     });
-    cardX += opts.orgCardWidth + opts.horizontalGap;
+    cardX += columnWidth + opts.horizontalGap;
+    tier3ContentHeight = Math.max(tier3ContentHeight, columnHeight);
   }
+
   orgCards.push(...cards);
-  const t3height = children.length > 0 ? opts.orgCardHeight + opts.margin : 0;
+  const t3height = children.length > 0 ? tier3ContentHeight + opts.margin : 0;
   if (children.length > 0) {
     tiers.push({
       tier: 3,

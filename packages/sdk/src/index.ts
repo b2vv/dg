@@ -260,6 +260,7 @@ export class OrgHierarchyDiagram {
   private workerPool: WorkerPool | null = null;
   private callbacks: OrgHierarchyCallbacks = {};
   private staffCurrentOrgId: string | undefined;
+  private staffExpandedOrgIds = new Set<string>();
   private searchIdx: SearchIndex | null = null;
   private selection: NodeRef | null = null;
   private lodLevel: LodLevel = 'near';
@@ -457,7 +458,10 @@ export class OrgHierarchyDiagram {
       computeContours,
       lod: this.lodLevel,
       staff: this.staffCurrentOrgId
-        ? { currentOrgId: this.staffCurrentOrgId }
+        ? {
+            currentOrgId: this.staffCurrentOrgId,
+            expandedOrgIds: [...this.staffExpandedOrgIds],
+          }
         : undefined,
       selected: this.selection,
       onCanvasClick: () => {
@@ -469,6 +473,9 @@ export class OrgHierarchyDiagram {
         this.applySelection(node);
         this.callbacks.onNodeClick?.(node);
         void this.render();
+      },
+      onStaffOrgExpandToggle: (orgId) => {
+        void this.toggleStaffOrgExpand(orgId);
       },
       onStaffOrgDrill: (orgId) => {
         void this.focusStaffOrg(orgId);
@@ -625,8 +632,28 @@ export class OrgHierarchyDiagram {
     return this.staffCurrentOrgId;
   }
 
-  /** Apply staff focus and re-render (drill into Tier-3 org card). */
+  getStaffExpandedOrgIds(): string[] {
+    return [...this.staffExpandedOrgIds];
+  }
+
+  /**
+   * Toggle expand-in-place for a tier-3 org card (staff under the card).
+   * Caps at one expanded card by default (clears others).
+   */
+  async toggleStaffOrgExpand(orgId: string): Promise<boolean> {
+    if (this.staffExpandedOrgIds.has(orgId)) {
+      this.staffExpandedOrgIds.delete(orgId);
+    } else {
+      this.staffExpandedOrgIds.clear();
+      this.staffExpandedOrgIds.add(orgId);
+    }
+    await this.render();
+    return this.staffExpandedOrgIds.has(orgId);
+  }
+
+  /** Apply staff focus and re-render (drill into Tier-3 org card). Clears expands. */
   async focusStaffOrg(orgId: string | null): Promise<void> {
+    this.staffExpandedOrgIds.clear();
     this.setStaffFocus(orgId);
     await this.render();
   }
@@ -758,6 +785,7 @@ export class OrgHierarchyDiagram {
         app: this.host.getApplication(),
         renderConfig: this.renderConfig,
         currentOrgId: this.staffCurrentOrgId,
+        expandedOrgIds: [...this.staffExpandedOrgIds],
       },
       options,
     );
