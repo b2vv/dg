@@ -29,4 +29,4 @@
 ## Out of scope
 
 - TD07 React promote overlay (v1.x)
-- Contour morph animation during drag (G8 polish)
+- Contour morph animation during drag (G8 polish) — see T17
