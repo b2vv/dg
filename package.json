@@ -1,0 +1,19 @@
+{
+  "name": "org-hierarchy",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/sdk",
+    "packages/web"
+  ],
+  "scripts": {
+    "build:wasm": "cd packages/core && wasm-pack build --target web --out-dir ../sdk/src/wasm/pkg",
+    "build": "npm run build -w @org-hierarchy/sdk",
+    "dev": "npm run dev -w @org-hierarchy/sdk",
+    "test:rust": "cd packages/core && cargo test",
+    "typecheck": "npm run typecheck -w @org-hierarchy/sdk"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

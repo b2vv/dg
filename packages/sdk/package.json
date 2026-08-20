@@ -1,0 +1,33 @@
+{
+  "name": "@org-hierarchy/sdk",
+  "version": "0.1.0",
+  "description": "Org hierarchy diagram SDK — data, mappers, worker helpers",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./worker": {
+      "import": "./dist/worker/index.js",
+      "types": "./dist/worker/index.d.ts"
+    },
+    "./mappers": {
+      "import": "./dist/mappers/index.js",
+      "types": "./dist/mappers/index.d.ts"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "rsbuild build && tsc --emitDeclarationOnly --declaration --outDir dist",
+    "dev": "rsbuild dev",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "^1.2.0",
+    "@rsbuild/plugin-type-check": "^1.2.0",
+    "typescript": "^5.6.0"
+  }
+}
