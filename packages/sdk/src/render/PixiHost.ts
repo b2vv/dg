@@ -80,7 +80,8 @@ export class PixiHost {
       height,
       background: options.background ?? 0xf8fafc,
       antialias: true,
-      resizeTo: container,
+      // Do not use resizeTo: a 0-height mount (CSS not loaded / mobile layout)
+      // would shrink the canvas to empty; we drive size via ResizeObserver mins.
     });
 
     this.app = app;
@@ -98,8 +99,10 @@ export class PixiHost {
 
     this.resizeObserver = new ResizeObserver(() => {
       if (!this.app || this.destroyed) return;
-      const w = Math.max(container.clientWidth, 320);
-      const h = Math.max(container.clientHeight, 240);
+      // Floor prevents a collapsed mount from wiping the WebGL surface
+      // (export still works off-screen; users would only see a black page).
+      const w = Math.max(container.clientWidth || 0, 320);
+      const h = Math.max(container.clientHeight || 0, 240);
       this.app.renderer.resize(w, h);
       this.viewport?.setScreenSize(w, h);
       this.syncStageHitArea(w, h);
