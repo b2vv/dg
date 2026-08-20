@@ -330,7 +330,7 @@ SDK bridge: `packages/sdk/src/contour/bridge.ts`
 | G2 | Repel foreign — gap/corridor | ✅ `corridorCells` expansion |
 | G3 | No internal edges | ✅ perimeter walk лише зовнішній |
 | G4 | Orthogonal first → smooth | ✅ trace + Chaikin |
-| G5 | Prefer notch (C-notch) | ✅ flood не включає foreign |
+| G5 | Prefer notch (C-notch) | ✅ `prefer_notch` corridor cut (holes → C) |
 | G6 | No far-side wall | ⚠️ implicit; немає окремого post-pass |
 | G7 | Padding snap | ✅ `paddingCells` у bbox |
 | G8 | Stable under drag | ❌ потребує incremental recompute + Pixi |
