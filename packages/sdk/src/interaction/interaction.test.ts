@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DiagramData } from '../data/types.js';
-import { buildSearchIndex, searchIndex } from './searchIndex.js';
+import { buildSearchIndex, buildSearchIndexAsync, searchIndex } from './searchIndex.js';
 import { revealOrgPath, resolveOrganizationIdForNode } from './revealPath.js';
 import { movePositionToCell, shiftPositionBlock, snapToGrid } from './positionMove.js';
 import { InteractionError } from './types.js';
@@ -61,6 +61,22 @@ describe('searchIndex', () => {
     const hits = searchIndex(index, 'Alice');
     expect(hits.length).toBeGreaterThan(0);
     expect(hits.some((h) => h.label.includes('Alice'))).toBe(true);
+  });
+
+  it('success: substring mid-label via byChar seed (lice in Alice)', () => {
+    const index = buildSearchIndex(sampleData());
+    const hits = searchIndex(index, 'lice');
+    expect(hits.some((h) => h.label.includes('Alice'))).toBe(true);
+  });
+
+  it('success: buildSearchIndexAsync matches sync index hits', async () => {
+    const data = sampleData();
+    const sync = buildSearchIndex(data);
+    const asyncIdx = await buildSearchIndexAsync(data, { chunkSize: 1 });
+    expect(asyncIdx.entries.length).toBe(sync.entries.length);
+    expect(searchIndex(asyncIdx, 'Alice').map((h) => h.label)).toEqual(
+      searchIndex(sync, 'Alice').map((h) => h.label),
+    );
   });
 
   it('failure: empty query → []', () => {
