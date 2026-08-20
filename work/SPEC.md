@@ -145,6 +145,55 @@ Staff — **окреме сімейство діаграми** від org matrix
 
 Auto-tree root у чистому дереві: керівна посада org (ярус 2) або локальний head sub-org (ярус 3). У hybrid кожне floating-піддерево має свій локальний корінь (найвищий floating без розміщеного предка, або дитина anchor).
 
+##### Геометрія: розміри нод і відступи (обов’язково)
+
+Координати **недостатні** без розміру ноди та gap. І tree, і matrix працюють у **піксельних AABB** локальної СК org.
+
+**Розмір посади** (пріоритет):
+
+```text
+position.width / position.height
+  ?? template/staff style для kind
+  ?? layoutOptions.nodeWidth / nodeHeight
+```
+
+**Відступи (layout options / theme):**
+
+| Параметр | Дерево (tidy) | Matrix / anchors |
+|----------|---------------|------------------|
+| `horizontalGap` / peer margin | між sibling (tidy `peer_margin`) | мінімальний зазор між AABB по X |
+| `verticalGap` / parent–child margin | батько→дитина (tidy `parent_child_margin`) | мінімальний зазор між AABB по Y |
+| `margin` | край org-блоку | край org-блоку / ярусу |
+
+**Дерево (немає coords / floating):**  
+Ploeg/tidy вже приймає **per-node width/height** + margins — auto враховує різні розміри карток. Не дублювати окремий «grid pitch».
+
+**Matrix (є coords):**
+
+| Форма coords | Інтерпретація |
+|--------------|----------------|
+| `layoutCoords: {x,y}` | Точка прив’язки в **px** локальної СК (default: top-left ноди). AABB = `(x, y, width, height)`. Gap — для overlap-тестів і pack floating. |
+| `gridCell` / `col,row` | Логічний слот. Світові px: |
+
+```text
+cellPitchX = refCellWidth  + horizontalGap
+cellPitchY = refCellHeight + verticalGap
+x = col * cellPitchX
+y = row * cellPitchY
+```
+
+`refCellWidth/Height` — з options (або max ширини/висоти нод у блоці, якщо увімкнено `matrixPitch: 'max-node'`).  
+Сама нода може бути **менша/більша** за ref cell: малюємо за своїм `width/height`; для колізій і contour sampling використовуємо **фактичний AABB**, не лише слот.
+
+**Overlap після застосування розмірів:**
+
+- Два anchors перетинаються (з урахуванням gap) → **diagnostics** (warn); v1 не розсуваємо anchors auto (зберігаємо ручний matrix). Host/D&D має виправити.
+- Floating vs anchor → eject/pack floating (hybrid), з урахуванням AABB+gap, не лише center points.
+
+**Contour (dept):** після фінальних AABB → дискретизація в grid cells для magnetism (існуючий pipeline); різні розміри нод ⇒ різні набори cells.
+
+**Інваріант:** будь-який staff layout pass (tree / matrix / hybrid) на виході дає для кожної видимої посади `{ x, y, width, height }` у локальних px org — єдиний контракт для render і compose в яруси.
+
 #### 2.2.2 Два візуальні сімейства
 
 | Сімейство | Layout | Шаблони |
