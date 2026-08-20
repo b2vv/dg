@@ -451,13 +451,25 @@ Host raw data
 └──────────────────────────────────────────────────────────┘
 ```
 
-### 5.1 LOD / viewport (planned)
+### 5.1 LOD / viewport
 
 | Zoom | Person | Department | Organization |
 |------|--------|------------|--------------|
 | Far | dot / hidden | simplified polygon + count badge | icon only |
 | Mid | compact card | full contour | card |
 | Near | full card + photo | full contour + label | full card + emblem |
+
+**v1:** увесь LOD і ноди — **лише Pixi** (WebGL). HTML лише для popup / context menu / modal **поза** полотном нод (не React-картка на кожну ноду).
+
+**v1.x (після готової v1 — покращення UX):** опційний шар **HTML/React/SVG promote** поверх Pixi-підкладки:
+
+- Pixi лишається камерою, pan/zoom, масою нод, edges, contours;
+- при near-zoom / selection / viewport — promote обраних нод у React (кнопки, img, вкладений Chart.js тощо);
+- один world→screen з Pixi viewport; не дублювати layout у tree-lib.
+
+Повертатись до v1.x **лише коли v1 стабільна** (org + staff vertical slice, export, жести). Не блокує v1.
+
+Деталі / acceptance — [`TD07-pixi-react-promote-overlay.md`](./tech-debt/TD07-pixi-react-promote-overlay.md); roadmap §11 фаза 5.
 
 ### 5.2 Incremental data
 
@@ -585,8 +597,9 @@ diagram.destroy();
 |------|-------|--------|
 | 1 Foundation | monorepo, WASM, mappers, worker, types | 🟡 частково |
 | 2 Org modes | matrix, row-tree, search, D&D org | 🔴 |
-| 3 Staff | 3 renderers, contour Pixi, D&D person, block shift | 🟡 contour WASM ✅ |
+| 3 Staff | 3 яруси, matrix\|tree\|hybrid, contour Pixi, D&D person | 🟡 contour WASM ✅ |
 | 4 Polish | context menu, export, docs | 🔴 |
+| **5 v1.x Improve** | **Pixi + HTML/React promote overlay** (custom node content, Chart.js у картці); після стабільної v1 | ⚪ backlog |
 
 ---
 
