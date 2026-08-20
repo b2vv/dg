@@ -49,7 +49,19 @@ import { createReactContextMenuHost, DefaultReactContextMenu } from '@org-hierar
 | `npm run typecheck` | SDK + emit `.d.ts` + demo |
 | `npm run build:wasm` | Rebuild WASM pkg under `packages/sdk/src/wasm/pkg` |
 
+## Agent skills (Matt Pocock)
+
+Engineering / productivity skills from [mattpocock/skills](https://github.com/mattpocock/skills) live in `.agents/skills/` (Cursor-linked via `skills-lock.json`).
+
+```bash
+npx skills@latest add mattpocock/skills --skill '*' --agent cursor -y --copy
+npx skills update   # later: pull upstream skill updates
+```
+
+Run **`/setup-matt-pocock-skills`** once in Cursor to configure issue tracker, triage labels, and domain docs (`CONTEXT.md` / ADRs).
+
 ## Docs
+
 
 - [`docs/REQUIREMENTS.md`](./docs/REQUIREMENTS.md) — product requirements
 - [`docs/TECH_STACK.md`](./docs/TECH_STACK.md) — architecture
