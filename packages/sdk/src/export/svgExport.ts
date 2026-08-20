@@ -73,6 +73,7 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
             cellWidth: config.cellWidth,
             cellHeight: config.cellHeight,
             smoothIterations: config.smoothIterations,
+            magnetRadius: config.magnetRadius ?? 1.5,
           })
         : [];
 

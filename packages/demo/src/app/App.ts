@@ -198,7 +198,12 @@ export class App {
 
     switch (this.tab) {
       case 'variant-b':
-        return { ...base, data: buildVariantBData(), staffCurrentOrgId: 'org1' };
+        return {
+          ...base,
+          data: buildVariantBData(),
+          staffCurrentOrgId: 'org1',
+          render: { ...base.render, magnetRadius: 8 },
+        };
       case 'staff-tree':
         return { ...base, data: buildStaffTreeData(), staffCurrentOrgId: 'ops' };
       case 'flat-orgs':

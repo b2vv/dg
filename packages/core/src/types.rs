@@ -147,6 +147,9 @@ pub struct ContourPositionInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContourMagnetConfig {
+    /// Max Manhattan distance between own cells in one component (SPEC default 1.5).
+    #[serde(default = "default_magnet_radius")]
+    pub magnet_radius: f32,
     #[serde(default = "default_padding_cells")]
     pub padding_cells: i32,
     #[serde(default = "default_corridor_cells")]
@@ -157,8 +160,14 @@ pub struct ContourMagnetConfig {
     pub cell_height: f32,
     #[serde(default = "default_smooth_iterations")]
     pub smooth_iterations: u32,
+    /// Prefer notch/corridor around foreign (documented; flood already enforces G2/G5).
+    #[serde(default = "default_prefer_notch")]
+    pub prefer_notch: bool,
 }
 
+fn default_magnet_radius() -> f32 {
+    1.5
+}
 fn default_padding_cells() -> i32 {
     0
 }
@@ -174,15 +183,20 @@ fn default_cell_height() -> f32 {
 fn default_smooth_iterations() -> u32 {
     2
 }
+fn default_prefer_notch() -> bool {
+    true
+}
 
 impl Default for ContourMagnetConfig {
     fn default() -> Self {
         Self {
+            magnet_radius: 1.5,
             padding_cells: 0,
             corridor_cells: 0,
             cell_width: 100.0,
             cell_height: 80.0,
             smooth_iterations: 2,
+            prefer_notch: true,
         }
     }
 }
@@ -199,6 +213,7 @@ pub struct DeptContourResult {
     pub department_id: String,
     pub points: Vec<ContourPoint>,
     pub path: String,
+    #[serde(rename = "cornerCount")]
     pub corner_count: u32,
 }
 

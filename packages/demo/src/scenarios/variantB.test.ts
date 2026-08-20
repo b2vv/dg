@@ -12,10 +12,12 @@ describe('buildVariantBData', () => {
 
 describe('Variant B contour', () => {
   it('success: IT contour path is non-empty', async () => {
-    const contour = await computeDeptContour('IT', VARIANT_B_POSITIONS, {
+    const contours = await computeDeptContour('IT', VARIANT_B_POSITIONS, {
       smoothIterations: 0,
+      magnetRadius: 8,
     });
-    expect(contour.path.length).toBeGreaterThan(0);
-    expect(contour.path.startsWith('M')).toBe(true);
+    expect(contours.length).toBeGreaterThan(0);
+    expect(contours[0]!.path.length).toBeGreaterThan(0);
+    expect(contours[0]!.path.startsWith('M')).toBe(true);
   });
 });

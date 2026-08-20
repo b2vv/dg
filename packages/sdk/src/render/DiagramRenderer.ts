@@ -278,6 +278,7 @@ export class DiagramRenderer {
         cellWidth: config.cellWidth,
         cellHeight: config.cellHeight,
         smoothIterations: config.smoothIterations,
+        magnetRadius: config.magnetRadius,
       });
 
       const deptById = new Map(data.departments.map((d) => [d.id, d]));
@@ -366,6 +367,7 @@ export class DiagramRenderer {
       cellWidth: config.cellWidth,
       cellHeight: config.cellHeight,
       smoothIterations: config.smoothIterations,
+      magnetRadius: config.magnetRadius,
     });
     for (const contour of contours) {
       const dept = deptById.get(contour.departmentId);

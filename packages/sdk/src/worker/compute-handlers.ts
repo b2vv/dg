@@ -36,13 +36,14 @@ export interface ComputeOrgRowTreeLayoutPayload {
 
 export async function handleComputeDeptContour(
   input: ComputeDeptContourPayload,
-): Promise<DeptContourResult> {
+): Promise<DeptContourResult[]> {
   const wasm = await initWasmModule();
-  return wasm.computeDeptContour(
+  const raw = wasm.computeDeptContour(
     input.departmentId,
     input.positions,
     toRustConfig(input.config) as unknown as ContourMagnetConfig,
   );
+  return Array.isArray(raw) ? raw : [raw];
 }
 
 export async function handleComputeAllContours(

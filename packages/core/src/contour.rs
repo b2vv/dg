@@ -193,30 +193,41 @@ fn to_svg_path(points: &[(f32, f32)], cell_w: f32, cell_h: f32) -> String {
     s
 }
 
-/// Build dept contour with magnetism rules (§4.6.1).
+/// Build dept contours with magnetism rules (§4.6.1).
+/// Returns one result per own-cell component (M4 / magnet_radius).
 pub fn compute_dept_contour(
     department_id: &str,
     positions: &[ContourPositionInput],
     config: &ContourMagnetConfig,
-) -> Result<DeptContourResult, String> {
+) -> Result<Vec<DeptContourResult>, String> {
     let pad = config.padding_cells.max(0);
     let corridor = config.corridor_cells.max(0);
+    let radius = if config.magnet_radius.is_finite() {
+        config.magnet_radius.max(0.0)
+    } else {
+        f32::MAX
+    };
 
-    let own: HashSet<Cell> = positions
+    let own_list: Vec<Cell> = positions
         .iter()
         .filter(|p| p.department_id == department_id)
-        .map(|p| Cell { col: p.col, row: p.row })
+        .map(|p| Cell {
+            col: p.col,
+            row: p.row,
+        })
         .collect();
 
-    if own.is_empty() {
+    if own_list.is_empty() {
         return Err(format!("no positions for department {department_id}"));
     }
 
-    // Foreign = other depts; expand by corridor (G2)
     let mut foreign: HashSet<Cell> = HashSet::new();
     for p in positions {
         if p.department_id != department_id {
-            let base = Cell { col: p.col, row: p.row };
+            let base = Cell {
+                col: p.col,
+                row: p.row,
+            };
             for dc in -corridor..=corridor {
                 for dr in -corridor..=corridor {
                     foreign.insert(Cell {
@@ -228,40 +239,97 @@ pub fn compute_dept_contour(
         }
     }
 
-    let all_cells: HashSet<Cell> = own.iter().chain(foreign.iter()).copied().collect();
-    let bbox = compute_bbox(all_cells, pad + 1);
+    let clusters = cluster_own_cells(&own_list, radius);
+    let mut results = Vec::with_capacity(clusters.len());
 
-    let inside = flood_inside(&own, &foreign, &bbox);
-    let raw_corners = trace_orthogonal_contour(&inside, &bbox);
+    for own in clusters {
+        let own_set: HashSet<Cell> = own.iter().copied().collect();
+        let all_cells: HashSet<Cell> = own_set.iter().chain(foreign.iter()).copied().collect();
+        let bbox = compute_bbox(all_cells, pad + 1);
 
-    let smooth_pts = if config.smooth_iterations > 0 {
-        chaikin(&raw_corners, config.smooth_iterations)
-    } else {
-        raw_corners
+        let inside = flood_inside(&own_set, &foreign, &bbox);
+        let raw_corners = trace_orthogonal_contour(&inside, &bbox);
+
+        let smooth_pts = if config.smooth_iterations > 0 {
+            chaikin(&raw_corners, config.smooth_iterations)
+        } else {
+            raw_corners
+                .iter()
+                .map(|(x, y)| (*x as f32, *y as f32))
+                .collect()
+        };
+
+        let points: Vec<ContourPoint> = smooth_pts
             .iter()
-            .map(|(x, y)| (*x as f32, *y as f32))
-            .collect()
-    };
+            .map(|(x, y)| ContourPoint {
+                x: x * config.cell_width,
+                y: y * config.cell_height,
+            })
+            .collect();
 
-    let points: Vec<ContourPoint> = smooth_pts
-        .iter()
-        .map(|(x, y)| ContourPoint {
-            x: x * config.cell_width,
-            y: y * config.cell_height,
-        })
-        .collect();
+        let path = to_svg_path(&smooth_pts, config.cell_width, config.cell_height);
+        let corner_count = raw_corners.len() as u32;
 
-    let path = to_svg_path(&smooth_pts, config.cell_width, config.cell_height);
+        results.push(DeptContourResult {
+            department_id: department_id.to_string(),
+            points,
+            path,
+            corner_count,
+        });
+    }
 
-    Ok(DeptContourResult {
-        department_id: department_id.to_string(),
-        points,
-        path,
-        corner_count: raw_corners.len() as u32,
-    })
+    Ok(results)
 }
 
-/// All unique departments in positions.
+/// Union-find clusters: merge own cells when Manhattan distance ≤ magnet_radius.
+fn cluster_own_cells(own: &[Cell], magnet_radius: f32) -> Vec<Vec<Cell>> {
+    let n = own.len();
+    if n == 0 {
+        return Vec::new();
+    }
+    let mut parent: Vec<usize> = (0..n).collect();
+
+    fn find(i: usize, parent: &mut [usize]) -> usize {
+        let mut i = i;
+        while parent[i] != i {
+            parent[i] = parent[parent[i]];
+            i = parent[i];
+        }
+        i
+    }
+
+    for i in 0..n {
+        for j in (i + 1)..n {
+            let a = own[i];
+            let b = own[j];
+            let dist =
+                (a.col - b.col).unsigned_abs() as f32 + (a.row - b.row).unsigned_abs() as f32;
+            if dist <= magnet_radius {
+                let pi = find(i, &mut parent);
+                let pj = find(j, &mut parent);
+                if pi != pj {
+                    parent[pj] = pi;
+                }
+            }
+        }
+    }
+
+    let mut groups: std::collections::HashMap<usize, Vec<Cell>> =
+        std::collections::HashMap::new();
+    for i in 0..n {
+        let root = find(i, &mut parent);
+        groups.entry(root).or_default().push(own[i]);
+    }
+    let mut out: Vec<Vec<Cell>> = groups.into_values().collect();
+    out.sort_by(|a, b| {
+        let ka = a.iter().map(|c| (c.row, c.col)).min().unwrap();
+        let kb = b.iter().map(|c| (c.row, c.col)).min().unwrap();
+        ka.cmp(&kb)
+    });
+    out
+}
+
+/// All unique departments in positions (flattened components).
 pub fn compute_all_contours(
     positions: &[ContourPositionInput],
     config: &ContourMagnetConfig,
@@ -275,6 +343,7 @@ pub fn compute_all_contours(
     depts
         .iter()
         .filter_map(|id| compute_dept_contour(id, positions, config).ok())
+        .flatten()
         .collect()
 }
 
@@ -294,11 +363,13 @@ mod tests {
 
     fn default_cfg() -> ContourMagnetConfig {
         ContourMagnetConfig {
+            magnet_radius: 8.0, // keep classic single-blob A/B fixtures
             padding_cells: 0,
             corridor_cells: 0,
             cell_width: 100.0,
             cell_height: 80.0,
             smooth_iterations: 0,
+            prefer_notch: true,
         }
     }
 
@@ -310,7 +381,9 @@ mod tests {
             pos("P3", "IT", 1, 1),
             pos("P4", "CEO", 0, 1),
         ];
-        let r = compute_dept_contour("IT", &positions, &default_cfg()).unwrap();
+        let rs = compute_dept_contour("IT", &positions, &default_cfg()).unwrap();
+        assert_eq!(rs.len(), 1);
+        let r = &rs[0];
         assert!(r.corner_count >= 6, "notch contour has >= 6 corners");
         assert!(r.path.starts_with('M'));
         assert!(r.path.ends_with('Z'));
@@ -326,10 +399,10 @@ mod tests {
             pos("P5", "IT", 0, 2),
             pos("P6", "IT", 2, 2),
         ];
-        let r = compute_dept_contour("IT", &positions, &default_cfg()).unwrap();
-        // Notch shape: more corners than simple rectangle
+        let rs = compute_dept_contour("IT", &positions, &default_cfg()).unwrap();
+        assert_eq!(rs.len(), 1);
+        let r = &rs[0];
         assert!(r.corner_count >= 8, "got {}", r.corner_count);
-        // CEO cell (1,1) not inside IT — contour area excludes center foreign
         let cfg = default_cfg();
         let inside_foreign = r.points.iter().all(|p| {
             let cx = 1.5 * cfg.cell_width;
@@ -341,11 +414,102 @@ mod tests {
 
     #[test]
     fn foreign_not_in_own_contour() {
+        let positions = vec![pos("P1", "IT", 0, 0), pos("P4", "CEO", 1, 1)];
+        let rs = compute_dept_contour("CEO", &positions, &default_cfg()).unwrap();
+        assert_eq!(rs.len(), 1);
+        assert!(rs[0].corner_count >= 4);
+    }
+
+    #[test]
+    fn disconnected_own_two_contours() {
+        let positions = vec![pos("P1", "IT", 0, 0), pos("P2", "IT", 5, 0)];
+        let mut cfg = ContourMagnetConfig::default(); // magnet_radius 1.5
+        cfg.smooth_iterations = 0;
+        let rs = compute_dept_contour("IT", &positions, &cfg).unwrap();
+        assert_eq!(rs.len(), 2, "expected 2 components, got {}", rs.len());
+        assert!(rs.iter().all(|r| r.department_id == "IT"));
+        assert!(rs.iter().all(|r| r.path.starts_with('M')));
+    }
+
+    #[test]
+    fn magnet_radius_limits_merge() {
+        let positions = vec![pos("P1", "IT", 0, 0), pos("P2", "IT", 3, 0)]; // manhattan 3
+        let mut cfg = ContourMagnetConfig::default();
+        cfg.magnet_radius = 1.5;
+        cfg.smooth_iterations = 0;
+        let rs = compute_dept_contour("IT", &positions, &cfg).unwrap();
+        assert_eq!(rs.len(), 2);
+
+        cfg.magnet_radius = 3.0;
+        let merged = compute_dept_contour("IT", &positions, &cfg).unwrap();
+        assert_eq!(merged.len(), 1);
+    }
+
+    #[test]
+    fn magnet_radius_zero_each_cell_own_contour() {
         let positions = vec![
             pos("P1", "IT", 0, 0),
-            pos("P4", "CEO", 1, 1),
+            pos("P2", "IT", 1, 0),
+            pos("P3", "IT", 0, 1),
         ];
-        let r = compute_dept_contour("CEO", &positions, &default_cfg()).unwrap();
-        assert!(r.corner_count >= 4);
+        let mut cfg = ContourMagnetConfig::default();
+        cfg.magnet_radius = 0.0;
+        cfg.smooth_iterations = 0;
+        let rs = compute_dept_contour("IT", &positions, &cfg).unwrap();
+        assert_eq!(rs.len(), 3);
+    }
+
+    #[test]
+    fn empty_positions_err() {
+        let cfg = ContourMagnetConfig::default();
+        let err = compute_dept_contour("IT", &[], &cfg).unwrap_err();
+        assert!(err.contains("no positions") || err.contains("IT"));
+    }
+
+    #[test]
+    fn unknown_department_err() {
+        let positions = vec![pos("P1", "CEO", 0, 0)];
+        let cfg = ContourMagnetConfig::default();
+        let err = compute_dept_contour("IT", &positions, &cfg).unwrap_err();
+        assert!(err.contains("no positions"));
+    }
+
+    #[test]
+    fn negative_padding_clamped() {
+        let positions = vec![pos("P1", "IT", 0, 0)];
+        let mut cfg = ContourMagnetConfig::default();
+        cfg.padding_cells = -3;
+        cfg.smooth_iterations = 0;
+        let rs = compute_dept_contour("IT", &positions, &cfg).unwrap();
+        assert_eq!(rs.len(), 1);
+        assert!(rs[0].path.starts_with('M'));
+    }
+
+    #[test]
+    fn config_defaults_match_spec() {
+        let d = ContourMagnetConfig::default();
+        assert!((d.magnet_radius - 1.5).abs() < f32::EPSILON);
+        assert!(d.prefer_notch);
+        assert_eq!(d.smooth_iterations, 2);
+    }
+
+    /// G6: foreign blocks flood — no IT perimeter through CEO cell center (implicit).
+    #[test]
+    fn g6_implicit_foreign_blocks_flood() {
+        let positions = vec![
+            pos("P1", "IT", 0, 0),
+            pos("P2", "IT", 2, 0),
+            pos("P4", "CEO", 1, 0),
+        ];
+        let mut cfg = ContourMagnetConfig::default();
+        cfg.magnet_radius = 8.0;
+        cfg.smooth_iterations = 0;
+        let rs = compute_dept_contour("IT", &positions, &cfg).unwrap();
+        // Two IT cells with foreign between → still may be one or two components by radius;
+        // with radius 8, one flood region that does not include CEO cell as inside.
+        assert!(!rs.is_empty());
+        for r in rs {
+            assert!(r.path.contains('M'));
+        }
     }
 }

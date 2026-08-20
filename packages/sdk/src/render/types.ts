@@ -50,6 +50,8 @@ export interface RenderConfig {
   cellHeight: number;
   paddingCells: number;
   smoothIterations: number;
+  /** Contour own-cell merge radius (Manhattan); default 1.5 */
+  magnetRadius: number;
 }
 
 export const defaultNodeTheme: NodeTheme = {
@@ -96,6 +98,7 @@ export const defaultRenderConfig: RenderConfig = {
   cellHeight: 80,
   paddingCells: 0,
   smoothIterations: 2,
+  magnetRadius: 1.5,
 };
 
 export function mergeTheme(partial?: Partial<NodeTheme>): NodeTheme {

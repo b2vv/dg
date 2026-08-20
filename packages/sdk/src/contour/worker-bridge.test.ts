@@ -63,9 +63,11 @@ describe('computeDeptContourInWorker', () => {
 
     const result = await computeDeptContourInWorker('IT', VARIANT_B_POSITIONS, {
       smoothIterations: 0,
+      magnetRadius: 8,
     });
-    expect(result.path.startsWith('M')).toBe(true);
-    expect(result.path.endsWith('Z')).toBe(true);
+    expect(result.length).toBeGreaterThan(0);
+    expect(result[0]!.path.startsWith('M')).toBe(true);
+    expect(result[0]!.path.endsWith('Z')).toBe(true);
   });
 
   it('failure: worker error falls back to main thread by default', async () => {
@@ -79,9 +81,10 @@ describe('computeDeptContourInWorker', () => {
 
     const result = await computeDeptContourInWorker('IT', VARIANT_B_POSITIONS, {
       smoothIterations: 0,
+      magnetRadius: 8,
     });
-    expect(result.departmentId).toBe('IT');
-    expect(result.path.length).toBeGreaterThan(0);
+    expect(result[0]!.departmentId).toBe('IT');
+    expect(result[0]!.path.length).toBeGreaterThan(0);
   });
 
   it('failure: rejects on timeout when no fallback', async () => {

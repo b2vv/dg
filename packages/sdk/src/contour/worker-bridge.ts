@@ -56,16 +56,14 @@ export async function computeDeptContourInWorker(
   departmentId: string,
   positions: ContourPositionInput[],
   config?: ContourMagnetConfig,
-): Promise<DeptContourResult> {
+): Promise<DeptContourResult[]> {
   const payload: ComputeDeptContourPayload = { departmentId, positions, config };
   try {
-    return await mapInWorker<ComputeDeptContourPayload, DeptContourResult>(
-      getWorker(),
-      computeHandlerKeys.computeDeptContour,
-      payload,
-      undefined,
-      options.timeoutMs,
-    );
+    const raw = await mapInWorker<
+      ComputeDeptContourPayload,
+      DeptContourResult[] | DeptContourResult
+    >(getWorker(), computeHandlerKeys.computeDeptContour, payload, undefined, options.timeoutMs);
+    return Array.isArray(raw) ? raw : [raw];
   } catch (err) {
     if (options.fallbackToMainThread) {
       return computeDeptContour(departmentId, positions, config);
