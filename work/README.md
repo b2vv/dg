@@ -71,6 +71,7 @@ npm run dev          # http://localhost:3000
 24. [T24-layout-diagnostics.md](./tasks/T24-layout-diagnostics.md) — ✅ layout diagnostics API
 25. [T25-demo-github-pages.md](./tasks/T25-demo-github-pages.md) — ✅ Pages workflow (needs public repo / paid)
 26. [T26-promote-overlay.md](./tasks/T26-promote-overlay.md) — ✅ React promote overlay (TD07)
+27. [T27-pages-css-mobile-fix.md](./tasks/T27-pages-css-mobile-fix.md) — ✅ Pages CSS + mobile canvas height
 
 ## Технічний борг
 
