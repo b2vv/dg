@@ -30,4 +30,4 @@
 ## Out of scope
 
 - TD07 promote overlay
-- Staff expand-in-place (SPEC §2.2 follow-up)
+- Staff expand-in-place — see T20

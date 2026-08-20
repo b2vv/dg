@@ -20,6 +20,7 @@ export interface SvgExportInput {
   background?: string;
   includeLabels?: boolean;
   currentOrgId?: string;
+  expandedOrgIds?: readonly string[];
 }
 
 export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
@@ -49,6 +50,7 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
         persons: data.persons,
       },
       orgId,
+      { expandedOrgIds: input.expandedOrgIds },
     );
     width = Math.max(width, Math.ceil(canvas.width));
     height = Math.max(height, Math.ceil(canvas.height));
