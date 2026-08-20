@@ -66,4 +66,31 @@ describe('OrgHierarchyDiagram', () => {
       }),
     ).rejects.toThrow(/DiagramData/i);
   });
+
+  it('success: setZoom crossing LOD band updates getLodLevel', async () => {
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: makeVariantBDiagram(),
+      theme: 'light',
+      useWorker: false,
+    });
+
+    expect(diagram.getLodLevel()).toBe('mid');
+    diagram.setZoom(0.2);
+    await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(diagram.getLodLevel()).toBe('far');
+
+    diagram.setZoom(2);
+    await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(diagram.getLodLevel()).toBe('near');
+
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
 });

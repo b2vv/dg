@@ -33,6 +33,7 @@ export class Viewport {
   private detachWheel: (() => void) | null = null;
   private screenWidth = 800;
   private screenHeight = 600;
+  private onChange: ((t: ViewportTransform) => void) | null = null;
 
   constructor(
     private readonly world: {
@@ -45,6 +46,10 @@ export class Viewport {
     this.maxScale = options.maxScale ?? DEFAULT_MAX_SCALE;
     this.wheelIntensity = options.wheelIntensity ?? DEFAULT_WHEEL;
     this.apply();
+  }
+
+  setOnChange(handler: ((t: ViewportTransform) => void) | null): void {
+    this.onChange = handler;
   }
 
   getTransform(): ViewportTransform {
@@ -144,6 +149,7 @@ export class Viewport {
   private apply(): void {
     this.world.position.set(this.x, this.y);
     this.world.scale.set(this.scale, this.scale);
+    this.onChange?.(this.getTransform());
   }
 }
 

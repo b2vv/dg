@@ -28,7 +28,7 @@ work/
 | Rust WASM contour (magnetism) | ✅ реалізовано |
 | SDK data + mappers + worker helpers | ✅ |
 | SDK contour bridge | ✅ |
-| Pixi renderer | ✅ T01 (+ pan/zoom viewport) |
+| Pixi renderer | ✅ T01 (+ pan/zoom + LOD) |
 | Org matrix / row-tree | ✅ T03 |
 | Staff 3-tier layout + edges | ✅ T08–T09 |
 | Demo app (Rsbuild) | ✅ `packages/demo` — `npm run dev` |
@@ -57,6 +57,7 @@ npm run dev          # http://localhost:3000
 10. [T07-contour-algorithm-gaps.md](./tasks/T07-contour-algorithm-gaps.md) — ✅ M4 / magnetRadius / config
 11. [T11-ci-hygiene.md](./tasks/T11-ci-hygiene.md) — ✅ CI + debt hygiene
 12. [T12-setdata-readme.md](./tasks/T12-setdata-readme.md) — ✅ `setData` + root README
+13. [T13-lod-viewport.md](./tasks/T13-lod-viewport.md) — ✅ LOD far/mid/near by zoom
 
 ## Технічний борг
 

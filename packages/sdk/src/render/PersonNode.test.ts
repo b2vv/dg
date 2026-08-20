@@ -42,4 +42,23 @@ describe('PersonNodeView', () => {
     expect(view.findText('—')).toBeTruthy();
     expect(view.hasTempBadge()).toBe(false);
   });
+
+  it('success: far lod draws dot without name text', () => {
+    const view = PersonNodeView.create(
+      { id: 'p1', fullName: 'Іваненко Іван' },
+      {
+        id: 'pos1',
+        title: 'Інженер',
+        organizationId: 'org1',
+        groupIds: [],
+        status: 'filled',
+        isTemporary: true,
+      },
+      defaultNodeTheme.person,
+      'far',
+    );
+    expect(view.lod).toBe('far');
+    expect(view.findText('Іваненко Іван')).toBeUndefined();
+    expect(view.hasTempBadge()).toBe(false);
+  });
 });
