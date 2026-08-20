@@ -118,6 +118,9 @@ export class DiagramRenderer {
   readonly layers = new LayerManager();
   private destroyed = false;
   private nodeBoxes = new Map<string, NodeWorldBox>();
+  /** Pixi views keyed by node/position/org id — for promote hide/show. */
+  private nodeViews = new Map<string, Container>();
+  private promotedIds = new Set<string>();
   private contourSession: ContourSession | null = null;
   private lastDiagnostics: string[] = [];
   private drag: {
@@ -142,6 +145,34 @@ export class DiagramRenderer {
   /** Soft layout warnings from the last successful `render` (may be empty). */
   getLayoutDiagnostics(): readonly string[] {
     return this.lastDiagnostics;
+  }
+
+  listNodeBoxes(): readonly NodeWorldBox[] {
+    return [...this.nodeBoxes.values()];
+  }
+
+  /**
+   * Hide Pixi views for ids that are promoted to HTML (avoids double paint).
+   * Call after render or when the promote set changes.
+   */
+  setPromotedNodeIds(ids: readonly string[]): void {
+    this.promotedIds = new Set(ids);
+    this.applyPromoteVisibility();
+  }
+
+  getPromotedNodeIds(): readonly string[] {
+    return [...this.promotedIds];
+  }
+
+  private registerView(id: string, view: Container): void {
+    this.nodeViews.set(id, view);
+    view.visible = !this.promotedIds.has(id);
+  }
+
+  private applyPromoteVisibility(): void {
+    for (const [id, view] of this.nodeViews) {
+      view.visible = !this.promotedIds.has(id);
+    }
   }
 
   /** Axis-aligned union of remembered node boxes (world space). */
@@ -173,6 +204,7 @@ export class DiagramRenderer {
     this.contourSession = null;
     this.layers.clear();
     this.nodeBoxes.clear();
+    this.nodeViews.clear();
     this.lastDiagnostics = [];
     this.drag = null;
 
@@ -189,6 +221,7 @@ export class DiagramRenderer {
     }
 
     this.drawSelection(options.selected ?? null);
+    this.applyPromoteVisibility();
   }
 
   destroy(): void {
@@ -542,6 +575,8 @@ export class DiagramRenderer {
           options,
         );
         this.layers.persons.addChild(node);
+        this.registerView(position.id, node);
+        if (position.personId) this.registerView(position.personId, node);
       }
 
       for (const card of canvas.orgCards) {
@@ -565,6 +600,7 @@ export class DiagramRenderer {
           width: card.width,
           height: card.height,
         });
+        this.registerView(card.orgId, view);
         view.on('pointertap', (e) => {
           e.stopPropagation();
           if (options.onStaffOrgExpandToggle) {
@@ -619,6 +655,8 @@ export class DiagramRenderer {
         options,
       );
       this.layers.persons.addChild(node);
+      this.registerView(position.id, node);
+      if (position.personId) this.registerView(position.personId, node);
     }
   }
 
@@ -679,6 +717,7 @@ export class DiagramRenderer {
         });
       });
       this.layers.organizations.addChild(node);
+      this.registerView(org.id, node);
     }
   }
 }

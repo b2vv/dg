@@ -15,6 +15,7 @@ import {
   type CameraMotionOptions,
 } from './render/index.js';
 import { resolveLodLevel, type LodLevel } from './render/lod.js';
+import type { PromoteCandidate } from './render/promoteTypes.js';
 import {
   collapseAllOrgs,
   collapseOrg,
@@ -153,6 +154,9 @@ export {
   loadNodeTexture,
   configureNodeTextureLoader,
   clearNodeTextureCache,
+  worldBoxToScreen,
+  resolvePromoteIds,
+  screenRectInView,
 } from './render/index.js';
 export type {
   NodeTheme,
@@ -164,6 +168,10 @@ export type {
   LodLevel,
   LodThresholds,
   NodeTextureLoader,
+  PromoteCandidate,
+  PromoteMode,
+  ScreenRect,
+  WorldBox,
 } from './render/index.js';
 export type { LayoutPatch, OrgHierarchyCallbacks } from './callbacks.js';
 
@@ -270,6 +278,7 @@ export class OrgHierarchyDiagram {
   private lodLevel: LodLevel = 'near';
   private lodRenderQueued = false;
   private contourComputer: IncrementalContourComputer | null = null;
+  private promoteSyncListeners = new Set<() => void>();
   static async create<TRaw>(
     container: HTMLElement,
     config: OrgHierarchyConfig<TRaw>,
@@ -306,10 +315,23 @@ export class OrgHierarchyDiagram {
     instance.host = await PixiHost.create(container);
     instance.host.setOnViewportChange((t) => {
       instance.onViewportTransform(t.scale);
+      instance.notifyPromoteSync();
     });
     instance.lodLevel = resolveLodLevel(instance.host.getZoom());
     await instance.render();
     return instance;
+  }
+
+  private notifyPromoteSync(): void {
+    for (const listener of this.promoteSyncListeners) listener();
+  }
+
+  /** Subscribe to viewport / selection / render changes for HTML promote overlays. */
+  subscribePromoteSync(listener: () => void): () => void {
+    this.promoteSyncListeners.add(listener);
+    return () => {
+      this.promoteSyncListeners.delete(listener);
+    };
   }
 
   private onViewportTransform(scale: number): void {
@@ -362,6 +384,7 @@ export class OrgHierarchyDiagram {
     if (!result.changed) return;
     this.selection = result.selection;
     this.callbacks.onSelectionChange?.(result.selection ? [result.selection] : []);
+    this.notifyPromoteSync();
   }
 
   private personNodeRef(personId: string, positionId: string): NodeRef {
@@ -501,6 +524,7 @@ export class OrgHierarchyDiagram {
       },
     });
     this.callbacks.onLayoutDiagnostics?.(this.getLayoutDiagnostics());
+    this.notifyPromoteSync();
   }
 
   getOrgMode(): OrgDisplayMode {
@@ -730,6 +754,36 @@ export class OrgHierarchyDiagram {
     return this.lodLevel;
   }
 
+  /**
+   * World boxes + resolved node payloads for promote overlay.
+   * When `ids` omitted, returns all remembered boxes that resolve to a node.
+   */
+  listPromoteCandidates(ids?: readonly string[]): PromoteCandidate[] {
+    const boxes = this.host?.renderer.listNodeBoxes() ?? [];
+    const wanted = ids ? new Set(ids) : null;
+    const out: PromoteCandidate[] = [];
+    const seen = new Set<string>();
+    for (const box of boxes) {
+      if (wanted && !wanted.has(box.id)) continue;
+      if (seen.has(box.id)) continue;
+      const ref = this.resolveNodeRef(box.id);
+      if (!ref) continue;
+      seen.add(box.id);
+      out.push({
+        id: box.id,
+        kind: box.kind,
+        world: { x: box.x, y: box.y, width: box.width, height: box.height },
+        node: resolveContextMenuNodeData(this.data, ref),
+      });
+    }
+    return out;
+  }
+
+  /** Hide Pixi views for promoted ids (HTML overlay owns the chrome). */
+  setPromotedNodeIds(ids: readonly string[]): void {
+    this.host?.renderer.setPromotedNodeIds(ids);
+  }
+
   setZoom(scale: number): void {
     this.host?.setZoom(scale);
   }
@@ -834,6 +888,7 @@ export class OrgHierarchyDiagram {
   }
 
   destroy(): void {
+    this.promoteSyncListeners.clear();
     this.contourComputer?.invalidate();
     this.contourComputer = null;
     this.workerPool?.dispose();

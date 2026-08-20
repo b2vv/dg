@@ -93,5 +93,5 @@ Static Rsbuild build of `packages/demo` deployed via Actions (`DEMO_BASE_PATH=/d
 _Avoid_: Serving from `npm run dev` in CI
 
 **Promote overlay**:
-v1.x idea: HTML/React node chrome over Pixi (TD07) — not in v1.
-_Avoid_: Hybrid node, React card on canvas (for v1)
+HTML/React cards for selected near-LOD nodes, camera-synced (`createReactPromoteOverlay`); Pixi views hidden while promoted.
+_Avoid_: Mass HTML for every node; rasterizing promote into export (interactive-only)

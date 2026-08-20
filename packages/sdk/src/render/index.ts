@@ -35,6 +35,15 @@ export {
   type NodeTextureLoader,
 } from './nodeMedia.js';
 export {
+  worldBoxToScreen,
+  resolvePromoteIds,
+  screenRectInView,
+  type WorldBox,
+  type ScreenRect,
+  type PromoteMode,
+} from './promoteMath.js';
+export type { PromoteCandidate } from './promoteTypes.js';
+export {
   defaultNodeTheme,
   defaultRenderConfig,
   mergeTheme,

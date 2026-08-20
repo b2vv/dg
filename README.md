@@ -44,6 +44,19 @@ React context menu (optional peer):
 import { createReactContextMenuHost, DefaultReactContextMenu } from '@org-hierarchy/sdk/react';
 ```
 
+Promote overlay (optional peer) — HTML card over a selected near-LOD node:
+
+```ts
+import { createReactPromoteOverlay, DefaultPromoteCard } from '@org-hierarchy/sdk/react';
+
+const promote = createReactPromoteOverlay({
+  diagram,
+  mount: container,
+  mode: 'near-selection',
+  component: DefaultPromoteCard,
+});
+```
+
 ## Scripts
 
 | Command | What |
