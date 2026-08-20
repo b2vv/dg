@@ -9,6 +9,7 @@ export class DepartmentBlobView extends Container {
   private readonly shape = new Graphics();
   private readonly labelText: Text;
   private readonly countBadge: Text;
+  private lastPoints: { x: number; y: number }[] = [];
 
   constructor(label: string, lod: LodLevel = 'near') {
     super();
@@ -37,30 +38,64 @@ export class DepartmentBlobView extends Container {
     return view;
   }
 
+  static fromPoints(
+    points: { x: number; y: number }[],
+    label: string,
+    style: DepartmentBlobStyle,
+    lod: LodLevel = 'near',
+    personCount?: number,
+  ): DepartmentBlobView {
+    const view = new DepartmentBlobView(label, lod);
+    view.redrawPoints(points, style, lod, personCount);
+    return view;
+  }
+
+  /** Last drawn ring (world px) — used as morph source. */
+  getDrawnPoints(): readonly { x: number; y: number }[] {
+    return this.lastPoints;
+  }
+
   redraw(
     path: string,
     style: DepartmentBlobStyle,
     lod: LodLevel = this.lod,
     personCount?: number,
   ): void {
-    this.shape.clear();
-    this.labelText.style.fill = style.labelColor;
-    this.labelText.style.fontSize = lod === 'far' ? 11 : style.labelFontSize;
-
     const parsed = parseSvgPath(path);
     if (!parsed || parsed.points.length < 2) {
       if (path.trim()) {
         console.warn('[DepartmentBlob] invalid or empty SVG path');
       }
+      this.shape.clear();
+      this.lastPoints = [];
+      return;
+    }
+    this.redrawPoints(parsed.points, style, lod, personCount, parsed.closed);
+  }
+
+  redrawPoints(
+    points: { x: number; y: number }[],
+    style: DepartmentBlobStyle,
+    lod: LodLevel = this.lod,
+    personCount?: number,
+    closed = true,
+  ): void {
+    this.shape.clear();
+    this.labelText.style.fill = style.labelColor;
+    this.labelText.style.fontSize = lod === 'far' ? 11 : style.labelFontSize;
+
+    if (points.length < 2) {
+      this.lastPoints = [];
       return;
     }
 
-    const pts = simplifyPolyline(parsed.points, lod);
+    const pts = simplifyPolyline(points, lod);
+    this.lastPoints = pts.map((p) => ({ x: p.x, y: p.y }));
     this.shape.moveTo(pts[0]!.x, pts[0]!.y);
     for (let i = 1; i < pts.length; i += 1) {
       this.shape.lineTo(pts[i]!.x, pts[i]!.y);
     }
-    if (parsed.closed) {
+    if (closed) {
       this.shape.closePath();
     }
     this.shape.fill({ color: style.fill, alpha: style.fillAlpha });

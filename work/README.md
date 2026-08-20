@@ -61,6 +61,7 @@ npm run dev          # http://localhost:3000
 14. [T14-contour-g6.md](./tasks/T14-contour-g6.md) — ✅ G6 no far-side wall
 15. [T15-fitview-context.md](./tasks/T15-fitview-context.md) — ✅ fitView + CONTEXT.md
 16. [T16-incremental-contours-search.md](./tasks/T16-incremental-contours-search.md) — ✅ incremental contours + search scale
+17. [T17-g8-contour-morph.md](./tasks/T17-g8-contour-morph.md) — ✅ G8 contour morph during drag
 
 ## Технічний борг
 

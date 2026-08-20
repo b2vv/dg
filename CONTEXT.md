@@ -56,6 +56,10 @@ _Avoid_: Zoom level (alone), detail mode
 Caches per-department contour fingerprints so only dirty departments recompute after layout edits.
 _Avoid_: Contour memo, blob cache (prefer this name in SDK docs)
 
+**Contour morph**:
+Point-ring lerp of department blobs while dragging a person across snap cells (G8 polish).
+_Avoid_: Path-string tween, SVG morph
+
 **Promote overlay**:
 v1.x idea: HTML/React node chrome over Pixi (TD07) — not in v1.
 _Avoid_: Hybrid node, React card on canvas (for v1)

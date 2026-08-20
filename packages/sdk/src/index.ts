@@ -124,6 +124,9 @@ export {
   simplifyPolyline,
   defaultLodThresholds,
   parseSvgPath,
+  resampleClosedRing,
+  lerpClosedRings,
+  runPointMorph,
   defaultNodeTheme,
   mergeTheme,
 } from './render/index.js';

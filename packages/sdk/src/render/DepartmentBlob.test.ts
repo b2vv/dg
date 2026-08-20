@@ -20,4 +20,28 @@ describe('DepartmentBlobView', () => {
     const view = DepartmentBlobView.fromPath('M 0 0 Q bad', 'Bad', defaultNodeTheme.department);
     expect(view).toBeInstanceOf(DepartmentBlobView);
   });
+
+  it('success: redrawPoints updates drawn ring for morph', () => {
+    const view = DepartmentBlobView.fromPoints(
+      [
+        { x: 0, y: 0 },
+        { x: 40, y: 0 },
+        { x: 40, y: 40 },
+        { x: 0, y: 40 },
+      ],
+      'IT',
+      defaultNodeTheme.department,
+    );
+    expect(view.getDrawnPoints().length).toBeGreaterThanOrEqual(2);
+    view.redrawPoints(
+      [
+        { x: 10, y: 10 },
+        { x: 50, y: 10 },
+        { x: 50, y: 50 },
+        { x: 10, y: 50 },
+      ],
+      defaultNodeTheme.department,
+    );
+    expect(view.getDrawnPoints()[0]!.x).toBe(10);
+  });
 });
