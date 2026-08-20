@@ -89,3 +89,71 @@ pub struct TreeStats {
     pub max_depth: u32,
     pub vacant_count: u32,
 }
+
+// --- Dept contour (magnetism) ---
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContourPositionInput {
+    pub id: String,
+    #[serde(rename = "departmentId")]
+    pub department_id: String,
+    pub col: i32,
+    pub row: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContourMagnetConfig {
+    #[serde(default = "default_padding_cells")]
+    pub padding_cells: i32,
+    #[serde(default = "default_corridor_cells")]
+    pub corridor_cells: i32,
+    #[serde(default = "default_cell_width")]
+    pub cell_width: f32,
+    #[serde(default = "default_cell_height")]
+    pub cell_height: f32,
+    #[serde(default = "default_smooth_iterations")]
+    pub smooth_iterations: u32,
+}
+
+fn default_padding_cells() -> i32 {
+    0
+}
+fn default_corridor_cells() -> i32 {
+    0
+}
+fn default_cell_width() -> f32 {
+    100.0
+}
+fn default_cell_height() -> f32 {
+    80.0
+}
+fn default_smooth_iterations() -> u32 {
+    2
+}
+
+impl Default for ContourMagnetConfig {
+    fn default() -> Self {
+        Self {
+            padding_cells: 0,
+            corridor_cells: 0,
+            cell_width: 100.0,
+            cell_height: 80.0,
+            smooth_iterations: 2,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContourPoint {
+    pub x: f32,
+    pub y: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeptContourResult {
+    #[serde(rename = "departmentId")]
+    pub department_id: String,
+    pub points: Vec<ContourPoint>,
+    pub path: String,
+    pub corner_count: u32,
+}

@@ -1,5 +1,6 @@
 mod hierarchy;
 mod layout;
+mod contour;
 mod types;
 
 use wasm_bindgen::prelude::*;
@@ -7,6 +8,7 @@ use serde_wasm_bindgen::{from_value, to_value};
 
 pub use hierarchy::build_from_flat;
 pub use layout::compute_tree_layout;
+pub use contour::{compute_dept_contour, compute_all_contours};
 pub use types::*;
 
 /// Побудувати ієрархію з плоского JSON-масиву [{id, parentId?, label, ...}]
@@ -76,6 +78,42 @@ fn count_vacant(n: &HierarchyNode) -> u32 {
 
 #[wasm_bindgen(start)]
 pub fn init() {}
+
+/// Контур dept з правилами магнетизму (§4.6.1)
+#[wasm_bindgen(js_name = computeDeptContour)]
+pub fn wasm_compute_dept_contour(
+    department_id: String,
+    positions: JsValue,
+    config: Option<JsValue>,
+) -> Result<JsValue, JsValue> {
+    let positions: Vec<ContourPositionInput> = from_value(positions)
+        .map_err(|e| JsValue::from_str(&format!("parse error: {e}")))?;
+    let cfg: ContourMagnetConfig = config
+        .map(|c| from_value(c))
+        .transpose()
+        .map_err(|e| JsValue::from_str(&format!("config error: {e}")))?
+        .unwrap_or_default();
+    let result = compute_dept_contour(&department_id, &positions, &cfg)
+        .map_err(|e| JsValue::from_str(&e))?;
+    to_value(&result).map_err(|e| JsValue::from_str(&format!("serialize error: {e}")))
+}
+
+/// Контури для всіх dept у positions
+#[wasm_bindgen(js_name = computeAllContours)]
+pub fn wasm_compute_all_contours(
+    positions: JsValue,
+    config: Option<JsValue>,
+) -> Result<JsValue, JsValue> {
+    let positions: Vec<ContourPositionInput> = from_value(positions)
+        .map_err(|e| JsValue::from_str(&format!("parse error: {e}")))?;
+    let cfg: ContourMagnetConfig = config
+        .map(|c| from_value(c))
+        .transpose()
+        .map_err(|e| JsValue::from_str(&format!("config error: {e}")))?
+        .unwrap_or_default();
+    let results = compute_all_contours(&positions, &cfg);
+    to_value(&results).map_err(|e| JsValue::from_str(&format!("serialize error: {e}")))
+}
 
 #[cfg(test)]
 mod tests {

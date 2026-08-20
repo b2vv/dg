@@ -30,6 +30,19 @@ export {
 export { createWorkerPipeline, mapInWorker, WorkerPool } from './worker/index.js';
 export type { MapperRegistry, WorkerBridgeOptions } from './worker/bridge.js';
 
+export {
+  computeDeptContour,
+  computeAllContours,
+  initContourWasm,
+  VARIANT_B_POSITIONS,
+} from './contour/bridge.js';
+export type {
+  ContourPositionInput,
+  ContourMagnetConfig,
+  ContourPoint,
+  DeptContourResult,
+} from './contour/bridge.js';
+
 /** Конфіг embed — дані in-memory + мапери (API опційно зовні) */
 export interface OrgHierarchyConfig<TRaw = DiagramData> {
   data: TRaw | DiagramData;
