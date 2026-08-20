@@ -3,32 +3,40 @@ export interface ParsedPath {
   closed: boolean;
 }
 
-/** Parse simple SVG paths emitted by WASM contour (M, L, Z only) */
+/** Parse SVG paths: M, L, H, V, Z (contour + org edges) */
 export function parseSvgPath(d: string): ParsedPath | null {
   const trimmed = d.trim();
   if (!trimmed) return null;
 
-  const tokens = trimmed.match(/[MLZ]|[-+]?[\d.]+(?:e[-+]?\d+)?/gi);
+  const tokens = trimmed.match(/[MLHVZ]|[-+]?[\d.]+(?:e[-+]?\d+)?/gi);
   if (!tokens?.length) return null;
 
   const points: { x: number; y: number }[] = [];
   let i = 0;
   let cmd = '';
   let closed = false;
+  let cx = 0;
+  let cy = 0;
 
   const readNum = (): number | null => {
     if (i >= tokens.length) return null;
     const t = tokens[i];
-    if (/^[MLZ]$/i.test(t)) return null;
+    if (/^[MLHVZ]$/i.test(t)) return null;
     const n = Number(t);
     if (Number.isNaN(n)) return null;
     i += 1;
     return n;
   };
 
+  const lineTo = (x: number, y: number) => {
+    cx = x;
+    cy = y;
+    points.push({ x, y });
+  };
+
   while (i < tokens.length) {
     const t = tokens[i];
-    if (/^[MLZ]$/i.test(t)) {
+    if (/^[MLHVZ]$/i.test(t)) {
       cmd = t.toUpperCase();
       i += 1;
       if (cmd === 'Z') {
@@ -37,13 +45,20 @@ export function parseSvgPath(d: string): ParsedPath | null {
       }
     }
 
-    const x = readNum();
-    const y = readNum();
-    if (x === null || y === null) return null;
-
     if (cmd === 'M' || cmd === 'L') {
-      points.push({ x, y });
+      const x = readNum();
+      const y = readNum();
+      if (x === null || y === null) return null;
+      lineTo(x, y);
       if (cmd === 'M') cmd = 'L';
+    } else if (cmd === 'H') {
+      const x = readNum();
+      if (x === null) return null;
+      lineTo(x, cy);
+    } else if (cmd === 'V') {
+      const y = readNum();
+      if (y === null) return null;
+      lineTo(cx, y);
     } else {
       return null;
     }

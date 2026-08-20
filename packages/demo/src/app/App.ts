@@ -6,7 +6,7 @@ import {
   type FlatDiagramRow,
 } from '@org-hierarchy/sdk';
 import { buildVariantBData } from '../scenarios/variantB.js';
-import { buildFlatOrgsData, collapseAllOrgs, toggleOrgExpanded } from '../scenarios/flatOrgs.js';
+import { buildFlatOrgsData } from '../scenarios/flatOrgs.js';
 import { SAMPLE_MAPPER_JSON, SAMPLE_MAPPER_ROWS } from '../scenarios/sampleMapper.js';
 import { parseJsonFile } from '../utils/json.js';
 import { requireElement, setThemeAttribute, showError } from '../utils/dom.js';
@@ -56,8 +56,7 @@ export class App {
 
     requireElement('collapse-all').addEventListener('click', () => {
       if (this.tab === 'flat-orgs') {
-        this.flatOrgsData = collapseAllOrgs(this.flatOrgsData);
-        void this.reload();
+        void this.diagram?.collapseAllOrgs();
       }
     });
 
@@ -105,7 +104,19 @@ export class App {
     const config = this.buildConfig();
     try {
       this.setStatus('Loading…');
-      this.diagram = await OrgHierarchyDiagram.create(this.mountEl, config);
+      this.diagram = await OrgHierarchyDiagram.create(this.mountEl, {
+        ...config,
+        callbacks: {
+          onNodeClick: (node) => {
+            if (node.kind === 'organization' && this.tab === 'flat-orgs') {
+              void this.diagram?.expandOrg(node.id);
+            }
+          },
+          onOrgModeChange: (mode) => {
+            this.setStatus(`${this.tab} · ${mode} · ${this.theme}`);
+          },
+        },
+      });
       this.setStatus(`${this.tab} · ${this.theme} theme`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -117,6 +128,8 @@ export class App {
   private buildConfig(): OrgHierarchyConfig<unknown> {
     const base = {
       theme: this.theme,
+      useWorker: true,
+      workerPoolSize: 2,
       render: {
         cellWidth: 100,
         cellHeight: 80,
@@ -168,6 +181,7 @@ export class App {
       data: parsed.data,
       mappers: { toDiagram: flatRowsToDiagram },
       theme: this.theme,
+      useWorker: true,
     });
     this.setStatus(`mapper · ${parsed.data.length} rows`);
   }
@@ -192,11 +206,6 @@ export class App {
     } finally {
       worker.terminate();
     }
-  }
-
-  expandOrg(orgId: string): void {
-    this.flatOrgsData = toggleOrgExpanded(this.flatOrgsData, orgId);
-    if (this.tab === 'flat-orgs') void this.reload();
   }
 
   private showToast(message: string): void {

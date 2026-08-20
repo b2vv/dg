@@ -24,6 +24,8 @@ export interface DiagramOrganization {
   parentOrgId?: string;
   groupIds: string[];
   collapsed?: boolean;
+  /** Порядок у matrix mode (D&D reorder) */
+  matrixOrder?: number;
 }
 
 export interface DiagramGroup {

@@ -16,6 +16,8 @@ const defaultRegistry: MapperRegistry = {
     dispatchComputeHandler(computeHandlerKeys.computeLayout, input),
   [computeHandlerKeys.buildFromFlat]: (input) =>
     dispatchComputeHandler(computeHandlerKeys.buildFromFlat, input),
+  [computeHandlerKeys.computeOrgRowTreeLayout]: (input) =>
+    dispatchComputeHandler(computeHandlerKeys.computeOrgRowTreeLayout, input),
 };
 
 createWorkerMessageHandler(defaultRegistry);

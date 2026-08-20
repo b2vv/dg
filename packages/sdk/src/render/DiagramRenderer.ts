@@ -1,5 +1,4 @@
 import { Container } from 'pixi.js';
-import type { DiagramData, DiagramDepartment } from '../data/types.js';
 import {
   computeAllContours,
   type ContourMagnetConfig,
@@ -7,11 +6,15 @@ import {
   type DeptContourResult,
 } from '../contour/bridge.js';
 import { diagramPositionsToContourInputs } from '../contour/config.js';
+import { computeOrgLayout } from '../layout/rowTreeLayout.js';
+import type { OrgLayoutOptions } from '../layout/types.js';
 import { DepartmentBlobView } from './DepartmentBlob.js';
+import { OrgEdgesView } from './OrgEdgesView.js';
 import { PersonNodeView } from './PersonNode.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
 import type { NodeTheme, RenderConfig } from './types.js';
 import { defaultRenderConfig } from './types.js';
+import type { DiagramData } from '../data/types.js';
 
 export type ContourComputer = (
   positions: ContourPositionInput[],
@@ -20,21 +23,31 @@ export type ContourComputer = (
 
 export interface RenderOptions {
   computeContours?: ContourComputer;
+  orgLayout?: OrgLayoutOptions;
+  onOrgClick?: (orgId: string) => void;
 }
 
 export class LayerManager {
   readonly root = new Container();
   readonly departments = new Container();
+  readonly edges = new Container();
   readonly organizations = new Container();
   readonly persons = new Container();
   readonly overlay = new Container();
 
   constructor() {
-    this.root.addChild(this.departments, this.organizations, this.persons, this.overlay);
+    this.root.addChild(
+      this.departments,
+      this.edges,
+      this.organizations,
+      this.persons,
+      this.overlay,
+    );
   }
 
   clear(): void {
     this.departments.removeChildren();
+    this.edges.removeChildren();
     this.organizations.removeChildren();
     this.persons.removeChildren();
     this.overlay.removeChildren();
@@ -62,10 +75,8 @@ export class DiagramRenderer {
     const hasStaffGrid = data.positions.some((p) => p.gridCell);
     if (hasStaffGrid) {
       await this.renderStaff(data, theme, config, options);
-    }
-
-    if (data.organizations.length > 0 && !hasStaffGrid) {
-      this.renderOrganizations(data, theme, resolvedTheme);
+    } else if (data.organizations.length > 0) {
+      await this.renderOrganizations(data, theme, resolvedTheme, options);
     }
   }
 
@@ -116,18 +127,35 @@ export class DiagramRenderer {
     }
   }
 
-  private renderOrganizations(
+  private async renderOrganizations(
     data: DiagramData,
     theme: NodeTheme,
     resolvedTheme: 'light' | 'dark',
-  ): void {
+    options: RenderOptions,
+  ): Promise<void> {
+    const layout = await computeOrgLayout(
+      data.organizations,
+      data.orgLinks ?? [],
+      options.orgLayout,
+    );
+
+    const edgesView = OrgEdgesView.fromEdges(layout.edges);
+    this.layers.edges.addChild(edgesView);
+
+    const orgById = new Map(data.organizations.map((o) => [o.id, o]));
     const groupById = new Map(data.groups.map((g) => [g.id, g]));
-    data.organizations.forEach((org, index) => {
+
+    for (const ln of layout.nodes) {
+      const org = orgById.get(ln.orgId);
+      if (!org) continue;
       const primaryGroupId = org.groupIds[0];
       const group = primaryGroupId ? groupById.get(primaryGroupId) : undefined;
       const node = OrganizationNodeView.create(org, group, resolvedTheme, theme.organization);
-      node.position.set(20, 20 + index * (theme.organization.height + 16));
+      node.position.set(ln.x, ln.y);
+      if (options.onOrgClick) {
+        node.on('pointertap', () => options.onOrgClick!(org.id));
+      }
       this.layers.organizations.addChild(node);
-    });
+    }
   }
 }

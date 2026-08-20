@@ -9,6 +9,12 @@ describe('parseSvgPath', () => {
     expect(parsed!.closed).toBe(true);
   });
 
+  it('success: parses M/H/V org edge path', () => {
+    const parsed = parseSvgPath('M 10 20 V 40 H 50 V 60');
+    expect(parsed).not.toBeNull();
+    expect(parsed!.points.length).toBeGreaterThanOrEqual(3);
+  });
+
   it('failure: empty path returns null', () => {
     expect(parseSvgPath('')).toBeNull();
     expect(parseSvgPath('   ')).toBeNull();

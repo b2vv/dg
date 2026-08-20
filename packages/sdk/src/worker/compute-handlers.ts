@@ -14,6 +14,10 @@ export interface ComputeAllContoursPayload {
   config?: ContourMagnetConfig;
 }
 
+import { handleComputeOrgRowTreeLayout } from '../layout/rowTreeLayout.js';
+import type { DiagramOrganization } from '../data/types.js';
+import type { OrgLayoutOptions } from '../layout/types.js';
+
 export interface ComputeLayoutPayload {
   root: unknown;
   direction?: string;
@@ -22,6 +26,12 @@ export interface ComputeLayoutPayload {
   horizontalGap?: number;
   verticalGap?: number;
   margin?: number;
+}
+
+export interface ComputeOrgRowTreeLayoutPayload {
+  organizations: DiagramOrganization[];
+  expandedRootId: string;
+  options?: OrgLayoutOptions;
 }
 
 export async function handleComputeDeptContour(
@@ -69,6 +79,7 @@ export const computeHandlerKeys = {
   computeAllContours: 'computeAllContours',
   computeLayout: 'computeLayout',
   buildFromFlat: 'buildFromFlat',
+  computeOrgRowTreeLayout: 'computeOrgRowTreeLayout',
 } as const;
 
 export async function dispatchComputeHandler(
@@ -84,6 +95,8 @@ export async function dispatchComputeHandler(
       return handleComputeLayout(payload as ComputeLayoutPayload);
     case computeHandlerKeys.buildFromFlat:
       return handleBuildFromFlat(payload);
+    case computeHandlerKeys.computeOrgRowTreeLayout:
+      return handleComputeOrgRowTreeLayout(payload as ComputeOrgRowTreeLayoutPayload);
     default:
       throw new Error(`Unknown compute handler: ${mapperKey}`);
   }

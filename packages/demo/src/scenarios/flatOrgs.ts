@@ -7,6 +7,7 @@ export function buildFlatOrgsData(count = 24): DiagramData {
     parentOrgId: i > 0 ? `org-${Math.ceil(i / 3)}` : undefined,
     groupIds: i % 4 === 0 ? ['g1'] : [],
     collapsed: true,
+    matrixOrder: i,
   }));
 
   return {

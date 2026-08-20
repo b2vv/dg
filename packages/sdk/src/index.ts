@@ -12,6 +12,15 @@ import {
   type NodeTheme,
   type RenderConfig,
 } from './render/index.js';
+import {
+  collapseAllOrgs,
+  collapseOrg,
+  detectOrgMode,
+  expandOrg,
+  swapMatrixOrder,
+  type OrgDisplayMode,
+} from './layout/index.js';
+import type { OrgHierarchyCallbacks, LayoutPatch } from './callbacks.js';
 import { createTransformWorker, WorkerPool } from './worker/index.js';
 
 export type {
@@ -73,8 +82,26 @@ export {
   mergeTheme,
 } from './render/index.js';
 export type { NodeTheme, ThemeMode, RenderConfig, ContourComputer } from './render/index.js';
+export type { LayoutPatch, OrgHierarchyCallbacks } from './callbacks.js';
 
-/** Конфіг embed — дані in-memory + мапери (API опційно зовні) */
+export {
+  detectOrgMode,
+  computeOrgLayout,
+  computeOrgRowTreeLayout,
+  computeMatrixLayout,
+  collapseAllOrgs,
+  expandOrg,
+  collapseOrg,
+  swapMatrixOrder,
+  findExpandedRootId,
+} from './layout/index.js';
+export type {
+  OrgDisplayMode,
+  OrgLayoutResult,
+  OrgLayoutNode,
+  OrgLayoutEdge,
+  OrgLayoutOptions,
+} from './layout/index.js';
 export interface OrgHierarchyConfig<TRaw = DiagramData> {
   data: TRaw | DiagramData;
   mappers?: DiagramMappers<TRaw>;
@@ -87,6 +114,7 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
   workerPoolSize?: number;
   /** Custom worker factory (transform.worker.ts) */
   workerFactory?: () => Worker;
+  callbacks?: OrgHierarchyCallbacks;
 }
 
 /** Embed SDK — Pixi render + data/mappers + worker contour */
@@ -98,6 +126,7 @@ export class OrgHierarchyDiagram {
   private renderConfig: RenderConfig = { ...defaultRenderConfig };
   private useWorker = true;
   private workerPool: WorkerPool | null = null;
+  private callbacks: OrgHierarchyCallbacks = {};
 
   static async create<TRaw>(
     container: HTMLElement,
@@ -111,6 +140,7 @@ export class OrgHierarchyDiagram {
     instance.nodeTheme = mergeTheme(config.styles);
     instance.renderConfig = { ...defaultRenderConfig, ...config.render };
     instance.useWorker = config.useWorker ?? typeof Worker !== 'undefined';
+    instance.callbacks = config.callbacks ?? {};
 
     const workerFactory = config.workerFactory ?? createTransformWorker;
     configureContourWorker({
@@ -148,7 +178,51 @@ export class OrgHierarchyDiagram {
     const computeContours = this.useWorker ? computeAllContoursInWorker : computeAllContoursMain;
     await this.host.renderer.render(this.data, this.nodeTheme, resolved, this.renderConfig, {
       computeContours,
+      onOrgClick: (orgId) => {
+        this.callbacks.onNodeClick?.({ kind: 'organization', id: orgId });
+      },
     });
+  }
+
+  getOrgMode(): OrgDisplayMode {
+    return detectOrgMode(this.data.organizations);
+  }
+
+  async expandOrg(orgId: string): Promise<void> {
+    this.data = {
+      ...this.data,
+      organizations: expandOrg(this.data.organizations, orgId),
+    };
+    this.callbacks.onOrgModeChange?.(this.getOrgMode());
+    await this.render();
+  }
+
+  async collapseOrg(orgId: string): Promise<void> {
+    this.data = {
+      ...this.data,
+      organizations: collapseOrg(this.data.organizations, orgId),
+    };
+    this.callbacks.onOrgModeChange?.(this.getOrgMode());
+    await this.render();
+  }
+
+  async collapseAllOrgs(): Promise<void> {
+    this.data = {
+      ...this.data,
+      organizations: collapseAllOrgs(this.data.organizations),
+    };
+    this.callbacks.onOrgModeChange?.(this.getOrgMode());
+    await this.render();
+  }
+
+  async reorderOrg(orgId: string, newIndex: number): Promise<void> {
+    this.data = {
+      ...this.data,
+      organizations: swapMatrixOrder(this.data.organizations, orgId, newIndex),
+    };
+    const patch: LayoutPatch = { type: 'matrix-reorder', orgId, newIndex };
+    this.callbacks.onLayoutChange?.(patch);
+    await this.render();
   }
 
   getData(): DiagramData {
