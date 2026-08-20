@@ -1,11 +1,26 @@
 import { Container } from 'pixi.js';
 import type { DiagramData, DiagramDepartment } from '../data/types.js';
-import { computeAllContours, type ContourPositionInput } from '../contour/bridge.js';
+import {
+  computeAllContours,
+  type ContourMagnetConfig,
+  type ContourPositionInput,
+  type DeptContourResult,
+} from '../contour/bridge.js';
+import { diagramPositionsToContourInputs } from '../contour/config.js';
 import { DepartmentBlobView } from './DepartmentBlob.js';
 import { PersonNodeView } from './PersonNode.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
 import type { NodeTheme, RenderConfig } from './types.js';
 import { defaultRenderConfig } from './types.js';
+
+export type ContourComputer = (
+  positions: ContourPositionInput[],
+  config?: ContourMagnetConfig,
+) => Promise<DeptContourResult[]>;
+
+export interface RenderOptions {
+  computeContours?: ContourComputer;
+}
 
 export class LayerManager {
   readonly root = new Container();
@@ -34,13 +49,19 @@ export class DiagramRenderer {
     stage.addChild(this.layers.root);
   }
 
-  async render(data: DiagramData, theme: NodeTheme, resolvedTheme: 'light' | 'dark', config: RenderConfig = defaultRenderConfig): Promise<void> {
+  async render(
+    data: DiagramData,
+    theme: NodeTheme,
+    resolvedTheme: 'light' | 'dark',
+    config: RenderConfig = defaultRenderConfig,
+    options: RenderOptions = {},
+  ): Promise<void> {
     if (this.destroyed) return;
     this.layers.clear();
 
     const hasStaffGrid = data.positions.some((p) => p.gridCell);
     if (hasStaffGrid) {
-      await this.renderStaff(data, theme, config);
+      await this.renderStaff(data, theme, config, options);
     }
 
     if (data.organizations.length > 0 && !hasStaffGrid) {
@@ -55,25 +76,26 @@ export class DiagramRenderer {
     this.layers.root.destroy({ children: true });
   }
 
-  private async renderStaff(data: DiagramData, theme: NodeTheme, config: RenderConfig): Promise<void> {
-    const contourInputs: ContourPositionInput[] = data.positions
-      .filter((p) => p.gridCell && p.departmentId)
-      .map((p) => ({
-        id: p.id,
-        departmentId: p.departmentId!,
-        col: p.gridCell!.col,
-        row: p.gridCell!.row,
-      }));
+  private async renderStaff(
+    data: DiagramData,
+    theme: NodeTheme,
+    config: RenderConfig,
+    options: RenderOptions,
+  ): Promise<void> {
+    const contourInputs = diagramPositionsToContourInputs(data.positions);
+    const computeContours = options.computeContours ?? computeAllContours;
 
     const deptById = new Map(data.departments.map((d) => [d.id, d]));
     const personById = new Map(data.persons.map((p) => [p.id, p]));
 
-    const contours = await computeAllContours(contourInputs, {
+    const contourConfig: ContourMagnetConfig = {
       paddingCells: config.paddingCells,
       cellWidth: config.cellWidth,
       cellHeight: config.cellHeight,
       smoothIterations: config.smoothIterations,
-    });
+    };
+
+    const contours = await computeContours(contourInputs, contourConfig);
 
     for (const contour of contours) {
       const dept = deptById.get(contour.departmentId);

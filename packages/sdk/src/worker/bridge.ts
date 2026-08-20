@@ -20,13 +20,15 @@ export function mapInWorker<TIn, TOut>(
   mapperKey: string,
   input: TIn,
   transfer?: Transferable[],
+  timeoutMs = 120_000,
 ): Promise<TOut> {
   const id = `map-${++nextId}`;
 
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
+      worker.removeEventListener('message', onMessage);
       reject(new Error(`Worker timeout: ${mapperKey}`));
-    }, 120_000);
+    }, timeoutMs);
 
     const onMessage = (ev: MessageEvent<WorkerResponse<TOut>>) => {
       if (ev.data.id !== id) return;

@@ -1,3 +1,4 @@
+export type { ContourComputer, RenderOptions } from './DiagramRenderer.js';
 export { DiagramRenderer, LayerManager } from './DiagramRenderer.js';
 export { PixiHost } from './PixiHost.js';
 export { DepartmentBlobView } from './DepartmentBlob.js';

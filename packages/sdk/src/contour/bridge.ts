@@ -38,7 +38,11 @@ export interface WasmContourModule {
     positions: ContourPositionInput[],
     config?: ContourMagnetConfig,
   ) => DeptContourResult[];
+  computeLayout: (...args: unknown[]) => unknown;
+  buildFromFlat: (items: unknown) => unknown;
 }
+
+import { toRustConfig } from './config.js';
 
 let wasm: WasmContourModule | null = null;
 
@@ -48,16 +52,6 @@ export async function initContourWasm(): Promise<WasmContourModule> {
   await mod.default();
   wasm = mod;
   return mod;
-}
-
-function toRustConfig(cfg: ContourMagnetConfig = {}) {
-  return {
-    padding_cells: cfg.paddingCells ?? 0,
-    corridor_cells: cfg.corridorCells ?? 0,
-    cell_width: cfg.cellWidth ?? 100,
-    cell_height: cfg.cellHeight ?? 80,
-    smooth_iterations: cfg.smoothIterations ?? 2,
-  };
 }
 
 export async function computeDeptContour(
@@ -93,3 +87,5 @@ export const VARIANT_B_POSITIONS: ContourPositionInput[] = [
   { id: 'P5', departmentId: 'IT', col: 0, row: 2 },
   { id: 'P6', departmentId: 'IT', col: 2, row: 2 },
 ];
+
+export { toRustConfig } from './config.js';

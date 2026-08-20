@@ -1,6 +1,9 @@
 import { emptyDiagramData, computeStats } from './data/types.js';
 import type { DiagramData } from './data/types.js';
 import type { DiagramMappers } from './mappers/types.js';
+import { configureContourWorker } from './contour/worker-bridge.js';
+import { computeAllContoursInWorker } from './contour/worker-bridge.js';
+import { computeAllContours as computeAllContoursMain } from './contour/bridge.js';
 import { PixiHost } from './render/PixiHost.js';
 import {
   defaultRenderConfig,
@@ -9,6 +12,7 @@ import {
   type NodeTheme,
   type RenderConfig,
 } from './render/index.js';
+import { createTransformWorker, WorkerPool } from './worker/index.js';
 
 export type {
   DiagramData,
@@ -30,7 +34,13 @@ export {
   type FlatDiagramRow,
 } from './mappers/flatToDiagram.js';
 
-export { createWorkerPipeline, mapInWorker, WorkerPool } from './worker/index.js';
+export {
+  createWorkerPipeline,
+  createContourPipeline,
+  mapInWorker,
+  WorkerPool,
+  createTransformWorker,
+} from './worker/index.js';
 export type { MapperRegistry, WorkerBridgeOptions } from './worker/bridge.js';
 
 export {
@@ -39,12 +49,18 @@ export {
   initContourWasm,
   VARIANT_B_POSITIONS,
 } from './contour/bridge.js';
+export {
+  computeDeptContourInWorker,
+  computeAllContoursInWorker,
+  configureContourWorker,
+} from './contour/worker-bridge.js';
 export type {
   ContourPositionInput,
   ContourMagnetConfig,
   ContourPoint,
   DeptContourResult,
 } from './contour/bridge.js';
+export type { ContourWorkerOptions } from './contour/worker-bridge.js';
 
 export {
   DepartmentBlobView,
@@ -56,7 +72,7 @@ export {
   defaultNodeTheme,
   mergeTheme,
 } from './render/index.js';
-export type { NodeTheme, ThemeMode, RenderConfig } from './render/index.js';
+export type { NodeTheme, ThemeMode, RenderConfig, ContourComputer } from './render/index.js';
 
 /** Конфіг embed — дані in-memory + мапери (API опційно зовні) */
 export interface OrgHierarchyConfig<TRaw = DiagramData> {
@@ -65,16 +81,23 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
   theme?: 'light' | 'dark' | 'auto';
   styles?: Partial<NodeTheme>;
   render?: Partial<RenderConfig>;
+  /** Contour + WASM compute у Web Worker (default: true у browser) */
+  useWorker?: boolean;
+  /** Worker pool для паралельних map chunks (flatRowsToDiagram тощо) */
   workerPoolSize?: number;
+  /** Custom worker factory (transform.worker.ts) */
+  workerFactory?: () => Worker;
 }
 
-/** Embed SDK — Pixi render + data/mappers */
+/** Embed SDK — Pixi render + data/mappers + worker contour */
 export class OrgHierarchyDiagram {
   private data: DiagramData = emptyDiagramData();
   private host: PixiHost | null = null;
   private themeMode: 'light' | 'dark' | 'auto' = 'auto';
   private nodeTheme = mergeTheme();
   private renderConfig: RenderConfig = { ...defaultRenderConfig };
+  private useWorker = true;
+  private workerPool: WorkerPool | null = null;
 
   static async create<TRaw>(
     container: HTMLElement,
@@ -87,6 +110,19 @@ export class OrgHierarchyDiagram {
     instance.themeMode = config.theme ?? 'auto';
     instance.nodeTheme = mergeTheme(config.styles);
     instance.renderConfig = { ...defaultRenderConfig, ...config.render };
+    instance.useWorker = config.useWorker ?? typeof Worker !== 'undefined';
+
+    const workerFactory = config.workerFactory ?? createTransformWorker;
+    configureContourWorker({
+      workerFactory,
+      fallbackToMainThread: true,
+    });
+
+    const poolSize = config.workerPoolSize ?? 0;
+    if (poolSize > 0) {
+      instance.workerPool = new WorkerPool(workerFactory, poolSize);
+    }
+
     await instance.applyConfig(config);
     instance.host = await PixiHost.create(container);
     await instance.render();
@@ -109,7 +145,10 @@ export class OrgHierarchyDiagram {
   private async render(): Promise<void> {
     if (!this.host) return;
     const resolved = resolveTheme(this.themeMode);
-    await this.host.renderer.render(this.data, this.nodeTheme, resolved, this.renderConfig);
+    const computeContours = this.useWorker ? computeAllContoursInWorker : computeAllContoursMain;
+    await this.host.renderer.render(this.data, this.nodeTheme, resolved, this.renderConfig, {
+      computeContours,
+    });
   }
 
   getData(): DiagramData {
@@ -118,6 +157,10 @@ export class OrgHierarchyDiagram {
 
   getCanvas(): HTMLCanvasElement | null {
     return this.host?.getCanvas() ?? null;
+  }
+
+  getWorkerPool(): WorkerPool | null {
+    return this.workerPool;
   }
 
   async setTheme(theme: 'light' | 'dark' | 'auto'): Promise<void> {
@@ -137,6 +180,8 @@ export class OrgHierarchyDiagram {
   }
 
   destroy(): void {
+    this.workerPool?.dispose();
+    this.workerPool = null;
     this.host?.destroy();
     this.host = null;
   }

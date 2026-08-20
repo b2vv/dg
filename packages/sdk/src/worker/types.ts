@@ -27,6 +27,8 @@ export interface PipelineRunOptions {
   transfer?: Transferable[];
   /** Chunk size для великих масивів */
   chunkSize?: number;
+  /** Worker call timeout ms */
+  timeoutMs?: number;
 }
 
 export interface PipelineResult<T> {
