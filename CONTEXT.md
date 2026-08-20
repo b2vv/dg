@@ -84,6 +84,10 @@ _Avoid_: Single unbounded `mapInWorker` for large JSON
 Cached Pixi texture load for `photoUrl` (person near) and org `symbolUrl*` sprites; placeholder on failure.
 _Avoid_: Blocking create() on network; React overlay for photos (TD07)
 
+**Layout diagnostics**:
+Soft layout warnings from the last render (`getLayoutDiagnostics` / `onLayoutDiagnostics`), e.g. anchor overlap.
+_Avoid_: Auto-packing overlapping anchors (host/D&D fixes)
+
 **Promote overlay**:
 v1.x idea: HTML/React node chrome over Pixi (TD07) — not in v1.
 _Avoid_: Hybrid node, React card on canvas (for v1)

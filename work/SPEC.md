@@ -495,60 +495,59 @@ appendData(chunk) → mapper.append? → mergePartial(DiagramData)
 | DepartmentBlob | staff | Organic SVG path | label on contour, fill/stroke |
 | PersonNode | staff | Vertical card | photo, ПІБ, title, temp badge |
 
-**Pixi layering (planned):**
+**Pixi layering:**
 
 ```
 z-order bottom → top:
   1. DepartmentBlob (Graphics from contour.path)
   2. Report lines / edges
-  3. PersonNode / PositionNode
-  4. OrganizationNode (org modes)
+  3. OrganizationNode (org modes / staff org cards)
+  4. PersonNode / PositionNode
   5. Selection / focus overlay
 ```
 
 ---
 
-## 7. Взаємодія (planned)
+## 7. Взаємодія
 
-| Дія | Поведінка | Залежності |
-|-----|-----------|------------|
-| Click | select / focus | Pixi hit areas |
-| Context menu | SDK items + host override | callbacks |
-| Search | find → expand path → focus | org tree + person index |
-| D&D org (matrix) | reorder | matrix layout state |
-| D&D person | update col/row or layoutCoords | contour recompute (G8) |
-| Block shift ↑↓ | shift hierarchyLevel block | WASM pack + contour |
-| Export | SVG/PNG/PDF/print | Pixi extract / custom SVG |
+| Дія | Поведінка | Статус |
+|-----|-----------|--------|
+| Click | select / focus | ✅ |
+| Context menu | SDK items + host override | ✅ T10 |
+| Search | find → expand path → focus | ✅ T04 / T18 |
+| D&D org (matrix) | reorder | ✅ |
+| D&D person | update col/row or layoutCoords | ✅ + G8 morph T17 |
+| Block shift ↑↓ | shift hierarchyLevel block | ✅ |
+| Export | SVG/PNG/PDF/print | ✅ T05 |
+| Layout diagnostics | soft warnings to host | ✅ T24 |
 
 ---
 
 ## 8. Поточна імплементація
 
-### 8.1 Готово
+### 8.1 Готово (v1)
 
 | Компонент | Шлях | Примітки |
 |-----------|------|----------|
-| Contour WASM | `packages/core/src/contour.rs` | 4 unit tests |
-| Layout WASM | `packages/core/src/layout.rs` | Reingold-Tilford, не підключено до SDK |
+| Contour WASM | `packages/core/src/contour.rs` | G1–G8, M4 |
+| Layout WASM | `packages/core/src/layout.rs` | tidy tree; SDK via `wasm/layoutBridge` |
 | Hierarchy build | `packages/core/src/hierarchy.rs` | flat → tree |
 | WASM bindings | `packages/core/src/lib.rs` | buildFromFlat, computeLayout, contour |
-| SDK types | `packages/sdk/src/data/types.ts` | DiagramData |
-| Mappers | `packages/sdk/src/mappers/` | flatRowsToDiagram, compose |
-| Worker | `packages/sdk/src/worker/` | WorkerPool, pipeline, bridge |
-| Contour bridge | `packages/sdk/src/contour/bridge.ts` | initContourWasm, compute* |
-| SDK skeleton | `packages/sdk/src/index.ts` | OrgHierarchyDiagram без render |
+| SDK types / mappers | `packages/sdk/src/data`, `mappers/` | DiagramData, flatRowsToDiagram |
+| Worker pool + facade | `packages/sdk/src/worker/` | T21 mapArrayItems / mapFlatRowsInPool |
+| Contour bridge + incremental | `packages/sdk/src/contour/` | T16 |
+| Pixi renderer | `packages/sdk/src/render/` | 3 node types, LOD, morph, media T23 |
+| Org matrix / row-tree | `packages/sdk/src/layout/` | T03 |
+| Staff 3-tier + expand | `packages/sdk/src/layout/staff/` | T08–T09, T20 |
+| Interactions | `packages/sdk/src/interaction/` | search, D&D, block shift, menu |
+| Export | `packages/sdk/src/export/` | SVG/PNG/PDF/print |
+| Demo | `packages/demo` | Rsbuild |
+| Layout diagnostics | `getLayoutDiagnostics` | T24 |
 
-### 8.2 Не реалізовано
+### 8.2 Не в v1 (backlog)
 
-- Pixi renderer (всі 3 node types)
-- Org matrix layout
-- Row-tree інтеграція в SDK
-- Search + path expand
-- D&D, block shift
-- Export
-- Rsbuild demo (замість legacy `packages/web`)
-- Contour M4 (multiple components per dept)
-- Explicit G6 post-processing
+- Pixi + HTML/React promote overlay — [TD07](./tech-debt/TD07-pixi-react-promote-overlay.md)
+- Auto-resolve overlapping anchors (diagnostics only)
 
 ---
 

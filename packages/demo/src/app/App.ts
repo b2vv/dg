@@ -181,6 +181,10 @@ export class App {
           onOrgModeChange: (mode) => {
             this.setStatus(`${this.tab} · ${mode} · ${this.theme}`);
           },
+          onLayoutDiagnostics: (messages) => {
+            if (messages.length === 0) return;
+            this.showToast(`Layout: ${messages[0]}${messages.length > 1 ? ` (+${messages.length - 1})` : ''}`);
+          },
         },
       });
       if (this.tab === 'staff-tree') {

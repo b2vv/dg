@@ -500,6 +500,7 @@ export class OrgHierarchyDiagram {
         void this.movePersonToCell(positionId, col, row);
       },
     });
+    this.callbacks.onLayoutDiagnostics?.(this.getLayoutDiagnostics());
   }
 
   getOrgMode(): OrgDisplayMode {
@@ -668,6 +669,11 @@ export class OrgHierarchyDiagram {
 
   getSelection(): NodeRef | null {
     return this.selection;
+  }
+
+  /** Soft layout warnings from the last render (anchor overlap, skipped expands, …). */
+  getLayoutDiagnostics(): readonly string[] {
+    return this.host?.renderer.getLayoutDiagnostics() ?? [];
   }
 
   async select(node: NodeRef | null): Promise<void> {

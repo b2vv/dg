@@ -569,33 +569,34 @@ interface OrgHierarchyCallbacks {
 ## 7. Фази реалізації
 
 ### Фаза 1 — Foundation
-- [ ] Monorepo: `packages/core` (Rust), `packages/sdk` (TS + Pixi + Rsbuild)
-- [ ] WASM: layout subtree, row-tree, sparse matrix neighborhood
-- [ ] Web Worker bridge
-- [ ] Pixi: viewport, clusters, базовий person/org node
-- [ ] `DiagramData` types + `DataMapper<TRaw, TDiagram>`
-- [ ] Worker helpers: `createWorkerPipeline`, `mapInWorker`, `WorkerPool`
-- [ ] `mount(el, { data, mappers })`
+- [x] Monorepo: `packages/core` (Rust), `packages/sdk` (TS + Pixi + Rsbuild)
+- [x] WASM: layout subtree, row-tree, sparse matrix neighborhood
+- [x] Web Worker bridge
+- [x] Pixi: viewport, clusters, базовий person/org node
+- [x] `DiagramData` types + `DataMapper<TRaw, TDiagram>`
+- [x] Worker helpers: `createWorkerPipeline`, `mapInWorker`, `WorkerPool`
+- [x] `mount(el, { data, mappers })` → `OrgHierarchyDiagram.create`
 
 ### Фаза 2 — Org modes
-- [ ] Matrix collapsed / row-tree expanded
-- [ ] Search + path expand
-- [ ] D&D порядку org у matrix
-- [ ] Theme-aware org symbols
+- [x] Matrix collapsed / row-tree expanded
+- [x] Search + path expand
+- [x] D&D порядку org у matrix
+- [x] Theme-aware org symbols (+ textures T23)
 
 ### Фаза 3 — Staff
-- [ ] PersonNode vs OrganizationNode vs DepartmentBlob — **3 renderers**
-- [ ] Person nodes (photo, ПІБ, посада, temp icon)
-- [ ] WASM: Tetris dept clustering + irregular contour
-- [ ] Pixi: polygon dept fill/stroke, person cards
-- [ ] D&D primitive coords + contour recompute
-- [ ] Block shift ↑↓ (з перерахунком polyomino)
-- [ ] Incremental API merge
+- [x] PersonNode vs OrganizationNode vs DepartmentBlob — **3 renderers**
+- [x] Person nodes (photo, ПІБ, посада, temp icon)
+- [x] WASM: Tetris dept clustering + irregular contour
+- [x] Pixi: polygon dept fill/stroke, person cards
+- [x] D&D primitive coords + contour recompute
+- [x] Block shift ↑↓ (з перерахунком polyomino)
+- [x] Incremental API merge (`appendData` / setData)
 
 ### Фаза 4 — Integration polish
-- [ ] Context menu API
-- [ ] Export SVG/PNG/PDF/print
-- [ ] Документація для embed
+- [x] Context menu API
+- [x] Export SVG/PNG/PDF/print
+- [x] Документація для embed
+- [x] Layout diagnostics API (T24)
 
 ---
 
