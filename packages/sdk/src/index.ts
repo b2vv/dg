@@ -83,6 +83,9 @@ export {
   computeDeptContour,
   computeAllContours,
   initContourWasm,
+  resetContourWasmForTests,
+  setContourWasmLoaderForTests,
+  WasmLoadError,
   VARIANT_B_POSITIONS,
 } from './contour/bridge.js';
 export {
@@ -95,6 +98,7 @@ export type {
   ContourMagnetConfig,
   ContourPoint,
   DeptContourResult,
+  ContourWasmLoader,
 } from './contour/bridge.js';
 export type { ContourWorkerOptions } from './contour/worker-bridge.js';
 

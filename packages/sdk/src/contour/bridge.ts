@@ -58,14 +58,61 @@ export interface WasmContourModule {
 
 import { toRustConfig } from './config.js';
 
+/** Thrown when the WASM contour module cannot be loaded or initialized. */
+export class WasmLoadError extends Error {
+  override readonly cause?: unknown;
+
+  constructor(message: string, cause?: unknown) {
+    super(message);
+    this.name = 'WasmLoadError';
+    this.cause = cause;
+  }
+}
+
+export type ContourWasmLoader = () => Promise<WasmContourModule>;
+
+const defaultContourWasmLoader: ContourWasmLoader = async () => {
+  const mod = (await import('../wasm/pkg/org_hierarchy_core.js')) as unknown as WasmContourModule;
+  await mod.default();
+  return mod;
+};
+
+let contourWasmLoader: ContourWasmLoader = defaultContourWasmLoader;
 let wasm: WasmContourModule | null = null;
+let wasmPromise: Promise<WasmContourModule> | null = null;
 
 export async function initContourWasm(): Promise<WasmContourModule> {
   if (wasm) return wasm;
-  const mod = (await import('../wasm/pkg/org_hierarchy_core.js')) as unknown as WasmContourModule;
-  await mod.default();
-  wasm = mod;
-  return mod;
+  if (!wasmPromise) {
+    wasmPromise = (async () => {
+      try {
+        const mod = await contourWasmLoader();
+        wasm = mod;
+        return mod;
+      } catch (err) {
+        wasmPromise = null;
+        wasm = null;
+        if (err instanceof WasmLoadError) throw err;
+        throw new WasmLoadError(
+          'Failed to load Org Hierarchy WASM. Run `npm run build:wasm` and ensure packages/sdk/src/wasm/pkg exists.',
+          err,
+        );
+      }
+    })();
+  }
+  return wasmPromise;
+}
+
+/** Test helper — clear cached module so the next init reloads. */
+export function resetContourWasmForTests(): void {
+  wasm = null;
+  wasmPromise = null;
+}
+
+/** Test helper — inject a failing/successful loader. Pass `null` to restore default. */
+export function setContourWasmLoaderForTests(loader: ContourWasmLoader | null): void {
+  contourWasmLoader = loader ?? defaultContourWasmLoader;
+  resetContourWasmForTests();
 }
 
 /** One or more contours for a department (M4 components). */
