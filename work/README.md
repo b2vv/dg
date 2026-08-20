@@ -69,6 +69,7 @@ npm run dev          # http://localhost:3000
 22. [T22-demo-pooled-mapper.md](./tasks/T22-demo-pooled-mapper.md) — ✅ demo uses pooled mapper facade
 23. [T23-node-media-textures.md](./tasks/T23-node-media-textures.md) — ✅ person photo + org symbol sprites
 24. [T24-layout-diagnostics.md](./tasks/T24-layout-diagnostics.md) — ✅ layout diagnostics API
+25. [T25-demo-github-pages.md](./tasks/T25-demo-github-pages.md) — ✅ Pages workflow (needs public repo / paid)
 
 ## Технічний борг
 
