@@ -438,3 +438,96 @@ RED:    test compute_contour_empty_dept_returns_err  → FAIL (no test yet)
 GREEN:  impl returns Err for empty own cells       → PASS
 REFACTOR: extract helper if needed                 → PASS
 ```
+
+---
+
+## 13. Стандарти TypeScript-коду (обов’язково)
+
+> Повна політика: [`work/CODING_STANDARDS.md`](./CODING_STANDARDS.md)
+
+TypeScript у `packages/sdk` / `packages/demo` пишеться за правилами **Clean Code**, **Clean Architecture**, **SOLID**, **DRY**, **KISS** і вибіркових **GoF**-патернів. Додатково враховано практики індустрії (Meta Better Engineering / continuous code improvement; MetaMask TypeScript guidelines).
+
+### 13.1 Ієрархія при конфлікті
+
+```
+KISS → SOLID → DRY → Clean Code → Clean Architecture → GoF
+```
+
+Патерн або шар абстракції **не додаємо** «на виріст». Якщо принцип суперечить простоті на ранньому етапі — спочатку KISS, поки не з’явиться другий споживач або вимір (профіль).
+
+### 13.2 Clean Code (коротко)
+
+| Вимога | Деталі |
+|--------|--------|
+| Імена | Намір у назві (`expandOrg`, не `handle`) |
+| Функції | Одна дія; мало аргументів; options-object якщо >3 |
+| Pure compute | Layout / validate / map — без DOM/Pixi |
+| Fail fast | Invalid → throw/`Err`, не тихий wrong state |
+| Types | `strict`; без `any` у публічному API; `unknown` + narrowing |
+| Boy Scout | Кожен PR чистить зачеплений модуль |
+
+### 13.3 Clean Architecture — Dependency Rule
+
+Залежності лише **всередину**:
+
+```
+Pixi / Worker / WASM glue
+        ↓
+Adapters (bridges, mappers, Diagram facade)
+        ↓
+Application (expand/collapse → layout, setData)
+        ↓
+Domain (DiagramData, layout contracts, org rules)
+```
+
+- `DiagramData` — єдине джерело правди стану.
+- `LayoutResult` — view-model; не мутує domain «по дорозі».
+- Domain **не** імпортує `render/`, Pixi, Worker.
+
+### 13.4 SOLID у цьому SDK
+
+| Принцип | Застосування |
+|---------|--------------|
+| **S** | Окремі модулі: matrix / row-tree / renderer / worker |
+| **O** | Новий layout/edge style через strategy/options, не гігантський `switch` |
+| **L** | Вузли/результати layout взаємозамінні без ламких `instanceof` |
+| **I** | Вузькі callbacks замість одного God-interface |
+| **D** | Renderer залежить від портів (`ContourComputer`), не від конкретного wasm-файлу |
+
+### 13.5 DRY / KISS
+
+- DRY — **одна правда** бізнес-правила (collapse, eject, validate), не заборона схожих рядків glue.
+- KISS — без DI-container / EventBus «на майбутнє»; stateful tidy-session лише після обґрунтування (часті expand/collapse + профіль).
+
+### 13.6 GoF (дозволений мінімум)
+
+| Патерн | Де очікуємо |
+|--------|-------------|
+| Facade | `OrgHierarchyDiagram` |
+| Adapter | `layoutBridge`, mappers, wasm |
+| Strategy | matrix vs row-tree; edge style |
+| Observer | host callbacks |
+| Factory | `create()`, worker factory |
+| Command (легкий) | `LayoutPatch` |
+
+Заборонено AbstractFactory / глибокі ієрархії class заради патерну.
+
+### 13.7 Definition of Done (фрагмент)
+
+Окрім TDD success+failure:
+
+- [ ] Немає порушення Dependency Rule
+- [ ] Немає необґрунтованого `any` / `@ts-ignore`
+- [ ] Публічні exports з явними типами
+- [ ] Немає роз’їзду правил TS↔Rust без позначеного source of truth
+- [ ] Немає нового GoF-шару без другого споживача
+
+### 13.8 Зв’язок з expand/collapse
+
+Частий relayout **не** виправдовує змішування шарів (layout усередині Pixi click-handler). Жест:
+
+1. Application змінює `DiagramData` (collapsed)
+2. Один виклик layout (adapter → WASM)
+3. Renderer застосовує `LayoutResult` (+ опційна анімація from→to)
+
+Так уникаємо «GoJS-костилів»: два джерела правди і layout посеред анімації.
