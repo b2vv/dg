@@ -91,24 +91,59 @@ Staff — **окреме сімейство діаграми** від org matrix
 
 Розрахунок **відносно кожної організації** (локальна СК блоку → compose в world через offset ярусу + блоку).
 
-| Умова | Layout посад у межах org |
-|-------|---------------------------|
-| Є `gridCell` / `layoutX,layoutY` (або col/row) | **Matrix / fixed coords** — використати як є |
-| Координат **немає** | **Дерево** за `reportLines` (Ploeg / tidy layered) усередині org |
+| Умова (у межах однієї org) | Layout |
+|----------------------------|--------|
+| **У всіх** видимих посад є coords | Чистий **matrix** |
+| **У жодної** немає coords | Чисте **дерево** за `reportLines` |
+| **Мікс** (частина з coords, частина без) | **Hybrid anchors** — див. нижче |
 
-Правило:
+Посада «має coords», якщо задано хоча б одне з: `gridCell` / `col+row` / `layoutCoords` (локальні до org).
+
+##### Мікс даних (канон) — Hybrid anchors
+
+Не ігнорувати вже розставлені посади і не вимагати all-or-nothing від host.
 
 ```text
-if position має координати → matrix placement
-else → tree layout від root посади цієї org
+1. ANCHORS  = positions WITH coords  → фіксуємо як є (перешкоди)
+2. FLOATING = positions WITHOUT coords
+3. Для кожного floating:
+     - якщо report-батько є anchor (або вже розміщений) → підвісити в дерево
+       відносно батька (локальний tidy / слоти під батьком)
+     - якщо батько теж floating → потрапляє в спільне floating-дерево/ліс
+4. Pack floating forest у вільне місце org-блоку (праворуч / нижче anchors),
+   без overlap з anchors; при конфлікті — eject floating, anchors не рухаємо
+5. Contour dept — після фінальних cells усього блоку
 ```
 
-Змішаний випадок у одній org (частина з coords, частина без):
+| Роль | Поведінка |
+|------|-----------|
+| **Anchor** (є coords) | Нерухомий для auto-pass; D&D може змінити coords явно |
+| **Floating** (немає coords) | Дерево / піддерево; може бути виштовхнутий при колізії з anchor |
 
-- **v1 default:** якщо **хоч у однієї** видимої посади org немає coords → увесь блок org як **дерево**; збережені coords ігнорувати для цього pass **або** (продуктово жорсткіше) вимагати all-or-nothing.
-- Рекомендація для даних: або повний matrix набір, або чисте дерево; гібрид — окремий follow-up.
+**Інваріанти міксу:**
 
-Auto-tree: батько по `reportLines` / position hierarchy; root = керівна посада org (ярус 2) або локальний head sub-org (ярус 3).
+- Anchor **ніколи** не зсуваємо auto-layout’ом (інакше «зламається» ручний matrix).
+- Floating **не** перезаписує coords anchors.
+- Після першого успішного auto-place floating host **може** (опційно) persist-ити отримані coords через `onLayoutChange` — тоді наступний pass стає чистішим matrix; це не обов’язково в layout engine.
+
+**Режими host (опція, default = hybrid):**
+
+| `staffCoordMode` | Поведінка |
+|------------------|-----------|
+| `'hybrid'` (default) | Anchors + floating tree/pack |
+| `'tree'` | Ігнорувати всі coords org → чисте дерево |
+| `'matrix'` | Лише positions з coords; floating **не показувати** або показати в overflow-колонці з попередженням у diagnostics |
+| `'strict'` | Мікс у org → помилка валідації mapper/layout (fail fast) |
+
+##### Чому не «будь-який без coords → все в дерево»
+
+Ламає частковий D&D: користувач розставив 10 посад, прийшли 2 нові без coords — і всі 10 стрибають. Це класичний костиль.
+
+##### Чому не «все в matrix і дірки»
+
+Без report-структури auto-matrix для floating здогадується гірше, ніж дерево від батька. Дерево від report-батька зберігає ієрархію.
+
+Auto-tree root у чистому дереві: керівна посада org (ярус 2) або локальний head sub-org (ярус 3). У hybrid кожне floating-піддерево має свій локальний корінь (найвищий floating без розміщеного предка, або дитина anchor).
 
 #### 2.2.2 Два візуальні сімейства
 
