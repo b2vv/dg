@@ -2,7 +2,9 @@ import type { OrgHierarchyConfig } from '@org-hierarchy/sdk';
 import {
   OrgHierarchyDiagram,
   flatRowsToDiagram,
-  mapInWorker,
+  mapFlatRowsInPool,
+  mapArrayItems,
+  recommendWorkerPoolSize,
   type FlatDiagramRow,
 } from '@org-hierarchy/sdk';
 import {
@@ -16,7 +18,6 @@ import { buildStaffTreeData } from '../scenarios/staffTree.js';
 import { SAMPLE_MAPPER_JSON, SAMPLE_MAPPER_ROWS } from '../scenarios/sampleMapper.js';
 import { parseJsonFile } from '../utils/json.js';
 import { requireElement, setThemeAttribute, showError } from '../utils/dom.js';
-import { createTransformWorker } from '../worker/createTransformWorker.js';
 
 export type DemoTab = 'variant-b' | 'staff-tree' | 'flat-orgs' | 'mapper' | 'worker';
 
@@ -199,7 +200,7 @@ export class App {
     const base = {
       theme: this.theme,
       useWorker: true,
-      workerPoolSize: 2,
+      workerPoolSize: recommendWorkerPoolSize(),
       render: {
         cellWidth: 100,
         cellHeight: 80,
@@ -295,34 +296,46 @@ export class App {
     this.tab = 'mapper';
     this.diagram?.destroy();
     this.mountEl.innerHTML = '';
+
+    const pooled = await mapFlatRowsInPool(parsed.data, {
+      poolSize: recommendWorkerPoolSize(),
+    });
     this.diagram = await OrgHierarchyDiagram.create(this.mountEl, {
-      data: parsed.data,
-      mappers: { toDiagram: flatRowsToDiagram },
+      data: pooled.data,
       theme: this.theme,
       useWorker: true,
+      workerPoolSize: recommendWorkerPoolSize(),
     });
-    this.setStatus(`mapper · ${parsed.data.length} rows`);
+    const via = pooled.usedWorker ? `pool×${pooled.poolSize}` : 'main';
+    this.setStatus(
+      `mapper · ${parsed.data.length} rows · ${via} · ${pooled.chunkCount} chunks · ${Math.round(pooled.totalDurationMs)}ms`,
+    );
   }
 
   private async runWorkerBench(): Promise<void> {
     this.setStatus('Worker bench…');
-    const rows = buildFlatOrgsData(100).organizations.map((o) => ({
-      id: o.id,
-      kind: 'organization' as const,
-      label: o.name,
-      parentId: o.parentOrgId ?? null,
+    const rows: FlatDiagramRow[] = Array.from({ length: 5_000 }, (_, i) => ({
+      id: `org-${i}`,
+      kind: 'organization',
+      label: `Org ${i}`,
+      parentId: i > 0 ? `org-${Math.floor((i - 1) / 3)}` : null,
     }));
-    const worker = createTransformWorker();
-    const t0 = performance.now();
+
     try {
-      await mapInWorker(worker, 'flatRowsToDiagram', rows);
-      const ms = Math.round(performance.now() - t0);
-      this.showToast(`Worker map: ${rows.length} rows in ${ms}ms`);
-      this.setStatus(`worker bench · ${ms}ms`);
+      const pooled = await mapFlatRowsInPool(rows, {
+        poolSize: recommendWorkerPoolSize(),
+      });
+      const ids = await mapArrayItems(rows, (row) => row.id, { chunkSize: 1_000 });
+      const via = pooled.usedWorker ? `pool×${pooled.poolSize}` : 'main';
+      const ms = Math.round(pooled.totalDurationMs);
+      this.showToast(
+        `Pooled map: ${rows.length} rows → ${pooled.data.organizations.length} orgs · ${via} · ${ms}ms`,
+      );
+      this.setStatus(
+        `worker bench · ${rows.length} rows · ${via} · ${pooled.chunkCount} chunks · ${ms}ms · ids ${ids.data.length}`,
+      );
     } catch (err) {
       this.showToast(err instanceof Error ? err.message : String(err));
-    } finally {
-      worker.terminate();
     }
   }
 

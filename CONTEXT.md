@@ -76,6 +76,10 @@ _Avoid_: Drill (that’s `focusStaffOrg`)
 Facade that chunks an input array across a bounded WorkerPool (`createPooledArrayMapper` / `mapArrayItems` / `mapFlatRowsInPool`).
 _Avoid_: One worker per chunk, unbounded concurrency
 
+**Demo pooled mapper**:
+Demo mapper upload + worker bench call `mapFlatRowsInPool` / `mapArrayItems` with `recommendWorkerPoolSize`.
+_Avoid_: Single unbounded `mapInWorker` for large JSON
+
 **Promote overlay**:
 v1.x idea: HTML/React node chrome over Pixi (TD07) — not in v1.
 _Avoid_: Hybrid node, React card on canvas (for v1)
