@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { getOrgSymbolUrl, resolveTheme } from './theme.js';
+import {
+  canvasBackgroundForTheme,
+  getOrgSymbolUrl,
+  resolveNodeTheme,
+  resolveTheme,
+} from './theme.js';
 import type { DiagramOrganization } from '../data/types.js';
 
 describe('resolveTheme', () => {
@@ -10,6 +15,35 @@ describe('resolveTheme', () => {
 
   it('success: auto uses matchMedia', () => {
     expect(resolveTheme('auto')).toBe('dark');
+  });
+});
+
+describe('resolveNodeTheme', () => {
+  it('success: dark palette uses light text on dark cards', () => {
+    const dark = resolveNodeTheme('dark');
+    expect(dark.person.background).toBe(0x1e293b);
+    expect(dark.person.nameColor).toBe(0xf1f5f9);
+    expect(dark.department.stroke).toBe(0x60a5fa);
+  });
+
+  it('success: light palette keeps white person cards', () => {
+    const light = resolveNodeTheme('light');
+    expect(light.person.background).toBe(0xffffff);
+    expect(light.person.nameColor).toBe(0x0f172a);
+  });
+
+  it('failure: partial override keeps other dark tokens', () => {
+    const merged = resolveNodeTheme('dark', { person: { background: 0x111111 } });
+    expect(merged.person.background).toBe(0x111111);
+    expect(merged.person.nameColor).toBe(0xf1f5f9);
+    expect(merged.organization.background).toBe(0x1e293b);
+  });
+});
+
+describe('canvasBackgroundForTheme', () => {
+  it('success: dark canvas is slate, light is near-white', () => {
+    expect(canvasBackgroundForTheme('dark')).toBe(0x0f172a);
+    expect(canvasBackgroundForTheme('light')).toBe(0xf8fafc);
   });
 });
 

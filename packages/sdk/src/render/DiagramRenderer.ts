@@ -550,7 +550,9 @@ export class DiagramRenderer {
 
       await this.paintContours(contourInputs, data, theme, config, options);
 
-      this.layers.edges.addChild(StaffEdgesView.fromLayout(canvas.edges, canvas.positionNodes));
+      this.layers.edges.addChild(
+        StaffEdgesView.fromLayout(canvas.edges, canvas.positionNodes, resolvedTheme),
+      );
 
       const lod = options.lod ?? 'near';
       for (const n of canvas.positionNodes) {
@@ -672,7 +674,10 @@ export class DiagramRenderer {
       options.orgLayout,
     );
 
-    const edgesView = OrgEdgesView.fromEdges(layout.edges);
+    const edgesView = OrgEdgesView.fromEdges(
+      layout.edges,
+      resolvedTheme === 'dark' ? 0x64748b : 0x94a3b8,
+    );
     this.layers.edges.addChild(edgesView);
 
     const orgById = new Map(data.organizations.map((o) => [o.id, o]));

@@ -93,6 +93,46 @@ export const defaultNodeTheme: NodeTheme = {
   },
 };
 
+/** Dark canvas node palette (page chrome uses CSS vars separately). */
+export const darkNodeTheme: NodeTheme = {
+  department: {
+    fill: 0x1e3a5f,
+    fillAlpha: 0.72,
+    stroke: 0x60a5fa,
+    strokeWidth: 2,
+    labelColor: 0xbfdbfe,
+    labelFontSize: 14,
+  },
+  person: {
+    width: 120,
+    height: 150,
+    background: 0x1e293b,
+    border: 0x475569,
+    borderWidth: 1,
+    borderRadius: 8,
+    nameColor: 0xf1f5f9,
+    titleColor: 0x94a3b8,
+    nameFontSize: 13,
+    titleFontSize: 11,
+    badgeColor: 0xf59e0b,
+    badgeTextColor: 0xffffff,
+    avatarColor: 0x64748b,
+  },
+  organization: {
+    width: 220,
+    height: 72,
+    background: 0x1e293b,
+    border: 0x64748b,
+    borderWidth: 2,
+    borderRadius: 12,
+    nameColor: 0xf1f5f9,
+    groupColor: 0x94a3b8,
+    nameFontSize: 14,
+    groupFontSize: 11,
+    symbolSize: 40,
+  },
+};
+
 export const defaultRenderConfig: RenderConfig = {
   cellWidth: 100,
   cellHeight: 80,
@@ -101,11 +141,20 @@ export const defaultRenderConfig: RenderConfig = {
   magnetRadius: 1.5,
 };
 
-export function mergeTheme(partial?: Partial<NodeTheme>): NodeTheme {
-  if (!partial) return defaultNodeTheme;
+export function mergeTheme(
+  partial?: Partial<NodeTheme>,
+  base: NodeTheme = defaultNodeTheme,
+): NodeTheme {
+  if (!partial) {
+    return {
+      organization: { ...base.organization },
+      department: { ...base.department },
+      person: { ...base.person },
+    };
+  }
   return {
-    organization: { ...defaultNodeTheme.organization, ...partial.organization },
-    department: { ...defaultNodeTheme.department, ...partial.department },
-    person: { ...defaultNodeTheme.person, ...partial.person },
+    organization: { ...base.organization, ...partial.organization },
+    department: { ...base.department, ...partial.department },
+    person: { ...base.person, ...partial.person },
   };
 }

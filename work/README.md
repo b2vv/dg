@@ -72,6 +72,7 @@ npm run dev          # http://localhost:3000
 25. [T25-demo-github-pages.md](./tasks/T25-demo-github-pages.md) — ✅ Pages workflow (needs public repo / paid)
 26. [T26-promote-overlay.md](./tasks/T26-promote-overlay.md) — ✅ React promote overlay (TD07)
 27. [T27-pages-css-mobile-fix.md](./tasks/T27-pages-css-mobile-fix.md) — ✅ Pages CSS + mobile canvas height
+28. [T28-dark-theme-pixi.md](./tasks/T28-dark-theme-pixi.md) — ✅ dark Pixi palette + canvas bg
 
 ## Технічний борг
 
