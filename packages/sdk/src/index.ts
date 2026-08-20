@@ -203,6 +203,9 @@ export class OrgHierarchyDiagram {
       onStaffOrgDrill: (orgId) => {
         void this.focusStaffOrg(orgId);
       },
+      onPersonClick: (personId) => {
+        this.callbacks.onNodeClick?.({ kind: 'person', id: personId });
+      },
     });
   }
 

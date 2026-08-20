@@ -12,6 +12,7 @@ import { computeOrgLayout } from '../layout/rowTreeLayout.js';
 import type { OrgLayoutOptions } from '../layout/types.js';
 import { DepartmentBlobView } from './DepartmentBlob.js';
 import { OrgEdgesView } from './OrgEdgesView.js';
+import { StaffEdgesView } from './StaffEdgesView.js';
 import { PersonNodeView } from './PersonNode.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
 import type { NodeTheme, RenderConfig } from './types.js';
@@ -29,6 +30,7 @@ export interface RenderOptions {
   onOrgClick?: (orgId: string) => void;
   /** Tier-3 org card drill in staff canvas */
   onStaffOrgDrill?: (orgId: string) => void;
+  onPersonClick?: (personId: string, positionId: string) => void;
   /** Staff 3-tier focus; if omitted and positions exist, uses sole org or first with positions */
   staff?: {
     currentOrgId?: string;
@@ -155,12 +157,21 @@ export class DiagramRenderer {
         this.layers.departments.addChild(blob);
       }
 
+      this.layers.edges.addChild(
+        StaffEdgesView.fromLayout(canvas.edges, canvas.positionNodes),
+      );
+
       for (const n of canvas.positionNodes) {
         const position = positionById.get(n.id);
         if (!position) continue;
         const person = position.personId ? personById.get(position.personId) : undefined;
         const node = PersonNodeView.create(person, position, theme.person);
         node.position.set(n.x, n.y);
+        if (options.onPersonClick && position.personId) {
+          const personId = position.personId;
+          const positionId = position.id;
+          node.on('pointertap', () => options.onPersonClick!(personId, positionId));
+        }
         this.layers.persons.addChild(node);
       }
 

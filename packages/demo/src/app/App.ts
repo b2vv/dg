@@ -7,12 +7,13 @@ import {
 } from '@org-hierarchy/sdk';
 import { buildVariantBData } from '../scenarios/variantB.js';
 import { buildFlatOrgsData } from '../scenarios/flatOrgs.js';
+import { buildStaffTreeData } from '../scenarios/staffTree.js';
 import { SAMPLE_MAPPER_JSON, SAMPLE_MAPPER_ROWS } from '../scenarios/sampleMapper.js';
 import { parseJsonFile } from '../utils/json.js';
 import { requireElement, setThemeAttribute, showError } from '../utils/dom.js';
 import { createTransformWorker } from '../worker/createTransformWorker.js';
 
-export type DemoTab = 'variant-b' | 'flat-orgs' | 'mapper' | 'worker';
+export type DemoTab = 'variant-b' | 'staff-tree' | 'flat-orgs' | 'mapper' | 'worker';
 
 export interface ContourControls {
   paddingCells: number;
@@ -111,13 +112,21 @@ export class App {
             if (node.kind === 'organization' && this.tab === 'flat-orgs') {
               void this.diagram?.expandOrg(node.id);
             }
+            if (this.tab === 'staff-tree') {
+              const focus = this.diagram?.getStaffFocus() ?? 'ops';
+              this.setStatus(`staff-tree · focus ${focus} · click ${node.kind}:${node.id}`);
+            }
           },
           onOrgModeChange: (mode) => {
             this.setStatus(`${this.tab} · ${mode} · ${this.theme}`);
           },
         },
       });
-      this.setStatus(`${this.tab} · ${this.theme} theme`);
+      if (this.tab === 'staff-tree') {
+        this.setStatus(`staff-tree · focus ${this.diagram.getStaffFocus() ?? 'ops'} · ${this.theme}`);
+      } else {
+        this.setStatus(`${this.tab} · ${this.theme} theme`);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       showError(this.mountEl, msg);
@@ -140,7 +149,9 @@ export class App {
 
     switch (this.tab) {
       case 'variant-b':
-        return { ...base, data: buildVariantBData() };
+        return { ...base, data: buildVariantBData(), staffCurrentOrgId: 'org1' };
+      case 'staff-tree':
+        return { ...base, data: buildStaffTreeData(), staffCurrentOrgId: 'ops' };
       case 'flat-orgs':
         return { ...base, data: this.flatOrgsData };
       case 'mapper':
