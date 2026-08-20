@@ -95,10 +95,12 @@ describe('computeDeptContour', () => {
 │ 3. RED: commit «test: ...» — CI падає                    │
 │ 4. GREEN: commit «feat: ...» — CI зелений               │
 │ 5. REFACTOR: commit «refactor: ...» якщо потрібно       │
+│    (Clean Code / SOLID — див. CODING_STANDARDS.md)      │
 │ 6. Оновити task status + acceptance checkboxes          │
 └─────────────────────────────────────────────────────────┘
 ```
 
+Стандарти якості TS (Clean Architecture, SOLID, DRY, KISS, GoF): [`CODING_STANDARDS.md`](./CODING_STANDARDS.md), SPEC §13.
 ### Test list template (у PR description або коментар до task)
 
 ```markdown
