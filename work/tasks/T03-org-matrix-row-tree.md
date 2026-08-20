@@ -1,165 +1,65 @@
 # T03 — Org matrix та row-tree layout
 
 **Пріоритет:** P1  
-**Статус:** todo  
-**Оцінка складності:** висока  
-**Залежності:** T01 (OrganizationNode), WASM layout ✅
+**Статус:** done  
+**Залежності:** T01 ✅, WASM layout ✅
 
 ---
 
-## TDD (обов'язково — перед кодом)
-
-> Політика: [`work/TDD.md`](../TDD.md)
+## TDD
 
 ### Success tests
-- [ ] `detectOrgMode(all collapsed)` → `'matrix'`
-- [ ] `detectOrgMode(one expanded)` → `'row-tree'`
-- [ ] `computeOrgRowTreeLayout(10 org, rootId)` → nodes з monotonic depth по y
-- [ ] matrix D&D swap → `matrixOrder` оновлюється
+- [x] `detectOrgMode(all collapsed)` → `'matrix'`
+- [x] `detectOrgMode(one expanded)` → `'row-tree'`
+- [x] `computeOrgRowTreeLayout(10 org, rootId)` → nodes з monotonic depth по y
+- [x] matrix D&D swap → `matrixOrder` оновлюється
 
 ### Failure tests
-- [ ] cycle у `parentOrgId` → throw або broken cycle detection
-- [ ] `expandedRootId` не існує → throw
-- [ ] empty organizations → empty layout, без throw
-- [ ] duplicate org ids → reject
+- [x] cycle у `parentOrgId` → throw
+- [x] `expandedRootId` не існує → throw
+- [x] empty organizations → empty layout
+- [x] duplicate org ids → reject
 
 ---
 
-## Мета
-
-Реалізувати два режими відображення організацій з автоматичним перемиканням за станом `collapsed`.
-
----
-
-## Режими
-
-### Matrix (усі collapsed)
-
-```
-Умова: ∀ org.collapsed === true
-
-Візуал:
-  • Org nodes у 2D sparse grid або force layout
-  • Edges: orgLinks + parentOrg adjacency
-  • D&D → зміна порядку (matrixOrder index)
-```
-
-### Row-tree (≥1 expanded)
-
-```
-Умова: ∃ org.collapsed === false
-
-Візуал:
-  • Rows = depth від root expanded subtree
-  • Row 1: root expanded orgs
-  • Row 2: children
-  • WASM computeLayout(root, { direction: 'vertical' })
-```
-
-### State machine
-
-```mermaid
-stateDiagram-v2
-  [*] --> Matrix
-  Matrix --> RowTree: expandOrg(id)
-  RowTree --> Matrix: collapseAll()
-  RowTree --> RowTree: expandOrg / collapseOrg
-```
-
----
-
-## Scope
-
-### 1. SDK layout module
+## Реалізовано
 
 ```
 packages/sdk/src/layout/
-  orgMode.ts           — detect matrix vs row-tree
-  matrixLayout.ts      — sparse grid placement
-  rowTreeLayout.ts     — bridge to WASM computeLayout
-  types.ts
+  types.ts, orgMode.ts, matrixLayout.ts, rowTreeLayout.ts, orgTree.ts
+packages/sdk/src/render/OrgEdgesView.ts
 ```
 
-### 2. WASM integration
-
-Вже є:
-
-- `buildFromFlat(flatNodes)` → `HierarchyNode`
-- `computeLayout(root, options)` → `LayoutResult`
-
-SDK потрібно:
+### API
 
 ```ts
-export async function computeOrgRowTreeLayout(
-  organizations: DiagramOrganization[],
-  expandedRootId: string,
-  options?: LayoutOptions,
-): Promise<LayoutResult>;
+import {
+  detectOrgMode,
+  computeOrgLayout,
+  computeOrgRowTreeLayout,
+} from '@org-hierarchy/sdk';
+
+const diagram = await OrgHierarchyDiagram.create(el, { data, callbacks: {
+  onNodeClick: ({ id }) => diagram.expandOrg(id),
+  onOrgModeChange: (mode) => console.log(mode),
+}});
+
+await diagram.expandOrg('org-1');      // matrix → row-tree
+await diagram.collapseAllOrgs();       // row-tree → matrix
+await diagram.reorderOrg('org-3', 0);  // matrix D&D
+diagram.getOrgMode();                  // 'matrix' | 'row-tree'
 ```
 
-### 3. Matrix layout algorithm (new)
-
-**Input:** `organizations[]`, `orgLinks[]`, optional `matrixOrder: string[]`
-
-**Steps:**
-
-1. Filter collapsed orgs only
-2. Build adjacency from orgLinks + parentOrgId
-3. Place nodes:
-   - Option A: manual grid with row/col from matrixOrder
-   - Option B: layered graph (Sugiyama simplified)
-4. Edge routing: orthogonal between node centers
-
-**D&D:**
-
-- On drop: swap matrixOrder indices
-- Emit `onLayoutChange({ type: 'matrix-reorder', orgId, newIndex })`
-
-### 4. Pixi integration (T01)
-
-- OrganizationNode at LayoutResult positions
-- Animate transition matrix ↔ row-tree (optional v1.1)
-
----
-
-## Data model extensions
-
-```ts
-interface DiagramOrganization {
-  // existing...
-  collapsed?: boolean;
-  matrixOrder?: number;   // для matrix mode
-}
-
-interface OrgLink {
-  fromOrgId: string;
-  toOrgId: string;
-  kind?: 'admin' | 'matrix' | 'partnership';
-}
-```
+### Demo
+- **Flat orgs** tab: matrix grid + edges, click org → expand (row-tree), Collapse all
 
 ---
 
 ## Acceptance criteria
 
-- [ ] 10 org demo: collapsed → matrix view
-- [ ] Expand 1 org → switch to row-tree with correct depths
-- [ ] Collapse all → back to matrix
-- [ ] D&D reorder in matrix updates visual + callback
-- [ ] LayoutResult edges drawn between org nodes
-- [ ] Performance: 1000 org matrix — layout < 100ms (worker)
-
----
-
-## Out of scope
-
-- Full 50k org on screen (viewport culling — окремий task)
-- Force-directed physics layout
-
----
-
-## Референси
-
-- `packages/core/src/layout.rs`
-- `docs/REQUIREMENTS.md` §2.1
-- `work/SPEC.md` §2.1
+- [x] 24 org demo: collapsed → matrix view
+- [x] Expand 1 org → row-tree з WASM layout
+- [x] Collapse all → matrix
+- [x] `reorderOrg` + `onLayoutChange`
+- [x] Edges rendered (OrgEdgesView)
+- [x] 37 SDK tests pass

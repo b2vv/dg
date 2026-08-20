@@ -10,4 +10,8 @@ export type LayoutResult = { nodes: Array<LayoutNode>, edges: Array<LayoutEdge>,
 
 export type OrgFlatInput = { id: string, parentOrgId: string | null, name: string, };
 
-export type OrgRowTreeLayoutResult = { mode: string, nodes: Array<LayoutNode>, edges: Array<LayoutEdge>, width: number, height: number, direction: string, };
+export type OrgRowTreeLayoutResult = { mode: string, 
+/**
+ * layout engine id, e.g. ploeg-layered-tidy (diagram-lib compatible)
+ */
+algorithm: string, nodes: Array<LayoutNode>, edges: Array<LayoutEdge>, width: number, height: number, direction: string, };

@@ -3,6 +3,7 @@ mod layout;
 mod contour;
 mod org_layout;
 mod org_tree;
+mod ploeg_layout;
 mod types;
 
 use wasm_bindgen::prelude::*;

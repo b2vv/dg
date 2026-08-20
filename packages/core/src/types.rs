@@ -116,6 +116,8 @@ pub struct LayoutResult {
 #[cfg_attr(feature = "ts-export", ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts"))]
 pub struct OrgRowTreeLayoutResult {
     pub mode: String,
+    /// layout engine id, e.g. ploeg-layered-tidy (diagram-lib compatible)
+    pub algorithm: String,
     pub nodes: Vec<LayoutNode>,
     pub edges: Vec<LayoutEdge>,
     pub width: f32,
