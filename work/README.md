@@ -55,6 +55,8 @@ npm run dev          # http://localhost:3000
 8. [T05-export.md](./tasks/T05-export.md) — ✅ SVG / PNG / PDF / print
 9. [T06-demo-app-rsbuild.md](./tasks/T06-demo-app-rsbuild.md) — ✅
 10. [T07-contour-algorithm-gaps.md](./tasks/T07-contour-algorithm-gaps.md) — ✅ M4 / magnetRadius / config
+11. [T11-ci-hygiene.md](./tasks/T11-ci-hygiene.md) — ✅ CI + debt hygiene
+12. [T12-setdata-readme.md](./tasks/T12-setdata-readme.md) — ✅ `setData` + root README
 
 ## Технічний борг
 
