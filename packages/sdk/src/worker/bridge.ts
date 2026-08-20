@@ -62,36 +62,46 @@ export function chunkArray<T>(items: T[], chunkSize: number): T[][] {
   return chunks;
 }
 
+import {
+  recommendChunkSize,
+  recommendWorkerPoolSize,
+} from './poolSizing.js';
+
 /**
  * WorkerPool — паралель map chunks (для 2M records).
  * Кожен worker обробляє chunk через той самий mapperKey.
  */
 export class WorkerPool {
   private workers: Worker[] = [];
-  private queue: number = 0;
 
   constructor(
     private factory: () => Worker,
-    poolSize = navigator.hardwareConcurrency || 4,
+    poolSize = recommendWorkerPoolSize(),
   ) {
-    for (let i = 0; i < poolSize; i++) {
+    const n = Math.max(1, Math.floor(poolSize));
+    for (let i = 0; i < n; i++) {
       this.workers.push(factory());
     }
+  }
+
+  get size(): number {
+    return this.workers.length;
   }
 
   async mapChunks<TIn, TOut>(
     mapperKey: string,
     items: TIn[],
-    chunkSize: number,
+    chunkSize: number = recommendChunkSize(items.length),
   ): Promise<TOut[]> {
-    const chunks = chunkArray(items, chunkSize);
+    const size = Math.max(1, Math.floor(chunkSize));
+    const chunks = chunkArray(items, size);
     const results: TOut[] = new Array(chunks.length);
     let nextChunk = 0;
 
     const runWorker = async (worker: Worker): Promise<void> => {
       while (nextChunk < chunks.length) {
         const idx = nextChunk++;
-        const chunk = chunks[idx];
+        const chunk = chunks[idx]!;
         results[idx] = await mapInWorker<TIn[], TOut>(worker, mapperKey, chunk);
       }
     };

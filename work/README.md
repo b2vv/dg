@@ -65,6 +65,7 @@ npm run dev          # http://localhost:3000
 18. [T18-worker-search-index.md](./tasks/T18-worker-search-index.md) — ✅ worker/pool search index
 19. [T19-camera-tween.md](./tasks/T19-camera-tween.md) — ✅ animated fitView / resetView / panTo
 20. [T20-staff-expand-inplace.md](./tasks/T20-staff-expand-inplace.md) — ✅ tier-3 expand-in-place
+21. [T21-chunked-mapper-facade.md](./tasks/T21-chunked-mapper-facade.md) — ✅ pooled array mapper facade
 
 ## Технічний борг
 

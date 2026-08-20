@@ -72,6 +72,10 @@ _Avoid_: Instant jump (when motion is requested)
 Showing a tier-3 org’s staff under its card without changing staff focus (`toggleStaffOrgExpand`).
 _Avoid_: Drill (that’s `focusStaffOrg`)
 
+**Pooled array mapper**:
+Facade that chunks an input array across a bounded WorkerPool (`createPooledArrayMapper` / `mapArrayItems` / `mapFlatRowsInPool`).
+_Avoid_: One worker per chunk, unbounded concurrency
+
 **Promote overlay**:
 v1.x idea: HTML/React node chrome over Pixi (TD07) — not in v1.
 _Avoid_: Hybrid node, React card on canvas (for v1)
