@@ -96,11 +96,7 @@ export async function buildSearchIndexInPool(
   const rows = flattenPositionSearchRows(data.positions, data.persons);
   if (rows.length === 0) return orgPart;
 
-  const payloads = chunkArray(rows, Math.max(1, chunkSize));
   try {
-    // Pre-chunked: each pool item is already a PositionSearchRow[] payload.
-    // WorkerPool.mapChunks would wrap again, so run one payload per call via chunkSize=items.length sentinel —
-    // instead map flat rows and let the pool slice.
     const dtos = await pool.mapChunks<PositionSearchRow, SearchIndexDTO>(
       searchHandlerKeys.buildSearchIndexPositions,
       rows,
