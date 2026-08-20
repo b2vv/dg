@@ -54,6 +54,7 @@ work/
 - [TD03-contour-config-drift.md](./tech-debt/TD03-contour-config-drift.md)
 - [TD04-sdk-skeleton-no-render.md](./tech-debt/TD04-sdk-skeleton-no-render.md)
 - [TD05-wasm-pkg-in-repo.md](./tech-debt/TD05-wasm-pkg-in-repo.md)
+- [TD06-vitest-not-configured.md](./tech-debt/TD06-vitest-not-configured.md)
 
 ## Джерела правди
 
