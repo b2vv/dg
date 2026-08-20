@@ -29,6 +29,12 @@ export {
 export type { MorphPoint } from './contourMorph.js';
 export { resolveTheme, getOrgSymbolUrl } from './theme.js';
 export {
+  loadNodeTexture,
+  configureNodeTextureLoader,
+  clearNodeTextureCache,
+  type NodeTextureLoader,
+} from './nodeMedia.js';
+export {
   defaultNodeTheme,
   defaultRenderConfig,
   mergeTheme,

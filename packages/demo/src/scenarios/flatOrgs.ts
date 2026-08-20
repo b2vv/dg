@@ -1,4 +1,5 @@
 import type { DiagramData } from '@org-hierarchy/sdk';
+import { DEMO_PLACEHOLDER_PNG } from './demoMedia.js';
 
 export function buildFlatOrgsData(count = 24): DiagramData {
   const organizations = Array.from({ length: count }, (_, i) => ({
@@ -8,11 +9,13 @@ export function buildFlatOrgsData(count = 24): DiagramData {
     groupIds: i % 4 === 0 ? ['g1'] : [],
     collapsed: true,
     matrixOrder: i,
+    symbolUrl: DEMO_PLACEHOLDER_PNG,
+    symbolUrlLight: DEMO_PLACEHOLDER_PNG,
   }));
 
   return {
     organizations,
-    groups: [{ id: 'g1', name: 'Group Alpha', emblemUrl: undefined }],
+    groups: [{ id: 'g1', name: 'Group Alpha', emblemUrl: DEMO_PLACEHOLDER_PNG }],
     departments: [],
     persons: [],
     positions: [],

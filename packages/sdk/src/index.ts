@@ -150,6 +150,9 @@ export {
   runPointMorph,
   defaultNodeTheme,
   mergeTheme,
+  loadNodeTexture,
+  configureNodeTextureLoader,
+  clearNodeTextureCache,
 } from './render/index.js';
 export type {
   NodeTheme,
@@ -160,6 +163,7 @@ export type {
   CameraMotionOptions,
   LodLevel,
   LodThresholds,
+  NodeTextureLoader,
 } from './render/index.js';
 export type { LayoutPatch, OrgHierarchyCallbacks } from './callbacks.js';
 

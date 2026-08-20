@@ -1,9 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { Texture } from 'pixi.js';
 import { PersonNodeView } from './PersonNode.js';
+import { configureNodeTextureLoader, clearNodeTextureCache } from './nodeMedia.js';
 import { defaultNodeTheme } from './types.js';
 
 describe('PersonNodeView', () => {
-  it('success: renders name, title and temp badge', () => {
+  afterEach(() => {
+    configureNodeTextureLoader(null);
+    clearNodeTextureCache();
+  });
+
+  it('success: renders name, title and temp badge', async () => {
     const view = PersonNodeView.create(
       {
         id: 'p1',
@@ -20,13 +27,34 @@ describe('PersonNodeView', () => {
       },
       defaultNodeTheme.person,
     );
+    await view.mediaReady;
     expect(view.eventMode).toBe('static');
     expect(view.findText('Іваненко Іван')).toBeTruthy();
     expect(view.findText('Інженер')).toBeTruthy();
     expect(view.hasTempBadge()).toBe(true);
+    expect(view.hasPhotoSprite()).toBe(false);
   });
 
-  it('failure: missing person uses placeholder name', () => {
+  it('success: near lod shows photo sprite when texture loads', async () => {
+    configureNodeTextureLoader(async () => Texture.WHITE);
+    const view = PersonNodeView.create(
+      { id: 'p1', fullName: 'Іваненко Іван', photoUrl: '/photo.png' },
+      {
+        id: 'pos1',
+        title: 'Інженер',
+        organizationId: 'org1',
+        groupIds: [],
+        status: 'filled',
+        isTemporary: false,
+      },
+      defaultNodeTheme.person,
+      'near',
+    );
+    await view.mediaReady;
+    expect(view.hasPhotoSprite()).toBe(true);
+  });
+
+  it('failure: missing person uses placeholder name', async () => {
     const view = PersonNodeView.create(
       undefined,
       {
@@ -39,13 +67,34 @@ describe('PersonNodeView', () => {
       },
       defaultNodeTheme.person,
     );
+    await view.mediaReady;
     expect(view.findText('—')).toBeTruthy();
     expect(view.hasTempBadge()).toBe(false);
   });
 
-  it('success: far lod draws dot without name text', () => {
+  it('failure: photo load error keeps placeholder (no sprite)', async () => {
+    configureNodeTextureLoader(async () => null);
     const view = PersonNodeView.create(
-      { id: 'p1', fullName: 'Іваненко Іван' },
+      { id: 'p1', fullName: 'Іваненко Іван', photoUrl: '/missing.png' },
+      {
+        id: 'pos1',
+        title: 'Інженер',
+        organizationId: 'org1',
+        groupIds: [],
+        status: 'filled',
+        isTemporary: false,
+      },
+      defaultNodeTheme.person,
+    );
+    await view.mediaReady;
+    expect(view.hasPhotoSprite()).toBe(false);
+    expect(view.findText('Іваненко Іван')).toBeTruthy();
+  });
+
+  it('success: far lod draws dot without name text', async () => {
+    configureNodeTextureLoader(async () => Texture.WHITE);
+    const view = PersonNodeView.create(
+      { id: 'p1', fullName: 'Іваненко Іван', photoUrl: '/photo.png' },
       {
         id: 'pos1',
         title: 'Інженер',
@@ -57,8 +106,10 @@ describe('PersonNodeView', () => {
       defaultNodeTheme.person,
       'far',
     );
+    await view.mediaReady;
     expect(view.lod).toBe('far');
     expect(view.findText('Іваненко Іван')).toBeUndefined();
     expect(view.hasTempBadge()).toBe(false);
+    expect(view.hasPhotoSprite()).toBe(false);
   });
 });

@@ -599,11 +599,11 @@ interface OrgHierarchyCallbacks {
 
 ---
 
-## 8. Відкриті уточнення (minor)
+## 8. Відкриті уточнення (minor) — resolved
 
-1. **Контекстне меню** — фіксований набір дій від SDK чи повністю кастомний від host?
-2. **Persist drag** — координати/порядок зберігає host через `onLayoutChange` чи SDK викликає API напряму?
-3. **Тема** — `light`/`dark`/`auto` через CSS variables чи prop `theme`?
+1. **Контекстне меню** — SDK дає `defaultContextMenuItems` + `onContextMenu`; host може повністю кастомізувати (React host у `@org-hierarchy/sdk/react`).
+2. **Persist drag** — host зберігає через `onLayoutChange`; SDK не викликає зовнішній API.
+3. **Тема** — prop `theme: 'light' | 'dark' | 'auto'` (`resolveTheme`); не CSS variables для canvas.
 
 ---
 

@@ -67,6 +67,7 @@ npm run dev          # http://localhost:3000
 20. [T20-staff-expand-inplace.md](./tasks/T20-staff-expand-inplace.md) — ✅ tier-3 expand-in-place
 21. [T21-chunked-mapper-facade.md](./tasks/T21-chunked-mapper-facade.md) — ✅ pooled array mapper facade
 22. [T22-demo-pooled-mapper.md](./tasks/T22-demo-pooled-mapper.md) — ✅ demo uses pooled mapper facade
+23. [T23-node-media-textures.md](./tasks/T23-node-media-textures.md) — ✅ person photo + org symbol sprites
 
 ## Технічний борг
 
