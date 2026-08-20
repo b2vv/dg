@@ -27,7 +27,12 @@ export {
   easeOutCubic,
 } from './contourMorph.js';
 export type { MorphPoint } from './contourMorph.js';
-export { resolveTheme, getOrgSymbolUrl } from './theme.js';
+export {
+  resolveTheme,
+  getOrgSymbolUrl,
+  resolveNodeTheme,
+  canvasBackgroundForTheme,
+} from './theme.js';
 export {
   loadNodeTexture,
   configureNodeTextureLoader,
@@ -45,6 +50,7 @@ export {
 export type { PromoteCandidate } from './promoteTypes.js';
 export {
   defaultNodeTheme,
+  darkNodeTheme,
   defaultRenderConfig,
   mergeTheme,
   type NodeTheme,

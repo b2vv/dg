@@ -10,6 +10,8 @@ import {
   defaultRenderConfig,
   mergeTheme,
   resolveTheme,
+  resolveNodeTheme,
+  canvasBackgroundForTheme,
   type NodeTheme,
   type RenderConfig,
   type CameraMotionOptions,
@@ -150,7 +152,10 @@ export {
   lerpClosedRings,
   runPointMorph,
   defaultNodeTheme,
+  darkNodeTheme,
   mergeTheme,
+  resolveNodeTheme,
+  canvasBackgroundForTheme,
   loadNodeTexture,
   configureNodeTextureLoader,
   clearNodeTextureCache,
@@ -265,6 +270,7 @@ export class OrgHierarchyDiagram {
   private data: DiagramData = emptyDiagramData();
   private host: PixiHost | null = null;
   private themeMode: 'light' | 'dark' | 'auto' = 'auto';
+  private stylesPartial: Partial<NodeTheme> | undefined;
   private nodeTheme = mergeTheme();
   private renderConfig: RenderConfig = { ...defaultRenderConfig };
   private useWorker = true;
@@ -288,7 +294,11 @@ export class OrgHierarchyDiagram {
     }
     const instance = new OrgHierarchyDiagram();
     instance.themeMode = config.theme ?? 'auto';
-    instance.nodeTheme = mergeTheme(config.styles);
+    instance.stylesPartial = config.styles;
+    instance.nodeTheme = resolveNodeTheme(
+      resolveTheme(instance.themeMode),
+      config.styles,
+    );
     instance.renderConfig = { ...defaultRenderConfig, ...config.render };
     instance.useWorker = config.useWorker ?? typeof Worker !== 'undefined';
     instance.callbacks = config.callbacks ?? {};
@@ -480,6 +490,8 @@ export class OrgHierarchyDiagram {
   private async render(): Promise<void> {
     if (!this.host) return;
     const resolved = resolveTheme(this.themeMode);
+    this.nodeTheme = resolveNodeTheme(resolved, this.stylesPartial);
+    this.host.setBackground(canvasBackgroundForTheme(resolved));
     const computeContours = this.getContourComputer();
     await this.host.renderer.render(this.data, this.nodeTheme, resolved, this.renderConfig, {
       computeContours,

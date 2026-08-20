@@ -5,10 +5,17 @@ import {
   type StaffEdgeLink,
 } from './staffEdgeGeometry.js';
 
-const STROKE: Record<StaffEdgeLink['kind'], { color: number; width: number; dash?: number[] }> = {
+const STROKE_LIGHT: Record<StaffEdgeLink['kind'], { color: number; width: number; dash?: number[] }> = {
   admin: { color: 0x64748b, width: 2 },
   'cross-tier': { color: 0x64748b, width: 2 },
   matrix: { color: 0x94a3b8, width: 1.5, dash: [6, 4] },
+  dotted: { color: 0xa8a29e, width: 1.5, dash: [2, 4] },
+};
+
+const STROKE_DARK: Record<StaffEdgeLink['kind'], { color: number; width: number; dash?: number[] }> = {
+  admin: { color: 0x94a3b8, width: 2 },
+  'cross-tier': { color: 0x94a3b8, width: 2 },
+  matrix: { color: 0x64748b, width: 1.5, dash: [6, 4] },
   dotted: { color: 0xa8a29e, width: 1.5, dash: [2, 4] },
 };
 
@@ -21,17 +28,26 @@ export class StaffEdgesView extends Container {
     this.addChild(this.graphics);
   }
 
-  static fromLayout(edges: StaffEdgeLink[], boxes: StaffEdgeBox[]): StaffEdgesView {
+  static fromLayout(
+    edges: StaffEdgeLink[],
+    boxes: StaffEdgeBox[],
+    theme: 'light' | 'dark' = 'light',
+  ): StaffEdgesView {
     const view = new StaffEdgesView();
-    view.redraw(edges, boxes);
+    view.redraw(edges, boxes, theme);
     return view;
   }
 
-  redraw(edges: StaffEdgeLink[], boxes: StaffEdgeBox[]): void {
+  redraw(
+    edges: StaffEdgeLink[],
+    boxes: StaffEdgeBox[],
+    theme: 'light' | 'dark' = 'light',
+  ): void {
     this.graphics.clear();
+    const stroke = theme === 'dark' ? STROKE_DARK : STROKE_LIGHT;
     const segments = buildStaffEdgeSegments(edges, boxes);
     for (const seg of segments) {
-      const style = STROKE[seg.kind] ?? STROKE.admin;
+      const style = stroke[seg.kind] ?? stroke.admin;
       if (style.dash) {
         drawDashed(this.graphics, seg.x1, seg.y1, seg.x2, seg.y2, style.dash);
       } else {

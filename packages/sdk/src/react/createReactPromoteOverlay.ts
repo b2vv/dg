@@ -205,12 +205,12 @@ export function DefaultPromoteCard(props: DefaultPromoteCardProps): ReactElement
         boxSizing: 'border-box',
         padding: '8px 10px',
         borderRadius: 8,
-        background: '#ffffff',
-        border: '1px solid #cbd5e1',
         boxShadow: '0 4px 14px rgba(15, 23, 42, 0.12)',
         pointerEvents: 'auto',
         fontFamily: 'system-ui, sans-serif',
-        color: '#0f172a',
+        color: 'var(--text, #0f172a)',
+        background: 'var(--surface, #ffffff)',
+        border: '1px solid var(--border, #cbd5e1)',
       },
     },
     createElement(
@@ -221,7 +221,11 @@ export function DefaultPromoteCard(props: DefaultPromoteCardProps): ReactElement
         null,
         createElement('div', { style: { fontWeight: 600, fontSize: 13 } }, title),
         subtitle
-          ? createElement('div', { style: { fontSize: 11, color: '#64748b', marginTop: 2 } }, subtitle)
+          ? createElement(
+              'div',
+              { style: { fontSize: 11, color: 'var(--muted, #64748b)', marginTop: 2 } },
+              subtitle,
+            )
           : null,
       ),
       createElement(

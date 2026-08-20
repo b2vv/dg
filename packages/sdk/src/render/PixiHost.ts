@@ -69,6 +69,12 @@ export class PixiHost {
     this.viewport?.setOnChange(handler);
   }
 
+  /** Update WebGL clear color (theme toggle). */
+  setBackground(color: number): void {
+    if (!this.app) return;
+    this.app.renderer.background.color = color;
+  }
+
   private async init(container: HTMLElement, options: PixiHostOptions): Promise<void> {
     this.container = container;
     const width = Math.max(container.clientWidth || 800, 320);
