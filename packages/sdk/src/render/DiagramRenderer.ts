@@ -20,6 +20,7 @@ import { OrganizationNodeView } from './OrganizationNode.js';
 import type { NodeTheme, RenderConfig } from './types.js';
 import { defaultRenderConfig } from './types.js';
 import type { DiagramData } from '../data/types.js';
+import type { LodLevel } from './lod.js';
 
 export type ContourComputer = (
   positions: ContourPositionInput[],
@@ -29,6 +30,7 @@ export type ContourComputer = (
 export interface RenderOptions {
   computeContours?: ContourComputer;
   orgLayout?: OrgLayoutOptions;
+  lod?: LodLevel;
   onOrgClick?: (orgId: string) => void;
   onStaffOrgDrill?: (orgId: string) => void;
   onPersonClick?: (personId: string, positionId: string) => void;
@@ -123,11 +125,12 @@ export class DiagramRenderer {
     this.layers.root.removeAllListeners('pointertap');
     this.layers.root.on('pointertap', () => options.onCanvasClick?.());
 
+    const lod = options.lod ?? 'near';
     const hasStaff = data.positions.length > 0;
     if (hasStaff) {
-      await this.renderStaff(data, theme, resolvedTheme, config, options);
+      await this.renderStaff(data, theme, resolvedTheme, config, { ...options, lod });
     } else if (data.organizations.length > 0) {
-      await this.renderOrganizations(data, theme, resolvedTheme, options);
+      await this.renderOrganizations(data, theme, resolvedTheme, { ...options, lod });
     }
 
     this.drawSelection(options.selected ?? null);
@@ -282,12 +285,16 @@ export class DiagramRenderer {
       });
 
       const deptById = new Map(data.departments.map((d) => [d.id, d]));
+      const countByDept = countPositionsByDept(data.positions);
+      const lod = options.lod ?? 'near';
       for (const contour of contours) {
         const dept = deptById.get(contour.departmentId);
         const blob = DepartmentBlobView.fromPath(
           contour.path,
           dept?.name ?? contour.departmentId,
           theme.department,
+          lod,
+          countByDept.get(contour.departmentId),
         );
         this.layers.departments.addChild(blob);
       }
@@ -298,7 +305,7 @@ export class DiagramRenderer {
         const position = positionById.get(n.id);
         if (!position) continue;
         const person = position.personId ? personById.get(position.personId) : undefined;
-        const node = PersonNodeView.create(person, position, theme.person);
+        const node = PersonNodeView.create(person, position, theme.person, lod);
         node.position.set(n.x, n.y);
         this.bindPersonInteractions(
           node,
@@ -326,6 +333,7 @@ export class DiagramRenderer {
           undefined,
           resolvedTheme,
           theme.organization,
+          lod,
         );
         view.position.set(card.x, card.y);
         view.eventMode = 'static';
@@ -378,13 +386,15 @@ export class DiagramRenderer {
         contour.path,
         dept?.name ?? contour.departmentId,
         theme.department,
+        options.lod ?? 'near',
+        countPositionsByDept(data.positions).get(contour.departmentId),
       );
       this.layers.departments.addChild(blob);
     }
     for (const position of data.positions) {
       if (!position.gridCell) continue;
       const person = position.personId ? personById.get(position.personId) : undefined;
-      const node = PersonNodeView.create(person, position, theme.person);
+      const node = PersonNodeView.create(person, position, theme.person, options.lod ?? 'near');
       const x = position.gridCell.col * config.cellWidth + 10;
       const y = position.gridCell.row * config.cellHeight + 10;
       node.position.set(x, y);
@@ -430,7 +440,13 @@ export class DiagramRenderer {
       if (!org) continue;
       const primaryGroupId = org.groupIds[0];
       const group = primaryGroupId ? groupById.get(primaryGroupId) : undefined;
-      const node = OrganizationNodeView.create(org, group, resolvedTheme, theme.organization);
+      const node = OrganizationNodeView.create(
+        org,
+        group,
+        resolvedTheme,
+        theme.organization,
+        options.lod ?? 'near',
+      );
       node.position.set(ln.x, ln.y);
       this.rememberBox({
         id: org.id,
@@ -469,4 +485,13 @@ function inferStaffCurrentOrgId(data: DiagramData): string | undefined {
   const withHead = data.positions.filter((p) => p.isHead).map((p) => p.organizationId);
   if (withHead.length === 1) return withHead[0];
   return orgIds[0];
+}
+
+function countPositionsByDept(positions: DiagramData['positions']): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const p of positions) {
+    if (!p.departmentId) continue;
+    map.set(p.departmentId, (map.get(p.departmentId) ?? 0) + 1);
+  }
+  return map;
 }

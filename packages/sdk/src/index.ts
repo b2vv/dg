@@ -12,6 +12,7 @@ import {
   type NodeTheme,
   type RenderConfig,
 } from './render/index.js';
+import { resolveLodLevel, type LodLevel } from './render/lod.js';
 import {
   collapseAllOrgs,
   collapseOrg,
@@ -109,6 +110,9 @@ export {
   DiagramRenderer,
   PixiHost,
   Viewport,
+  resolveLodLevel,
+  simplifyPolyline,
+  defaultLodThresholds,
   parseSvgPath,
   defaultNodeTheme,
   mergeTheme,
@@ -119,6 +123,8 @@ export type {
   RenderConfig,
   ContourComputer,
   ViewportTransform,
+  LodLevel,
+  LodThresholds,
 } from './render/index.js';
 export type { LayoutPatch, OrgHierarchyCallbacks } from './callbacks.js';
 
@@ -210,6 +216,8 @@ export class OrgHierarchyDiagram {
   private staffCurrentOrgId: string | undefined;
   private searchIdx: SearchIndex | null = null;
   private selection: NodeRef | null = null;
+  private lodLevel: LodLevel = 'near';
+  private lodRenderQueued = false;
   static async create<TRaw>(
     container: HTMLElement,
     config: OrgHierarchyConfig<TRaw>,
@@ -239,8 +247,24 @@ export class OrgHierarchyDiagram {
     await instance.applyConfig(config);
     instance.rebuildSearchIndex();
     instance.host = await PixiHost.create(container);
+    instance.host.setOnViewportChange((t) => {
+      instance.onViewportTransform(t.scale);
+    });
+    instance.lodLevel = resolveLodLevel(instance.host.getZoom());
     await instance.render();
     return instance;
+  }
+
+  private onViewportTransform(scale: number): void {
+    const next = resolveLodLevel(scale);
+    if (next === this.lodLevel) return;
+    this.lodLevel = next;
+    if (this.lodRenderQueued) return;
+    this.lodRenderQueued = true;
+    queueMicrotask(() => {
+      this.lodRenderQueued = false;
+      void this.render();
+    });
   }
 
   private rebuildSearchIndex(): void {
@@ -350,6 +374,7 @@ export class OrgHierarchyDiagram {
     const computeContours = this.useWorker ? computeAllContoursInWorker : computeAllContoursMain;
     await this.host.renderer.render(this.data, this.nodeTheme, resolved, this.renderConfig, {
       computeContours,
+      lod: this.lodLevel,
       staff: this.staffCurrentOrgId
         ? { currentOrgId: this.staffCurrentOrgId }
         : undefined,
@@ -580,6 +605,10 @@ export class OrgHierarchyDiagram {
 
   getZoom(): number {
     return this.host?.getZoom() ?? 1;
+  }
+
+  getLodLevel(): LodLevel {
+    return this.lodLevel;
   }
 
   setZoom(scale: number): void {

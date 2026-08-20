@@ -54,6 +54,10 @@ export class PixiHost {
     this.viewport?.panTo(worldX, worldY);
   }
 
+  setOnViewportChange(handler: ((t: ViewportTransform) => void) | null): void {
+    this.viewport?.setOnChange(handler);
+  }
+
   private async init(container: HTMLElement, options: PixiHostOptions): Promise<void> {
     this.container = container;
     const width = Math.max(container.clientWidth || 800, 320);

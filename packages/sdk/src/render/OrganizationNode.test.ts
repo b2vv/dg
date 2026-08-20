@@ -27,4 +27,16 @@ describe('OrganizationNodeView', () => {
     const view = OrganizationNodeView.create(org, undefined, 'light', defaultNodeTheme.organization);
     expect(view.findText('Міністерство')).toBeTruthy();
   });
+
+  it('success: far lod hides org name text', () => {
+    const view = OrganizationNodeView.create(
+      org,
+      group,
+      'light',
+      defaultNodeTheme.organization,
+      'far',
+    );
+    expect(view.lod).toBe('far');
+    expect(view.findText('Міністерство')).toBeUndefined();
+  });
 });

@@ -459,7 +459,8 @@ Host raw data
 | Mid | compact card | full contour | card |
 | Near | full card + photo | full contour + label | full card + emblem |
 
-**v1:** увесь LOD і ноди — **лише Pixi** (WebGL). HTML лише для popup / context menu / modal **поза** полотном нод (не React-картка на кожну ноду).
+**v1:** увесь LOD і ноди — **лише Pixi** (WebGL). HTML лише для popup / context menu / modal **поза** полотном нод (не React-картка на кожну ноду).  
+LOD bands від `Viewport.scale` (`resolveLodLevel`): far &lt; 0.45 · mid &lt; 1.2 · near — спрощені person/org/contour.
 
 **v1.x (після готової v1 — покращення UX):** опційний шар **HTML/React/SVG promote** поверх Pixi-підкладки:
 
