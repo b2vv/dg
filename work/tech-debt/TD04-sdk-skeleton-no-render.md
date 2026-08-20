@@ -1,37 +1,20 @@
 # TD04 — SDK skeleton без render pipeline
 
 **Пріоритет:** високий (блокує demo)  
-**Статус:** відкрито  
+**Статус:** closed (T01 + T04)  
 **Дата:** 2026-08-20
 
 ## Опис
 
-`OrgHierarchyDiagram` у `packages/sdk/src/index.ts` — **skeleton**:
+Раніше `OrgHierarchyDiagram` був skeleton без Pixi mount.
 
-- Приймає `data` + `mappers`, зберігає `DiagramData`
-- `create(container, config)` **не монтує** нічого в DOM/canvas
-- `destroy()` — порожній stub
-- Немає Pixi Application, viewport, hit testing
+## Закриття
 
-## Наслідки
+Після T01 / T02 / T04:
 
-- Host не може побачити діаграму після `create()`
-- Contour WASM працює ізольовано, але не відображається
-- Немає event loop для interactions (T04)
+- [x] `create()` монтує Pixi canvas у container
+- [x] Contours + staff/org render sync з `getData()`
+- [x] `destroy()` teardown Pixi, workers
+- [x] Interactions: click, drag, search, context menu hook
 
-## Залежності
-
-- Блокується задачею T01 (Pixi renderer)
-- Потребує рішення по theme (CSS vars vs prop)
-
-## Рекомендовані дії
-
-1. T01 — реалізувати Pixi layer
-2. Підключити `computeAllContours` при staff layout change
-3. `destroy()` — teardown Pixi app, workers, listeners
-
-## Критерії закриття
-
-- [ ] `create()` рендерить viewport у container
-- [ ] `getData()` + render sync
-- [ ] `destroy()` звільняє ресурси
+Залишок v1.x: [TD07](./TD07-pixi-react-promote-overlay.md) promote overlay.

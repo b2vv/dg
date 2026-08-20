@@ -58,13 +58,24 @@ npm run dev          # http://localhost:3000
 
 ## Технічний борг
 
-- [TD01-git-remote-and-ci.md](./tech-debt/TD01-git-remote-and-ci.md)
-- [TD02-legacy-web-rspack.md](./tech-debt/TD02-legacy-web-rspack.md)
+- [TD01-git-remote-and-ci.md](./tech-debt/TD01-git-remote-and-ci.md) — CI ✅; remote ⏳
+- [TD02-legacy-web-rspack.md](./tech-debt/TD02-legacy-web-rspack.md) — ✅
 - [TD03-contour-config-drift.md](./tech-debt/TD03-contour-config-drift.md) — ✅ closed (T07)
-- [TD04-sdk-skeleton-no-render.md](./tech-debt/TD04-sdk-skeleton-no-render.md)
+- [TD04-sdk-skeleton-no-render.md](./tech-debt/TD04-sdk-skeleton-no-render.md) — ✅ closed (T01)
 - [TD05-wasm-pkg-in-repo.md](./tech-debt/TD05-wasm-pkg-in-repo.md)
-- [TD06-vitest-not-configured.md](./tech-debt/TD06-vitest-not-configured.md)
+- [TD06-vitest-not-configured.md](./tech-debt/TD06-vitest-not-configured.md) — ✅
 - [TD07-pixi-react-promote-overlay.md](./tech-debt/TD07-pixi-react-promote-overlay.md) — v1.x backlog
+
+## CI
+
+```bash
+npm run test:rust
+npm run build:wasm
+npm run typecheck
+npm test
+```
+
+GitHub Actions: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
 
 ## Джерела правди
 

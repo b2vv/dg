@@ -1,42 +1,25 @@
-# TD05 — WASM pkg committed у репозиторій
+# TD05 — WASM pkg у репозиторії
 
 **Пріоритет:** низький  
-**Статус:** прийнято (свідоме рішення)  
+**Статус:** прийнято (build-on-demand)  
 **Дата:** 2026-08-20
 
 ## Опис
 
-Збірка WASM (`wasm-pack`) output зберігається в:
-
-```
-packages/sdk/src/wasm/pkg/
-  org_hierarchy_core.js
-  org_hierarchy_core_bg.wasm
-  org_hierarchy_core.d.ts
-  ...
-```
-
-Root script: `npm run build:wasm`
+`wasm-pack` output живе в `packages/sdk/src/wasm/pkg/`, але **gitignored** (`pkg/.gitignore: *`).  
+CI і локальна розробка: `npm run build:wasm` перед тестами SDK.
 
 ## Плюси
 
-- SDK consumers не потребують Rust toolchain
-- npm install → одразу працює contour bridge
-- Cloud Agent може typecheck без локального wasm-pack
+- Нема binary merge conflicts / repo bloat
+- CI завжди збирає свіжий pkg з Rust
 
 ## Мінуси
 
-- Binary drift: забули `build:wasm` після змін Rust → stale pkg
-- Repo size зростає (~сотні KB wasm)
-- Merge conflicts у generated JS/d.ts
+- Consumers / agents потребують Rust + wasm-pack для `build:wasm`
+- Без rebuild SDK contour тести не стартують
 
-## Рекомендовані дії
+## Критерії
 
-1. CI крок: `build:wasm` + перевірка `git diff --exit-code` на pkg
-2. Pre-commit hook (optional): rebuild wasm якщо `packages/core/src/` змінився
-3. Документувати в README: «після змін Rust — `npm run build:wasm`»
-
-## Критерії моніторингу
-
-- [ ] CI fails якщо pkg не синхронізований з Rust source
-- [ ] CONTRIBUTING.md з інструкцією rebuild
+- [x] CI workflow містить `build:wasm`
+- [x] Root README / work README документують rebuild

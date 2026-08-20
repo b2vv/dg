@@ -28,6 +28,7 @@
   ],
   "scripts": {
     "build": "rsbuild build && tsc --emitDeclarationOnly --declaration --outDir dist",
+    "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
     "dev": "rsbuild dev",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

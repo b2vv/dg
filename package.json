@@ -13,7 +13,7 @@
     "dev": "npm run dev -w @org-hierarchy/demo",
     "test": "npm run test -w @org-hierarchy/sdk && npm run test -w @org-hierarchy/demo",
     "test:rust": "cd packages/core && cargo test",
-    "typecheck": "npm run typecheck -w @org-hierarchy/sdk && npm run typecheck -w @org-hierarchy/demo"
+    "typecheck": "npm run typecheck -w @org-hierarchy/sdk && npm run build:types -w @org-hierarchy/sdk && npm run typecheck -w @org-hierarchy/demo"
   },
   "engines": {
     "node": ">=20"

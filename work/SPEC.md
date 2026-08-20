@@ -326,7 +326,7 @@ SDK bridge: `packages/sdk/src/contour/bridge.ts`
 
 | ID | Правило | Статус impl |
 |----|---------|-------------|
-| G1 | Attract own — злиття own cells | ✅ через flood-fill з own seed |
+| G1 | Attract own — злиття own cells | ✅ `magnetRadius` clustering + flood |
 | G2 | Repel foreign — gap/corridor | ✅ `corridorCells` expansion |
 | G3 | No internal edges | ✅ perimeter walk лише зовнішній |
 | G4 | Orthogonal first → smooth | ✅ trace + Chaikin |
@@ -595,10 +595,10 @@ diagram.destroy();
 
 | Фаза | Scope | Статус |
 |------|-------|--------|
-| 1 Foundation | monorepo, WASM, mappers, worker, types | 🟡 частково |
-| 2 Org modes | matrix, row-tree, search, D&D org | 🔴 |
-| 3 Staff | 3 яруси, matrix\|tree\|hybrid, contour Pixi, D&D person | 🟡 contour WASM ✅ |
-| 4 Polish | context menu, export, docs | 🔴 |
+| 1 Foundation | monorepo, WASM, mappers, worker, types | ✅ |
+| 2 Org modes | matrix, row-tree, search, D&D org | ✅ v1 (T03–T04) |
+| 3 Staff | 3 яруси, matrix\|tree\|hybrid, contour Pixi, D&D person | ✅ v1 (T07–T09, T04) |
+| 4 Polish | context menu, export, docs | ✅ v1 (T05, T10) |
 | **5 v1.x Improve** | **Pixi + HTML/React promote overlay** (custom node content, Chart.js у картці); після стабільної v1 | ⚪ backlog |
 
 ---

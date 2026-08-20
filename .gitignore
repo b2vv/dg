@@ -6,4 +6,4 @@ dist/
 # Rust build artifacts
 packages/core/target/
 
-# WASM pkg is built via `npm run build:wasm` and committed for SDK consumers
+# WASM pkg is built via `npm run build:wasm` (see packages/sdk/src/wasm/pkg/.gitignore)
