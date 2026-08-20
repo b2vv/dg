@@ -84,8 +84,20 @@ export {
   mapInWorker,
   WorkerPool,
   createTransformWorker,
+  recommendWorkerPoolSize,
+  recommendChunkSize,
+  adaptChunkSize,
+  createPooledArrayMapper,
+  mapArrayInPool,
+  mapFlatRowsInPool,
 } from './worker/index.js';
 export type { MapperRegistry, WorkerBridgeOptions } from './worker/bridge.js';
+export type {
+  ChunkSizeOptions,
+  PooledArrayMapperConfig,
+  PooledMapOptions,
+  PooledMapResult,
+} from './worker/index.js';
 
 export {
   computeDeptContour,

@@ -18,5 +18,24 @@ export {
   type MapperRegistry,
 } from './bridge.js';
 
+export {
+  recommendWorkerPoolSize,
+  recommendChunkSize,
+  adaptChunkSize,
+  type ChunkSizeOptions,
+} from './poolSizing.js';
+
+export {
+  createPooledArrayMapper,
+  mapArrayInPool,
+  type PooledArrayMapperConfig,
+  type PooledMapOptions,
+  type PooledMapResult,
+  type ChunkMapperFn,
+  type ChunkMergeFn,
+} from './mapArrayFacade.js';
+
+export { mapFlatRowsInPool, type FlatRowsPoolResult } from './flatRowsPool.js';
+
 export { createTransformWorker } from './createWorker.js';
 export { computeHandlerKeys } from './compute-handlers.js';
