@@ -57,12 +57,68 @@ stateDiagram-v2
 2. Edges між org за `orgLinks` / parent-child
 3. D&D → reorder index у matrix row/column
 
-### 2.2 Штатка (staff)
+### 2.2 Штатка (staff) — три вертикальні яруси
 
-- Positions на координатній сітці `(col, row)` або `(layoutX, layoutY)`
-- Групування: department → org → group
-- Dept = **один зовнішній контур** (DepartmentBlob), не grid boxes
-- Person/Position = окремі PersonNode поверх contour
+Staff — **окреме сімейство діаграми** від org matrix/row-tree (інший layout engine, інші стилі/шаблони).
+
+Полотно розбите на **три вертикальні блоки** (яруси). Поточна org завжди в **ярусі 2**.
+
+```text
+┌─────────────────────────────────────────────┐
+│ Ярус 1 — керуюча організація (optional)     │
+│ керівний склад; може бути відсутній         │
+├─────────────────────────────────────────────┤
+│ Ярус 2 — поточна організація (focus)        │
+│ ROOT = керівник поточної org                │
+│ може report-итись на посаду з ярусу 1       │
+├─────────────────────────────────────────────┤
+│ Ярус 3 — підпорядковані org / групи org     │
+│ у кожної org — свій блок посад              │
+└─────────────────────────────────────────────┘
+```
+
+| Ярус | Зміст |
+|------|--------|
+| **1** | Керуюча org (якщо є) — керівний склад |
+| **2** | Поточна org — повна штатка (посади, dept, person) |
+| **3** | Підпорядковані організації та групи організацій зі своїми посадами |
+
+**Root ярусу 2** = керівник поточної організації. Cross-tier edge на ярус 1 (якщо є) — **не** parent у тому ж дереві посад для tidy; окремий між’ярусний зв’язок.
+
+Групування всередині org-блоку: department → positions; Dept = **один** DepartmentBlob (магнетизм), Person/Position — окремі ноди.
+
+#### 2.2.1 Координати посад: matrix або дерево
+
+Розрахунок **відносно кожної організації** (локальна СК блоку → compose в world через offset ярусу + блоку).
+
+| Умова | Layout посад у межах org |
+|-------|---------------------------|
+| Є `gridCell` / `layoutX,layoutY` (або col/row) | **Matrix / fixed coords** — використати як є |
+| Координат **немає** | **Дерево** за `reportLines` (Ploeg / tidy layered) усередині org |
+
+Правило:
+
+```text
+if position має координати → matrix placement
+else → tree layout від root посади цієї org
+```
+
+Змішаний випадок у одній org (частина з coords, частина без):
+
+- **v1 default:** якщо **хоч у однієї** видимої посади org немає coords → увесь блок org як **дерево**; збережені coords ігнорувати для цього pass **або** (продуктово жорсткіше) вимагати all-or-nothing.
+- Рекомендація для даних: або повний matrix набір, або чисте дерево; гібрид — окремий follow-up.
+
+Auto-tree: батько по `reportLines` / position hierarchy; root = керівна посада org (ярус 2) або локальний head sub-org (ярус 3).
+
+#### 2.2.2 Два візуальні сімейства
+
+| Сімейство | Layout | Шаблони |
+|-----------|--------|---------|
+| **Організації** | matrix / row-tree | org card, emblem, org edges |
+| **Посади (штатка)** | 3 яруси + per-org matrix\|tree | стилі ярусу, посади, dept contour, person |
+
+Спільне: `DiagramData`, mappers, theme tokens, export, worker.  
+Різне: layout engine, gesture contract, session lifetime (зміна current org / сімейства → reset session).
 
 ---
 
@@ -211,7 +267,7 @@ interface DiagramData {
 }
 ```
 
-**Position** (staff grid):
+**Position** (staff):
 
 ```ts
 interface DiagramPosition {
@@ -219,14 +275,16 @@ interface DiagramPosition {
   title: string;
   organizationId: string;
   departmentId?: string;
-  col?: number;              // grid для contour
+  col?: number;              // matrix grid (якщо є → не tree)
   row?: number;
-  layoutCoords?: Point2D;    // drag override
+  layoutCoords?: Point2D;    // drag override / absolute local
   isTemporary: boolean;
   status: 'filled' | 'vacant' | 'acting';
   assignments: PositionAssignment[];
 }
 ```
+
+> Немає coords у посадах org → layout блоку як **дерево** (§2.2.1). Є coords → matrix. Contour (dept) будується після розміщення cells.
 
 **Mapper flow:**
 
