@@ -25,13 +25,15 @@ work/
 
 | Область | Статус |
 |---------|--------|
-| Rust WASM contour (magnetism) | ✅ реалізовано, 4 тести |
-| SDK data + mappers + worker helpers | ✅ частково |
-| SDK contour bridge | ✅ реалізовано |
-| Pixi renderer | ❌ не розпочато |
-| Org matrix / row-tree | ❌ WASM layout є, SDK інтеграції немає |
+| Rust WASM contour (magnetism) | ✅ реалізовано |
+| SDK data + mappers + worker helpers | ✅ |
+| SDK contour bridge | ✅ |
+| Pixi renderer | ✅ T01 |
+| Org matrix / row-tree | ✅ T03 |
+| Staff 3-tier layout + edges | ✅ T08–T09 |
 | Demo app (Rsbuild) | ✅ `packages/demo` — `npm run dev` |
-| Export SVG/PNG/PDF | ❌ не розпочато |
+| Export SVG/PNG/PDF | ❌ T05 |
+| Interactions (D&D, search) | ❌ T04 |
 
 ## Запуск demo
 
@@ -41,20 +43,17 @@ npm run build:wasm   # якщо wasm pkg не зібраний
 npm run dev          # http://localhost:3000
 ```
 
-| Гілка | Зміст |
-|-------|-------|
-| `cursor/data-mappers-worker-foundation-babc` | DiagramData, mappers, WorkerPool |
-| `cursor/wasm-contour-magnetism-babc` | contour.rs, WASM export, SDK bridge |
-
 ## Задачі (пріоритет)
 
-1. [T01-pixi-renderer.md](./tasks/T01-pixi-renderer.md) — Pixi: OrganizationNode, PersonNode, DepartmentBlob
-2. [T02-worker-contour-pipeline.md](./tasks/T02-worker-contour-pipeline.md) — contour + layout у Web Worker
-3. [T03-org-matrix-row-tree.md](./tasks/T03-org-matrix-row-tree.md) — режими org matrix / row-tree
-4. [T04-interactions.md](./tasks/T04-interactions.md) — D&D, search, context menu, block shift
-5. [T05-export.md](./tasks/T05-export.md) — SVG, PNG, PDF, print
-6. [T06-demo-app-rsbuild.md](./tasks/T06-demo-app-rsbuild.md) — demo на Rsbuild
-7. [T07-contour-algorithm-gaps.md](./tasks/T07-contour-algorithm-gaps.md) — M4, magnetRadius, G6 явно
+1. [T01-pixi-renderer.md](./tasks/T01-pixi-renderer.md) — ✅
+2. [T02-worker-contour-pipeline.md](./tasks/T02-worker-contour-pipeline.md) — ✅
+3. [T03-org-matrix-row-tree.md](./tasks/T03-org-matrix-row-tree.md) — ✅
+4. [T08-staff-3-tier-layout.md](./tasks/T08-staff-3-tier-layout.md) — ✅
+5. [T09-staff-edges-demo.md](./tasks/T09-staff-edges-demo.md) — ✅ edges + Staff tree demo
+6. [T04-interactions.md](./tasks/T04-interactions.md) — D&D, search, context menu, block shift
+7. [T05-export.md](./tasks/T05-export.md) — SVG, PNG, PDF, print
+8. [T06-demo-app-rsbuild.md](./tasks/T06-demo-app-rsbuild.md) — ✅
+9. [T07-contour-algorithm-gaps.md](./tasks/T07-contour-algorithm-gaps.md) — M4, magnetRadius, G6 явно
 
 ## Технічний борг
 
