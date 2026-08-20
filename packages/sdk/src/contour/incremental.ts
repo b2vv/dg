@@ -96,7 +96,7 @@ export function createIncrementalContourComputer(
           all.filter((r) => r.departmentId === id),
         );
       }
-      return all;
+      return deptIds.flatMap((id) => cachedResults.get(id) ?? []);
     }
 
     await Promise.all(
