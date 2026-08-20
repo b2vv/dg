@@ -44,7 +44,7 @@ let wasm: WasmContourModule | null = null;
 
 export async function initContourWasm(): Promise<WasmContourModule> {
   if (wasm) return wasm;
-  const mod = (await import('../wasm/pkg/org_hierarchy_core.js')) as WasmContourModule;
+  const mod = (await import('../wasm/pkg/org_hierarchy_core.js')) as unknown as WasmContourModule;
   await mod.default();
   wasm = mod;
   return mod;
