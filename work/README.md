@@ -89,6 +89,7 @@ npm run dev          # http://localhost:3000
 42. [T42-svg-contour-parity.md](./tasks/T42-svg-contour-parity.md) — ✅ SVG export matches live fillet/nudge/stroke/arrows
 43. [T43-rust-g7-peel.md](./tasks/T43-rust-g7-peel.md) — ✅ Rust G7 Manhattan peel of vacant tongues; pad=1 safe
 44. [T44-magnetism-edges-zoom-analysis.md](./tasks/T44-magnetism-edges-zoom-analysis.md) — 📋 magnetism sketch vs LOD edge ports / zoom
+45. [T45-lod-edge-ports.md](./tasks/T45-lod-edge-ports.md) — ✅ LOD-aware edge AABBs (mid/far ports on visual chrome)
 
 ## Технічний борг
 

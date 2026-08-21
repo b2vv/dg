@@ -26,6 +26,7 @@ import type { DepartmentBlobStyle, NodeTheme, RenderConfig } from './types.js';
 import { defaultRenderConfig } from './types.js';
 import type { DiagramData } from '../data/types.js';
 import type { LodLevel } from './lod.js';
+import { mapStaffEdgeBoxesForLod } from './visualEdgeBox.js';
 import {
   mapContourPointsToWorld,
   resolveContourWorldTransform,
@@ -625,24 +626,22 @@ export class DiagramRenderer {
         });
       }
 
+      const lod = options.lod ?? 'near';
+      const edgeBoxes = mapStaffEdgeBoxesForLod(
+        canvas.positionNodes,
+        canvas.orgCards.map((c) => ({
+          id: c.orgId,
+          x: c.x,
+          y: c.y,
+          width: c.width,
+          height: c.height,
+        })),
+        lod,
+      );
       this.layers.edges.addChild(
-        StaffEdgesView.fromLayout(
-          canvas.edges,
-          [
-            ...canvas.positionNodes,
-            ...canvas.orgCards.map((c) => ({
-              id: c.orgId,
-              x: c.x,
-              y: c.y,
-              width: c.width,
-              height: c.height,
-            })),
-          ],
-          resolvedTheme,
-        ),
+        StaffEdgesView.fromLayout(canvas.edges, edgeBoxes, resolvedTheme),
       );
 
-      const lod = options.lod ?? 'near';
       for (const n of canvas.positionNodes) {
         const position = positionById.get(n.id);
         if (!position) continue;
