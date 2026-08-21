@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { collapseAllOrgs, detectOrgMode } from '@org-hierarchy/sdk';
 import {
   SCALE_ORG_TOTAL,
   buildScaleOrgsWindow,
@@ -25,6 +26,25 @@ describe('scaleOrgs', () => {
     expect(win.total).toBe(SCALE_ORG_TOTAL);
     expect(win.focusIndex).toBe(50_000);
     expect(win.data.organizations.some((o) => o.id === 'org-50000')).toBe(true);
+  });
+
+  it('success: default expands focus path → row-tree mode', () => {
+    const win = buildScaleOrgsWindow({ total: 10_000, windowSize: 200, focusIndex: 5_000 });
+    expect(detectOrgMode(win.data.organizations)).toBe('row-tree');
+    const focus = win.data.organizations.find((o) => o.id === 'org-5000');
+    expect(focus?.collapsed).toBe(false);
+  });
+
+  it('success: all collapsed (or collapseAll) → matrix', () => {
+    const win = buildScaleOrgsWindow({
+      total: 10_000,
+      windowSize: 200,
+      focusIndex: 5_000,
+      expandFocusPath: false,
+    });
+    expect(detectOrgMode(win.data.organizations)).toBe('matrix');
+    const tree = buildScaleOrgsWindow({ total: 10_000, windowSize: 200, focusIndex: 5_000 });
+    expect(detectOrgMode(collapseAllOrgs(tree.data.organizations))).toBe('matrix');
   });
 
   it('success: parents of window nodes resolve inside the window', () => {

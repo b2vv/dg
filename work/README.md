@@ -92,6 +92,7 @@ npm run dev          # http://localhost:3000
 45. [T45-lod-edge-ports.md](./tasks/T45-lod-edge-ports.md) — ✅ LOD-aware edge AABBs (mid/far ports on visual chrome)
 46. [T46-notch-singleton-contour.md](./tasks/T46-notch-singleton-contour.md) — ✅ hide singleton CEO wash so IT notch stays empty
 47. [T47-magnet-radius-canonical.md](./tasks/T47-magnet-radius-canonical.md) — ✅ Variant B magnetRadius=2 (not inflated 8)
+48. [T48-100k-tree-matrix.md](./tasks/T48-100k-tree-matrix.md) — ✅ 100k row-tree by default; matrix when all collapsed
 
 ## Технічний борг
 
