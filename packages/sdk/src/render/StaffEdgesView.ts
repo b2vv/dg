@@ -7,15 +7,15 @@ import {
 } from './staffEdgeGeometry.js';
 
 const STROKE_LIGHT: Record<StaffEdgeLink['kind'], { color: number; width: number; dash?: number[] }> = {
-  admin: { color: 0x64748b, width: 2 },
-  'cross-tier': { color: 0x64748b, width: 2 },
+  admin: { color: 0x475569, width: 2.25 },
+  'cross-tier': { color: 0x475569, width: 2.25 },
   matrix: { color: 0x94a3b8, width: 1.5, dash: [6, 4] },
   dotted: { color: 0xa8a29e, width: 1.5, dash: [2, 4] },
 };
 
 const STROKE_DARK: Record<StaffEdgeLink['kind'], { color: number; width: number; dash?: number[] }> = {
-  admin: { color: 0x94a3b8, width: 2 },
-  'cross-tier': { color: 0x94a3b8, width: 2 },
+  admin: { color: 0xcbd5e1, width: 2.25 },
+  'cross-tier': { color: 0xcbd5e1, width: 2.25 },
   matrix: { color: 0x64748b, width: 1.5, dash: [6, 4] },
   dotted: { color: 0xa8a29e, width: 1.5, dash: [2, 4] },
 };

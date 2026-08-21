@@ -31,6 +31,11 @@ import {
   resolveContourWorldTransform,
   type ContourWorldTransform,
 } from './contourWorldTransform.js';
+import {
+  contourCardClearanceMargin,
+  nudgeContourClearOfBoxes,
+  type ContourClearBox,
+} from './contourClearance.js';
 
 export type ContourComputer = (
   positions: ContourPositionInput[],
@@ -67,6 +72,8 @@ export interface RenderOptions {
     /** Tier-3 orgs expanded in place under their cards. */
     expandedOrgIds?: readonly string[];
   };
+  /** World card AABBs per department — keeps Chaikin contour clear of cards. */
+  contourBoxesByDept?: Map<string, ContourClearBox[]>;
 }
 
 export interface NodeWorldBox {
@@ -88,6 +95,8 @@ interface ContourSession {
   morphMs: number;
   deptNames: Map<string, string>;
   personCounts: Map<string, number>;
+  /** World AABBs of cards per department — used to keep Chaikin stroke clear. */
+  boxesByDept: Map<string, ContourClearBox[]>;
   blobsByDept: Map<string, DepartmentBlobView[]>;
   morphHandles: Map<DepartmentBlobView, PointMorphHandle>;
   previewGen: number;
@@ -277,11 +286,13 @@ export class DiagramRenderer {
     morphMs: number;
     deptNames: Map<string, string>;
     personCounts: Map<string, number>;
+    boxesByDept?: Map<string, ContourClearBox[]>;
   }): ContourSession {
     this.cancelContourMorphs();
     const cloned = args.inputs.map((p) => ({ ...p }));
     this.contourSession = {
       ...args,
+      boxesByDept: args.boxesByDept ?? new Map(),
       baseInputs: cloned.map((p) => ({ ...p })),
       inputs: cloned,
       blobsByDept: new Map(),
@@ -296,8 +307,12 @@ export class DiagramRenderer {
       result.points.length >= 2
         ? result.points.map((p) => ({ x: p.x, y: p.y }))
         : (parseSvgPath(result.path)?.points.map((p) => ({ x: p.x, y: p.y })) ?? []);
-    if (!this.contourWorld) return raw;
-    return mapContourPointsToWorld(raw, this.contourWorld);
+    const mapped = this.contourWorld ? mapContourPointsToWorld(raw, this.contourWorld) : raw;
+    const session = this.contourSession;
+    if (!session) return mapped;
+    const boxes = session.boxesByDept.get(result.departmentId) ?? [];
+    const margin = contourCardClearanceMargin(session.style.strokeWidth);
+    return nudgeContourClearOfBoxes(mapped, boxes, margin);
   }
 
   private applyContourResults(results: DeptContourResult[], morph: boolean): void {
@@ -406,6 +421,7 @@ export class DiagramRenderer {
       morphMs: options.contourMorphMs ?? DEFAULT_MORPH_MS,
       deptNames,
       personCounts,
+      boxesByDept: options.contourBoxesByDept,
     });
     const contours = await compute(inputs, magnet);
     if (this.destroyed || !this.contourSession) return;
@@ -584,7 +600,18 @@ export class DiagramRenderer {
           pitchX,
           pitchY,
         );
-        await this.paintContours(contourInputs, data, theme, config, options);
+        const boxesByDept = new Map<string, ContourClearBox[]>();
+        for (const n of canvas.positionNodes) {
+          const pos = positionById.get(n.id);
+          if (!pos?.departmentId) continue;
+          const list = boxesByDept.get(pos.departmentId) ?? [];
+          list.push({ x: n.x, y: n.y, width: n.width, height: n.height });
+          boxesByDept.set(pos.departmentId, list);
+        }
+        await this.paintContours(contourInputs, data, theme, config, {
+          ...options,
+          contourBoxesByDept: boxesByDept,
+        });
       }
 
       this.layers.edges.addChild(
