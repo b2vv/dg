@@ -92,6 +92,33 @@ body {
   width: 72px;
 }
 
+.control-value {
+  min-width: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.control[data-contour-only][data-disabled='true'] {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.export-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding-left: 0.35rem;
+  border-left: 1px solid var(--border);
+}
+
+.sidebar-note {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: 0 0 0.75rem;
+  line-height: 1.35;
+}
+
 .status {
   font-size: 0.75rem;
   color: var(--muted);

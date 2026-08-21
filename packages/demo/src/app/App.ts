@@ -49,7 +49,7 @@ export class App {
   private diagram: OrgHierarchyDiagram | null = null;
   private tab: DemoTab = 'variant-b';
   private theme: 'light' | 'dark' = 'light';
-  private contourControls: ContourControls = { paddingCells: 0, smoothIterations: 0 };
+  private contourControls: ContourControls = { paddingCells: 1, smoothIterations: 2 };
   private flatOrgsData = buildFlatOrgsData(24);
   private scaleParents: Int32Array | null = null;
   private scaleWindow: ScaleOrgsWindow | null = null;
@@ -92,20 +92,8 @@ export class App {
     requireElement('theme-toggle').addEventListener('click', () => {
       this.theme = this.theme === 'light' ? 'dark' : 'light';
       setThemeAttribute(this.theme);
+      this.syncThemeToggleLabel();
       void this.reload();
-    });
-
-    requireElement('fit-view').addEventListener('click', () => {
-      if (this.diagram?.fitView()) {
-        this.setStatus(`${this.tab} · fit · zoom ${this.diagram.getZoom().toFixed(2)}`);
-      }
-    });
-
-    requireElement('zoom-in').addEventListener('click', () => {
-      this.zoomDiagram(1.25);
-    });
-    requireElement('zoom-out').addEventListener('click', () => {
-      this.zoomDiagram(0.8);
     });
 
     requireElement('collapse-all').addEventListener('click', () => {
@@ -140,10 +128,12 @@ export class App {
     const smooth = requireElement('smooth-slider') as HTMLInputElement;
     padding.addEventListener('input', () => {
       this.contourControls.paddingCells = Number(padding.value);
+      this.syncContourControlLabels();
       if (this.tab === 'variant-b') void this.reload();
     });
     smooth.addEventListener('input', () => {
       this.contourControls.smoothIterations = Number(smooth.value);
+      this.syncContourControlLabels();
       if (this.tab === 'variant-b') void this.reload();
     });
 
@@ -161,6 +151,10 @@ export class App {
     requireElement('run-worker-bench').addEventListener('click', () => {
       void this.runWorkerBench();
     });
+
+    this.syncThemeToggleLabel();
+    this.syncContourControlsEnabled();
+    this.syncContourControlLabels();
   }
 
   private async loadTab(tab: DemoTab): Promise<void> {
@@ -169,8 +163,11 @@ export class App {
       el.classList.toggle('active', (el as HTMLElement).dataset.tab === tab);
     });
     document.body.dataset.activeTab = tab;
+    const search = requireElement('search-input') as HTMLInputElement;
+    search.value = '';
+    this.syncContourControlsEnabled();
     if (tab === 'scale-100k') {
-      this.ensureScaleWindow(this.scaleWindow?.focusIndex ?? 0);
+      this.ensureScaleWindow(this.scaleWindow?.focusIndex ?? 1);
     }
     await this.reload();
   }
@@ -237,16 +234,24 @@ export class App {
       });
       this.mountZoomFab();
       if (this.tab === 'staff-tree') {
-        this.setStatus(`staff-tree · focus ${this.diagram.getStaffFocus() ?? 'ops'} · ${this.theme}`);
+        this.setStatus(`Staff tree · focus ${this.diagram.getStaffFocus() ?? 'ops'}`);
       } else if (this.tab === 'scale-100k' && this.scaleWindow) {
         const w = this.scaleWindow;
         this.setStatus(
-          `100k · showing ${w.windowSize}/${w.total} · focus ${w.focusIndex} · ${w.buildMs}ms · zoom ${this.diagram.getZoom().toFixed(2)}`,
+          `100k orgs · window ${w.windowSize.toLocaleString('uk-UA')} of ${w.total.toLocaleString('uk-UA')} · focus org-${w.focusIndex}`,
         );
+      } else if (this.tab === 'variant-b') {
+        this.setStatus(
+          `Variant B · padding ${this.contourControls.paddingCells} · smooth ${this.contourControls.smoothIterations}`,
+        );
+      } else if (this.tab === 'worker') {
+        this.setStatus('Worker bench · open sidebar to run pooled map');
+      } else if (this.tab === 'mapper') {
+        this.setStatus('Mapper · load sample JSON or upload a file');
       } else {
-        this.setStatus(`${this.tab} · ${this.theme} theme · zoom ${this.diagram.getZoom().toFixed(2)}`);
+        this.setStatus(`${this.tabLabel()} · zoom ${this.diagram.getZoom().toFixed(2)}`);
       }
-      this.diagram.fitView();
+      this.diagram.fitView(36);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       showError(this.mountEl, msg);
@@ -332,7 +337,7 @@ export class App {
           staffLayout: {
             horizontalGap: 40,
             verticalGap: 52,
-            tierGap: 72,
+            tierGap: 36,
             margin: 24,
             nodeWidth: 136,
             nodeHeight: 156,
@@ -373,6 +378,7 @@ export class App {
           ...base,
           data: SAMPLE_MAPPER_ROWS,
           mappers: { toDiagram: flatRowsToDiagram },
+          staffCurrentOrgId: 'org-it',
           orgLayout: {
             nodeWidth: 200,
             nodeHeight: 64,
@@ -512,14 +518,56 @@ export class App {
       const ids = await mapArrayItems(rows, (row) => row.id, { chunkSize: 1_000 });
       const via = pooled.usedWorker ? `pool×${pooled.poolSize}` : 'main';
       const ms = Math.round(pooled.totalDurationMs);
-      this.showToast(
-        `Pooled map: ${rows.length} rows → ${pooled.data.organizations.length} orgs · ${via} · ${ms}ms`,
-      );
       this.setStatus(
-        `worker bench · ${rows.length} rows · ${via} · ${pooled.chunkCount} chunks · ${ms}ms · ids ${ids.data.length}`,
+        `Worker · ${rows.length.toLocaleString('uk-UA')} rows → ${pooled.data.organizations.length.toLocaleString('uk-UA')} orgs · ${via} · ${ms}ms · ids ${ids.data.length}`,
       );
     } catch (err) {
-      this.showToast(err instanceof Error ? err.message : String(err));
+      this.setStatus(`Worker error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  private syncContourControlsEnabled(): void {
+    const enabled = this.tab === 'variant-b';
+    for (const id of ['padding-control', 'smooth-control']) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      el.dataset.disabled = enabled ? 'false' : 'true';
+      el.title = enabled ? '' : 'Variant B only';
+    }
+    const padding = document.getElementById('padding-slider') as HTMLInputElement | null;
+    const smooth = document.getElementById('smooth-slider') as HTMLInputElement | null;
+    if (padding) padding.disabled = !enabled;
+    if (smooth) smooth.disabled = !enabled;
+  }
+
+  private syncContourControlLabels(): void {
+    const pad = document.getElementById('padding-value');
+    const sm = document.getElementById('smooth-value');
+    if (pad) pad.textContent = String(this.contourControls.paddingCells);
+    if (sm) sm.textContent = String(this.contourControls.smoothIterations);
+  }
+
+  private syncThemeToggleLabel(): void {
+    const btn = document.getElementById('theme-toggle');
+    if (btn) btn.textContent = this.theme === 'light' ? 'Dark' : 'Light';
+  }
+
+  private tabLabel(): string {
+    switch (this.tab) {
+      case 'variant-b':
+        return 'Variant B';
+      case 'staff-tree':
+        return 'Staff tree';
+      case 'flat-orgs':
+        return 'Flat orgs';
+      case 'scale-100k':
+        return '100k orgs';
+      case 'mapper':
+        return 'Mapper';
+      case 'worker':
+        return 'Worker';
+      default:
+        return this.tab;
     }
   }
 
