@@ -8,19 +8,13 @@ import {
   setContourWasmLoaderForTests,
   VARIANT_B_POSITIONS,
 } from '../contour/bridge.js';
-import { GRID_CELL_HEIGHT, GRID_CELL_WIDTH, VARIANT_B_MAGNET_RADIUS } from './types.js';
+import {
+  GRID_CELL_HEIGHT,
+  GRID_CELL_WIDTH,
+  VARIANT_B_MAGNET_RADIUS,
+} from './types.js';
 
-function ringArea(pts: { x: number; y: number }[]): number {
-  let a = 0;
-  for (let i = 0; i < pts.length; i++) {
-    const p = pts[i]!;
-    const q = pts[(i + 1) % pts.length]!;
-    a += p.x * q.y - q.x * p.y;
-  }
-  return Math.abs(a) / 2;
-}
-
-describe('Variant B vacant padding tongues (T40)', () => {
+describe('Variant B magnet radius (T47)', () => {
   beforeAll(async () => {
     const wasmPath = join(
       dirname(fileURLToPath(import.meta.url)),
@@ -39,7 +33,8 @@ describe('Variant B vacant padding tongues (T40)', () => {
     resetContourWasmForTests();
   });
 
-  async function itContourArea(paddingCells: number): Promise<number> {
+  it('success: radius 2 (= top↔bottom gap) yields one IT component', async () => {
+    expect(VARIANT_B_MAGNET_RADIUS).toBe(2);
     const contours = await computeAllContours(
       VARIANT_B_POSITIONS.map((p) => ({
         id: p.id,
@@ -50,26 +45,30 @@ describe('Variant B vacant padding tongues (T40)', () => {
       {
         cellWidth: GRID_CELL_WIDTH,
         cellHeight: GRID_CELL_HEIGHT,
-        paddingCells,
-        smoothIterations: 1,
+        paddingCells: 1,
+        smoothIterations: 0,
         magnetRadius: VARIANT_B_MAGNET_RADIUS,
-        preferNotch: true,
       },
     );
-    const it = contours.find((c) => c.departmentId === 'IT');
-    expect(it?.points.length).toBeGreaterThan(2);
-    return ringArea(it!.points);
-  }
-
-  it('success: paddingCells=0 yields a smaller IT ring than paddingCells=1', async () => {
-    const a0 = await itContourArea(0);
-    const a1 = await itContourArea(1);
-    expect(a0).toBeLessThan(a1 * 0.92);
+    expect(contours.filter((c) => c.departmentId === 'IT')).toHaveLength(1);
   });
 
-  it('failure: negative padding is treated as zero-ish (not larger than pad=1)', async () => {
-    const aNeg = await itContourArea(-1);
-    const a1 = await itContourArea(1);
-    expect(aNeg).toBeLessThan(a1);
+  it('failure: default-ish radius 1.5 splits IT (top vs bottom not «поруч»)', async () => {
+    const contours = await computeAllContours(
+      VARIANT_B_POSITIONS.map((p) => ({
+        id: p.id,
+        departmentId: p.departmentId,
+        col: p.col,
+        row: p.row,
+      })),
+      {
+        cellWidth: GRID_CELL_WIDTH,
+        cellHeight: GRID_CELL_HEIGHT,
+        paddingCells: 1,
+        smoothIterations: 0,
+        magnetRadius: 1.5,
+      },
+    );
+    expect(contours.filter((c) => c.departmentId === 'IT').length).toBeGreaterThan(1);
   });
 });

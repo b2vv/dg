@@ -7,6 +7,7 @@ import {
   recommendWorkerPoolSize,
   VARIANT_B_HORIZONTAL_GAP,
   VARIANT_B_VERTICAL_GAP,
+  VARIANT_B_MAGNET_RADIUS,
   type FlatDiagramRow,
 } from '@org-hierarchy/sdk';
 import {
@@ -342,7 +343,7 @@ export class App {
           },
           render: {
             ...base.render,
-            magnetRadius: 8,
+            magnetRadius: VARIANT_B_MAGNET_RADIUS,
             // Hide singleton CEO wash so the IT notch stays empty (T46).
             minContourMembers: 2,
             smoothIterations: this.contourControls.smoothIterations,
@@ -420,7 +421,7 @@ export class App {
             nodeWidth: 136,
             nodeHeight: 156,
           },
-          render: { ...base.render, magnetRadius: 8, minContourMembers: 2 },
+          render: { ...base.render, magnetRadius: VARIANT_B_MAGNET_RADIUS, minContourMembers: 2 },
         };
       default:
         return { ...base, data: buildVariantBData() };

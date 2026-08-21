@@ -15,6 +15,7 @@ import {
   GRID_CELL_HEIGHT,
   VARIANT_B_HORIZONTAL_GAP,
   VARIANT_B_VERTICAL_GAP,
+  VARIANT_B_MAGNET_RADIUS,
 } from './types.js';
 import { resolvePositionAABB } from '../layout/staff/coords.js';
 import {
@@ -72,7 +73,7 @@ describe('Variant B contour coverage (T33 A1)', () => {
         cellHeight: cellH,
         paddingCells: 0,
         smoothIterations: 0,
-        magnetRadius: 8,
+        magnetRadius: VARIANT_B_MAGNET_RADIUS,
         preferNotch: true,
       },
     );
@@ -126,7 +127,7 @@ describe('Variant B contour coverage (T33 A1)', () => {
   it('failure: empty IT positions yields no IT contour', async () => {
     const contours = await computeAllContours(
       [{ id: 'P4', departmentId: 'CEO', col: 1, row: 1 }],
-      { cellWidth: GRID_CELL_WIDTH, cellHeight: GRID_CELL_HEIGHT, magnetRadius: 8 },
+      { cellWidth: GRID_CELL_WIDTH, cellHeight: GRID_CELL_HEIGHT, magnetRadius: VARIANT_B_MAGNET_RADIUS },
     );
     expect(contours.find((c) => c.departmentId === 'IT')).toBeUndefined();
   });
