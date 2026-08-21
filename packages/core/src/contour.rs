@@ -378,15 +378,16 @@ fn own_component_count(own: &HashSet<Cell>, walkable: &HashSet<Cell>) -> usize {
     components
 }
 
-fn min_manhattan_to_own(c: Cell, own: &HashSet<Cell>) -> i32 {
+fn min_chebyshev_to_own(c: Cell, own: &HashSet<Cell>) -> i32 {
     own.iter()
-        .map(|o| (o.col - c.col).abs() + (o.row - c.row).abs())
+        .map(|o| (o.col - c.col).abs().max((o.row - c.row).abs()))
         .min()
         .unwrap_or(i32::MAX)
 }
 
-/// G7: peel vacant exterior empty cells beyond own padding (Manhattan).
-/// Keeps an orthogonal pad ring around own; drops diagonal bbox corners / U-tongues.
+/// G7: peel vacant exterior empty cells beyond own padding (**Chebyshev**).
+/// Keeps a rectangular pad envelope around own (square+square+square → rectangle);
+/// drops only cells farther than `pad` in Chebyshev distance (true vacant tongues).
 /// Bridge-preserving via `own_component_count` (same as G6).
 ///
 /// Runs **after** G6 so far-side clear can still use temporary exterior pad as an
@@ -400,7 +401,7 @@ fn apply_g7_peel_vacant_exterior(inside: &mut HashSet<Cell>, own: &HashSet<Cell>
         let mut candidates: Vec<Cell> = inside
             .iter()
             .copied()
-            .filter(|c| !own.contains(c) && min_manhattan_to_own(*c, own) > pad)
+            .filter(|c| !own.contains(c) && min_chebyshev_to_own(*c, own) > pad)
             .collect();
         if candidates.is_empty() {
             break;
@@ -982,7 +983,7 @@ mod tests {
     }
 
     #[test]
-    fn g7_peels_manhattan_diagonal_corners_keeps_orthogonal_pad() {
+    fn g7_keeps_chebyshev_pad_corners_for_rectangular_envelope() {
         let mut own = HashSet::new();
         own.insert(Cell { col: 0, row: 0 });
         let foreign = HashSet::new();
@@ -994,12 +995,45 @@ mod tests {
         );
         apply_g7_peel_vacant_exterior(&mut inside, &own, 1);
         assert!(
-            !inside.contains(&Cell { col: -1, row: -1 }),
-            "G7 must peel Manhattan>pad diagonal corner"
+            inside.contains(&Cell { col: -1, row: -1 }),
+            "G7 Chebyshev pad must keep corner (max(|dc|,|dr|)≤pad) so row of cells stays a rectangle"
         );
         assert!(inside.contains(&Cell { col: 1, row: 0 }));
         assert!(inside.contains(&Cell { col: 0, row: 1 }));
         assert!(inside.contains(&Cell { col: 0, row: 0 }));
+    }
+
+    #[test]
+    fn g7_row_of_three_pad1_is_axis_aligned_rectangle() {
+        let positions = vec![
+            pos("P1", "IT", 0, 0),
+            pos("P2", "IT", 1, 0),
+            pos("P3", "IT", 2, 0),
+        ];
+        let mut cfg = default_cfg();
+        cfg.magnet_radius = 1.5;
+        cfg.padding_cells = 1;
+        cfg.smooth_iterations = 0;
+        let rs = compute_dept_contour("IT", &positions, &cfg).unwrap();
+        assert_eq!(rs.len(), 1);
+        let r = &rs[0];
+        // Orthogonal rectangle: only 4 true corners (axis-aligned edges).
+        let grid: Vec<(i32, i32)> = r
+            .points
+            .iter()
+            .map(|p| {
+                (
+                    (p.x / cfg.cell_width).round() as i32,
+                    (p.y / cfg.cell_height).round() as i32,
+                )
+            })
+            .collect();
+        let turns = count_true_corners(&grid);
+        assert_eq!(
+            turns, 4,
+            "1×3 own + Chebyshev pad must be a rectangle, got {turns} corners path={}",
+            r.path
+        );
     }
 
     #[test]
@@ -1063,55 +1097,33 @@ mod tests {
         assert!(!wall, "G6 then G7: no vertical wall right of P4");
     }
 
-    /// pad=1 after G7 must be tighter than pre-peel flood (fewer tongue cells).
+    /// G7 peels cells beyond Chebyshev pad (vacant tongue), keeps pad envelope.
     #[test]
-    fn g7_variant_b_pad1_smaller_than_unpeeled_flood() {
-        let positions = vec![
-            pos("P1", "IT", 0, 0),
-            pos("P2", "IT", 1, 0),
-            pos("P3", "IT", 2, 0),
-            pos("P4", "CEO", 1, 1),
-            pos("P5", "IT", 0, 2),
-            pos("P6", "IT", 2, 2),
-        ];
-        let own: HashSet<Cell> = positions
-            .iter()
-            .filter(|p| p.department_id == "IT")
-            .map(|p| Cell {
-                col: p.col,
-                row: p.row,
-            })
-            .collect();
-        let foreign: HashSet<Cell> = positions
-            .iter()
-            .filter(|p| p.department_id != "IT")
-            .map(|p| Cell {
-                col: p.col,
-                row: p.row,
-            })
-            .collect();
-        let all: HashSet<Cell> = own.iter().chain(foreign.iter()).copied().collect();
-        let fill_bbox = compute_bbox(all, 1);
-        let work_bbox = BBox {
-            min_col: fill_bbox.min_col - 1,
-            max_col: fill_bbox.max_col + 1,
-            min_row: fill_bbox.min_row - 1,
-            max_row: fill_bbox.max_row + 1,
-        };
-        let mut inside = flood_inside(&own, &foreign, &fill_bbox);
-        apply_prefer_notch(&mut inside, &own, &foreign, &work_bbox);
-        apply_g6_clear_far_side_fill(&mut inside, &foreign, &own);
+    fn g7_peels_far_vacant_tongue_keeps_chebyshev_pad() {
+        let mut own = HashSet::new();
+        own.insert(Cell { col: 0, row: 0 });
+        let mut inside = HashSet::new();
+        // 3×3 Chebyshev pad around own
+        for dc in -1..=1 {
+            for dr in -1..=1 {
+                inside.insert(Cell { col: dc, row: dr });
+            }
+        }
+        // Vacant tongue far from own
+        inside.insert(Cell { col: 0, row: -3 });
+        inside.insert(Cell { col: 0, row: -2 });
         let before = inside.len();
         apply_g7_peel_vacant_exterior(&mut inside, &own, 1);
-        let after = inside.len();
+        assert!(inside.len() < before, "tongue cells must peel");
         assert!(
-            after < before,
-            "G7 should peel vacant cells: before={before} after={after}"
+            !inside.contains(&Cell { col: 0, row: -3 }),
+            "far tongue tip must be gone"
         );
         assert!(
-            !inside.contains(&Cell { col: -1, row: -1 }),
-            "diagonal tongue corner must be gone"
+            inside.contains(&Cell { col: -1, row: -1 }),
+            "Chebyshev corner pad must stay"
         );
+        assert!(inside.contains(&Cell { col: 0, row: 0 }));
     }
 
     #[test]

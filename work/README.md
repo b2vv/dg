@@ -94,6 +94,7 @@ npm run dev          # http://localhost:3000
 47. [T47-magnet-radius-canonical.md](./tasks/T47-magnet-radius-canonical.md) — ⚠️ radius 2 still forced C; superseded by T49
 48. [T48-100k-tree-matrix.md](./tasks/T48-100k-tree-matrix.md) — ✅ 100k row-tree by default; matrix when all collapsed
 49. [T49-adjacency-magnetism.md](./tasks/T49-adjacency-magnetism.md) — ✅ magnetRadius 1.5: top row + two bottom blobs
+50. [T50-chebyshev-pad-rect.md](./tasks/T50-chebyshev-pad-rect.md) — ✅ Chebyshev pad: adjacent row → rectangle, not hat
 
 ## Технічний борг
 
