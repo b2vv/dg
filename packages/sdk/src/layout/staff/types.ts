@@ -34,13 +34,13 @@ export const DEFAULT_STAFF_LAYOUT_OPTIONS: Required<
   Omit<StaffLayoutOptions, 'expandedOrgIds'>
 > & { expandedOrgIds: readonly string[] } = {
   staffCoordMode: 'hybrid',
-  nodeWidth: 128,
-  nodeHeight: 148,
+  nodeWidth: 136,
+  nodeHeight: 156,
   horizontalGap: 20,
   verticalGap: 28,
   margin: 32,
-  refCellWidth: 148,
-  refCellHeight: 168,
+  refCellWidth: 140,
+  refCellHeight: 160,
   tierGap: 56,
   orgCardWidth: 200,
   orgCardHeight: 64,

@@ -6,14 +6,14 @@ import {
 
 describe('contourWorldTransform', () => {
   it('success: gap=0 → translation only matches card inset origin', () => {
-    const nodes = [{ id: 'a', x: 10, y: 42, width: 128, height: 148 }];
+    const nodes = [{ id: 'a', x: 2, y: 22, width: 136, height: 156 }];
     const positions = new Map([['a', { gridCell: { col: 0, row: 0 } }]]);
-    const t = resolveContourWorldTransform(nodes, positions, 148, 168, 148, 168);
+    const t = resolveContourWorldTransform(nodes, positions, 140, 160, 140, 160);
     expect(t.originX).toBeCloseTo(0);
-    expect(t.originY).toBeCloseTo(32); // 42 - 10 insetY=(168-148)/2=10 → 42-10=32
+    expect(t.originY).toBeCloseTo(20); // 22 - insetY=(160-156)/2=2 → 20
     const p = mapContourPointToWorld(0, 0, t);
     expect(p.x).toBeCloseTo(0);
-    expect(p.y).toBeCloseTo(32);
+    expect(p.y).toBeCloseTo(20);
   });
 
   it('success: nonzero gap scales all columns (no single-sample drift)', () => {
@@ -62,10 +62,10 @@ describe('contourWorldTransform', () => {
     const t = resolveContourWorldTransform(
       [{ id: 'x', x: 9, y: 9, width: 10, height: 10 }],
       new Map([['x', {}]]),
-      148,
-      168,
-      148,
-      168,
+      140,
+      160,
+      140,
+      160,
     );
     expect(t.originX).toBe(0);
     expect(t.originY).toBe(0);

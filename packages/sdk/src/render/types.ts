@@ -54,6 +54,15 @@ export interface RenderConfig {
   magnetRadius: number;
 }
 
+/**
+ * Option A geometry: card nearly fills the grid cell so contour blocks
+ * read as frames around people (small equal inset, not a 10–20px “moat”).
+ */
+export const PERSON_CARD_WIDTH = 136;
+export const PERSON_CARD_HEIGHT = 156;
+export const GRID_CELL_WIDTH = 140;
+export const GRID_CELL_HEIGHT = 160;
+
 export const defaultNodeTheme: NodeTheme = {
   department: {
     fill: 0xdbeafe,
@@ -64,8 +73,8 @@ export const defaultNodeTheme: NodeTheme = {
     labelFontSize: 12,
   },
   person: {
-    width: 128,
-    height: 148,
+    width: PERSON_CARD_WIDTH,
+    height: PERSON_CARD_HEIGHT,
     background: 0xffffff,
     border: 0xcbd5e1,
     borderWidth: 1,
@@ -104,8 +113,8 @@ export const darkNodeTheme: NodeTheme = {
     labelFontSize: 12,
   },
   person: {
-    width: 128,
-    height: 148,
+    width: PERSON_CARD_WIDTH,
+    height: PERSON_CARD_HEIGHT,
     background: 0x1e293b,
     border: 0x475569,
     borderWidth: 1,
@@ -134,9 +143,8 @@ export const darkNodeTheme: NodeTheme = {
 };
 
 export const defaultRenderConfig: RenderConfig = {
-  /** Grid pitch — keep ≥ person card so cards sit inside cells. */
-  cellWidth: 148,
-  cellHeight: 168,
+  cellWidth: GRID_CELL_WIDTH,
+  cellHeight: GRID_CELL_HEIGHT,
   paddingCells: 0,
   /** 0 = orthogonal corners; higher Chaikin = softer “macaroni”. */
   smoothIterations: 0,

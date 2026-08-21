@@ -299,8 +299,8 @@ export class App {
       useWorker: true,
       workerPoolSize: recommendWorkerPoolSize(),
       render: {
-        cellWidth: 148,
-        cellHeight: 168,
+        cellWidth: 140,
+        cellHeight: 160,
         paddingCells: this.contourControls.paddingCells,
         smoothIterations: this.contourControls.smoothIterations,
       },
@@ -312,15 +312,15 @@ export class App {
           ...base,
           data: buildVariantBData(),
           staffCurrentOrgId: 'org1',
-          // Gap 0 so staff pitch == contour cell size (aligned grid).
+          // Gap 0 so staff pitch == contour cell; card nearly fills cell (option A).
           staffLayout: {
             horizontalGap: 0,
             verticalGap: 0,
             margin: 0,
-            refCellWidth: 148,
-            refCellHeight: 168,
-            nodeWidth: 128,
-            nodeHeight: 148,
+            refCellWidth: 140,
+            refCellHeight: 160,
+            nodeWidth: 136,
+            nodeHeight: 156,
           },
           render: { ...base.render, magnetRadius: 8, smoothIterations: this.contourControls.smoothIterations },
         };
@@ -334,12 +334,12 @@ export class App {
             verticalGap: 52,
             tierGap: 72,
             margin: 24,
-            nodeWidth: 128,
-            nodeHeight: 148,
+            nodeWidth: 136,
+            nodeHeight: 156,
             orgCardWidth: 200,
             orgCardHeight: 64,
-            refCellWidth: 148,
-            refCellHeight: 168,
+            refCellWidth: 140,
+            refCellHeight: 160,
           },
         };
       case 'flat-orgs':
@@ -390,10 +390,10 @@ export class App {
             horizontalGap: 0,
             verticalGap: 0,
             margin: 0,
-            refCellWidth: 148,
-            refCellHeight: 168,
-            nodeWidth: 128,
-            nodeHeight: 148,
+            refCellWidth: 140,
+            refCellHeight: 160,
+            nodeWidth: 136,
+            nodeHeight: 156,
           },
           render: { ...base.render, magnetRadius: 8 },
         };
