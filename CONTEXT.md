@@ -25,15 +25,15 @@ Grid cells belonging to the contour’s department vs other departments; foreign
 _Avoid_: Self/other tile
 
 **Magnetism / magnet radius**:
-Rules G1–G8 for merging own cells and notching around foreign; `magnetRadius` is Manhattan merge distance.
-_Avoid_: Gravity, sticky layout
+Same-dept own cells merge into one contour component only when Manhattan distance ≤ `magnetRadius` (default **1.5** = orthogonal neighbors). A one-cell gap (Manhattan **2**) does **not** merge. Then G2–G8 notch/repel per component.
+_Avoid_: Gravity, sticky layout; forcing one C-blob with inflated radius
 
 **Notch (C-notch)**:
-Rectangular cutout around foreign instead of a hole when `preferNotch` is on (G5).
-_Avoid_: Indent, bite, pocket
+Rectangular cutout around foreign **inside one component’s bbox** when `preferNotch` is on (G5). Not the Variant B demo shape — Variant B is three IT groups, not one C around CEO.
+_Avoid_: Indent, bite, pocket; “Variant B = C-sketch”
 
 **Far-side wall (G6)**:
-A contour edge on the open side of foreign with no own beyond — must not be drawn.
+A contour edge on the open side of foreign with no own beyond — must not be drawn (applies per component).
 _Avoid_: Back wall, outer flange
 
 **Row-tree**:

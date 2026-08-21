@@ -8,7 +8,7 @@ import {
   setContourWasmLoaderForTests,
   VARIANT_B_POSITIONS,
 } from '../contour/bridge.js';
-import { GRID_CELL_HEIGHT, GRID_CELL_WIDTH, VARIANT_B_MAGNET_RADIUS } from './types.js';
+import { GRID_CELL_HEIGHT, GRID_CELL_WIDTH } from './types.js';
 
 function ringArea(pts: { x: number; y: number }[]): number {
   let a = 0;
@@ -52,7 +52,8 @@ describe('Variant B vacant padding tongues (T40)', () => {
         cellHeight: GRID_CELL_HEIGHT,
         paddingCells,
         smoothIterations: 1,
-        magnetRadius: VARIANT_B_MAGNET_RADIUS,
+        // C-blob radius — tongue peel is about pad, not adjacency split.
+        magnetRadius: 2,
         preferNotch: true,
       },
     );

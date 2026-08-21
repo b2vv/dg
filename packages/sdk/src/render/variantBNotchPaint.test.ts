@@ -84,7 +84,8 @@ describe('Variant B notch paint (T46)', () => {
       counts.set(p.departmentId, (counts.get(p.departmentId) ?? 0) + 1);
     }
     const painted = filterContoursForPaint(all, counts, 2);
-    expect(painted.map((c) => c.departmentId)).toEqual(['IT']);
+    expect(painted.filter((c) => c.departmentId === 'IT')).toHaveLength(3);
+    expect(painted.some((c) => c.departmentId === 'CEO')).toBe(false);
 
     const geom = {
       nodeWidth: PERSON_CARD_WIDTH,
@@ -116,20 +117,21 @@ describe('Variant B notch paint (T46)', () => {
       nodes.map((n) => [n.id, { gridCell: { col: n.col, row: n.row } }]),
     );
     const world = resolveContourWorldTransform(nodes, posMap, cellW, cellH, pitchX, pitchY);
-    const it = painted[0]!;
-    const boxes = nodes
-      .filter((n) => n.dept === 'IT')
-      .map((n) => ({ x: n.x, y: n.y, width: n.width, height: n.height }));
-    const ring = polishContourRing(mapContourPointsToWorld(it.points, world), boxes, 2);
+    const rings = painted.map((c) => {
+      const boxes = nodes
+        .filter((n) => n.dept === c.departmentId)
+        .map((n) => ({ x: n.x, y: n.y, width: n.width, height: n.height }));
+      return polishContourRing(mapContourPointsToWorld(c.points, world), boxes, 2);
+    });
     const ceo = nodes.find((n) => n.id === 'P4')!;
     expect(
-      pointInPoly(ceo.x + ceo.width / 2, ceo.y + ceo.height / 2, ring),
-      'CEO must stay outside painted IT wash',
+      rings.some((ring) => pointInPoly(ceo.x + ceo.width / 2, ceo.y + ceo.height / 2, ring)),
+      'CEO must stay outside painted IT washes',
     ).toBe(false);
     for (const n of nodes.filter((x) => x.dept === 'IT')) {
       expect(
-        pointInPoly(n.x + n.width / 2, n.y + n.height / 2, ring),
-        `${n.id} inside IT`,
+        rings.some((ring) => pointInPoly(n.x + n.width / 2, n.y + n.height / 2, ring)),
+        `${n.id} inside some IT group`,
       ).toBe(true);
     }
   });

@@ -31,7 +31,6 @@ import {
   PERSON_CARD_WIDTH,
   VARIANT_B_HORIZONTAL_GAP,
   VARIANT_B_VERTICAL_GAP,
-  VARIANT_B_MAGNET_RADIUS,
   defaultNodeTheme,
 } from './types.js';
 
@@ -122,7 +121,7 @@ describe('Variant B contour stroke vs cards (T38)', () => {
         cellHeight: cellH,
         paddingCells: pad,
         smoothIterations: smooth,
-        magnetRadius: VARIANT_B_MAGNET_RADIUS,
+        magnetRadius: 2,
         preferNotch: true,
       },
     );

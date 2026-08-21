@@ -85,7 +85,7 @@ Staff — **окреме сімейство діаграми** від org matrix
 
 **Root ярусу 2** = керівник поточної організації. Cross-tier edge на ярус 1 (якщо є) — **не** parent у тому ж дереві посад для tidy; окремий між’ярусний зв’язок.
 
-Групування всередині org-блоку: department → positions; Dept = **один** DepartmentBlob (магнетизм), Person/Position — окремі ноди.
+Групування всередині org-блоку: department → positions; Dept = **один DepartmentBlob на магнітну компоненту** (G1/M4), Person/Position — окремі ноди.
 
 #### 2.2.1 Координати посад: matrix або дерево
 
@@ -275,11 +275,13 @@ interface ContourPositionInput {
 }
 
 interface ContourMagnetConfig {
+  magnetRadius?: number;      // default 1.5 — adjacency; gap 2 does not merge
   paddingCells?: number;      // default 0
   corridorCells?: number;     // default 0 — gap до foreign (G2)
   cellWidth?: number;         // default 100 px
   cellHeight?: number;        // default 80 px
   smoothIterations?: number;  // Chaikin, default 2
+  preferNotch?: boolean;      // default true
 }
 
 interface DeptContourResult {
@@ -300,29 +302,21 @@ SDK bridge: `packages/sdk/src/contour/bridge.ts`
 │ 1. OWN CELLS                                                │
 │    own = { (col,row) | position.departmentId == targetDept }│
 ├─────────────────────────────────────────────────────────────┤
-│ 2. FOREIGN EXPANSION (G2)                                   │
+│ 2. CLUSTER (G1 / M4)                                        │
+│    components = union-find own where Manhattan ≤ magnetRadius│
+│    default radius 1.5 → orthogonal neighbors only            │
+├─────────────────────────────────────────────────────────────┤
+│ 3. FOREIGN EXPANSION (G2) — per component                   │
 │    foreign = cells інших dept, розширені на ±corridorCells   │
 ├─────────────────────────────────────────────────────────────┤
-│ 3. BBOX                                                     │
-│    bbox = union(own ∪ foreign) + padding                    │
+│ 4. BBOX + FLOOD (M2, M3, G5) — per component                │
+│    inside = BFS від own: empty ok, foreign blocks            │
 ├─────────────────────────────────────────────────────────────┤
-│ 4. FLOOD-FILL INSIDE (M2, M3, G5)                           │
-│    inside = BFS від own cells:                                │
-│      • додає reachable empty cells                          │
-│      • блокує foreign cells                                   │
-│    → empty між own стають internal space, не internal lines  │
+│ 5. ORTHOGONAL PERIMETER + G6                                │
 ├─────────────────────────────────────────────────────────────┤
-│ 5. ORTHOGONAL PERIMETER WALK (G3, G4)                       │
-│    Для кожної inside cell — 4 boundary edges                │
-│    Chain edges → closed polygon (clockwise)                 │
-│    G6 (no far-side wall) — implicit через flood exclusion   │
+│ 6. CHAIKIN SMOOTHING                                        │
 ├─────────────────────────────────────────────────────────────┤
-│ 6. CHAIKIN SMOOTHING (G4)                                   │
-│    smoothIterations ітерацій corner cutting                 │
-├─────────────────────────────────────────────────────────────┤
-│ 7. OUTPUT                                                   │
-│    points (px) = grid × cellWidth/Height                    │
-│    path = SVG M/L/Z                                         │
+│ 7. OUTPUT — one path per component                          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -330,13 +324,13 @@ SDK bridge: `packages/sdk/src/contour/bridge.ts`
 
 | ID | Правило | Статус impl |
 |----|---------|-------------|
-| G1 | Attract own — злиття own cells | ✅ `magnetRadius` clustering + flood |
+| G1 | Attract own — злиття own cells | ✅ `magnetRadius` (default **1.5** = сусіди; gap 2 не зливає) |
 | G2 | Repel foreign — gap/corridor | ✅ `corridorCells` expansion |
 | G3 | No internal edges | ✅ perimeter walk лише зовнішній |
 | G4 | Orthogonal first → smooth | ✅ trace + Chaikin |
-| G5 | Prefer notch (C-notch) | ✅ `prefer_notch` corridor cut (holes → C) |
+| G5 | Prefer notch (C-notch) **у межах компоненти** | ✅ `prefer_notch` |
 | G6 | No far-side wall | ✅ `apply_g6_clear_far_side_fill` |
-| G7 | Padding snap | ✅ `paddingCells` у bbox |
+| G7 | Padding snap | ✅ `paddingCells` + G7 peel |
 | G8 | Stable under drag | ✅ recompute on drag + morph anim (T17) |
 
 | ID | Membership | Статус |
@@ -356,16 +350,19 @@ row0      P1       P2      IT
 row1      P4       P3      P4=CEO
 ```
 
-**Variant B (фінальний ескіз):**
+**Variant B (магнетизм «поруч», T49):**
 
 ```
          col0     col1     col2
-row0      P1       P2       P3      IT
+row0      P1       P2       P3      IT top group (1 contour)
 row1               P4              CEO
-row2      P5                P6      IT
+row2      P5                P6      IT — два окремі contours
 ```
 
-Критично: **справа від P4 (CEO) немає вертикальної лінії** контуру IT.
+При `magnetRadius: 1.5`: **3** IT-компоненти (top / P5 / P6).  
+Один C навколо CEO (`magnetRadius ≥ 2`) — **не** канон Variant B.
+
+Критично: membership лише за `departmentId`; gap=2 не злипає; report arrows ≠ магнетизм.
 
 Demo positions: `VARIANT_B_POSITIONS` у `packages/sdk/src/contour/bridge.ts`
 

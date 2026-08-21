@@ -1,8 +1,8 @@
 # T47 — Variant B magnetRadius: 2, not inflated 8
 
 **Пріоритет:** P0 (коректний магнетизм «поруч»)  
-**Статус:** ✅ done  
-**Джерело:** feedback — «навмисно 8 під канонічний C» невірно
+**Статус:** ⚠️ superseded by [T49](./T49-adjacency-magnetism.md)  
+**Нотатка:** `magnetRadius: 2` все ще дає **один C-blob**. Справжній магнетизм «поруч» — **1.5** (T49).
 
 ---
 

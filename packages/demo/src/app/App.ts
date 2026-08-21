@@ -309,7 +309,7 @@ export class App {
     const caption = document.createElement('p');
     caption.className = 'scene-caption';
     caption.textContent =
-      'Blue wash = department · arrow lines = reports · head in the notch · orange T = temporary';
+      'Blue wash = magnetic groups (same dept, adjacent cells) · arrows = reports · orange T = temporary';
     this.mountEl.appendChild(caption);
   }
 
