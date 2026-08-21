@@ -16,6 +16,7 @@ import {
   GRID_CELL_HEIGHT,
   VARIANT_B_HORIZONTAL_GAP,
   VARIANT_B_VERTICAL_GAP,
+  VARIANT_B_MAGNET_RADIUS,
 } from './types.js';
 import { resolvePositionAABB } from '../layout/staff/coords.js';
 import {
@@ -74,7 +75,7 @@ describe('Variant B notch paint (T46)', () => {
         cellHeight: cellH,
         paddingCells: 1,
         smoothIterations: 1,
-        magnetRadius: 8,
+        magnetRadius: VARIANT_B_MAGNET_RADIUS,
         preferNotch: true,
       },
     );

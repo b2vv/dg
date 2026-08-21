@@ -30,11 +30,11 @@ describe('createIncrementalContourComputer', () => {
       pos('P4', 'CEO', 0, 1),
     ];
 
-    const first = await computer(positions, { magnetRadius: 8 });
+    const first = await computer(positions, { magnetRadius: 2 });
     expect(computeAll).toHaveBeenCalledTimes(1);
     expect(first.map((r) => r.departmentId).sort()).toEqual(['CEO', 'IT']);
 
-    const second = await computer(positions, { magnetRadius: 8 });
+    const second = await computer(positions, { magnetRadius: 2 });
     expect(computeAll).toHaveBeenCalledTimes(1);
     expect(computeDept).not.toHaveBeenCalled();
     expect(computer.lastDirtyDepartmentIds()).toEqual([]);
@@ -54,14 +54,14 @@ describe('createIncrementalContourComputer', () => {
       pos('P2', 'IT', 1, 0),
       pos('P4', 'CEO', 0, 1),
     ];
-    await computer(base, { magnetRadius: 8 });
+    await computer(base, { magnetRadius: 2 });
 
     const moved = [
       pos('P1', 'IT', 2, 0),
       pos('P2', 'IT', 1, 0),
       pos('P4', 'CEO', 0, 1),
     ];
-    const next = await computer(moved, { magnetRadius: 8 });
+    const next = await computer(moved, { magnetRadius: 2 });
     expect(computeDept).toHaveBeenCalledTimes(1);
     expect(computeDept.mock.calls[0]?.[0]).toBe('IT');
     expect(computer.lastDirtyDepartmentIds()).toEqual(['IT']);
@@ -76,7 +76,7 @@ describe('createIncrementalContourComputer', () => {
     const positions = [pos('P1', 'IT', 0, 0)];
 
     await computer(positions, { magnetRadius: 1.5 });
-    await computer(positions, { magnetRadius: 8 });
+    await computer(positions, { magnetRadius: 2 });
     expect(computeAll).toHaveBeenCalledTimes(2);
     expect(computeDept).not.toHaveBeenCalled();
   });

@@ -63,7 +63,7 @@ describe('computeDeptContourInWorker', () => {
 
     const result = await computeDeptContourInWorker('IT', VARIANT_B_POSITIONS, {
       smoothIterations: 0,
-      magnetRadius: 8,
+      magnetRadius: 2,
     });
     expect(result.length).toBeGreaterThan(0);
     expect(result[0]!.path.startsWith('M')).toBe(true);
@@ -81,7 +81,7 @@ describe('computeDeptContourInWorker', () => {
 
     const result = await computeDeptContourInWorker('IT', VARIANT_B_POSITIONS, {
       smoothIterations: 0,
-      magnetRadius: 8,
+      magnetRadius: 2,
     });
     expect(result[0]!.departmentId).toBe('IT');
     expect(result[0]!.path.length).toBeGreaterThan(0);

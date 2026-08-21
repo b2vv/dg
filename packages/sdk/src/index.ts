@@ -162,6 +162,7 @@ export {
   GRID_CELL_HEIGHT,
   VARIANT_B_HORIZONTAL_GAP,
   VARIANT_B_VERTICAL_GAP,
+  VARIANT_B_MAGNET_RADIUS,
   variantBAdjacentEdgeClearance,
   mergeTheme,
   resolveNodeTheme,

@@ -769,7 +769,7 @@ mod tests {
 
     fn default_cfg() -> ContourMagnetConfig {
         ContourMagnetConfig {
-            magnet_radius: 8.0, // keep classic single-blob A/B fixtures
+            magnet_radius: 2.0, // Variant B top↔bottom Manhattan gap; not an inflated 8
             padding_cells: 0,
             corridor_cells: 0,
             cell_width: 100.0,
@@ -1142,11 +1142,11 @@ mod tests {
             pos("P4", "CEO", 1, 0),
         ];
         let mut cfg = ContourMagnetConfig::default();
-        cfg.magnet_radius = 8.0;
+        cfg.magnet_radius = 2.0;
         cfg.smooth_iterations = 0;
         let rs = compute_dept_contour("IT", &positions, &cfg).unwrap();
-        // Two IT cells with foreign between → still may be one or two components by radius;
-        // with radius 8, one flood region that does not include CEO cell as inside.
+        // Two IT cells with foreign between → one component when radius covers gap 2;
+        // flood must not treat CEO cell as inside.
         assert!(!rs.is_empty());
         for r in rs {
             assert!(r.path.contains('M'));
