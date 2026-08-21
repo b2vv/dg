@@ -20,6 +20,11 @@ export type {
   StaffEdgeLink,
   StaffEdgeSegment,
 } from './staffEdgeGeometry.js';
+export {
+  nudgeContourClearOfBoxes,
+  contourCardClearanceMargin,
+} from './contourClearance.js';
+export type { ContourClearBox } from './contourClearance.js';
 export { parseSvgPath } from './svgPath.js';
 export {
   resampleClosedRing,

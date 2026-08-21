@@ -178,6 +178,7 @@ export type {
   ThemeMode,
   RenderConfig,
   ContourComputer,
+  ContourClearBox,
   ViewportTransform,
   CameraMotionOptions,
   LodLevel,

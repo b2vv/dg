@@ -102,6 +102,8 @@ export class DepartmentBlobView extends Container {
     this.shape.stroke({
       color: style.stroke,
       width: lod === 'far' ? Math.max(1, style.strokeWidth - 1) : style.strokeWidth,
+      join: 'round',
+      cap: 'round',
     });
 
     const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;

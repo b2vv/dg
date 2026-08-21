@@ -30,8 +30,8 @@
 | | |
 |--|--|
 | **Проблема** | Після T32 inset 2px контур майже впритул до карток; при Smooth=0 — гострі 90°, картки з radius. Smooth=4 дає «осину талію» і артефакти між рядами. |
-| **Рішення** | Окремо від A1: (a) дефолтний **візуальний** padding ≥1 cell **або** world inset між картою і stroke; (b) дефолт Smooth ≥1–2 для demo; (c) stroke radius / chamfer узгоджений з card radius. Не роздувати card inset назад до 10px без потреби. |
-| **Done when** | Картки не «напхані»; контур читається як група, не wireframe. |
+| **Рішення** | Окремо від A1: (a) дефолтний **візуальний** padding ≥1 cell **або** world inset між картою і stroke; (b) дефолт Smooth ≥1–2 для demo; (c) stroke radius / chamfer узгоджений з card radius. Не роздувати card inset назад до 10px без потреби. **T38:** `nudgeContourClearOfBoxes` після Chaikin + round Pixi joins. |
+| **Done when** | Картки не «напхані»; контур читається як група, не wireframe. ✅ T35 defaults + T38 clearance |
 
 ### A3. Staff tree — дірки в ребрах і проміжки
 
