@@ -108,6 +108,8 @@ export class LayerManager {
   readonly edges = new Container();
   readonly organizations = new Container();
   readonly persons = new Container();
+  /** Contour strokes above cards so corridor outlines stay visible / stable. */
+  readonly departmentStrokes = new Container();
   readonly overlay = new Container();
 
   constructor() {
@@ -116,6 +118,7 @@ export class LayerManager {
       this.edges,
       this.organizations,
       this.persons,
+      this.departmentStrokes,
       this.overlay,
     );
   }
@@ -125,6 +128,7 @@ export class LayerManager {
     this.edges.removeChildren();
     this.organizations.removeChildren();
     this.persons.removeChildren();
+    this.departmentStrokes.removeChildren();
     this.overlay.removeChildren();
   }
 }
@@ -315,6 +319,17 @@ export class DiagramRenderer {
     return nudgeContourClearOfBoxes(mapped, boxes, margin);
   }
 
+  private mountDeptBlob(blob: DepartmentBlobView): void {
+    this.layers.departments.addChild(blob);
+    this.layers.departmentStrokes.addChild(blob.strokeGraphics);
+  }
+
+  private unmountDeptBlob(blob: DepartmentBlobView): void {
+    this.layers.departmentStrokes.removeChild(blob.strokeGraphics);
+    this.layers.departments.removeChild(blob);
+    blob.destroy();
+  }
+
   private applyContourResults(results: DeptContourResult[], morph: boolean): void {
     const session = this.contourSession;
     if (!session) return;
@@ -331,8 +346,7 @@ export class DiagramRenderer {
       for (const blob of blobs) {
         session.morphHandles.get(blob)?.cancel();
         session.morphHandles.delete(blob);
-        this.layers.departments.removeChild(blob);
-        blob.destroy();
+        this.unmountDeptBlob(blob);
       }
       session.blobsByDept.delete(deptId);
     }
@@ -351,8 +365,7 @@ export class DiagramRenderer {
         for (const blob of blobs) {
           session.morphHandles.get(blob)?.cancel();
           session.morphHandles.delete(blob);
-          this.layers.departments.removeChild(blob);
-          blob.destroy();
+          this.unmountDeptBlob(blob);
         }
         blobs.length = 0;
         for (const contour of contours) {
@@ -364,7 +377,7 @@ export class DiagramRenderer {
             count,
           );
           blobs.push(blob);
-          this.layers.departments.addChild(blob);
+          this.mountDeptBlob(blob);
         }
         continue;
       }

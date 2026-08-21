@@ -44,4 +44,19 @@ describe('DepartmentBlobView', () => {
     );
     expect(view.getDrawnPoints()[0]!.x).toBe(10);
   });
+
+  it('success: stroke Graphics is separate from fill (punch-out layer)', () => {
+    const view = DepartmentBlobView.fromPoints(
+      [
+        { x: 0, y: 0 },
+        { x: 40, y: 0 },
+        { x: 40, y: 40 },
+        { x: 0, y: 40 },
+      ],
+      'IT',
+      defaultNodeTheme.department,
+    );
+    expect(view.strokeGraphics).toBeTruthy();
+    expect(view.children.includes(view.strokeGraphics as never)).toBe(false);
+  });
 });
