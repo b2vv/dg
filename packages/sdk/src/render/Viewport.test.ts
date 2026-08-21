@@ -180,6 +180,19 @@ describe('Viewport', () => {
     expect(vp.getZoom()).toBeCloseTo(1.5);
   });
 
+  it('success: zoomBy steps around screen center', () => {
+    const world = fakeWorld();
+    const vp = new Viewport(world, { minScale: 0.25, maxScale: 4 });
+    vp.setScreenSize(200, 200);
+    vp.setTransform({ x: 0, y: 0, scale: 1 });
+    vp.zoomBy(2);
+    expect(vp.getZoom()).toBe(2);
+    const t = vp.getTransform();
+    // world (100,100) stays under screen center
+    expect((100 - t.x) / t.scale).toBeCloseTo(100);
+    expect((100 - t.y) / t.scale).toBeCloseTo(100);
+  });
+
   it('failure: beginPan cancels in-flight camera tween', async () => {
     const world = fakeWorld();
     const vp = new Viewport(world);

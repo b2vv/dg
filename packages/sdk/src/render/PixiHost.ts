@@ -49,6 +49,11 @@ export class PixiHost {
     this.viewport?.setZoom(scale);
   }
 
+  /** Multiply current zoom (UI +/-). */
+  zoomBy(factor: number): void {
+    this.viewport?.zoomBy(factor);
+  }
+
   /** Pan world so (worldX, worldY) is near viewport center. */
   panTo(worldX: number, worldY: number, motion?: CameraMotionOptions): void {
     this.viewport?.panTo(worldX, worldY, motion);
@@ -101,6 +106,7 @@ export class PixiHost {
     });
     this.viewport.setScreenSize(width, height);
     this.viewport.attachWheel(app.canvas);
+    this.viewport.attachPinch(app.canvas);
     this.bindPan(app);
 
     this.resizeObserver = new ResizeObserver(() => {

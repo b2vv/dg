@@ -74,6 +74,7 @@ npm run dev          # http://localhost:3000
 27. [T27-pages-css-mobile-fix.md](./tasks/T27-pages-css-mobile-fix.md) — ✅ Pages CSS + mobile canvas height
 28. [T28-dark-theme-pixi.md](./tasks/T28-dark-theme-pixi.md) — ✅ dark Pixi palette + canvas bg
 29. [T29-visual-polish.md](./tasks/T29-visual-polish.md) — ✅ cards-in-cells + demo layout polish
+30. [T30-ux-edges-contour-zoom.md](./tasks/T30-ux-edges-contour-zoom.md) — ✅ edges, contour padding, pinch/zoom UI
 
 ## Технічний борг
 

@@ -123,6 +123,8 @@ export class DiagramRenderer {
   private promotedIds = new Set<string>();
   private contourSession: ContourSession | null = null;
   private lastDiagnostics: string[] = [];
+  /** Translate contour grid paths into staff world space (tier margin / cursorY). */
+  private contourWorldOffset = { x: 0, y: 0 };
   private drag: {
     positionId: string;
     node: PersonNodeView;
@@ -202,6 +204,7 @@ export class DiagramRenderer {
     if (this.destroyed) return;
     this.cancelContourMorphs();
     this.contourSession = null;
+    this.contourWorldOffset = { x: 0, y: 0 };
     this.layers.clear();
     this.nodeBoxes.clear();
     this.nodeViews.clear();
@@ -281,8 +284,14 @@ export class DiagramRenderer {
   }
 
   private contourPoints(result: DeptContourResult): { x: number; y: number }[] {
-    if (result.points.length >= 2) return result.points.map((p) => ({ x: p.x, y: p.y }));
-    return parseSvgPath(result.path)?.points.map((p) => ({ x: p.x, y: p.y })) ?? [];
+    const ox = this.contourWorldOffset.x;
+    const oy = this.contourWorldOffset.y;
+    const raw =
+      result.points.length >= 2
+        ? result.points.map((p) => ({ x: p.x, y: p.y }))
+        : (parseSvgPath(result.path)?.points.map((p) => ({ x: p.x, y: p.y })) ?? []);
+    if (ox === 0 && oy === 0) return raw;
+    return raw.map((p) => ({ x: p.x + ox, y: p.y + oy }));
   }
 
   private applyContourResults(results: DeptContourResult[], morph: boolean): void {
@@ -557,6 +566,11 @@ export class DiagramRenderer {
         }));
 
       if (contourInputs.length > 0) {
+        this.contourWorldOffset = resolveContourWorldOffset(
+          canvas.positionNodes,
+          positionById,
+          config,
+        );
         await this.paintContours(contourInputs, data, theme, config, options);
       }
 
@@ -714,7 +728,11 @@ export class DiagramRenderer {
         org,
         group,
         resolvedTheme,
-        theme.organization,
+        {
+          ...theme.organization,
+          width: ln.width,
+          height: ln.height,
+        },
         options.lod ?? 'near',
       );
       node.position.set(ln.x, ln.y);
@@ -765,4 +783,23 @@ function countPositionsByDept(positions: DiagramData['positions']): Map<string, 
     map.set(p.departmentId, (map.get(p.departmentId) ?? 0) + 1);
   }
   return map;
+}
+
+/** Map contour grid origin onto staff layout world (tier margin / cursorY). */
+function resolveContourWorldOffset(
+  nodes: Array<{ id: string; x: number; y: number; width: number; height: number }>,
+  positionById: Map<string, { gridCell?: { col: number; row: number } }>,
+  config: RenderConfig,
+): { x: number; y: number } {
+  for (const n of nodes) {
+    const p = positionById.get(n.id);
+    if (!p?.gridCell) continue;
+    const insetX = (config.cellWidth - n.width) / 2;
+    const insetY = (config.cellHeight - n.height) / 2;
+    return {
+      x: n.x - (p.gridCell.col * config.cellWidth + insetX),
+      y: n.y - (p.gridCell.row * config.cellHeight + insetY),
+    };
+  }
+  return { x: 0, y: 0 };
 }

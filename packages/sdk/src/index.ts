@@ -812,6 +812,11 @@ export class OrgHierarchyDiagram {
     this.host?.setZoom(scale);
   }
 
+  /** Multiply zoom around viewport center (toolbar +/-). */
+  zoomBy(factor: number): void {
+    this.host?.zoomBy(factor);
+  }
+
   panTo(worldX: number, worldY: number, motion: CameraMotionOptions = { animate: true }): void {
     this.host?.panTo(worldX, worldY, motion);
   }
