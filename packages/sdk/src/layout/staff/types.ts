@@ -41,7 +41,7 @@ export const DEFAULT_STAFF_LAYOUT_OPTIONS: Required<
   margin: 32,
   refCellWidth: 140,
   refCellHeight: 160,
-  tierGap: 56,
+  tierGap: 36,
   orgCardWidth: 200,
   orgCardHeight: 64,
   expandedOrgIds: [],

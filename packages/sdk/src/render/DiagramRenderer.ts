@@ -588,7 +588,20 @@ export class DiagramRenderer {
       }
 
       this.layers.edges.addChild(
-        StaffEdgesView.fromLayout(canvas.edges, canvas.positionNodes, resolvedTheme),
+        StaffEdgesView.fromLayout(
+          canvas.edges,
+          [
+            ...canvas.positionNodes,
+            ...canvas.orgCards.map((c) => ({
+              id: c.orgId,
+              x: c.x,
+              y: c.y,
+              width: c.width,
+              height: c.height,
+            })),
+          ],
+          resolvedTheme,
+        ),
       );
 
       const lod = options.lod ?? 'near';

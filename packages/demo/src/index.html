@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Org Hierarchy — Demo</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -22,23 +23,22 @@
         Search
         <input id="search-input" type="search" placeholder="Alice… / org-50000" />
       </label>
-      <label class="control">
-        Padding
-        <input id="padding-slider" type="range" min="0" max="2" step="1" value="0" />
+      <label class="control" id="padding-control" data-contour-only>
+        Padding <span id="padding-value" class="control-value">1</span>
+        <input id="padding-slider" type="range" min="0" max="2" step="1" value="1" />
       </label>
-      <label class="control">
-        Smooth
-        <input id="smooth-slider" type="range" min="0" max="4" step="1" value="0" />
+      <label class="control" id="smooth-control" data-contour-only>
+        Smooth <span id="smooth-value" class="control-value">2</span>
+        <input id="smooth-slider" type="range" min="0" max="4" step="1" value="2" />
       </label>
-      <button type="button" id="theme-toggle">Theme</button>
-      <button type="button" id="zoom-out" title="Zoom out">−</button>
-      <button type="button" id="zoom-in" title="Zoom in">+</button>
-      <button type="button" id="fit-view">Fit</button>
+      <button type="button" id="theme-toggle" title="Toggle light/dark">Theme</button>
       <button type="button" id="collapse-all">Collapse all</button>
-      <button type="button" id="export-png">PNG</button>
-      <button type="button" id="export-svg">SVG</button>
-      <button type="button" id="export-pdf">PDF</button>
-      <button type="button" id="export-print">Print</button>
+      <div class="export-group" role="group" aria-label="Export">
+        <button type="button" id="export-png">PNG</button>
+        <button type="button" id="export-svg">SVG</button>
+        <button type="button" id="export-pdf">PDF</button>
+        <button type="button" id="export-print">Print</button>
+      </div>
     </div>
     <span id="status" class="status">Init…</span>
   </header>
@@ -54,12 +54,13 @@
 
   <aside class="sidebar" data-show-tab="worker">
     <h2>Worker bench</h2>
+    <p class="sidebar-note">Runs a pooled map over 5k synthetic rows. Diagram stays on Variant B sample.</p>
     <button type="button" id="run-worker-bench">Run pooled map (5k orgs)</button>
   </aside>
 
   <main class="stage">
     <div id="diagram-mount" class="diagram-mount"></div>
-    <p class="viewport-hint">Pan · pinch / wheel / +− zoom · 100k tab: search org-N to jump window · right-click menu</p>
+    <p class="viewport-hint">Pan · pinch / wheel · zoom via +/− · Fit · right-click a card for menu · 100k: search org-N</p>
   </main>
 
   <div id="toast" class="toast" role="status"></div>

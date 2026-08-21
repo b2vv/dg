@@ -6,6 +6,21 @@ export interface PixiHostOptions {
   background?: number;
   minScale?: number;
   maxScale?: number;
+  /** Override device pixel ratio (tests). Default: `window.devicePixelRatio`. */
+  resolution?: number;
+}
+
+/** Crisp canvas text/sprites under browser zoom / retina (capped at 3×). */
+export function resolvePixiResolution(explicit?: number): number {
+  if (explicit != null && Number.isFinite(explicit) && explicit > 0) {
+    return Math.min(explicit, 3);
+  }
+  const dpr =
+    typeof globalThis !== 'undefined' && 'devicePixelRatio' in globalThis
+      ? Number((globalThis as { devicePixelRatio?: number }).devicePixelRatio)
+      : 1;
+  if (!Number.isFinite(dpr) || dpr <= 0) return 1;
+  return Math.min(dpr, 3);
 }
 
 export class PixiHost {
@@ -15,6 +30,7 @@ export class PixiHost {
   private resizeObserver: ResizeObserver | null = null;
   private container: HTMLElement | null = null;
   private destroyed = false;
+  private lastResolution = 1;
 
   static async create(container: HTMLElement, options: PixiHostOptions = {}): Promise<PixiHost> {
     if (!container) {
@@ -84,6 +100,7 @@ export class PixiHost {
     this.container = container;
     const width = Math.max(container.clientWidth || 800, 320);
     const height = Math.max(container.clientHeight || 600, 240);
+    this.lastResolution = resolvePixiResolution(options.resolution);
 
     const app = new Application();
     await app.init({
@@ -91,6 +108,8 @@ export class PixiHost {
       height,
       background: options.background ?? 0xf8fafc,
       antialias: true,
+      resolution: this.lastResolution,
+      autoDensity: true,
       // Do not use resizeTo: a 0-height mount (CSS not loaded / mobile layout)
       // would shrink the canvas to empty; we drive size via ResizeObserver mins.
     });
@@ -115,6 +134,11 @@ export class PixiHost {
       // (export still works off-screen; users would only see a black page).
       const w = Math.max(container.clientWidth || 0, 320);
       const h = Math.max(container.clientHeight || 0, 240);
+      const nextRes = resolvePixiResolution(options.resolution);
+      if (Math.abs(nextRes - this.lastResolution) > 0.01) {
+        this.lastResolution = nextRes;
+        this.app.renderer.resolution = nextRes;
+      }
       this.app.renderer.resize(w, h);
       this.viewport?.setScreenSize(w, h);
       this.syncStageHitArea(w, h);

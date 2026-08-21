@@ -154,9 +154,35 @@ fn flood_outside(inside: &HashSet<Cell>, bbox: &BBox) -> HashSet<Cell> {
     outside
 }
 
+/// Lower is better. Prefer opening right of foreign (canonical Variant B / G6),
+/// then down, left, up — so the C-notch mouth matches “немає борту справа від P4”.
+fn foreign_far_side_dir_priority(
+    cell: Cell,
+    foreign: &HashSet<Cell>,
+    own: &HashSet<Cell>,
+) -> Option<u8> {
+    let mut best: Option<u8> = None;
+    for &f in foreign {
+        for (dc, dr, pri) in [(1, 0, 0u8), (0, 1, 1), (-1, 0, 2), (0, -1, 3)] {
+            if f.col + dc == cell.col && f.row + dr == cell.row && !own_on_ray(own, f, dc, dr) {
+                best = Some(best.map_or(pri, |b| b.min(pri)));
+            }
+        }
+    }
+    best
+}
+
 /// G5: convert enclosed holes into C-notches by cutting shortest corridors through empty fill.
 /// Own cells are never removed.
-fn apply_prefer_notch(inside: &mut HashSet<Cell>, own: &HashSet<Cell>, bbox: &BBox) {
+///
+/// When several shortest openings exist, prefer cutting a **foreign far-side** cell
+/// (G6) so Variant B opens to the right of CEO and keeps the left/bottom C-arms.
+fn apply_prefer_notch(
+    inside: &mut HashSet<Cell>,
+    own: &HashSet<Cell>,
+    foreign: &HashSet<Cell>,
+    bbox: &BBox,
+) {
     for _ in 0..64 {
         let outside = flood_outside(inside, bbox);
         let mut enclosed = false;
@@ -188,19 +214,35 @@ fn apply_prefer_notch(inside: &mut HashSet<Cell>, own: &HashSet<Cell>, bbox: &BB
 
         let mut parent: std::collections::HashMap<Cell, Option<Cell>> =
             std::collections::HashMap::new();
+        let mut dist: std::collections::HashMap<Cell, u32> = std::collections::HashMap::new();
         let mut queue = VecDeque::new();
-        start_candidates.sort_by_key(|c| (c.row, c.col));
+        // Prefer far-side / right-of-foreign openings first (Variant B G6 mouth).
+        start_candidates.sort_by_key(|c| {
+            (
+                foreign_far_side_dir_priority(*c, foreign, own).unwrap_or(4),
+                c.row,
+                c.col,
+            )
+        });
         start_candidates.dedup();
         for s in &start_candidates {
             if parent.contains_key(s) {
                 continue;
             }
             parent.insert(*s, None);
+            dist.insert(*s, 0);
             queue.push_back(*s);
         }
 
-        let mut goal: Option<Cell> = None;
+        let mut goals: Vec<(u32, Cell)> = Vec::new();
+        let mut best_dist: Option<u32> = None;
         while let Some(cur) = queue.pop_front() {
+            let d = dist[&cur];
+            if let Some(bd) = best_dist {
+                if d > bd {
+                    break;
+                }
+            }
             let touches_exterior = cur.neighbors4().iter().any(|nb| {
                 outside.contains(nb)
                     || nb.col < bbox.min_col
@@ -209,8 +251,9 @@ fn apply_prefer_notch(inside: &mut HashSet<Cell>, own: &HashSet<Cell>, bbox: &BB
                     || nb.row > bbox.max_row
             });
             if touches_exterior {
-                goal = Some(cur);
-                break;
+                best_dist = Some(d);
+                goals.push((d, cur));
+                continue;
             }
             let mut nbs = cur.neighbors4();
             nbs.sort_by_key(|c| (c.row, c.col));
@@ -219,13 +262,29 @@ fn apply_prefer_notch(inside: &mut HashSet<Cell>, own: &HashSet<Cell>, bbox: &BB
                     continue;
                 }
                 parent.insert(nb, Some(cur));
+                dist.insert(nb, d + 1);
                 queue.push_back(nb);
             }
         }
 
-        let Some(end) = goal else {
+        if goals.is_empty() {
             break;
-        };
+        }
+        let baseline = own_component_count(own, inside);
+        goals.sort_by_key(|(d, c)| {
+            // Prefer non-bridge cuts so G6 can still clear the far-side wall.
+            let mut trial = inside.clone();
+            trial.remove(c);
+            let splits = own_component_count(own, &trial) > baseline;
+            (
+                *d,
+                splits,
+                foreign_far_side_dir_priority(*c, foreign, own).unwrap_or(4),
+                c.row,
+                c.col,
+            )
+        });
+        let end = goals[0].1;
 
         let mut cur = end;
         loop {
@@ -274,32 +333,88 @@ fn count_true_corners(path: &[(i32, i32)]) -> u32 {
     count
 }
 
+/// True if an own cell lies on the open ray from `from` in direction `(dc, dr)`
+/// (strictly beyond the first step). Used for G6 “no own beyond”.
+fn own_on_ray(own: &HashSet<Cell>, from: Cell, dc: i32, dr: i32) -> bool {
+    let mut c = Cell {
+        col: from.col + dc,
+        row: from.row + dr,
+    };
+    // Bound the walk; contours are small grids.
+    for _ in 0..256 {
+        if own.contains(&c) {
+            return true;
+        }
+        c = Cell {
+            col: c.col + dc,
+            row: c.row + dr,
+        };
+    }
+    false
+}
+
+/// 4-connected component count of `own` through the `walkable` fill
+/// (own + empty inside). Empty bridges keep distant own cells in one component.
+fn own_component_count(own: &HashSet<Cell>, walkable: &HashSet<Cell>) -> usize {
+    let mut seen: HashSet<Cell> = HashSet::new();
+    let mut components = 0usize;
+    let mut own_seeds: Vec<Cell> = own.iter().copied().collect();
+    own_seeds.sort_by_key(|c| (c.row, c.col));
+    for start in own_seeds {
+        if seen.contains(&start) || !walkable.contains(&start) {
+            continue;
+        }
+        components += 1;
+        let mut stack = vec![start];
+        seen.insert(start);
+        while let Some(cur) = stack.pop() {
+            for nb in cur.neighbors4() {
+                if walkable.contains(&nb) && seen.insert(nb) {
+                    stack.push(nb);
+                }
+            }
+        }
+    }
+    components
+}
+
 /// G6: remove empty fill on foreign faces that have no own beyond (far side).
 /// That drops walls such as the vertical to the right of Variant-B CEO (P4).
+///
+/// Bridge-preserving: never remove an empty cell if doing so would split the
+/// own-cell cluster into more 4-connected components through the remaining
+/// fill (Variant B C-arms `(0,1)` / `(1,2)` must stay).
 fn apply_g6_clear_far_side_fill(
     inside: &mut HashSet<Cell>,
     foreign: &HashSet<Cell>,
     own: &HashSet<Cell>,
 ) {
-    let mut remove: Vec<Cell> = Vec::new();
+    let mut candidates: Vec<Cell> = Vec::new();
     for &f in foreign {
         for (dc, dr) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
             let nb = Cell {
                 col: f.col + dc,
                 row: f.row + dr,
             };
-            if own.contains(&nb) {
+            if own.contains(&nb) || !inside.contains(&nb) {
                 continue;
             }
-            if inside.contains(&nb) && !own.contains(&nb) {
-                remove.push(nb);
+            // Far side only when no own lies further on this ray (incl. `nb`).
+            if own_on_ray(own, f, dc, dr) {
+                continue;
             }
+            candidates.push(nb);
         }
     }
-    remove.sort_by_key(|c| (c.row, c.col));
-    remove.dedup();
-    for c in remove {
+    candidates.sort_by_key(|c| (c.row, c.col));
+    candidates.dedup();
+
+    let baseline = own_component_count(own, inside);
+    for c in candidates {
         inside.remove(&c);
+        if own_component_count(own, inside) > baseline {
+            inside.insert(c); // restore bridge
+        }
     }
 }
 
@@ -489,7 +604,7 @@ pub fn compute_dept_contour(
 
         let mut inside = flood_inside(&own_set, &foreign, &fill_bbox);
         if config.prefer_notch {
-            apply_prefer_notch(&mut inside, &own_set, &work_bbox);
+            apply_prefer_notch(&mut inside, &own_set, &foreign, &work_bbox);
         }
         apply_g6_clear_far_side_fill(&mut inside, &foreign, &own_set);
         let raw_corners = trace_orthogonal_contour(&inside, &work_bbox);
@@ -712,6 +827,15 @@ mod tests {
         let ceo_cx = 1.5 * cfg.cell_width;
         let ceo_cy = 1.5 * cfg.cell_height;
         assert!(!point_in_poly(ceo_cx, ceo_cy, &r.points), "CEO must stay outside IT fill");
+        for (col, row, label) in [(0, 0, "P1"), (1, 0, "P2"), (2, 0, "P3"), (0, 2, "P5"), (2, 2, "P6")] {
+            let cx = (col as f32 + 0.5) * cfg.cell_width;
+            let cy = (row as f32 + 0.5) * cfg.cell_height;
+            assert!(
+                point_in_poly(cx, cy, &r.points),
+                "{label} center must be inside IT fill; path={}",
+                r.path
+            );
+        }
     }
 
     #[test]
@@ -849,3 +973,4 @@ mod tests {
         }
     }
 }
+

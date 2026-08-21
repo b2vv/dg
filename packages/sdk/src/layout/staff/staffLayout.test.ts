@@ -172,6 +172,9 @@ describe('layoutStaffCanvas', () => {
     expect(t3.cards?.map((c) => c.orgId)).toContain('sub');
     expect(canvas.positionNodes.every((n) => n.organizationId !== 'sub')).toBe(true);
     expect(canvas.positionNodes.filter((n) => n.organizationId === 'current').length).toBe(2);
+    const cross = canvas.edges.filter((e) => e.kind === 'cross-tier');
+    expect(cross.some((e) => e.fromId === 'mgr-ceo' && e.toId === 'ceo')).toBe(true);
+    expect(cross.some((e) => e.fromId === 'ceo' && e.toId === 'sub')).toBe(true);
   });
 
   it('success: expand-in-place places child staff under the card', async () => {

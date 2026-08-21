@@ -1,5 +1,6 @@
 import type { DiagramData } from '../../data/types.js';
 import { layoutStaffOrgBlock } from './orgBlockLayout.js';
+import { resolveStaffHead } from './resolveHead.js';
 import {
   DEFAULT_STAFF_LAYOUT_OPTIONS,
   StaffLayoutError,
@@ -169,6 +170,25 @@ export async function layoutStaffCanvas(
       cards,
     });
     cursorY += t3height + opts.margin;
+  }
+
+  // Cross-tier connectors: managing head → current head; current head → child org cards.
+  const headIdOf = (orgId: string): string | undefined => {
+    try {
+      return resolveStaffHead(data.positions, orgId, data.reports);
+    } catch {
+      return positionNodes.find((n) => n.organizationId === orgId)?.id;
+    }
+  };
+  const mgrHead = managingId ? headIdOf(managingId) : undefined;
+  const curHead = headIdOf(currentOrgId);
+  if (mgrHead && curHead && positionNodes.some((n) => n.id === mgrHead) && positionNodes.some((n) => n.id === curHead)) {
+    edges.push({ fromId: mgrHead, toId: curHead, kind: 'cross-tier' });
+  }
+  if (curHead && positionNodes.some((n) => n.id === curHead)) {
+    for (const card of orgCards) {
+      edges.push({ fromId: curHead, toId: card.orgId, kind: 'cross-tier' });
+    }
   }
 
   const width = Math.max(
