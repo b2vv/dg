@@ -1048,7 +1048,7 @@ mod tests {
         apply_g7_peel_vacant_exterior(&mut inside, &own, 1);
         assert!(
             inside.contains(&Cell { col: 0, row: 2 }),
-            "bridge cell with manh>pad must be restored"
+            "bridge cell with Chebyshev>pad must be restored"
         );
         assert_eq!(own_component_count(&own, &inside), 1);
     }
@@ -1118,6 +1118,10 @@ mod tests {
         assert!(
             !inside.contains(&Cell { col: 0, row: -3 }),
             "far tongue tip must be gone"
+        );
+        assert!(
+            !inside.contains(&Cell { col: 0, row: -2 }),
+            "mid tongue cell (Chebyshev=2) must be gone"
         );
         assert!(
             inside.contains(&Cell { col: -1, row: -1 }),
