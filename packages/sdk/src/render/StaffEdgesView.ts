@@ -5,17 +5,20 @@ import {
   type StaffEdgeLink,
   type StaffEdgePoint,
 } from './staffEdgeGeometry.js';
+import { arrowHeadTriangle, shortenPolylineForArrow } from './staffEdgeArrows.js';
+
+const ARROW_SIZE = 7;
 
 const STROKE_LIGHT: Record<StaffEdgeLink['kind'], { color: number; width: number; dash?: number[] }> = {
-  admin: { color: 0x475569, width: 2.25 },
-  'cross-tier': { color: 0x475569, width: 2.25 },
+  admin: { color: 0x334155, width: 2.25 },
+  'cross-tier': { color: 0x334155, width: 2.25 },
   matrix: { color: 0x94a3b8, width: 1.5, dash: [6, 4] },
   dotted: { color: 0xa8a29e, width: 1.5, dash: [2, 4] },
 };
 
 const STROKE_DARK: Record<StaffEdgeLink['kind'], { color: number; width: number; dash?: number[] }> = {
-  admin: { color: 0xcbd5e1, width: 2.25 },
-  'cross-tier': { color: 0xcbd5e1, width: 2.25 },
+  admin: { color: 0xe2e8f0, width: 2.25 },
+  'cross-tier': { color: 0xe2e8f0, width: 2.25 },
   matrix: { color: 0x64748b, width: 1.5, dash: [6, 4] },
   dotted: { color: 0xa8a29e, width: 1.5, dash: [2, 4] },
 };
@@ -49,19 +52,37 @@ export class StaffEdgesView extends Container {
     const segments = buildStaffEdgeSegments(edges, boxes);
     for (const seg of segments) {
       const style = stroke[seg.kind] ?? stroke.admin;
+      const withArrow = seg.kind === 'admin' || seg.kind === 'cross-tier';
       if (style.dash) {
         drawDashedPolyline(this.graphics, seg.points, style.dash);
-      } else {
-        const pts = seg.points;
-        if (pts.length < 2) continue;
-        this.graphics.moveTo(pts[0]!.x, pts[0]!.y);
-        for (let i = 1; i < pts.length; i += 1) {
-          this.graphics.lineTo(pts[i]!.x, pts[i]!.y);
-        }
+        this.graphics.stroke({ color: style.color, width: style.width });
+        continue;
       }
-      this.graphics.stroke({ color: style.color, width: style.width });
+      const pts = seg.points;
+      if (pts.length < 2) continue;
+      const drawPts = withArrow ? shortenPolylineForArrow(pts, ARROW_SIZE) : pts;
+      this.graphics.moveTo(drawPts[0]!.x, drawPts[0]!.y);
+      for (let i = 1; i < drawPts.length; i += 1) {
+        this.graphics.lineTo(drawPts[i]!.x, drawPts[i]!.y);
+      }
+      this.graphics.stroke({ color: style.color, width: style.width, join: 'round', cap: 'round' });
+      if (withArrow) {
+        drawArrowHead(this.graphics, pts, style.color);
+      }
     }
   }
+}
+
+function drawArrowHead(g: Graphics, points: StaffEdgePoint[], color: number): void {
+  const a = points[points.length - 2]!;
+  const b = points[points.length - 1]!;
+  const tri = arrowHeadTriangle(a, b, ARROW_SIZE);
+  if (!tri) return;
+  g.moveTo(tri[0].x, tri[0].y);
+  g.lineTo(tri[1].x, tri[1].y);
+  g.lineTo(tri[2].x, tri[2].y);
+  g.closePath();
+  g.fill({ color });
 }
 
 function drawDashedPolyline(g: Graphics, points: StaffEdgePoint[], pattern: number[]): void {
