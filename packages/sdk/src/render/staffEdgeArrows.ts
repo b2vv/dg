@@ -36,7 +36,8 @@ export function shortenPolylineForArrow(
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const len = Math.hypot(dx, dy);
-  if (len <= arrowSize + 0.5) return out;
+  // Tiny last segments: keep tip on the port (no visible gap).
+  if (len <= arrowSize * 2) return out;
   const t = (len - arrowSize * 0.85) / len;
   out[out.length - 1] = { x: a.x + dx * t, y: a.y + dy * t };
   return out;

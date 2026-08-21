@@ -24,6 +24,17 @@ describe('staffEdgeArrows', () => {
     expect(pts[1]!.y).toBeGreaterThan(30);
   });
 
+  it('success: short last chord keeps tip on the port (no gap)', () => {
+    const pts = shortenPolylineForArrow(
+      [
+        { x: 0, y: 0 },
+        { x: 0, y: 12 },
+      ],
+      8,
+    );
+    expect(pts[1]).toEqual({ x: 0, y: 12 });
+  });
+
   it('failure: zero-length segment yields no triangle', () => {
     expect(arrowHeadTriangle({ x: 1, y: 1 }, { x: 1, y: 1 })).toBeNull();
   });

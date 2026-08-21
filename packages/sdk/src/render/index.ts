@@ -22,6 +22,11 @@ export type {
   StaffEdgeSegment,
 } from './staffEdgeGeometry.js';
 export {
+  visualPersonEdgeBox,
+  visualOrgEdgeBox,
+  mapStaffEdgeBoxesForLod,
+} from './visualEdgeBox.js';
+export {
   nudgeContourClearOfBoxes,
   contourCardClearanceMargin,
   CONTOUR_OWN_PADDING_PX,

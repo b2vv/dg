@@ -14,6 +14,7 @@ import {
   PERSON_CARD_WIDTH,
 } from '../render/types.js';
 import { buildStaffEdgeSegments } from '../render/staffEdgeGeometry.js';
+import { mapStaffEdgeBoxesForLod } from '../render/visualEdgeBox.js';
 import {
   mapContourPointToWorld,
   resolveContourWorldTransform,
@@ -149,7 +150,20 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
     }
     parts.push('</g>');
 
-    const segments = buildStaffEdgeSegments(canvas.edges, canvas.positionNodes);
+    const segments = buildStaffEdgeSegments(
+      canvas.edges,
+      mapStaffEdgeBoxesForLod(
+        canvas.positionNodes,
+        canvas.orgCards.map((c) => ({
+          id: c.orgId,
+          x: c.x,
+          y: c.y,
+          width: c.width,
+          height: c.height,
+        })),
+        'near',
+      ),
+    );
     parts.push('<g id="edges">');
     for (const s of segments) {
       const withArrow = s.kind === 'admin' || s.kind === 'cross-tier';
