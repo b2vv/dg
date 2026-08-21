@@ -7,7 +7,7 @@ import {
   type StaffLayoutOptions,
 } from '../layout/staff/types.js';
 import type { RenderConfig } from '../render/types.js';
-import { defaultRenderConfig } from '../render/types.js';
+import { defaultRenderConfig, PERSON_CARD_HEIGHT, PERSON_CARD_WIDTH } from '../render/types.js';
 import { buildStaffEdgeSegments } from '../render/staffEdgeGeometry.js';
 import {
   mapContourPointToWorld,
@@ -189,8 +189,8 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
 
     const personById = new Map(data.persons.map((p) => [p.id, p]));
     parts.push('<g id="persons">');
-    const cardW = 128;
-    const cardH = 148;
+    const cardW = PERSON_CARD_WIDTH;
+    const cardH = PERSON_CARD_HEIGHT;
     const insetX = (config.cellWidth - cardW) / 2;
     const insetY = (config.cellHeight - cardH) / 2;
     for (const position of data.positions) {
@@ -205,9 +205,11 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
         `<rect width="${cardW}" height="${cardH}" rx="10" fill="#fff" stroke="#94a3b8"/>`,
       );
       if (includeLabels) {
+        const nameY = Math.round(cardH * 0.55);
+        const titleY = Math.round(cardH * 0.72);
         parts.push(
-          `<text x="8" y="82" font-size="12" fill="#0f172a">${esc(person?.fullName ?? '—')}</text>`,
-          `<text x="8" y="102" font-size="11" fill="#64748b">${esc(position.title)}</text>`,
+          `<text x="8" y="${nameY}" font-size="12" fill="#0f172a">${esc(person?.fullName ?? '—')}</text>`,
+          `<text x="8" y="${titleY}" font-size="11" fill="#64748b">${esc(position.title)}</text>`,
         );
       }
       parts.push('</g>');

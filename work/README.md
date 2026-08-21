@@ -76,6 +76,7 @@ npm run dev          # http://localhost:3000
 29. [T29-visual-polish.md](./tasks/T29-visual-polish.md) — ✅ cards-in-cells + demo layout polish
 30. [T30-ux-edges-contour-zoom.md](./tasks/T30-ux-edges-contour-zoom.md) — ✅ edges, contour padding, pinch/zoom UI
 31. [T31-regression-zoom-100k.md](./tasks/T31-regression-zoom-100k.md) — ✅ regression tests, zoom FAB, 100k window
+32. [T32-card-in-cell-tighten.md](./tasks/T32-card-in-cell-tighten.md) — ✅ option A card≈cell geometry
 
 ## Технічний борг
 

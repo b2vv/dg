@@ -167,22 +167,22 @@ describe('buildDiagramSvg', () => {
       horizontalGap: 0,
       verticalGap: 0,
       margin: 0,
-      refCellWidth: 148,
-      refCellHeight: 168,
-      nodeWidth: 128,
-      nodeHeight: 148,
+      refCellWidth: 140,
+      refCellHeight: 160,
+      nodeWidth: 136,
+      nodeHeight: 156,
     };
     const svg = await buildDiagramSvg({
       data: variantB(),
       currentOrgId: 'org1',
       staffLayout,
-      config: { cellWidth: 148, cellHeight: 168, paddingCells: 0, smoothIterations: 0 },
+      config: { cellWidth: 140, cellHeight: 160, paddingCells: 0, smoothIterations: 0 },
     });
     const m = svg.match(/data-position="P1"[^>]*transform="translate\(([\d.]+),([\d.]+)\)/);
     expect(m).toBeTruthy();
-    // inset ≈10; default margin 32 would place y≥32 — this catches export/layout drift.
-    expect(Number(m![1])).toBeLessThan(20);
-    expect(Number(m![2])).toBeLessThan(20);
+    // inset = 2; default margin 32 would place y≥32 — this catches export/layout drift.
+    expect(Number(m![1])).toBeLessThan(8);
+    expect(Number(m![2])).toBeLessThan(8);
   });
 });
 
