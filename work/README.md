@@ -77,12 +77,9 @@ npm run dev          # http://localhost:3000
 30. [T30-ux-edges-contour-zoom.md](./tasks/T30-ux-edges-contour-zoom.md) — ✅ edges, contour padding, pinch/zoom UI
 31. [T31-regression-zoom-100k.md](./tasks/T31-regression-zoom-100k.md) — ✅ regression tests, zoom FAB, 100k window
 32. [T32-card-in-cell-tighten.md](./tasks/T32-card-in-cell-tighten.md) — ✅ option A card≈cell geometry
-<<<<<<< HEAD
+33. [T33-demo-live-audit-plan.md](./tasks/T33-demo-live-audit-plan.md) — 📋 live demo audit: проблеми + план фіксів (P0→P2)
 34. [T34-p0-contour-staff-flat-edges.md](./tasks/T34-p0-contour-staff-flat-edges.md) — ✅ P0: IT C-contour, staff cross-tier, flat edge avoid
 35. [T35-polish-zoom-chrome.md](./tasks/T35-polish-zoom-chrome.md) — ✅ P1: padding/smooth defaults, Hi-DPI, demo chrome
-=======
-33. [T33-demo-live-audit-plan.md](./tasks/T33-demo-live-audit-plan.md) — 📋 live demo audit: проблеми + план фіксів (P0→P2)
->>>>>>> origin/main
 
 ## Технічний борг
 
