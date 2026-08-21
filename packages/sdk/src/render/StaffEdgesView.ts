@@ -7,17 +7,17 @@ import {
 } from './staffEdgeGeometry.js';
 
 const STROKE_LIGHT: Record<StaffEdgeLink['kind'], { color: number; width: number; dash?: number[] }> = {
-  admin: { color: 0x64748b, width: 1.75 },
-  'cross-tier': { color: 0x64748b, width: 1.75 },
-  matrix: { color: 0x94a3b8, width: 1.35, dash: [6, 4] },
-  dotted: { color: 0xa8a29e, width: 1.35, dash: [2, 4] },
+  admin: { color: 0x64748b, width: 2 },
+  'cross-tier': { color: 0x64748b, width: 2 },
+  matrix: { color: 0x94a3b8, width: 1.5, dash: [6, 4] },
+  dotted: { color: 0xa8a29e, width: 1.5, dash: [2, 4] },
 };
 
 const STROKE_DARK: Record<StaffEdgeLink['kind'], { color: number; width: number; dash?: number[] }> = {
-  admin: { color: 0x94a3b8, width: 1.75 },
-  'cross-tier': { color: 0x94a3b8, width: 1.75 },
-  matrix: { color: 0x64748b, width: 1.35, dash: [6, 4] },
-  dotted: { color: 0xa8a29e, width: 1.35, dash: [2, 4] },
+  admin: { color: 0x94a3b8, width: 2 },
+  'cross-tier': { color: 0x94a3b8, width: 2 },
+  matrix: { color: 0x64748b, width: 1.5, dash: [6, 4] },
+  dotted: { color: 0xa8a29e, width: 1.5, dash: [2, 4] },
 };
 
 /** Report lines between staff position boxes (admin solid; matrix/dotted dashed). */

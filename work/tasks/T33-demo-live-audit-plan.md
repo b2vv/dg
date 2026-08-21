@@ -1,7 +1,7 @@
 # T33 — Live demo audit: проблеми та план фіксів
 
 **Пріоритет:** P0 (алгоритм + читабельність) → P1 (UX chrome) → P2 (polish)  
-**Статус:** planned  
+**Статус:** mostly done (A/B ✅ T34–T35; C ✅ T36)  
 **Джерело:** огляд https://b2vv.github.io/dg/ (Playwright + візуальні скріни, 2026-08-21)  
 **Не плутати:** вкладки **працюють**; «зламані таби» з browser-automation — false positive.
 

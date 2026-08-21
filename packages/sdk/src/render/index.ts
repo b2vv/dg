@@ -7,6 +7,7 @@ export { resolveLodLevel, simplifyPolyline, defaultLodThresholds } from './lod.j
 export type { LodLevel, LodThresholds } from './lod.js';
 export { DepartmentBlobView } from './DepartmentBlob.js';
 export { PersonNodeView } from './PersonNode.js';
+export { personInitials, avatarColorFromName } from './personInitials.js';
 export { OrganizationNodeView } from './OrganizationNode.js';
 export { OrgEdgesView } from './OrgEdgesView.js';
 export { StaffEdgesView } from './StaffEdgesView.js';
