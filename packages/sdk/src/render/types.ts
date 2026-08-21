@@ -78,11 +78,11 @@ export const VARIANT_B_HORIZONTAL_GAP = 24;
 export const VARIANT_B_VERTICAL_GAP = 28;
 
 /**
- * Variant B IT top↔bottom Manhattan gap is 2 (e.g. P1@(0,0)→P5@(0,2)).
- * Radius 2 merges one IT component (C-notch); 1.5 splits into 3.
- * Do **not** inflate to 8 — that is not “поруч”, it hides real magnetism.
+ * Variant B demo magnet radius: same-dept cells merge only when «поруч»
+ * (Manhattan ≤ 1.5 → orthogonal neighbors). Top IT ↔ bottom IT gap is 2, so
+ * they stay **separate** magnetic groups — not one forced C-blob.
  */
-export const VARIANT_B_MAGNET_RADIUS = 2;
+export const VARIANT_B_MAGNET_RADIUS = 1.5;
 
 /** Clear border-to-border gap between adjacent Variant B cards (gap + 2×inset). */
 export function variantBAdjacentEdgeClearance(): {

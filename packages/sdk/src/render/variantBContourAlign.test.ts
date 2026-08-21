@@ -37,7 +37,7 @@ function pointInPoly(x: number, y: number, pts: { x: number; y: number }[]): boo
   return inside;
 }
 
-describe('Variant B contour coverage (T33 A1)', () => {
+describe('Variant B contour coverage (adjacency magnetism)', () => {
   beforeAll(async () => {
     const wasmPath = join(
       dirname(fileURLToPath(import.meta.url)),
@@ -56,7 +56,7 @@ describe('Variant B contour coverage (T33 A1)', () => {
     resetContourWasmForTests();
   });
 
-  it('success: all IT card centers inside IT fill; CEO outside', async () => {
+  it('success: each IT center inside some IT component; CEO outside all', async () => {
     const cellW = GRID_CELL_WIDTH;
     const cellH = GRID_CELL_HEIGHT;
     const pitchX = cellW + VARIANT_B_HORIZONTAL_GAP;
@@ -77,8 +77,8 @@ describe('Variant B contour coverage (T33 A1)', () => {
         preferNotch: true,
       },
     );
-    const it = contours.find((c) => c.departmentId === 'IT');
-    expect(it).toBeTruthy();
+    const itParts = contours.filter((c) => c.departmentId === 'IT');
+    expect(itParts.length).toBe(3);
 
     const geom = {
       nodeWidth: PERSON_CARD_WIDTH,
@@ -110,24 +110,29 @@ describe('Variant B contour coverage (T33 A1)', () => {
       nodes.map((n) => [n.id, { gridCell: { col: n.col, row: n.row } }]),
     );
     const world = resolveContourWorldTransform(nodes, posMap, cellW, cellH, pitchX, pitchY);
-    const mapped = mapContourPointsToWorld(it!.points, world);
+    const rings = itParts.map((c) => mapContourPointsToWorld(c.points, world));
 
     for (const n of nodes.filter((x) => x.dept === 'IT')) {
       const cx = n.x + n.width / 2;
       const cy = n.y + n.height / 2;
-      expect(pointInPoly(cx, cy, mapped), `${n.id} must be inside IT`).toBe(true);
+      const hit = rings.some((ring) => pointInPoly(cx, cy, ring));
+      expect(hit, `${n.id} must be inside some IT magnetic group`).toBe(true);
     }
     const ceo = nodes.find((n) => n.id === 'P4')!;
-    expect(
-      pointInPoly(ceo.x + ceo.width / 2, ceo.y + ceo.height / 2, mapped),
-      'CEO must stay outside IT',
-    ).toBe(false);
+    const ceoHit = rings.some((ring) =>
+      pointInPoly(ceo.x + ceo.width / 2, ceo.y + ceo.height / 2, ring),
+    );
+    expect(ceoHit, 'CEO must stay outside every IT group').toBe(false);
   });
 
   it('failure: empty IT positions yields no IT contour', async () => {
     const contours = await computeAllContours(
       [{ id: 'P4', departmentId: 'CEO', col: 1, row: 1 }],
-      { cellWidth: GRID_CELL_WIDTH, cellHeight: GRID_CELL_HEIGHT, magnetRadius: VARIANT_B_MAGNET_RADIUS },
+      {
+        cellWidth: GRID_CELL_WIDTH,
+        cellHeight: GRID_CELL_HEIGHT,
+        magnetRadius: VARIANT_B_MAGNET_RADIUS,
+      },
     );
     expect(contours.find((c) => c.departmentId === 'IT')).toBeUndefined();
   });

@@ -14,7 +14,7 @@ import {
   VARIANT_B_MAGNET_RADIUS,
 } from './types.js';
 
-describe('Variant B magnet radius (T47)', () => {
+describe('Variant B magnet radius (T48 adjacency)', () => {
   beforeAll(async () => {
     const wasmPath = join(
       dirname(fileURLToPath(import.meta.url)),
@@ -33,8 +33,8 @@ describe('Variant B magnet radius (T47)', () => {
     resetContourWasmForTests();
   });
 
-  it('success: radius 2 (= top↔bottom gap) yields one IT component', async () => {
-    expect(VARIANT_B_MAGNET_RADIUS).toBe(2);
+  it('success: demo radius 1.5 splits IT into 3 magnetic groups (top / P5 / P6)', async () => {
+    expect(VARIANT_B_MAGNET_RADIUS).toBe(1.5);
     const contours = await computeAllContours(
       VARIANT_B_POSITIONS.map((p) => ({
         id: p.id,
@@ -50,10 +50,10 @@ describe('Variant B magnet radius (T47)', () => {
         magnetRadius: VARIANT_B_MAGNET_RADIUS,
       },
     );
-    expect(contours.filter((c) => c.departmentId === 'IT')).toHaveLength(1);
+    expect(contours.filter((c) => c.departmentId === 'IT')).toHaveLength(3);
   });
 
-  it('failure: default-ish radius 1.5 splits IT (top vs bottom not «поруч»)', async () => {
+  it('failure: radius 2 forces one C-blob (not adjacency magnetism)', async () => {
     const contours = await computeAllContours(
       VARIANT_B_POSITIONS.map((p) => ({
         id: p.id,
@@ -66,9 +66,9 @@ describe('Variant B magnet radius (T47)', () => {
         cellHeight: GRID_CELL_HEIGHT,
         paddingCells: 1,
         smoothIterations: 0,
-        magnetRadius: 1.5,
+        magnetRadius: 2,
       },
     );
-    expect(contours.filter((c) => c.departmentId === 'IT').length).toBeGreaterThan(1);
+    expect(contours.filter((c) => c.departmentId === 'IT')).toHaveLength(1);
   });
 });
