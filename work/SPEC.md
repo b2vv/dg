@@ -350,7 +350,7 @@ row0      P1       P2      IT
 row1      P4       P3      P4=CEO
 ```
 
-**Variant B (магнетизм «поруч», T48):**
+**Variant B (магнетизм «поруч», T49):**
 
 ```
          col0     col1     col2

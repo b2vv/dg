@@ -212,6 +212,12 @@ export class App {
             }
           },
           onContextMenu: (request) => {
+            // 100k: no expand/collapse on nodes — tree↔matrix via focus path / Collapse all.
+            if (this.tab === 'scale-100k') {
+              request.items = request.items.filter(
+                (i) => i.id !== 'expand' && i.id !== 'collapse',
+              );
+            }
             this.contextMenu?.handleContextMenu(request);
             const label =
               request.node.person?.fullName ??
@@ -221,6 +227,13 @@ export class App {
             this.setStatus(`context · ${request.node.ref.kind} · ${label}`);
           },
           onOrgModeChange: (mode) => {
+            if (this.tab === 'scale-100k' && this.scaleWindow) {
+              const w = this.scaleWindow;
+              this.setStatus(
+                `100k orgs · ${mode} · window ${w.windowSize.toLocaleString('uk-UA')} of ${w.total.toLocaleString('uk-UA')} · focus org-${w.focusIndex}`,
+              );
+              return;
+            }
             this.setStatus(`${this.tab} · ${mode} · ${this.theme}`);
           },
           onLayoutDiagnostics: (messages) => {
@@ -240,8 +253,9 @@ export class App {
         this.setStatus(`Staff tree · focus ${this.diagram.getStaffFocus() ?? 'ops'}`);
       } else if (this.tab === 'scale-100k' && this.scaleWindow) {
         const w = this.scaleWindow;
+        const mode = this.diagram?.getOrgMode() ?? 'row-tree';
         this.setStatus(
-          `100k orgs · window ${w.windowSize.toLocaleString('uk-UA')} of ${w.total.toLocaleString('uk-UA')} · focus org-${w.focusIndex}`,
+          `100k orgs · ${mode} · window ${w.windowSize.toLocaleString('uk-UA')} of ${w.total.toLocaleString('uk-UA')} · focus org-${w.focusIndex}`,
         );
       } else if (this.tab === 'variant-b') {
         this.setStatus(

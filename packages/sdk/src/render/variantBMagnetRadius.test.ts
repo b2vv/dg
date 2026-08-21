@@ -14,7 +14,7 @@ import {
   VARIANT_B_MAGNET_RADIUS,
 } from './types.js';
 
-describe('Variant B magnet radius (T48 adjacency)', () => {
+describe('Variant B magnet radius (T49 adjacency)', () => {
   beforeAll(async () => {
     const wasmPath = join(
       dirname(fileURLToPath(import.meta.url)),

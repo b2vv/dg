@@ -29,4 +29,4 @@
 - G6: explicit far-side fill clear — see [T14](./T14-contour-g6.md); plus `g6_implicit_foreign_blocks_flood`
 - WASM pkg rebuilt
 
-Variant B demo historically used `magnetRadius: 8` for a single IT notch blob — **superseded** by adjacency magnetism (**T48**, radius **1.5**).
+Variant B demo historically used `magnetRadius: 8` for a single IT notch blob — **superseded** by adjacency magnetism (**T49**, radius **1.5**).
