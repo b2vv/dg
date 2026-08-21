@@ -32,11 +32,9 @@ import {
   type ContourWorldTransform,
 } from './contourWorldTransform.js';
 import {
-  contourCardClearanceMargin,
-  nudgeContourClearOfBoxes,
   type ContourClearBox,
 } from './contourClearance.js';
-import { CONTOUR_CORNER_RADIUS, filletClosedRing } from './contourFillet.js';
+import { polishContourRing } from './contourPolish.js';
 
 export type ContourComputer = (
   positions: ContourPositionInput[],
@@ -316,10 +314,7 @@ export class DiagramRenderer {
     const session = this.contourSession;
     if (!session) return mapped;
     const boxes = session.boxesByDept.get(result.departmentId) ?? [];
-    const margin = contourCardClearanceMargin(session.style.strokeWidth);
-    // Fillet convex corners (card-like), then push clear of own AABBs.
-    const filleted = filletClosedRing(mapped, CONTOUR_CORNER_RADIUS);
-    return nudgeContourClearOfBoxes(filleted, boxes, margin);
+    return polishContourRing(mapped, boxes, session.style.strokeWidth);
   }
 
   private mountDeptBlob(blob: DepartmentBlobView): void {

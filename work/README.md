@@ -86,6 +86,7 @@ npm run dev          # http://localhost:3000
 39. [T39-tree-arrows-quiet-contour.md](./tasks/T39-tree-arrows-quiet-contour.md) — ✅ admin arrows + quieter dept fill; Smooth default 1
 40. [T40-g7-stroke-punchout.md](./tasks/T40-g7-stroke-punchout.md) — ✅ pad0 + own-AABB px clearance; contour stroke above cards
 41. [T41-contour-corner-fillet.md](./tasks/T41-contour-corner-fillet.md) — ✅ convex contour corners filleted to card radius
+42. [T42-svg-contour-parity.md](./tasks/T42-svg-contour-parity.md) — ✅ SVG export matches live fillet/nudge/stroke/arrows
 
 ## Технічний борг
 
