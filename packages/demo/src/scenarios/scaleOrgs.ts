@@ -1,4 +1,5 @@
-import type { DiagramData } from '@org-hierarchy/sdk';
+import type { DiagramData, DiagramOrganization } from '@org-hierarchy/sdk';
+import { revealOrgPath } from '@org-hierarchy/sdk';
 
 /** Full universe size for the scale demo (address space, not all drawn). */
 export const SCALE_ORG_TOTAL = 100_000;
@@ -45,7 +46,8 @@ export function resolveScaleWindowStart(
 }
 
 /**
- * Materialize a matrix-friendly org window around `focusIndex`.
+ * Materialize an org window around `focusIndex`.
+ * Default: expand ancestors→focus so mode is **row-tree**; Collapse all → matrix.
  * Does not allocate 100k org objects — only `windowSize` cards.
  */
 export function buildScaleOrgsWindow(options: {
@@ -53,6 +55,8 @@ export function buildScaleOrgsWindow(options: {
   windowSize?: number;
   focusIndex?: number;
   parents?: Int32Array;
+  /** Expand focus path for row-tree (default true). False = all collapsed → matrix. */
+  expandFocusPath?: boolean;
 }): ScaleOrgsWindow {
   const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
   const total = options.total ?? SCALE_ORG_TOTAL;
@@ -64,7 +68,7 @@ export function buildScaleOrgsWindow(options: {
   const inWindow = new Set<number>();
   for (let i = start; i < end; i += 1) inWindow.add(i);
 
-  const organizations: DiagramData['organizations'] = [];
+  let organizations: DiagramOrganization[] = [];
   for (let i = start; i < end; i += 1) {
     let parentOrgId: string | undefined;
     if (i !== start) {
@@ -81,6 +85,10 @@ export function buildScaleOrgsWindow(options: {
       collapsed: true,
       matrixOrder: i - start,
     });
+  }
+
+  if (options.expandFocusPath !== false) {
+    organizations = revealOrgPath(organizations, `org-${focusIndex}`);
   }
 
   const orgLinks = organizations
