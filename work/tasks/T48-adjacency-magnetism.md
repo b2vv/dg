@@ -26,4 +26,10 @@ Variant B IT:
 - `VARIANT_B_MAGNET_RADIUS = 1.5`
 - Demo caption: magnetic groups, not “head in the notch” C
 - Tests: 3 IT components; radius 2 = forced C (failure case for demo intent)
-- G6/G7 / tongue / stroke suites that need a single C keep `magnetRadius: 2` explicitly
+## Доки
+
+Оновлено канон (без C-ескізу як Variant B):
+
+- `docs/REQUIREMENTS.md` §4.6 / §4.6.1
+- `work/SPEC.md` §3
+- `CONTEXT.md` (magnetism / notch glossary)

@@ -207,9 +207,10 @@ interface NodeTheme {
 **Загальне правило:**
 
 1. Positions розставляються на **координатній сітці** (`col`, `row` або `layoutX/Y`).
-2. Dept = **один зовнішній контур** навколо **своїх** pos — **без internal lines** між pos того ж dept.
-3. Чужі pos (інший dept) — **свої coords** + **окремий** контур; IT polygon **огинає** їх (виїмка / коридор).
-4. Плавні органічні краї (Chaikin/Bezier).
+2. Dept = **один зовнішній контур на магнітну компоненту** (own cells у межах `magnetRadius`) — **без internal lines** між pos тієї ж компоненти.
+3. Якщо own cells **не** «поруч» (див. G1 / M4) — **кілька** контурів того ж dept.
+4. Чужі pos (інший dept) — **свої coords** + за потреби окремий контур; контур компоненти **огинає** foreign у своєму bbox (виїмка / коридор).
+5. Плавні органічні краї (Chaikin/Bezier).
 
 ---
 
@@ -238,19 +239,19 @@ row1    ┌───┐│              P3     │
           CEO              IT
 ```
 
-IT contour — **L / reversed-C**, огинає клітину P4 з зазором.
+IT own cells зв’язані через сусідів (Manhattan ≤ 1.5) → **одна** L / reversed-C компонента, огинає клітину P4 (G5/G6).
 
 ---
 
-#### Варіант B — канонічний контур (фінальний ескіз)
+#### Варіант B — магнетизм «поруч» (канон)
 
 **Pos на сітці (staff nodes):**
 
 ```
          col0     col1     col2
-row0      P1       P2       P3      ← IT
-row1               CEO              ← pos P4 (CEO), поза контуром IT
-row2      P5                P6      ← IT
+row0      P1       P2       P3      ← IT (сусідні → одна група)
+row1               P4               ← CEO (інший dept)
+row2      P5                P6      ← IT (не сусідні ні з верхом, ні між собою)
 ```
 
 | Dept | Pos |
@@ -258,61 +259,30 @@ row2      P5                P6      ← IT
 | **IT** | P1, P2, P3, P5, P6 |
 | **CEO** | P4 (row1, col1) |
 
-**Контур IT** — один замкнений orthogonal path навколо pos IT.  
-**Справа від CEO (P4) — немає вертикальної лінії** (виїмка замість суцільного правого борту).
+**Магнетизм (G1):** own cells злипаються лише якщо Manhattan ≤ `magnetRadius` (дефолт / demo **1.5** = ортогональні сусіди).  
+Якщо між двома own є **дірка в одну клітинку** (Manhattan **2**) — вони **не** магнітяться.
 
-На ескізі **кутові точки контуру** позначені v1…v6; **pos P4 (CEO)** — у порожнечі виїмки.
-
-```
-v1────────────────────────v2          ← pos: P1  P2  P3 (всередині зверху)
-│                        │
-│                        v3           ← короткий ↓ праворуч від v2
-│                   v4←──┘           ← ← назад (під P3, P2)
-│                   │
-│                   v5               ← ↓ зліва від CEO (pos P4)
-│              [ CEO P4 ]            ← pos CEO — НЕ в контурі
-│                   │                ← СПРАВА від CEO — лінії НЕМАЄ ✗
-│                   v6──→            ← → до правого борту
-│                        v7          ← ↓ (короткий, біля P6)
-│  P5                 P6  │          ← pos P5, P6
-v8────────────────────────┘          ← низ
-↑ v8→v1                              ← лівий борт
-```
-
-**Шлях контуру (orthogonal, за ескізом):**
+| IT-група | Cells | Manhattan між групами | Contour |
+|----------|-------|------------------------|---------|
+| **Top** | P1–P3 @(0..2, 0) | — | **1** blob |
+| **Bottom-left** | P5 @(0, 2) | top↔P5 = 2 | **окремий** blob |
+| **Bottom-right** | P6 @(2, 2) | top↔P6 = 2; P5↔P6 = 2 | **окремий** blob |
 
 ```
-v1 → v2 → ↓ → v3 ← v4 ← (під P3,P2) ← … 
-     ↓ v5 (зліва від CEO)
-     → v6 → ↓ v7 → (низ) → ↑ v8 → v1
+      ╭────────────────────────────╮
+row0  │  P1      P2      P3        │   ← одна магнітна група IT
+      ╰────────────────────────────╯
+
+row1            [ P4 CEO ]             ← чужий dept; не в IT fill
+
+      ╭──────╮              ╭──────╮
+row2  │  P5  │              │  P6  │   ← два окремі IT-контури
+      ╰──────╯              ╰──────╯
 ```
 
-| Вершина | Сегмент |
-|---------|---------|
-| v1→v2 | верх (над P1,P2,P3) |
-| v2→v3 | короткий ↓ |
-| v3→v4 | ← назад (виїмка починається) |
-| v4→v5 | ↓ **зліва** від CEO |
-| v5→v6 | → вправо (над P5/P6) — **без** ↓ справа від CEO |
-| v6→v7 | ↓ біля P6 |
-| v7→v8 | ← низ |
-| v8→v1 | ↑ замикання |
+**✗ Заборонено трактувати Variant B як один C-контур** навколо CEO (це виходило лише з штучно завищеного `magnetRadius` ≥ 2 / 8 і **не** є магнетизмом «поруч»).
 
-**Критично ✗ — прибрати лінії справа від pos P4 (CEO):**
-
-```
-v2────────┐              ← так НЕ малюємо
-│         │
-│    CEO  │  ← суцільний правий борт
-│         │
-v6────────┘
-```
-
-**Правильно ✓ — виїмка, pos P5/P6 всередині:**
-
-- Контур для **pos** P1, P2, P3, P5, P6 — одна зона, **без internal lines** між pos.
-- **Pos P4 (CEO)** — у «дірці» виїмки; **справа від нього contour не проходить**.
-- Smoothing: orthogonal walk → Chaikin/Bezier (органічні краї).
+**Membership:** P4 ніколи не в IT fill (M1/M2). Стрілки `reportLines` — окремий шар, не магнетизм.
 
 ---
 
@@ -336,8 +306,16 @@ v6────────┘
 ```
 
 ```
-P3 │              ← пряма вертикаль P3→P6
-   │         P6   ← ЗАБОРОНЕНО
+╭──────────────────╮     один C / «підкова» IT навколо CEO
+│ P1  P2  P3       │     при gap=2 між верхом і низом
+│   ┌──┐           │     ← НЕ магнетизм «поруч»
+│ P5│P4│       P6  │
+╰───┴──┴───────────╯
+```
+
+```
+P3 │              ← пряма вертикаль P3→P6 як internal edge
+   │         P6   ← ЗАБОРОНЕНО (G3)
    │
 ```
 
@@ -345,7 +323,7 @@ P3 │              ← пряма вертикаль P3→P6
 
 ### 4.6.1 Правила побудови контурів (магнетизм)
 
-**Магнетизм** — правила, за якими contour dept «притягується» до **своїх** pos і **відштовхується** від чужих, утворюючи один зовнішній полігон без internal edges.
+**Магнетизм** — правила, за якими own cells **того ж dept** злипаються в компоненти, а контур кожної компоненти «притягується» до своїх pos і **відштовхується** від чужих, утворюючи зовнішній полігон без internal edges.
 
 ---
 
@@ -354,11 +332,11 @@ P3 │              ← пряма вертикаль P3→P6
 | Термін | Значення |
 |--------|----------|
 | **Own cell** | Grid-клітина pos з `departmentId === targetDept` |
-| **Foreign cell** | Pos іншого dept (або empty hole), що лежить у bbox own |
-| **Contour** | Один замкнений шлях (orthogonal → smooth) |
+| **Foreign cell** | Pos іншого dept (або empty hole), що лежить у bbox компоненти |
+| **Contour** | Один замкнений шлях (orthogonal → smooth) **на одну магнітну компоненту** |
 | **Padding** | Відступ contour від bbox pos (магнітний зазор) |
 | **Gap / corridor** | Мінімальний проміжок між contour і foreign bbox |
-| **Magnet radius** | Макс. відстань, на якій own cells «злипаються» в одну компоненту |
+| **Magnet radius** | Макс. Manhattan-відстань (у клітинках), на якій own cells злипаються |
 
 ---
 
@@ -368,8 +346,8 @@ P3 │              ← пряма вертикаль P3→P6
 |---|---------|
 | M1 | Pos ∈ contour dept **лише** якщо `position.departmentId === dept.id` |
 | M2 | Foreign pos **ніколи** не входить у fill polygon (може лежати в bbox, але в **виїмці**) |
-| M3 | Empty grid cells між own — **не** малюються як internal lines; вони стають **внутрішнім простором** fill |
-| M4 | Якщо own cells не зв'язані (далекі) — **два контури** того ж dept (або збільшити magnet radius) |
+| M3 | Empty grid cells між own **тієї ж компоненти** — **не** малюються як internal lines; вони стають **внутрішнім простором** fill |
+| M4 | Якщо own cells поза `magnetRadius` (напр. дірка в одну клітинку при radius 1.5) — **окремі контури** того ж dept |
 
 ---
 
@@ -377,14 +355,14 @@ P3 │              ← пряма вертикаль P3→P6
 
 | # | Правило | Поведінка |
 |---|---------|-----------|
-| G1 | **Attract own** | Own cells у межах `magnetRadius` (за замовч. 1–2 grid steps) зливаються в **одну компоненту** |
+| G1 | **Attract own** | Own cells з **Manhattan ≤ magnetRadius** зливаються в **одну компоненту**. Дефолт **1.5** = лише ортогональні сусіди. Gap **2** (одна порожня клітинка між) → **не** злипаються |
 | G2 | **Repel foreign** | Contour **огинає** foreign bbox з `gap ≥ corridorMin` (за замовч. 0.5 cell) |
-| G3 | **No internal edges** | Між own pos **немає** ліній; лише **зовнішній** периметр компоненти |
+| G3 | **No internal edges** | Між own pos **компоненти** немає ліній; лише **зовнішній** периметр |
 | G4 | **Orthogonal first** | Спочатку маршрут по сітці (H/V); потім Chaikin/Bezier |
-| G5 | **Prefer step notch** | Якщо foreign всередині bbox own — робити **прямокутну виїмку** (C-notch), не дірку з дірою (якщо foreign торкається «краю» компоненти) |
-| G6 | **No far-side wall** | З боку foreign, де **немає** own cells за ним (напр. справа від P4) — **не** малювати вертикаль / борт |
+| G5 | **Prefer step notch** | Якщо foreign всередині bbox **компоненти** — прямокутна виїмка (C-notch), не дірка з дірою (коли foreign торкається краю) |
+| G6 | **No far-side wall** | З боку foreign, де **немає** own cells за ним — **не** малювати вертикаль / борт |
 | G7 | **Padding snap** | Contour тримає `padding` від кожного own bbox; при злитті — **envelope** outer edges |
-| G8 | **Stable under drag** | Після D&D pos — перерахунок perimeter walk; contour плавно слідує (magnet re-attach) |
+| G8 | **Stable under drag** | Після D&D pos — перерахунок; компоненти можуть роз’єднатись / злитись при зміні відстані |
 
 ---
 
@@ -392,7 +370,7 @@ P3 │              ← пряма вертикаль P3→P6
 
 ```
 1. OwnCells   = cells of positions where departmentId == D
-2. Components = flood-fill / union-find own cells within magnetRadius
+2. Components = union-find own cells with Manhattan ≤ magnetRadius
 3. For each component C:
    a. ForeignInBBox = foreign cells overlapping bbox(C)
    b. Mask = union(own cells + internal empty) MINUS foreign cells (expanded by gap)
@@ -410,8 +388,8 @@ P3 │              ← пряма вертикаль P3→P6
 
 ```ts
 interface ContourMagnetConfig {
-  /** Радіус злипання own cells (grid units) */
-  magnetRadius: number;       // default: 1.5
+  /** Радіус злипання own cells (grid Manhattan). Default 1.5 = сусіди. */
+  magnetRadius: number;       // default: 1.5 — НЕ завищувати «щоб вийшов C»
   /** Відступ contour від own bbox */
   padding: number;            // default: 8 px або 0.25 cell
   /** Мін. зазор до foreign bbox */
@@ -424,16 +402,19 @@ interface ContourMagnetConfig {
 }
 ```
 
+Demo Variant B: `VARIANT_B_MAGNET_RADIUS = 1.5` (`packages/sdk`).
+
 ---
 
 #### F. Приклади застосування правил
 
 **Варіант A (2×2):** P1,P2,P3 own · P4 foreign  
-→ G1 зливає L-компоненту · G5/G6 виїмка навколо P4 · G3 без internal lines
+→ G1: одна L-компонента (усі IT ≤ 1.5 через ланцюг сусідів) · G5/G6 виїмка навколо P4 · G3 без internal lines
 
-**Варіант B (ескіз):** P1,P2,P3,P5,P6 own · P4 foreign  
-→ Contour: верх → ↓ → ←← під P3/P2 → ↓ зліва від P4 → → до P6 → ↓ → низ → ↑  
-→ **Справа від P4 лінії немає** (G6)
+**Варіант B:** P1,P2,P3,P5,P6 own · P4 foreign · `magnetRadius: 1.5`  
+→ **3** IT-контури: верхній ряд; P5; P6  
+→ P4 не в жодному IT fill  
+→ `magnetRadius ≥ 2` дає один C-blob — **порушує** правило «поруч», не використовувати як канон Variant B
 
 ---
 
@@ -441,12 +422,13 @@ interface ContourMagnetConfig {
 
 | ✗ | Чому |
 |---|------|
-| Bounding box усіх pos | Захоплює foreign |
+| Bounding box усіх pos dept | Захоплює foreign і ігнорує M4 |
+| Один C навколо CEO при gap=2 | Не магнетизм «поруч» (G1) |
 | Grid з перегородками між own | Internal edges (G3) |
-| Суцільний правий борт повз foreign | Порушує G6 |
-| Окремий квадрат навколо кожної pos | Немає магнетизму (G1) |
+| Суцільний борт повз foreign без own за ним | Порушує G6 |
+| Окремий квадрат навколо **кожної** pos навіть сусідніх | Немає магнетизму (G1) |
 
-**Pixi:** один `DepartmentBlob` path на компоненту + окремі `PersonNode` на coords.
+**Pixi:** один `DepartmentBlob` path **на компоненту** + окремі `PersonNode` на coords.
 
 ### 4.7 Події
 
