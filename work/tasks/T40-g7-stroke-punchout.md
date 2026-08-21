@@ -16,7 +16,7 @@ Vacant U-tongues from demo `paddingCells: 1` (flood into empty cells). Contour s
 
 ## Deferred
 
-- True Rust G7 / morphological peel if pad slider must stay at 1
+- ~~True Rust G7 / morphological peel if pad slider must stay at 1~~ → **T43**
 - ~~Notch corner fillet ≈ card radius~~ → **T41**
 
 ## Tests

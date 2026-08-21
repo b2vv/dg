@@ -51,7 +51,7 @@ export class App {
   private diagram: OrgHierarchyDiagram | null = null;
   private tab: DemoTab = 'variant-b';
   private theme: 'light' | 'dark' = 'light';
-  private contourControls: ContourControls = { paddingCells: 0, smoothIterations: 1 };
+  private contourControls: ContourControls = { paddingCells: 1, smoothIterations: 1 };
   private flatOrgsData = buildFlatOrgsData(24);
   private scaleParents: Int32Array | null = null;
   private scaleWindow: ScaleOrgsWindow | null = null;

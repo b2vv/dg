@@ -87,6 +87,7 @@ npm run dev          # http://localhost:3000
 40. [T40-g7-stroke-punchout.md](./tasks/T40-g7-stroke-punchout.md) — ✅ pad0 + own-AABB px clearance; contour stroke above cards
 41. [T41-contour-corner-fillet.md](./tasks/T41-contour-corner-fillet.md) — ✅ convex contour corners filleted to card radius
 42. [T42-svg-contour-parity.md](./tasks/T42-svg-contour-parity.md) — ✅ SVG export matches live fillet/nudge/stroke/arrows
+43. [T43-rust-g7-peel.md](./tasks/T43-rust-g7-peel.md) — ✅ Rust G7 Manhattan peel of vacant tongues; pad=1 safe
 
 ## Технічний борг
 

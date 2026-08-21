@@ -378,6 +378,52 @@ fn own_component_count(own: &HashSet<Cell>, walkable: &HashSet<Cell>) -> usize {
     components
 }
 
+fn min_manhattan_to_own(c: Cell, own: &HashSet<Cell>) -> i32 {
+    own.iter()
+        .map(|o| (o.col - c.col).abs() + (o.row - c.row).abs())
+        .min()
+        .unwrap_or(i32::MAX)
+}
+
+/// G7: peel vacant exterior empty cells beyond own padding (Manhattan).
+/// Keeps an orthogonal pad ring around own; drops diagonal bbox corners / U-tongues.
+/// Bridge-preserving via `own_component_count` (same as G6).
+///
+/// Runs **after** G6 so far-side clear can still use temporary exterior pad as an
+/// alternate path (then G7 removes that vacant exterior once the wall is gone).
+fn apply_g7_peel_vacant_exterior(inside: &mut HashSet<Cell>, own: &HashSet<Cell>, pad: i32) {
+    if pad <= 0 {
+        return;
+    }
+    let baseline = own_component_count(own, inside);
+    loop {
+        let mut candidates: Vec<Cell> = inside
+            .iter()
+            .copied()
+            .filter(|c| !own.contains(c) && min_manhattan_to_own(*c, own) > pad)
+            .collect();
+        if candidates.is_empty() {
+            break;
+        }
+        candidates.sort_by_key(|c| (c.row, c.col));
+        let mut removed_any = false;
+        for c in candidates {
+            if !inside.contains(&c) {
+                continue;
+            }
+            inside.remove(&c);
+            if own_component_count(own, inside) > baseline {
+                inside.insert(c);
+            } else {
+                removed_any = true;
+            }
+        }
+        if !removed_any {
+            break;
+        }
+    }
+}
+
 /// G6: remove empty fill on foreign faces that have no own beyond (far side).
 /// That drops walls such as the vertical to the right of Variant-B CEO (P4).
 ///
@@ -607,6 +653,7 @@ pub fn compute_dept_contour(
             apply_prefer_notch(&mut inside, &own_set, &foreign, &work_bbox);
         }
         apply_g6_clear_far_side_fill(&mut inside, &foreign, &own_set);
+        apply_g7_peel_vacant_exterior(&mut inside, &own_set, pad);
         let raw_corners = trace_orthogonal_contour(&inside, &work_bbox);
 
         let smooth_pts = if config.smooth_iterations > 0 {
@@ -931,6 +978,139 @@ mod tests {
         assert!(
             pmax > cfg.cell_width + 1.0,
             "padding_cells=1 should expand contour beyond own cell"
+        );
+    }
+
+    #[test]
+    fn g7_peels_manhattan_diagonal_corners_keeps_orthogonal_pad() {
+        let mut own = HashSet::new();
+        own.insert(Cell { col: 0, row: 0 });
+        let foreign = HashSet::new();
+        let bbox = compute_bbox(own.iter().copied(), 1);
+        let mut inside = flood_inside(&own, &foreign, &bbox);
+        assert!(
+            inside.contains(&Cell { col: -1, row: -1 }),
+            "flood should include Chebyshev corner before peel"
+        );
+        apply_g7_peel_vacant_exterior(&mut inside, &own, 1);
+        assert!(
+            !inside.contains(&Cell { col: -1, row: -1 }),
+            "G7 must peel Manhattan>pad diagonal corner"
+        );
+        assert!(inside.contains(&Cell { col: 1, row: 0 }));
+        assert!(inside.contains(&Cell { col: 0, row: 1 }));
+        assert!(inside.contains(&Cell { col: 0, row: 0 }));
+    }
+
+    #[test]
+    fn g7_preserves_mid_corridor_bridge() {
+        let mut own = HashSet::new();
+        own.insert(Cell { col: 0, row: 0 });
+        own.insert(Cell { col: 0, row: 4 });
+        let mut inside = own.clone();
+        for r in 1..=3 {
+            inside.insert(Cell { col: 0, row: r });
+        }
+        apply_g7_peel_vacant_exterior(&mut inside, &own, 1);
+        assert!(
+            inside.contains(&Cell { col: 0, row: 2 }),
+            "bridge cell with manh>pad must be restored"
+        );
+        assert_eq!(own_component_count(&own, &inside), 1);
+    }
+
+    #[test]
+    fn g7_variant_b_pad1_keeps_c_arms_no_ceo_wall() {
+        let positions = vec![
+            pos("P1", "IT", 0, 0),
+            pos("P2", "IT", 1, 0),
+            pos("P3", "IT", 2, 0),
+            pos("P4", "CEO", 1, 1),
+            pos("P5", "IT", 0, 2),
+            pos("P6", "IT", 2, 2),
+        ];
+        let mut cfg = default_cfg();
+        cfg.padding_cells = 1;
+        cfg.smooth_iterations = 0;
+        let rs = compute_dept_contour("IT", &positions, &cfg).unwrap();
+        assert_eq!(rs.len(), 1);
+        let r = &rs[0];
+        let ceo_cx = 1.5 * cfg.cell_width;
+        let ceo_cy = 1.5 * cfg.cell_height;
+        assert!(!point_in_poly(ceo_cx, ceo_cy, &r.points), "CEO must stay outside");
+        for (col, row, label) in [(0, 0, "P1"), (1, 0, "P2"), (2, 0, "P3"), (0, 2, "P5"), (2, 2, "P6")]
+        {
+            let cx = (col as f32 + 0.5) * cfg.cell_width;
+            let cy = (row as f32 + 0.5) * cfg.cell_height;
+            assert!(
+                point_in_poly(cx, cy, &r.points),
+                "{label} must stay inside with pad=1 + G7"
+            );
+        }
+        let right_x = 2.0 * cfg.cell_width;
+        let y0 = cfg.cell_height;
+        let y1 = 2.0 * cfg.cell_height;
+        let wall = r.points.windows(2).any(|w| {
+            let a = &w[0];
+            let b = &w[1];
+            if (a.x - right_x).abs() >= 1.0 || (b.x - right_x).abs() >= 1.0 {
+                return false;
+            }
+            let seg_lo = a.y.min(b.y);
+            let seg_hi = a.y.max(b.y);
+            seg_lo < y1 - 1.0 && seg_hi > y0 + 1.0
+        });
+        assert!(!wall, "G6 then G7: no vertical wall right of P4");
+    }
+
+    /// pad=1 after G7 must be tighter than pre-peel flood (fewer tongue cells).
+    #[test]
+    fn g7_variant_b_pad1_smaller_than_unpeeled_flood() {
+        let positions = vec![
+            pos("P1", "IT", 0, 0),
+            pos("P2", "IT", 1, 0),
+            pos("P3", "IT", 2, 0),
+            pos("P4", "CEO", 1, 1),
+            pos("P5", "IT", 0, 2),
+            pos("P6", "IT", 2, 2),
+        ];
+        let own: HashSet<Cell> = positions
+            .iter()
+            .filter(|p| p.department_id == "IT")
+            .map(|p| Cell {
+                col: p.col,
+                row: p.row,
+            })
+            .collect();
+        let foreign: HashSet<Cell> = positions
+            .iter()
+            .filter(|p| p.department_id != "IT")
+            .map(|p| Cell {
+                col: p.col,
+                row: p.row,
+            })
+            .collect();
+        let all: HashSet<Cell> = own.iter().chain(foreign.iter()).copied().collect();
+        let fill_bbox = compute_bbox(all, 1);
+        let work_bbox = BBox {
+            min_col: fill_bbox.min_col - 1,
+            max_col: fill_bbox.max_col + 1,
+            min_row: fill_bbox.min_row - 1,
+            max_row: fill_bbox.max_row + 1,
+        };
+        let mut inside = flood_inside(&own, &foreign, &fill_bbox);
+        apply_prefer_notch(&mut inside, &own, &foreign, &work_bbox);
+        apply_g6_clear_far_side_fill(&mut inside, &foreign, &own);
+        let before = inside.len();
+        apply_g7_peel_vacant_exterior(&mut inside, &own, 1);
+        let after = inside.len();
+        assert!(
+            after < before,
+            "G7 should peel vacant cells: before={before} after={after}"
+        );
+        assert!(
+            !inside.contains(&Cell { col: -1, row: -1 }),
+            "diagonal tongue corner must be gone"
         );
     }
 
