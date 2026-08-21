@@ -43,10 +43,17 @@ export class Viewport {
   private lastScreenX = 0;
   private lastScreenY = 0;
   private detachWheel: (() => void) | null = null;
+  private detachPinch: (() => void) | null = null;
   private screenWidth = 800;
   private screenHeight = 600;
   private onChange: ((t: ViewportTransform) => void) | null = null;
   private animCancel: (() => void) | null = null;
+  private pinch: {
+    pointerIds: [number, number];
+    lastDist: number;
+    lastMidX: number;
+    lastMidY: number;
+  } | null = null;
 
   constructor(
     private readonly world: {
@@ -261,7 +268,90 @@ export class Viewport {
     };
   }
 
+  /**
+   * Two-finger pinch zoom (mobile). Also pans when both fingers move together.
+   * Call after attachWheel; sets touch-action: none on the canvas.
+   */
+  attachPinch(canvas: HTMLCanvasElement): void {
+    this.detachPinch?.();
+    canvas.style.touchAction = 'none';
+
+    const pointers = new Map<number, { x: number; y: number }>();
+
+    const screenOf = (e: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect?.() ?? { left: 0, top: 0 };
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    };
+
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      pointers.set(e.pointerId, screenOf(e));
+      if (pointers.size === 2) {
+        this.cancelAnimation();
+        this.panning = false;
+        this.panPointerId = null;
+        const pts = [...pointers.entries()];
+        const a = pts[0]![1];
+        const b = pts[1]![1];
+        this.pinch = {
+          pointerIds: [pts[0]![0], pts[1]![0]],
+          lastDist: Math.hypot(b.x - a.x, b.y - a.y) || 1,
+          lastMidX: (a.x + b.x) / 2,
+          lastMidY: (a.y + b.y) / 2,
+        };
+      }
+    };
+
+    const onMove = (e: PointerEvent) => {
+      if (!pointers.has(e.pointerId)) return;
+      pointers.set(e.pointerId, screenOf(e));
+      if (!this.pinch || pointers.size < 2) return;
+      const a = pointers.get(this.pinch.pointerIds[0]);
+      const b = pointers.get(this.pinch.pointerIds[1]);
+      if (!a || !b) return;
+      const dist = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const midX = (a.x + b.x) / 2;
+      const midY = (a.y + b.y) / 2;
+      const factor = dist / this.pinch.lastDist;
+      this.zoomAt(this.scale * factor, midX, midY);
+      this.x += midX - this.pinch.lastMidX;
+      this.y += midY - this.pinch.lastMidY;
+      this.apply();
+      this.pinch.lastDist = dist;
+      this.pinch.lastMidX = midX;
+      this.pinch.lastMidY = midY;
+    };
+
+    const onUp = (e: PointerEvent) => {
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) this.pinch = null;
+    };
+
+    canvas.addEventListener('pointerdown', onDown);
+    canvas.addEventListener('pointermove', onMove);
+    canvas.addEventListener('pointerup', onUp);
+    canvas.addEventListener('pointercancel', onUp);
+    canvas.addEventListener('pointerleave', onUp);
+
+    this.detachPinch = () => {
+      canvas.removeEventListener('pointerdown', onDown);
+      canvas.removeEventListener('pointermove', onMove);
+      canvas.removeEventListener('pointerup', onUp);
+      canvas.removeEventListener('pointercancel', onUp);
+      canvas.removeEventListener('pointerleave', onUp);
+      this.detachPinch = null;
+      this.pinch = null;
+    };
+  }
+
+  /** Zoom by a multiplicative step around screen center (UI +/- buttons). */
+  zoomBy(factor: number): void {
+    this.cancelAnimation();
+    this.zoomAt(this.scale * factor, this.screenWidth / 2, this.screenHeight / 2);
+  }
+
   beginPan(pointerId: number, screenX: number, screenY: number): void {
+    if (this.pinch) return;
     this.cancelAnimation();
     this.panning = true;
     this.panPointerId = pointerId;
@@ -270,7 +360,7 @@ export class Viewport {
   }
 
   movePan(pointerId: number, screenX: number, screenY: number): void {
-    if (!this.panning || pointerId !== this.panPointerId) return;
+    if (this.pinch || !this.panning || pointerId !== this.panPointerId) return;
     this.x += screenX - this.lastScreenX;
     this.y += screenY - this.lastScreenY;
     this.lastScreenX = screenX;
@@ -287,8 +377,10 @@ export class Viewport {
   destroy(): void {
     this.cancelAnimation();
     this.detachWheel?.();
+    this.detachPinch?.();
     this.panning = false;
     this.panPointerId = null;
+    this.pinch = null;
   }
 
   private goTo(target: ViewportTransform, motion?: CameraMotionOptions): void {

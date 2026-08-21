@@ -476,15 +476,23 @@ pub fn compute_dept_contour(
     for own in clusters {
         let own_set: HashSet<Cell> = own.iter().copied().collect();
         let all_cells: HashSet<Cell> = own_set.iter().chain(foreign.iter()).copied().collect();
-        // +1 keeps a border ring so outside-flood / notch cutting has room.
-        let bbox = compute_bbox(all_cells, pad + 1);
+        // Fill bbox uses only user padding — do NOT add a mandatory +1 ring
+        // (that made padding=0 look like a full empty cell of dead space).
+        // prefer_notch still needs a 1-cell air ring for outside-flood.
+        let fill_bbox = compute_bbox(all_cells, pad);
+        let work_bbox = BBox {
+            min_col: fill_bbox.min_col - 1,
+            max_col: fill_bbox.max_col + 1,
+            min_row: fill_bbox.min_row - 1,
+            max_row: fill_bbox.max_row + 1,
+        };
 
-        let mut inside = flood_inside(&own_set, &foreign, &bbox);
+        let mut inside = flood_inside(&own_set, &foreign, &fill_bbox);
         if config.prefer_notch {
-            apply_prefer_notch(&mut inside, &own_set, &bbox);
+            apply_prefer_notch(&mut inside, &own_set, &work_bbox);
         }
         apply_g6_clear_far_side_fill(&mut inside, &foreign, &own_set);
-        let raw_corners = trace_orthogonal_contour(&inside, &bbox);
+        let raw_corners = trace_orthogonal_contour(&inside, &work_bbox);
 
         let smooth_pts = if config.smooth_iterations > 0 {
             chaikin(&raw_corners, config.smooth_iterations)
@@ -766,6 +774,40 @@ mod tests {
         let cfg = ContourMagnetConfig::default();
         let err = compute_dept_contour("IT", &positions, &cfg).unwrap_err();
         assert!(err.contains("no positions"));
+    }
+
+    #[test]
+    fn padding_zero_does_not_extend_fill_by_extra_cell() {
+        let positions = vec![pos("P1", "IT", 0, 0)];
+        let mut cfg = default_cfg();
+        cfg.padding_cells = 0;
+        cfg.magnet_radius = 0.0;
+        let rs = compute_dept_contour("IT", &positions, &cfg).unwrap();
+        assert_eq!(rs.len(), 1);
+        let r = &rs[0];
+        let min_x = r.points.iter().map(|p| p.x).fold(f32::INFINITY, f32::min);
+        let max_x = r.points.iter().map(|p| p.x).fold(f32::NEG_INFINITY, f32::max);
+        // Own cell is [0, cell_w] — no mandatory exterior pad ring.
+        assert!(
+            min_x >= -1.0,
+            "pad=0 must not grow left empty cell, min_x={min_x}"
+        );
+        assert!(
+            max_x <= cfg.cell_width + 1.0,
+            "pad=0 must not grow right empty cell, max_x={max_x}"
+        );
+
+        cfg.padding_cells = 1;
+        let padded = compute_dept_contour("IT", &positions, &cfg).unwrap();
+        let pmax = padded[0]
+            .points
+            .iter()
+            .map(|p| p.x)
+            .fold(f32::NEG_INFINITY, f32::max);
+        assert!(
+            pmax > cfg.cell_width + 1.0,
+            "padding_cells=1 should expand contour beyond own cell"
+        );
     }
 
     #[test]

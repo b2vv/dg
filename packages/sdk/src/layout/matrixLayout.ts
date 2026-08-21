@@ -1,4 +1,8 @@
 import type { DiagramOrganization, DiagramOrgLink } from '../data/types.js';
+import {
+  staffEdgePolyline,
+  staffEdgePolylineToSvg,
+} from '../render/staffEdgeGeometry.js';
 import { assignMatrixCells, placeOrgAtMatrixCell, resolveMatrixDimensions } from './matrixGrid.js';
 import {
   DEFAULT_ORG_LAYOUT_OPTIONS,
@@ -43,7 +47,7 @@ export function computeMatrixLayout(
   });
 
   const nodeMap = new Map(nodes.map((n) => [n.orgId, n]));
-  const edges = buildMatrixEdges(organizations, orgLinks, nodeMap, opts);
+  const edges = buildMatrixEdges(organizations, orgLinks, nodeMap);
 
   const maxX = Math.max(...nodes.map((n) => n.x + n.width), 0);
   const maxY = Math.max(...nodes.map((n) => n.y + n.height), 0);
@@ -61,7 +65,6 @@ function buildMatrixEdges(
   organizations: DiagramOrganization[],
   orgLinks: DiagramOrgLink[],
   nodeMap: Map<string, OrgLayoutNode>,
-  opts: Required<OrgLayoutOptions>,
 ): OrgLayoutEdge[] {
   const edges: OrgLayoutEdge[] = [];
   const seen = new Set<string>();
@@ -77,7 +80,7 @@ function buildMatrixEdges(
       fromId,
       toId,
       kind,
-      path: orthogonalPath(from, to, opts),
+      path: orthogonalPath(from, to),
     });
   };
 
@@ -94,17 +97,13 @@ function buildMatrixEdges(
   return edges;
 }
 
-function orthogonalPath(
-  from: OrgLayoutNode,
-  to: OrgLayoutNode,
-  opts: Required<OrgLayoutOptions>,
-): string {
-  const x1 = from.x + from.width / 2;
-  const y1 = from.y + from.height;
-  const x2 = to.x + to.width / 2;
-  const y2 = to.y;
-  const mid = (y1 + y2) / 2;
-  return `M ${x1} ${y1} V ${mid} H ${x2} V ${y2}`;
+function orthogonalPath(from: OrgLayoutNode, to: OrgLayoutNode): string {
+  const points = staffEdgePolyline(
+    { id: from.id, x: from.x, y: from.y, width: from.width, height: from.height },
+    { id: to.id, x: to.x, y: to.y, width: to.width, height: to.height },
+    'admin',
+  );
+  return staffEdgePolylineToSvg(points);
 }
 
 export function swapMatrixOrder(

@@ -85,6 +85,15 @@ export class App {
       }
     });
 
+    requireElement('zoom-in').addEventListener('click', () => {
+      this.diagram?.zoomBy(1.25);
+      this.setStatus(`${this.tab} · zoom ${this.diagram?.getZoom().toFixed(2) ?? '—'}`);
+    });
+    requireElement('zoom-out').addEventListener('click', () => {
+      this.diagram?.zoomBy(0.8);
+      this.setStatus(`${this.tab} · zoom ${this.diagram?.getZoom().toFixed(2) ?? '—'}`);
+    });
+
     requireElement('collapse-all').addEventListener('click', () => {
       if (this.tab === 'flat-orgs') {
         void this.diagram?.collapseAllOrgs();
@@ -237,6 +246,7 @@ export class App {
           staffLayout: {
             horizontalGap: 0,
             verticalGap: 0,
+            margin: 0,
             refCellWidth: 148,
             refCellHeight: 168,
             nodeWidth: 128,
@@ -250,9 +260,10 @@ export class App {
           data: buildStaffTreeData(),
           staffCurrentOrgId: 'ops',
           staffLayout: {
-            horizontalGap: 36,
-            verticalGap: 44,
-            tierGap: 64,
+            horizontalGap: 40,
+            verticalGap: 52,
+            tierGap: 72,
+            margin: 24,
             nodeWidth: 128,
             nodeHeight: 148,
             orgCardWidth: 200,
@@ -294,6 +305,7 @@ export class App {
           staffLayout: {
             horizontalGap: 0,
             verticalGap: 0,
+            margin: 0,
             refCellWidth: 148,
             refCellHeight: 168,
             nodeWidth: 128,
