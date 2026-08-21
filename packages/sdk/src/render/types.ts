@@ -63,6 +63,27 @@ export const PERSON_CARD_HEIGHT = 156;
 export const GRID_CELL_WIDTH = 140;
 export const GRID_CELL_HEIGHT = 160;
 
+/**
+ * Variant B demo: extra corridor between adjacent cells so report edges
+ * are readable. Cards still nearly fill the ref cell (option A); contour
+ * world transform stretches paths by pitch = cell + gap.
+ */
+export const VARIANT_B_HORIZONTAL_GAP = 24;
+export const VARIANT_B_VERTICAL_GAP = 28;
+
+/** Clear border-to-border gap between adjacent Variant B cards (gap + 2×inset). */
+export function variantBAdjacentEdgeClearance(): {
+  horizontal: number;
+  vertical: number;
+} {
+  const insetX = (GRID_CELL_WIDTH - PERSON_CARD_WIDTH) / 2;
+  const insetY = (GRID_CELL_HEIGHT - PERSON_CARD_HEIGHT) / 2;
+  return {
+    horizontal: VARIANT_B_HORIZONTAL_GAP + insetX * 2,
+    vertical: VARIANT_B_VERTICAL_GAP + insetY * 2,
+  };
+}
+
 export const defaultNodeTheme: NodeTheme = {
   department: {
     fill: 0xdbeafe,

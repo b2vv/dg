@@ -13,6 +13,8 @@ import {
   PERSON_CARD_WIDTH,
   GRID_CELL_WIDTH,
   GRID_CELL_HEIGHT,
+  VARIANT_B_HORIZONTAL_GAP,
+  VARIANT_B_VERTICAL_GAP,
 } from './types.js';
 import { resolvePositionAABB } from '../layout/staff/coords.js';
 import {
@@ -56,6 +58,8 @@ describe('Variant B contour coverage (T33 A1)', () => {
   it('success: all IT card centers inside IT fill; CEO outside', async () => {
     const cellW = GRID_CELL_WIDTH;
     const cellH = GRID_CELL_HEIGHT;
+    const pitchX = cellW + VARIANT_B_HORIZONTAL_GAP;
+    const pitchY = cellH + VARIANT_B_VERTICAL_GAP;
     const contours = await computeAllContours(
       VARIANT_B_POSITIONS.map((p) => ({
         id: p.id,
@@ -78,8 +82,8 @@ describe('Variant B contour coverage (T33 A1)', () => {
     const geom = {
       nodeWidth: PERSON_CARD_WIDTH,
       nodeHeight: PERSON_CARD_HEIGHT,
-      horizontalGap: 0,
-      verticalGap: 0,
+      horizontalGap: VARIANT_B_HORIZONTAL_GAP,
+      verticalGap: VARIANT_B_VERTICAL_GAP,
       refCellWidth: cellW,
       refCellHeight: cellH,
       margin: 0,
@@ -104,7 +108,7 @@ describe('Variant B contour coverage (T33 A1)', () => {
     const posMap = new Map(
       nodes.map((n) => [n.id, { gridCell: { col: n.col, row: n.row } }]),
     );
-    const world = resolveContourWorldTransform(nodes, posMap, cellW, cellH, cellW, cellH);
+    const world = resolveContourWorldTransform(nodes, posMap, cellW, cellH, pitchX, pitchY);
     const mapped = mapContourPointsToWorld(it!.points, world);
 
     for (const n of nodes.filter((x) => x.dept === 'IT')) {
