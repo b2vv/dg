@@ -10,7 +10,7 @@ describe('PersonNodeView', () => {
     clearNodeTextureCache();
   });
 
-  it('success: renders name, title and temp badge', async () => {
+  it('success: renders name, title, initials and temp badge', async () => {
     const view = PersonNodeView.create(
       {
         id: 'p1',
@@ -31,8 +31,10 @@ describe('PersonNodeView', () => {
     expect(view.eventMode).toBe('static');
     expect(view.findText('Іваненко Іван')).toBeTruthy();
     expect(view.findText('Інженер')).toBeTruthy();
+    expect(view.findText('ІІ')).toBeTruthy();
     expect(view.hasTempBadge()).toBe(true);
     expect(view.hasPhotoSprite()).toBe(false);
+    expect(view.hasInitials()).toBe(true);
   });
 
   it('success: near lod shows photo sprite when texture loads', async () => {
@@ -52,6 +54,32 @@ describe('PersonNodeView', () => {
     );
     await view.mediaReady;
     expect(view.hasPhotoSprite()).toBe(true);
+    expect(view.hasInitials()).toBe(false);
+  });
+
+  it('failure: 1×1 data-URI placeholder keeps initials (no sprite)', async () => {
+    configureNodeTextureLoader(async () => Texture.WHITE);
+    const view = PersonNodeView.create(
+      {
+        id: 'p1',
+        fullName: 'Іваненко Іван',
+        photoUrl:
+          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      },
+      {
+        id: 'pos1',
+        title: 'Інженер',
+        organizationId: 'org1',
+        groupIds: [],
+        status: 'filled',
+        isTemporary: false,
+      },
+      defaultNodeTheme.person,
+      'near',
+    );
+    await view.mediaReady;
+    expect(view.hasPhotoSprite()).toBe(false);
+    expect(view.hasInitials()).toBe(true);
   });
 
   it('failure: missing person uses placeholder name', async () => {

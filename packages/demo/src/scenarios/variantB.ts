@@ -1,14 +1,14 @@
 import type { DiagramData } from '@org-hierarchy/sdk';
 import { VARIANT_B_POSITIONS } from '@org-hierarchy/sdk';
-import { DEMO_AVATAR_PNG, DEMO_PLACEHOLDER_PNG } from './demoMedia.js';
+import { DEMO_PLACEHOLDER_PNG } from './demoMedia.js';
 
 const PEOPLE: Record<string, { name: string; title: string }> = {
-  P1: { name: 'Олена IT', title: 'Developer' },
-  P2: { name: 'Тарас IT', title: 'Developer' },
-  P3: { name: 'Марія IT', title: 'Analyst' },
-  P4: { name: 'Ігор CEO', title: 'CEO' },
-  P5: { name: 'Наталя IT', title: 'QA' },
-  P6: { name: 'Сергій IT', title: 'DevOps' },
+  P1: { name: 'Олена', title: 'Developer' },
+  P2: { name: 'Тарас', title: 'Developer' },
+  P3: { name: 'Марія', title: 'Analyst' },
+  P4: { name: 'Ігор', title: 'CEO' },
+  P5: { name: 'Наталя', title: 'QA' },
+  P6: { name: 'Сергій', title: 'DevOps' },
 };
 
 export function buildVariantBData(): DiagramData {
@@ -31,7 +31,7 @@ export function buildVariantBData(): DiagramData {
     persons: VARIANT_B_POSITIONS.map((p) => ({
       id: `person-${p.id}`,
       fullName: PEOPLE[p.id]?.name ?? `Person ${p.id}`,
-      photoUrl: DEMO_AVATAR_PNG,
+      // No photoUrl — 1×1 demo PNG stretched into a solid blob; initials render instead.
     })),
     positions: VARIANT_B_POSITIONS.map((p) => ({
       id: p.id,

@@ -251,7 +251,8 @@ export class App {
       } else {
         this.setStatus(`${this.tabLabel()} · zoom ${this.diagram.getZoom().toFixed(2)}`);
       }
-      this.diagram.fitView(36);
+      this.diagram.fitView(28, { animate: false });
+      this.mountSceneCaption();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       showError(this.mountEl, msg);
@@ -278,11 +279,21 @@ export class App {
       const action = btn.dataset.zoom;
       if (action === 'in') this.zoomDiagram(1.25);
       else if (action === 'out') this.zoomDiagram(0.8);
-      else if (action === 'fit' && this.diagram?.fitView()) {
-        this.setStatus(`${this.tab} · fit · zoom ${this.diagram.getZoom().toFixed(2)}`);
+      else if (action === 'fit' && this.diagram?.fitView(28, { animate: true })) {
+        this.setStatus(`${this.tabLabel()} · fit · zoom ${this.diagram.getZoom().toFixed(2)}`);
       }
     });
     this.mountEl.appendChild(fab);
+  }
+
+  private mountSceneCaption(): void {
+    this.mountEl.querySelectorAll('.scene-caption').forEach((el) => el.remove());
+    if (this.tab !== 'variant-b') return;
+    const caption = document.createElement('p');
+    caption.className = 'scene-caption';
+    caption.textContent =
+      'Staff tiers: reports above · head in the notch · reports below · orange T = temporary';
+    this.mountEl.appendChild(caption);
   }
 
   private ensureScaleWindow(focusIndex = 0): ScaleOrgsWindow {

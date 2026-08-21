@@ -30,6 +30,7 @@ describe('resolveNodeTheme', () => {
     const light = resolveNodeTheme('light');
     expect(light.person.background).toBe(0xffffff);
     expect(light.person.nameColor).toBe(0x0f172a);
+    expect(light.person.titleColor).toBe(0x475569);
   });
 
   it('failure: partial override keeps other dark tokens', () => {

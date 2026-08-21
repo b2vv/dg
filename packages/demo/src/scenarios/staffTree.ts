@@ -1,5 +1,4 @@
 import type { DiagramData } from '@org-hierarchy/sdk';
-import { DEMO_AVATAR_PNG } from './demoMedia.js';
 
 /** Multi-org staff canvas: no position coords → tidy tree; Tier-3 org cards for drill. */
 export function buildStaffTreeData(): DiagramData {
@@ -16,13 +15,13 @@ export function buildStaffTreeData(): DiagramData {
       { id: 'eng-core', name: 'Eng Core', organizationId: 'eng' },
     ],
     persons: [
-      { id: 'p-ceo', fullName: 'Ada Holding', photoUrl: DEMO_AVATAR_PNG },
-      { id: 'p-coo', fullName: 'Ben Ops', photoUrl: DEMO_AVATAR_PNG },
-      { id: 'p-lead', fullName: 'Cara Lead', photoUrl: DEMO_AVATAR_PNG },
-      { id: 'p-a', fullName: 'Dan Alpha', photoUrl: DEMO_AVATAR_PNG },
-      { id: 'p-b', fullName: 'Eve Beta', photoUrl: DEMO_AVATAR_PNG },
-      { id: 'p-eng-h', fullName: 'Fay EngHead', photoUrl: DEMO_AVATAR_PNG },
-      { id: 'p-dev', fullName: 'Gus Dev', photoUrl: DEMO_AVATAR_PNG },
+      { id: 'p-ceo', fullName: 'Ada Holding' },
+      { id: 'p-coo', fullName: 'Ben Ops' },
+      { id: 'p-lead', fullName: 'Cara Lead' },
+      { id: 'p-a', fullName: 'Dan Alpha' },
+      { id: 'p-b', fullName: 'Eve Beta' },
+      { id: 'p-eng-h', fullName: 'Fay EngHead' },
+      { id: 'p-dev', fullName: 'Gus Dev' },
     ],
     positions: [
       {

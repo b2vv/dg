@@ -11,9 +11,11 @@ export class OrganizationNodeView extends Container {
   /** Settles when optional symbol load finishes (or immediately if none). */
   readonly mediaReady: Promise<void>;
   private readonly card = new Graphics();
+  private readonly hoverRing = new Graphics();
   private readonly nameText: Text;
   private readonly groupText: Text;
   private readonly symbolSprite = new Sprite();
+  private styleRef: OrganizationNodeStyle;
 
   private constructor(
     org: DiagramOrganization,
@@ -29,6 +31,7 @@ export class OrganizationNodeView extends Container {
     this.eventMode = 'static';
     this.cursor = 'pointer';
     this.resolvedSymbolUrl = getOrgSymbolUrl(org, theme);
+    this.styleRef = style;
 
     this.nameText = new Text({
       text: org.name,
@@ -40,9 +43,13 @@ export class OrganizationNodeView extends Container {
     });
 
     this.symbolSprite.visible = false;
-    this.addChild(this.card, this.symbolSprite, this.nameText, this.groupText);
+    this.hoverRing.visible = false;
+    this.addChild(this.card, this.symbolSprite, this.nameText, this.groupText, this.hoverRing);
     this.drawCard(style, lod);
     this.layoutTexts(style, lod);
+
+    this.on('pointerover', () => this.setHovered(true));
+    this.on('pointerout', () => this.setHovered(false));
   }
 
   static create(
@@ -104,10 +111,34 @@ export class OrganizationNodeView extends Container {
       return;
     }
     this.nameText.visible = true;
-    this.groupText.visible = lod === 'near' && this.groupText.text.length > 0;
+    const hasGroup = lod === 'near' && this.groupText.text.length > 0;
+    this.groupText.visible = hasGroup;
     const textX = 8 + style.symbolSize + 10;
-    this.nameText.position.set(textX, lod === 'mid' ? 24 : 14);
-    this.groupText.position.set(textX, 38);
+    if (hasGroup) {
+      const blockH = style.nameFontSize + 4 + style.groupFontSize;
+      const top = (style.height - blockH) / 2;
+      this.nameText.position.set(textX, top);
+      this.groupText.position.set(textX, top + style.nameFontSize + 4);
+    } else {
+      const nameH = style.nameFontSize;
+      this.nameText.position.set(textX, (style.height - nameH) / 2);
+    }
+  }
+
+  private setHovered(on: boolean): void {
+    if (this.lod === 'far') {
+      this.hoverRing.visible = false;
+      return;
+    }
+    this.hoverRing.clear();
+    if (!on) {
+      this.hoverRing.visible = false;
+      return;
+    }
+    const s = this.styleRef;
+    this.hoverRing.roundRect(-2, -2, s.width + 4, s.height + 4, s.borderRadius + 2);
+    this.hoverRing.stroke({ color: 0x2563eb, width: 2 });
+    this.hoverRing.visible = true;
   }
 
   private async applySymbol(style: OrganizationNodeStyle, lod: LodLevel): Promise<void> {

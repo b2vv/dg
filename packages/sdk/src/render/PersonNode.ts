@@ -2,12 +2,15 @@ import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js';
 import type { DiagramPerson, DiagramPosition } from '../data/types.js';
 import type { LodLevel } from './lod.js';
 import { loadNodeTexture } from './nodeMedia.js';
+import { personInitials } from './personInitials.js';
 import type { PersonNodeStyle } from './types.js';
 
 export class PersonNodeView extends Container {
   private readonly card = new Graphics();
+  private readonly hoverRing = new Graphics();
   private readonly nameText: Text;
   private readonly titleText: Text;
+  private readonly initialsText: Text;
   private readonly badge: Graphics;
   private readonly badgeLabel: Text;
   private readonly photoSprite = new Sprite();
@@ -28,23 +31,38 @@ export class PersonNodeView extends Container {
       text: '',
       style: { fill: style.titleColor, fontSize: style.titleFontSize },
     });
+    this.initialsText = new Text({
+      text: '',
+      style: {
+        fill: 0xffffff,
+        fontSize: 14,
+        fontWeight: '600',
+      },
+    });
+    this.initialsText.anchor.set(0.5);
     this.badge = new Graphics();
     this.badgeLabel = new Text({
       text: 'T',
-      style: { fill: style.badgeTextColor, fontSize: 9 },
+      style: { fill: style.badgeTextColor, fontSize: 9, fontWeight: '700' },
     });
 
     this.photoSprite.visible = false;
     this.photoMask.visible = false;
+    this.hoverRing.visible = false;
     this.addChild(
       this.card,
       this.photoSprite,
       this.photoMask,
+      this.initialsText,
       this.nameText,
       this.titleText,
       this.badge,
       this.badgeLabel,
+      this.hoverRing,
     );
+
+    this.on('pointerover', () => this.setHovered(true, style));
+    this.on('pointerout', () => this.setHovered(false, style));
   }
 
   static create(
@@ -77,6 +95,26 @@ export class PersonNodeView extends Container {
 
   hasPhotoSprite(): boolean {
     return this.photoSprite.visible;
+  }
+
+  hasInitials(): boolean {
+    return this.initialsText.visible && this.initialsText.text.length > 0;
+  }
+
+  private setHovered(on: boolean, style: PersonNodeStyle): void {
+    if (this.lod === 'far') {
+      this.hoverRing.visible = false;
+      return;
+    }
+    this.hoverRing.clear();
+    if (!on) {
+      this.hoverRing.visible = false;
+      return;
+    }
+    const h = this.lod === 'mid' ? Math.min(style.height, Math.max(56, style.height * 0.48)) : style.height;
+    this.hoverRing.roundRect(-2, -2, style.width + 4, h + 4, style.borderRadius + 2);
+    this.hoverRing.stroke({ color: 0x2563eb, width: 2 });
+    this.hoverRing.visible = true;
   }
 
   private drawCard(style: PersonNodeStyle, lod: LodLevel): void {
@@ -115,6 +153,7 @@ export class PersonNodeView extends Container {
     if (lod === 'far') {
       this.nameText.visible = false;
       this.titleText.visible = false;
+      this.initialsText.visible = false;
       this.badge.visible = false;
       this.badgeLabel.visible = false;
       return;
@@ -132,6 +171,7 @@ export class PersonNodeView extends Container {
 
     if (lod === 'mid') {
       this.titleText.visible = false;
+      this.initialsText.visible = false;
     } else {
       this.titleText.visible = true;
       this.titleText.text = position.title;
@@ -139,6 +179,12 @@ export class PersonNodeView extends Container {
       this.titleText.style.fill = style.titleColor;
       truncatePixiText(this.titleText, maxTextW);
       this.titleText.position.set(pad, style.height * 0.64);
+
+      const initials = personInitials(person?.fullName);
+      this.initialsText.text = initials;
+      this.initialsText.style.fontSize = Math.max(11, Math.min(style.width, style.height) * 0.09);
+      this.initialsText.position.set(style.width / 2, style.height * 0.26);
+      this.initialsText.visible = true;
     }
 
     const showBadge = position.isTemporary;
@@ -149,6 +195,7 @@ export class PersonNodeView extends Container {
       this.badge.clear();
       this.badge.circle(style.width - br - 4, br + 4, br);
       this.badge.fill({ color: style.badgeColor });
+      this.badgeLabel.text = 'T';
       this.badgeLabel.anchor.set(0.5);
       this.badgeLabel.position.set(style.width - br - 4, br + 4);
     }
@@ -169,7 +216,17 @@ export class PersonNodeView extends Container {
       this.hidePhoto();
       return;
     }
+    // Demo 1×1 data-URI placeholders stretch into solid color blobs — keep initials.
+    if (
+      photoUrl.startsWith('data:') &&
+      texture.width <= 2 &&
+      texture.height <= 2
+    ) {
+      this.hidePhoto();
+      return;
+    }
     this.showPhoto(texture, style);
+    this.initialsText.visible = false;
   }
 
   private showPhoto(texture: Texture, style: PersonNodeStyle): void {
