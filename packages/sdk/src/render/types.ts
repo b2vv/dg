@@ -52,6 +52,12 @@ export interface RenderConfig {
   smoothIterations: number;
   /** Contour own-cell merge radius (Manhattan); default 1.5 */
   magnetRadius: number;
+  /**
+   * Minimum positions in a department before its contour is painted.
+   * Magnetism / membership still compute for every dept; paint only.
+   * Use 2 on Variant B so a singleton CEO does not refill the IT notch.
+   */
+  minContourMembers: number;
 }
 
 /**
@@ -170,6 +176,7 @@ export const defaultRenderConfig: RenderConfig = {
   /** 0 = orthogonal corners; higher Chaikin = softer “macaroni”. */
   smoothIterations: 0,
   magnetRadius: 1.5,
+  minContourMembers: 1,
 };
 
 export function mergeTheme(

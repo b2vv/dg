@@ -340,7 +340,13 @@ export class App {
             nodeWidth: 136,
             nodeHeight: 156,
           },
-          render: { ...base.render, magnetRadius: 8, smoothIterations: this.contourControls.smoothIterations },
+          render: {
+            ...base.render,
+            magnetRadius: 8,
+            // Hide singleton CEO wash so the IT notch stays empty (T46).
+            minContourMembers: 2,
+            smoothIterations: this.contourControls.smoothIterations,
+          },
         };
       case 'staff-tree':
         return {
@@ -414,7 +420,7 @@ export class App {
             nodeWidth: 136,
             nodeHeight: 156,
           },
-          render: { ...base.render, magnetRadius: 8 },
+          render: { ...base.render, magnetRadius: 8, minContourMembers: 2 },
         };
       default:
         return { ...base, data: buildVariantBData() };

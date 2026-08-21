@@ -36,6 +36,7 @@ import {
   type ContourClearBox,
 } from './contourClearance.js';
 import { polishContourRing } from './contourPolish.js';
+import { filterContoursForPaint } from './contourPaintFilter.js';
 
 export type ContourComputer = (
   positions: ContourPositionInput[],
@@ -95,6 +96,8 @@ interface ContourSession {
   morphMs: number;
   deptNames: Map<string, string>;
   personCounts: Map<string, number>;
+  /** Paint only depts with at least this many positions (T46). */
+  minContourMembers: number;
   /** World AABBs of cards per department — used to keep Chaikin stroke clear. */
   boxesByDept: Map<string, ContourClearBox[]>;
   blobsByDept: Map<string, DepartmentBlobView[]>;
@@ -290,6 +293,7 @@ export class DiagramRenderer {
     morphMs: number;
     deptNames: Map<string, string>;
     personCounts: Map<string, number>;
+    minContourMembers: number;
     boxesByDept?: Map<string, ContourClearBox[]>;
   }): ContourSession {
     this.cancelContourMorphs();
@@ -333,8 +337,14 @@ export class DiagramRenderer {
     const session = this.contourSession;
     if (!session) return;
 
+    const painted = filterContoursForPaint(
+      results,
+      session.personCounts,
+      session.minContourMembers,
+    );
+
     const byDept = new Map<string, DeptContourResult[]>();
-    for (const r of results) {
+    for (const r of painted) {
       const list = byDept.get(r.departmentId) ?? [];
       list.push(r);
       byDept.set(r.departmentId, list);
@@ -433,6 +443,7 @@ export class DiagramRenderer {
       morphMs: options.contourMorphMs ?? DEFAULT_MORPH_MS,
       deptNames,
       personCounts,
+      minContourMembers: config.minContourMembers ?? defaultRenderConfig.minContourMembers,
       boxesByDept: options.contourBoxesByDept,
     });
     const contours = await compute(inputs, magnet);
