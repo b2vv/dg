@@ -313,10 +313,10 @@ export class Viewport {
       const midX = (a.x + b.x) / 2;
       const midY = (a.y + b.y) / 2;
       const factor = dist / this.pinch.lastDist;
-      this.zoomAt(this.scale * factor, midX, midY);
+      // Pan mid first, then zoom at the current mid (keeps focal world point stable).
       this.x += midX - this.pinch.lastMidX;
       this.y += midY - this.pinch.lastMidY;
-      this.apply();
+      this.zoomAt(this.scale * factor, midX, midY);
       this.pinch.lastDist = dist;
       this.pinch.lastMidX = midX;
       this.pinch.lastMidY = midY;
@@ -331,14 +331,13 @@ export class Viewport {
     canvas.addEventListener('pointermove', onMove);
     canvas.addEventListener('pointerup', onUp);
     canvas.addEventListener('pointercancel', onUp);
-    canvas.addEventListener('pointerleave', onUp);
+    // Do not clear pinch on pointerleave — finger can briefly leave the canvas.
 
     this.detachPinch = () => {
       canvas.removeEventListener('pointerdown', onDown);
       canvas.removeEventListener('pointermove', onMove);
       canvas.removeEventListener('pointerup', onUp);
       canvas.removeEventListener('pointercancel', onUp);
-      canvas.removeEventListener('pointerleave', onUp);
       this.detachPinch = null;
       this.pinch = null;
     };

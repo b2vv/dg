@@ -2,9 +2,17 @@ import type { DiagramData } from '../data/types.js';
 import { computeAllContours } from '../contour/bridge.js';
 import { diagramPositionsToContourInputs } from '../contour/config.js';
 import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
+import {
+  DEFAULT_STAFF_LAYOUT_OPTIONS,
+  type StaffLayoutOptions,
+} from '../layout/staff/types.js';
 import type { RenderConfig } from '../render/types.js';
 import { defaultRenderConfig } from '../render/types.js';
 import { buildStaffEdgeSegments } from '../render/staffEdgeGeometry.js';
+import {
+  mapContourPointToWorld,
+  resolveContourWorldTransform,
+} from '../render/contourWorldTransform.js';
 
 function esc(text: string): string {
   return text
@@ -21,6 +29,8 @@ export interface SvgExportInput {
   includeLabels?: boolean;
   currentOrgId?: string;
   expandedOrgIds?: readonly string[];
+  /** Must match live diagram staffLayout or contours/nodes drift. */
+  staffLayout?: StaffLayoutOptions;
 }
 
 export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
@@ -40,6 +50,12 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
       : data.positions[0]?.organizationId);
 
   if (orgId && data.organizations.some((o) => o.id === orgId) && data.positions.length > 0) {
+    const staffOpts: StaffLayoutOptions = {
+      refCellWidth: config.cellWidth,
+      refCellHeight: config.cellHeight,
+      ...input.staffLayout,
+      expandedOrgIds: input.expandedOrgIds ?? input.staffLayout?.expandedOrgIds,
+    };
     const canvas = await layoutStaffCanvas(
       {
         organizations: data.organizations,
@@ -50,7 +66,7 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
         persons: data.persons,
       },
       orgId,
-      { expandedOrgIds: input.expandedOrgIds },
+      staffOpts,
     );
     width = Math.max(width, Math.ceil(canvas.width));
     height = Math.max(height, Math.ceil(canvas.height));
@@ -80,11 +96,30 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
           })
         : [];
 
+    const merged = { ...DEFAULT_STAFF_LAYOUT_OPTIONS, ...staffOpts };
+    const world = resolveContourWorldTransform(
+      canvas.positionNodes,
+      positionById,
+      config.cellWidth,
+      config.cellHeight,
+      merged.refCellWidth + merged.horizontalGap,
+      merged.refCellHeight + merged.verticalGap,
+    );
+
     parts.push('<g id="departments">');
     for (const c of contours) {
-      if (!c.path) continue;
+      if (!c.path && c.points.length < 2) continue;
+      const pts =
+        c.points.length >= 2
+          ? c.points
+          : [];
+      if (pts.length < 2) continue;
+      const mapped = pts.map((p) => mapContourPointToWorld(p.x, p.y, world));
+      const d = mapped
+        .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x} ${p.y}`)
+        .join(' ');
       parts.push(
-        `<path d="${esc(c.path)}" fill="#dbeafe" stroke="#3b82f6" stroke-width="2" data-dept="${esc(c.departmentId)}"/>`,
+        `<path d="${d} Z" fill="#dbeafe" stroke="#3b82f6" stroke-width="2" data-dept="${esc(c.departmentId)}"/>`,
       );
     }
     parts.push('</g>');

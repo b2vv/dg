@@ -879,6 +879,7 @@ export class OrgHierarchyDiagram {
         renderConfig: this.renderConfig,
         currentOrgId: this.staffCurrentOrgId,
         expandedOrgIds: [...this.staffExpandedOrgIds],
+        staffLayout: this.staffLayout,
       },
       options,
     );

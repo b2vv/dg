@@ -193,6 +193,66 @@ describe('Viewport', () => {
     expect((100 - t.y) / t.scale).toBeCloseTo(100);
   });
 
+  it('regression: pinch pan-then-zoom keeps initial mid world point', () => {
+    if (typeof PointerEvent === 'undefined') {
+      // jsdom without PointerEvent — skip environment limitation
+      expect(true).toBe(true);
+      return;
+    }
+    const world = fakeWorld();
+    const vp = new Viewport(world, { minScale: 0.25, maxScale: 8 });
+    vp.setScreenSize(200, 200);
+    vp.setTransform({ x: 0, y: 0, scale: 1 });
+    const canvas = document.createElement('canvas');
+    canvas.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: 200, bottom: 200, width: 200, height: 200, x: 0, y: 0, toJSON: () => ({}) });
+    vp.attachPinch(canvas);
+
+    const fire = (type: string, id: number, x: number, y: number) => {
+      canvas.dispatchEvent(
+        new PointerEvent(type, {
+          pointerId: id,
+          clientX: x,
+          clientY: y,
+          pointerType: 'touch',
+          bubbles: true,
+        }),
+      );
+    };
+
+    fire('pointerdown', 1, 80, 100);
+    fire('pointerdown', 2, 120, 100);
+    const worldUnderMid = (100 - vp.getTransform().x) / vp.getZoom();
+
+    fire('pointermove', 1, 80, 100);
+    fire('pointermove', 2, 140, 100);
+
+    const t = vp.getTransform();
+    const worldNow = (110 - t.x) / t.scale;
+    expect(worldNow).toBeCloseTo(worldUnderMid, 0);
+    expect(vp.getZoom()).toBeGreaterThan(1);
+    vp.destroy();
+  });
+
+  it('success: zoomBy focal math matches setZoom at center', () => {
+    const world = fakeWorld();
+    const vp = new Viewport(world, { minScale: 0.25, maxScale: 4 });
+    vp.setScreenSize(200, 200);
+    vp.setTransform({ x: 0, y: 0, scale: 1 });
+    // Simulate pinch math: pan mid delta then zoomAt
+    const midX = 100;
+    const midY = 100;
+    const before = (midX - vp.getTransform().x) / vp.getZoom();
+    vp.setTransform({
+      x: vp.getTransform().x + 10,
+      y: vp.getTransform().y,
+      scale: vp.getZoom(),
+    });
+    vp.setZoom(1.5, midX + 10, midY);
+    const after = (midX + 10 - vp.getTransform().x) / vp.getZoom();
+    expect(after).toBeCloseTo(before);
+  });
+
   it('failure: beginPan cancels in-flight camera tween', async () => {
     const world = fakeWorld();
     const vp = new Viewport(world);

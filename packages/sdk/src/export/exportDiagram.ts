@@ -1,5 +1,6 @@
 import type { Application } from 'pixi.js';
 import type { DiagramData } from '../data/types.js';
+import type { StaffLayoutOptions } from '../layout/staff/types.js';
 import type { RenderConfig } from '../render/types.js';
 import { assertExportOptions, ExportError, type ExportOptions } from './types.js';
 import { filterDiagramSubtree } from './subtree.js';
@@ -13,6 +14,7 @@ export interface ExportContext {
   renderConfig: RenderConfig;
   currentOrgId?: string;
   expandedOrgIds?: readonly string[];
+  staffLayout?: StaffLayoutOptions;
   background?: string;
 }
 
@@ -39,6 +41,7 @@ export async function exportDiagram(
       includeLabels: options.includeLabels,
       currentOrgId: ctx.currentOrgId,
       expandedOrgIds: ctx.expandedOrgIds,
+      staffLayout: ctx.staffLayout,
     });
   }
 
