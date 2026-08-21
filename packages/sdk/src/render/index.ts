@@ -32,6 +32,7 @@ export {
   maxChordTurn,
   CONTOUR_CORNER_RADIUS,
 } from './contourFillet.js';
+export { polishContourRing } from './contourPolish.js';
 export { parseSvgPath } from './svgPath.js';
 export {
   resampleClosedRing,

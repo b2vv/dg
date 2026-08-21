@@ -7,12 +7,19 @@ import {
   type StaffLayoutOptions,
 } from '../layout/staff/types.js';
 import type { RenderConfig } from '../render/types.js';
-import { defaultRenderConfig, PERSON_CARD_HEIGHT, PERSON_CARD_WIDTH } from '../render/types.js';
+import {
+  defaultNodeTheme,
+  defaultRenderConfig,
+  PERSON_CARD_HEIGHT,
+  PERSON_CARD_WIDTH,
+} from '../render/types.js';
 import { buildStaffEdgeSegments } from '../render/staffEdgeGeometry.js';
 import {
   mapContourPointToWorld,
   resolveContourWorldTransform,
 } from '../render/contourWorldTransform.js';
+import { polishContourRing } from '../render/contourPolish.js';
+import { arrowHeadTriangle, shortenPolylineForArrow } from '../render/staffEdgeArrows.js';
 
 function esc(text: string): string {
   return text
@@ -21,6 +28,14 @@ function esc(text: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+const DEPT_FILL = '#dbeafe';
+const DEPT_FILL_ALPHA = defaultNodeTheme.department.fillAlpha;
+const DEPT_STROKE = '#93c5fd';
+const DEPT_STROKE_W = defaultNodeTheme.department.strokeWidth;
+const EDGE_STROKE = '#334155';
+const EDGE_W = 2.25;
+const ARROW_SIZE = 7;
 
 export interface SvgExportInput {
   data: DiagramData;
@@ -93,6 +108,7 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
             cellHeight: config.cellHeight,
             smoothIterations: config.smoothIterations,
             magnetRadius: config.magnetRadius ?? 1.5,
+            preferNotch: true,
           })
         : [];
 
@@ -106,20 +122,29 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
       merged.refCellHeight + merged.verticalGap,
     );
 
-    parts.push('<g id="departments">');
+    const boxesByDept = new Map<string, { x: number; y: number; width: number; height: number }[]>();
+    for (const n of canvas.positionNodes) {
+      const pos = positionById.get(n.id);
+      if (!pos?.departmentId) continue;
+      const list = boxesByDept.get(pos.departmentId) ?? [];
+      list.push({ x: n.x, y: n.y, width: n.width, height: n.height });
+      boxesByDept.set(pos.departmentId, list);
+    }
+
+    const polishedByDept: { deptId: string; d: string }[] = [];
     for (const c of contours) {
-      if (!c.path && c.points.length < 2) continue;
-      const pts =
-        c.points.length >= 2
-          ? c.points
-          : [];
-      if (pts.length < 2) continue;
-      const mapped = pts.map((p) => mapContourPointToWorld(p.x, p.y, world));
-      const d = mapped
-        .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x} ${p.y}`)
-        .join(' ');
+      if (c.points.length < 2) continue;
+      const mapped = c.points.map((p) => mapContourPointToWorld(p.x, p.y, world));
+      const boxes = boxesByDept.get(c.departmentId) ?? [];
+      const polished = polishContourRing(mapped, boxes, DEPT_STROKE_W);
+      const d = polished.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x} ${p.y}`).join(' ');
+      polishedByDept.push({ deptId: c.departmentId, d });
+    }
+
+    parts.push('<g id="departments">');
+    for (const c of polishedByDept) {
       parts.push(
-        `<path d="${d} Z" fill="#dbeafe" stroke="#3b82f6" stroke-width="2" data-dept="${esc(c.departmentId)}"/>`,
+        `<path d="${c.d} Z" fill="${DEPT_FILL}" fill-opacity="${DEPT_FILL_ALPHA}" stroke="none" data-dept="${esc(c.deptId)}"/>`,
       );
     }
     parts.push('</g>');
@@ -127,8 +152,24 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
     const segments = buildStaffEdgeSegments(canvas.edges, canvas.positionNodes);
     parts.push('<g id="edges">');
     for (const s of segments) {
-      const d = s.points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x} ${p.y}`).join(' ');
-      parts.push(`<path d="${d}" fill="none" stroke="#64748b" stroke-width="1.75"/>`);
+      const withArrow = s.kind === 'admin' || s.kind === 'cross-tier';
+      const drawPts = withArrow ? shortenPolylineForArrow(s.points, ARROW_SIZE) : s.points;
+      const d = drawPts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x} ${p.y}`).join(' ');
+      parts.push(
+        `<path d="${d}" fill="none" stroke="${EDGE_STROKE}" stroke-width="${EDGE_W}" stroke-linecap="round" stroke-linejoin="round"/>`,
+      );
+      if (withArrow && s.points.length >= 2) {
+        const tri = arrowHeadTriangle(
+          s.points[s.points.length - 2]!,
+          s.points[s.points.length - 1]!,
+          ARROW_SIZE,
+        );
+        if (tri) {
+          parts.push(
+            `<polygon points="${tri.map((p) => `${p.x},${p.y}`).join(' ')}" fill="${EDGE_STROKE}"/>`,
+          );
+        }
+      }
     }
     parts.push('</g>');
 
@@ -155,6 +196,15 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
     }
     parts.push('</g>');
 
+    // Contour stroke above cards (canvas departmentStrokes parity).
+    parts.push('<g id="department-strokes">');
+    for (const c of polishedByDept) {
+      parts.push(
+        `<path d="${c.d} Z" fill="none" stroke="${DEPT_STROKE}" stroke-width="${DEPT_STROKE_W}" stroke-linejoin="round" stroke-linecap="round" data-dept="${esc(c.deptId)}"/>`,
+      );
+    }
+    parts.push('</g>');
+
     parts.push('<g id="org-cards">');
     for (const card of canvas.orgCards) {
       parts.push(
@@ -177,12 +227,13 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
       cellWidth: config.cellWidth,
       cellHeight: config.cellHeight,
       smoothIterations: config.smoothIterations,
+      preferNotch: true,
     });
     parts.push('<g id="departments">');
     for (const c of contours) {
       if (!c.path) continue;
       parts.push(
-        `<path d="${esc(c.path)}" fill="#dbeafe" stroke="#3b82f6" stroke-width="2" data-dept="${esc(c.departmentId)}"/>`,
+        `<path d="${esc(c.path)}" fill="${DEPT_FILL}" fill-opacity="${DEPT_FILL_ALPHA}" stroke="${DEPT_STROKE}" stroke-width="${DEPT_STROKE_W}" data-dept="${esc(c.departmentId)}"/>`,
       );
     }
     parts.push('</g>');

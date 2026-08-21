@@ -162,6 +162,23 @@ describe('buildDiagramSvg', () => {
     expect(svg.match(/data-position=/g)?.length).toBe(6);
   });
 
+  it('success: contour fill under cards; stroke group after persons (canvas parity)', async () => {
+    const svg = await buildDiagramSvg({
+      data: variantB(),
+      currentOrgId: 'org1',
+      config: { paddingCells: 0, smoothIterations: 1 },
+    });
+    expect(svg).toContain('id="departments"');
+    expect(svg).toContain('id="department-strokes"');
+    expect(svg).toContain('fill-opacity=');
+    const fillIdx = svg.indexOf('id="departments"');
+    const personsIdx = svg.indexOf('id="persons"');
+    const strokeIdx = svg.indexOf('id="department-strokes"');
+    expect(fillIdx).toBeGreaterThan(-1);
+    expect(personsIdx).toBeGreaterThan(fillIdx);
+    expect(strokeIdx).toBeGreaterThan(personsIdx);
+  });
+
   it('regression: staffLayout gap/margin must match live diagram (contours vs cards)', async () => {
     const staffLayout = {
       horizontalGap: 0,
