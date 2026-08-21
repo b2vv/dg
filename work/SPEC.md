@@ -330,7 +330,7 @@ SDK bridge: `packages/sdk/src/contour/bridge.ts`
 | G4 | Orthogonal first → smooth | ✅ trace + Chaikin |
 | G5 | Prefer notch (C-notch) **у межах компоненти** | ✅ `prefer_notch` |
 | G6 | No far-side wall | ✅ `apply_g6_clear_far_side_fill` |
-| G7 | Padding snap | ✅ `paddingCells` + G7 peel |
+| G7 | Padding snap (Chebyshev envelope) | ✅ `apply_g7_peel_vacant_exterior` |
 | G8 | Stable under drag | ✅ recompute on drag + morph anim (T17) |
 
 | ID | Membership | Статус |

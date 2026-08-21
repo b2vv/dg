@@ -361,7 +361,8 @@ P3 │              ← пряма вертикаль P3→P6 як internal edge
 | G4 | **Orthogonal first** | Спочатку маршрут по сітці (H/V); потім Chaikin/Bezier |
 | G5 | **Prefer step notch** | Якщо foreign всередині bbox **компоненти** — прямокутна виїмка (C-notch), не дірка з дірою (коли foreign торкається краю) |
 | G6 | **No far-side wall** | З боку foreign, де **немає** own cells за ним — **не** малювати вертикаль / борт |
-| G7 | **Padding snap** | Contour тримає `padding` від кожного own bbox; при злитті — **envelope** outer edges |
+| G7 | **Padding snap** | Contour тримає **прямокутний** pad (Chebyshev ≤ pad) від own; vacant tongues далі — зрізаються. Ряд клітинок → більший прямокутник, не «шляпа» |
+
 | G8 | **Stable under drag** | Після D&D pos — перерахунок; компоненти можуть роз’єднатись / злитись при зміні відстані |
 
 ---
