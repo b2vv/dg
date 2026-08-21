@@ -20,11 +20,25 @@ import { createElement } from 'react';
 import { buildVariantBData } from '../scenarios/variantB.js';
 import { buildFlatOrgsData } from '../scenarios/flatOrgs.js';
 import { buildStaffTreeData } from '../scenarios/staffTree.js';
+import {
+  SCALE_ORG_TOTAL,
+  SCALE_ORG_WINDOW,
+  buildScaleOrgsWindow,
+  buildScaleParentIndex,
+  parseScaleOrgQuery,
+  type ScaleOrgsWindow,
+} from '../scenarios/scaleOrgs.js';
 import { SAMPLE_MAPPER_JSON, SAMPLE_MAPPER_ROWS } from '../scenarios/sampleMapper.js';
 import { parseJsonFile } from '../utils/json.js';
 import { requireElement, setThemeAttribute, showError } from '../utils/dom.js';
 
-export type DemoTab = 'variant-b' | 'staff-tree' | 'flat-orgs' | 'mapper' | 'worker';
+export type DemoTab =
+  | 'variant-b'
+  | 'staff-tree'
+  | 'flat-orgs'
+  | 'scale-100k'
+  | 'mapper'
+  | 'worker';
 
 export interface ContourControls {
   paddingCells: number;
@@ -37,6 +51,8 @@ export class App {
   private theme: 'light' | 'dark' = 'light';
   private contourControls: ContourControls = { paddingCells: 0, smoothIterations: 0 };
   private flatOrgsData = buildFlatOrgsData(24);
+  private scaleParents: Int32Array | null = null;
+  private scaleWindow: ScaleOrgsWindow | null = null;
   private contextMenu: ReactContextMenuHost | null = null;
   private promote: ReactPromoteOverlay | null = null;
 
@@ -86,16 +102,14 @@ export class App {
     });
 
     requireElement('zoom-in').addEventListener('click', () => {
-      this.diagram?.zoomBy(1.25);
-      this.setStatus(`${this.tab} · zoom ${this.diagram?.getZoom().toFixed(2) ?? '—'}`);
+      this.zoomDiagram(1.25);
     });
     requireElement('zoom-out').addEventListener('click', () => {
-      this.diagram?.zoomBy(0.8);
-      this.setStatus(`${this.tab} · zoom ${this.diagram?.getZoom().toFixed(2) ?? '—'}`);
+      this.zoomDiagram(0.8);
     });
 
     requireElement('collapse-all').addEventListener('click', () => {
-      if (this.tab === 'flat-orgs') {
+      if (this.tab === 'flat-orgs' || this.tab === 'scale-100k') {
         void this.diagram?.collapseAllOrgs();
       }
     });
@@ -155,6 +169,9 @@ export class App {
       el.classList.toggle('active', (el as HTMLElement).dataset.tab === tab);
     });
     document.body.dataset.activeTab = tab;
+    if (tab === 'scale-100k') {
+      this.ensureScaleWindow(this.scaleWindow?.focusIndex ?? 0);
+    }
     await this.reload();
   }
 
@@ -173,7 +190,15 @@ export class App {
         callbacks: {
           onNodeClick: (node) => {
             this.contextMenu?.close();
-            if (node.kind === 'organization' && this.tab === 'flat-orgs') {
+            if (node.kind === 'organization' && (this.tab === 'flat-orgs' || this.tab === 'scale-100k')) {
+              if (this.tab === 'scale-100k') {
+                const idx = Number(String(node.id).replace(/^org-/, ''));
+                if (Number.isFinite(idx)) {
+                  this.ensureScaleWindow(idx);
+                  void this.reload();
+                  return;
+                }
+              }
               void this.diagram?.expandOrg(node.id);
             }
             if (this.tab === 'staff-tree') {
@@ -210,10 +235,16 @@ export class App {
         mode: 'near-selection',
         component: DemoPromoteCard,
       });
+      this.mountZoomFab();
       if (this.tab === 'staff-tree') {
         this.setStatus(`staff-tree · focus ${this.diagram.getStaffFocus() ?? 'ops'} · ${this.theme}`);
+      } else if (this.tab === 'scale-100k' && this.scaleWindow) {
+        const w = this.scaleWindow;
+        this.setStatus(
+          `100k · showing ${w.windowSize}/${w.total} · focus ${w.focusIndex} · ${w.buildMs}ms · zoom ${this.diagram.getZoom().toFixed(2)}`,
+        );
       } else {
-        this.setStatus(`${this.tab} · ${this.theme} theme`);
+        this.setStatus(`${this.tab} · ${this.theme} theme · zoom ${this.diagram.getZoom().toFixed(2)}`);
       }
       this.diagram.fitView();
     } catch (err) {
@@ -221,6 +252,45 @@ export class App {
       showError(this.mountEl, msg);
       this.setStatus(`Error: ${msg}`);
     }
+  }
+
+  private zoomDiagram(factor: number): void {
+    this.diagram?.zoomBy(factor);
+    this.setStatus(`${this.tab} · zoom ${this.diagram?.getZoom().toFixed(2) ?? '—'}`);
+  }
+
+  /** On-diagram zoom controls (mobile-friendly; toolbar +/- can scroll off-screen). */
+  private mountZoomFab(): void {
+    const fab = document.createElement('div');
+    fab.className = 'zoom-fab';
+    fab.innerHTML =
+      '<button type="button" data-zoom="out" title="Zoom out" aria-label="Zoom out">−</button>' +
+      '<button type="button" data-zoom="in" title="Zoom in" aria-label="Zoom in">+</button>' +
+      '<button type="button" data-zoom="fit" title="Fit" aria-label="Fit view">Fit</button>';
+    fab.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('button[data-zoom]') as HTMLButtonElement | null;
+      if (!btn) return;
+      const action = btn.dataset.zoom;
+      if (action === 'in') this.zoomDiagram(1.25);
+      else if (action === 'out') this.zoomDiagram(0.8);
+      else if (action === 'fit' && this.diagram?.fitView()) {
+        this.setStatus(`${this.tab} · fit · zoom ${this.diagram.getZoom().toFixed(2)}`);
+      }
+    });
+    this.mountEl.appendChild(fab);
+  }
+
+  private ensureScaleWindow(focusIndex = 0): ScaleOrgsWindow {
+    if (!this.scaleParents) {
+      this.scaleParents = buildScaleParentIndex(SCALE_ORG_TOTAL);
+    }
+    this.scaleWindow = buildScaleOrgsWindow({
+      total: SCALE_ORG_TOTAL,
+      windowSize: SCALE_ORG_WINDOW,
+      focusIndex,
+      parents: this.scaleParents,
+    });
+    return this.scaleWindow;
   }
 
   private buildConfig(): OrgHierarchyConfig<unknown> {
@@ -284,6 +354,20 @@ export class App {
             margin: 40,
           },
         };
+      case 'scale-100k': {
+        const win = this.scaleWindow ?? this.ensureScaleWindow(0);
+        return {
+          ...base,
+          data: win.data,
+          orgLayout: {
+            nodeWidth: 160,
+            nodeHeight: 52,
+            horizontalGap: 20,
+            verticalGap: 24,
+            margin: 24,
+          },
+        };
+      }
       case 'mapper':
         return {
           ...base,
@@ -345,6 +429,22 @@ export class App {
 
   private async runSearch(query: string): Promise<void> {
     if (!this.diagram) return;
+
+    if (this.tab === 'scale-100k') {
+      const idx = parseScaleOrgQuery(query, SCALE_ORG_TOTAL);
+      if (!query.trim()) {
+        this.setStatus(`100k · focus ${this.scaleWindow?.focusIndex ?? 0}`);
+        return;
+      }
+      if (idx === null) {
+        this.setStatus(`search · try org-12345 (0…${SCALE_ORG_TOTAL - 1})`);
+        return;
+      }
+      this.ensureScaleWindow(idx);
+      await this.reload();
+      return;
+    }
+
     const hits = await this.diagram.search(query);
     if (!query.trim()) {
       this.setStatus(`${this.tab} · ${this.theme}`);

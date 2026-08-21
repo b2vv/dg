@@ -13,13 +13,14 @@
       <button type="button" data-tab="variant-b" class="active">Variant B</button>
       <button type="button" data-tab="staff-tree">Staff tree</button>
       <button type="button" data-tab="flat-orgs">Flat orgs</button>
+      <button type="button" data-tab="scale-100k">100k orgs</button>
       <button type="button" data-tab="mapper">Mapper</button>
       <button type="button" data-tab="worker">Worker</button>
     </nav>
     <div class="controls">
       <label class="control">
         Search
-        <input id="search-input" type="search" placeholder="Alice…" />
+        <input id="search-input" type="search" placeholder="Alice… / org-50000" />
       </label>
       <label class="control">
         Padding
@@ -58,7 +59,7 @@
 
   <main class="stage">
     <div id="diagram-mount" class="diagram-mount"></div>
-    <p class="viewport-hint">Pan: drag empty canvas · Zoom: pinch, wheel, or +/− · Click person for promote · Right-click menu</p>
+    <p class="viewport-hint">Pan · pinch / wheel / +− zoom · 100k tab: search org-N to jump window · right-click menu</p>
   </main>
 
   <div id="toast" class="toast" role="status"></div>

@@ -161,6 +161,29 @@ describe('buildDiagramSvg', () => {
     const svg = await buildDiagramSvg({ data: variantB(), currentOrgId: 'org1' });
     expect(svg.match(/data-position=/g)?.length).toBe(6);
   });
+
+  it('regression: staffLayout gap/margin must match live diagram (contours vs cards)', async () => {
+    const staffLayout = {
+      horizontalGap: 0,
+      verticalGap: 0,
+      margin: 0,
+      refCellWidth: 148,
+      refCellHeight: 168,
+      nodeWidth: 128,
+      nodeHeight: 148,
+    };
+    const svg = await buildDiagramSvg({
+      data: variantB(),
+      currentOrgId: 'org1',
+      staffLayout,
+      config: { cellWidth: 148, cellHeight: 168, paddingCells: 0, smoothIterations: 0 },
+    });
+    const m = svg.match(/data-position="P1"[^>]*transform="translate\(([\d.]+),([\d.]+)\)/);
+    expect(m).toBeTruthy();
+    // inset ≈10; default margin 32 would place y≥32 — this catches export/layout drift.
+    expect(Number(m![1])).toBeLessThan(20);
+    expect(Number(m![2])).toBeLessThan(20);
+  });
 });
 
 describe('rgbImageToPdf', () => {

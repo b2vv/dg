@@ -7,7 +7,10 @@ import {
 } from '../contour/bridge.js';
 import { diagramPositionsToContourInputs } from '../contour/config.js';
 import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
-import type { StaffLayoutOptions } from '../layout/staff/types.js';
+import {
+  DEFAULT_STAFF_LAYOUT_OPTIONS,
+  type StaffLayoutOptions,
+} from '../layout/staff/types.js';
 import { computeOrgLayout } from '../layout/rowTreeLayout.js';
 import type { OrgLayoutOptions } from '../layout/types.js';
 import { snapToGrid } from '../interaction/positionMove.js';
@@ -23,6 +26,11 @@ import type { DepartmentBlobStyle, NodeTheme, RenderConfig } from './types.js';
 import { defaultRenderConfig } from './types.js';
 import type { DiagramData } from '../data/types.js';
 import type { LodLevel } from './lod.js';
+import {
+  mapContourPointsToWorld,
+  resolveContourWorldTransform,
+  type ContourWorldTransform,
+} from './contourWorldTransform.js';
 
 export type ContourComputer = (
   positions: ContourPositionInput[],
@@ -123,8 +131,8 @@ export class DiagramRenderer {
   private promotedIds = new Set<string>();
   private contourSession: ContourSession | null = null;
   private lastDiagnostics: string[] = [];
-  /** Translate contour grid paths into staff world space (tier margin / cursorY). */
-  private contourWorldOffset = { x: 0, y: 0 };
+  /** Contour cell-space → staff world (pitch + origin). */
+  private contourWorld: ContourWorldTransform | null = null;
   private drag: {
     positionId: string;
     node: PersonNodeView;
@@ -204,7 +212,7 @@ export class DiagramRenderer {
     if (this.destroyed) return;
     this.cancelContourMorphs();
     this.contourSession = null;
-    this.contourWorldOffset = { x: 0, y: 0 };
+    this.contourWorld = null;
     this.layers.clear();
     this.nodeBoxes.clear();
     this.nodeViews.clear();
@@ -284,14 +292,12 @@ export class DiagramRenderer {
   }
 
   private contourPoints(result: DeptContourResult): { x: number; y: number }[] {
-    const ox = this.contourWorldOffset.x;
-    const oy = this.contourWorldOffset.y;
     const raw =
       result.points.length >= 2
         ? result.points.map((p) => ({ x: p.x, y: p.y }))
         : (parseSvgPath(result.path)?.points.map((p) => ({ x: p.x, y: p.y })) ?? []);
-    if (ox === 0 && oy === 0) return raw;
-    return raw.map((p) => ({ x: p.x + ox, y: p.y + oy }));
+    if (!this.contourWorld) return raw;
+    return mapContourPointsToWorld(raw, this.contourWorld);
   }
 
   private applyContourResults(results: DeptContourResult[], morph: boolean): void {
@@ -524,6 +530,15 @@ export class DiagramRenderer {
     const currentOrgId = options.staff?.currentOrgId ?? inferStaffCurrentOrgId(data);
 
     if (currentOrgId && data.organizations.some((o) => o.id === currentOrgId)) {
+      const staffOpts: StaffLayoutOptions = {
+        // Keep staff boxes on the same pitch as contour cells.
+        nodeWidth: theme.person.width,
+        nodeHeight: theme.person.height,
+        refCellWidth: config.cellWidth,
+        refCellHeight: config.cellHeight,
+        ...options.staff?.layout,
+        expandedOrgIds: options.staff?.expandedOrgIds ?? options.staff?.layout?.expandedOrgIds,
+      };
       const canvas = await layoutStaffCanvas(
         {
           organizations: data.organizations,
@@ -534,15 +549,7 @@ export class DiagramRenderer {
           persons: data.persons,
         },
         currentOrgId,
-        {
-          // Keep staff boxes on the same pitch as contour cells.
-          nodeWidth: theme.person.width,
-          nodeHeight: theme.person.height,
-          refCellWidth: config.cellWidth,
-          refCellHeight: config.cellHeight,
-          ...options.staff?.layout,
-          expandedOrgIds: options.staff?.expandedOrgIds ?? options.staff?.layout?.expandedOrgIds,
-        },
+        staffOpts,
       );
 
       this.lastDiagnostics = [...canvas.diagnostics];
@@ -566,10 +573,16 @@ export class DiagramRenderer {
         }));
 
       if (contourInputs.length > 0) {
-        this.contourWorldOffset = resolveContourWorldOffset(
+        const merged = { ...DEFAULT_STAFF_LAYOUT_OPTIONS, ...staffOpts };
+        const pitchX = merged.refCellWidth + merged.horizontalGap;
+        const pitchY = merged.refCellHeight + merged.verticalGap;
+        this.contourWorld = resolveContourWorldTransform(
           canvas.positionNodes,
           positionById,
-          config,
+          config.cellWidth,
+          config.cellHeight,
+          pitchX,
+          pitchY,
         );
         await this.paintContours(contourInputs, data, theme, config, options);
       }
@@ -783,23 +796,4 @@ function countPositionsByDept(positions: DiagramData['positions']): Map<string, 
     map.set(p.departmentId, (map.get(p.departmentId) ?? 0) + 1);
   }
   return map;
-}
-
-/** Map contour grid origin onto staff layout world (tier margin / cursorY). */
-function resolveContourWorldOffset(
-  nodes: Array<{ id: string; x: number; y: number; width: number; height: number }>,
-  positionById: Map<string, { gridCell?: { col: number; row: number } }>,
-  config: RenderConfig,
-): { x: number; y: number } {
-  for (const n of nodes) {
-    const p = positionById.get(n.id);
-    if (!p?.gridCell) continue;
-    const insetX = (config.cellWidth - n.width) / 2;
-    const insetY = (config.cellHeight - n.height) / 2;
-    return {
-      x: n.x - (p.gridCell.col * config.cellWidth + insetX),
-      y: n.y - (p.gridCell.row * config.cellHeight + insetY),
-    };
-  }
-  return { x: 0, y: 0 };
 }

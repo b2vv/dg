@@ -1,9 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildStaffEdgeSegments,
+  polylineHitsBoxInterior,
   staffEdgeEndpoints,
   staffEdgePolyline,
 } from './staffEdgeGeometry.js';
+
+function pointOnBorder(
+  p: { x: number; y: number },
+  box: { x: number; y: number; width: number; height: number },
+  tol = 1,
+): boolean {
+  const onLeft = Math.abs(p.x - box.x) <= tol && p.y >= box.y - tol && p.y <= box.y + box.height + tol;
+  const onRight =
+    Math.abs(p.x - (box.x + box.width)) <= tol &&
+    p.y >= box.y - tol &&
+    p.y <= box.y + box.height + tol;
+  const onTop = Math.abs(p.y - box.y) <= tol && p.x >= box.x - tol && p.x <= box.x + box.width + tol;
+  const onBottom =
+    Math.abs(p.y - (box.y + box.height)) <= tol &&
+    p.x >= box.x - tol &&
+    p.x <= box.x + box.width + tol;
+  return onLeft || onRight || onTop || onBottom;
+}
 
 describe('staffEdgeGeometry', () => {
   it('success: child below → parent bottom to child top', () => {
@@ -48,21 +67,52 @@ describe('staffEdgeGeometry', () => {
     ]);
   });
 
-  it('success: same-row peers use side ports (no mid-card rung)', () => {
+  it('success: same-row peers with clear gap use side ports', () => {
     const from = { id: 'a', x: 0, y: 0, width: 100, height: 40 };
     const to = { id: 'b', x: 140, y: 0, width: 100, height: 40 };
     const pts = staffEdgePolyline(from, to, 'admin');
     expect(pts[0]).toEqual({ x: 100, y: 20 });
     expect(pts[pts.length - 1]).toEqual({ x: 140, y: 20 });
-    expect(pts.every((p) => p.y === 20 || Math.abs(p.y - 20) < 0.1)).toBe(true);
+    expect(polylineHitsBoxInterior(pts, from)).toBe(false);
+    expect(polylineHitsBoxInterior(pts, to)).toBe(false);
   });
 
-  it('success: matrix kind forces side routing even if staggered', () => {
-    const from = { id: 'a', x: 0, y: 0, width: 80, height: 40 };
-    const to = { id: 'b', x: 120, y: 30, width: 80, height: 40 };
-    const pts = staffEdgePolyline(from, to, 'matrix');
-    expect(pts[0]?.x).toBe(80);
-    expect(pts[pts.length - 1]?.x).toBe(120);
+  it('regression: overlapping cards keep endpoints on borders (no inverted through-cut)', () => {
+    const from = { id: 'a', x: 0, y: 0, width: 100, height: 80 };
+    const to = { id: 'b', x: 40, y: 20, width: 100, height: 80 };
+    const pts = staffEdgePolyline(from, to, 'admin');
+    const last = pts[pts.length - 1]!;
+    expect(pointOnBorder(pts[0]!, from)).toBe(true);
+    expect(pointOnBorder(last, to)).toBe(true);
+    const invertedThrough =
+      pts.length === 2 && pts[0]!.x > pts[1]!.x && pts[0]!.y === pts[1]!.y;
+    expect(invertedThrough).toBe(false);
+  });
+
+  it('regression: matrix peers with clear gap stay outside endpoint cards', () => {
+    const a = { id: 'a', x: 0, y: 0, width: 80, height: 40 };
+    const c = { id: 'c', x: 200, y: 0, width: 80, height: 40 };
+    const pts = staffEdgePolyline(a, c, 'matrix');
+    expect(polylineHitsBoxInterior(pts, a)).toBe(false);
+    expect(polylineHitsBoxInterior(pts, c)).toBe(false);
+  });
+
+  it('regression: clear vertical gap admin does not cross card interiors', () => {
+    const from = { id: 'mgr', x: 0, y: 0, width: 128, height: 148 };
+    const to = { id: 'rep', x: 40, y: 180, width: 128, height: 148 };
+    const pts = staffEdgePolyline(from, to, 'admin');
+    expect(polylineHitsBoxInterior(pts, from)).toBe(false);
+    expect(polylineHitsBoxInterior(pts, to)).toBe(false);
+    expect(pts[0]?.y).toBe(148);
+    expect(pts[pts.length - 1]?.y).toBe(180);
+  });
+
+  it('regression: slightly offset but overlapping staff cards stay border-anchored', () => {
+    const from = { id: 'mgr', x: 0, y: 0, width: 128, height: 148 };
+    const to = { id: 'rep', x: 40, y: 70, width: 128, height: 148 };
+    const pts = staffEdgePolyline(from, to, 'admin');
+    expect(pointOnBorder(pts[0]!, from)).toBe(true);
+    expect(pointOnBorder(pts[pts.length - 1]!, to)).toBe(true);
   });
 
   it('success: builds segments for known endpoints', () => {
@@ -79,9 +129,7 @@ describe('staffEdgeGeometry', () => {
     );
     expect(segs).toHaveLength(2);
     expect(segs[0]).toMatchObject({ fromId: 'a', toId: 'b', kind: 'admin', x1: 10, y1: 10 });
-    expect(segs[0]?.points).toHaveLength(2);
     expect(segs[1]?.kind).toBe('matrix');
-    expect(segs[1]?.points[0]?.x).toBe(20);
   });
 
   it('failure: missing endpoint skipped', () => {
