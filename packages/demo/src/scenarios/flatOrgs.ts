@@ -1,17 +1,32 @@
 import type { DiagramData } from '@org-hierarchy/sdk';
 import { DEMO_PLACEHOLDER_PNG } from './demoMedia.js';
 
+/**
+ * Flat org matrix demo: a shallow tree that fits a row-major grid
+ * (root → layer-1 → layer-2) so parent edges read top→down instead of a bus mesh.
+ */
 export function buildFlatOrgsData(count = 24): DiagramData {
-  const organizations = Array.from({ length: count }, (_, i) => ({
-    id: `org-${i + 1}`,
-    name: `Organization ${i + 1}`,
-    parentOrgId: i > 0 ? `org-${Math.ceil(i / 3)}` : undefined,
-    groupIds: i % 4 === 0 ? ['g1'] : [],
-    collapsed: true,
-    matrixOrder: i,
-    symbolUrl: DEMO_PLACEHOLDER_PNG,
-    symbolUrlLight: DEMO_PLACEHOLDER_PNG,
-  }));
+  const organizations = Array.from({ length: count }, (_, i) => {
+    let parentOrgId: string | undefined;
+    if (i === 0) parentOrgId = undefined;
+    else if (i <= 4) parentOrgId = 'org-1';
+    else parentOrgId = `org-${1 + Math.ceil((i - 4) / 4)}`;
+    // Clamp parent into existing range
+    if (parentOrgId) {
+      const pIdx = Number(parentOrgId.replace('org-', '')) - 1;
+      if (pIdx < 0 || pIdx >= i) parentOrgId = 'org-1';
+    }
+    return {
+      id: `org-${i + 1}`,
+      name: `Organization ${i + 1}`,
+      parentOrgId,
+      groupIds: i % 4 === 0 ? ['g1'] : [],
+      collapsed: true,
+      matrixOrder: i,
+      symbolUrl: DEMO_PLACEHOLDER_PNG,
+      symbolUrlLight: DEMO_PLACEHOLDER_PNG,
+    };
+  });
 
   return {
     organizations,
@@ -20,11 +35,8 @@ export function buildFlatOrgsData(count = 24): DiagramData {
     persons: [],
     positions: [],
     reportLines: [],
-    orgLinks: organizations.slice(1).map((org, i) => ({
-      fromOrgId: org.parentOrgId ?? organizations[0].id,
-      toOrgId: org.id,
-      kind: 'administrative' as const,
-    })),
+    // parentOrgId already drives matrix edges — avoid duplicate orgLinks.
+    orgLinks: [],
   };
 }
 

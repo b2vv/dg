@@ -76,11 +76,12 @@ function buildMatrixEdges(
     const to = nodeMap.get(toId);
     if (!from || !to) return;
     seen.add(key);
+    const obstacles = [...nodeMap.values()];
     edges.push({
       fromId,
       toId,
       kind,
-      path: orthogonalPath(from, to),
+      path: orthogonalPath(from, to, obstacles),
     });
   };
 
@@ -97,11 +98,22 @@ function buildMatrixEdges(
   return edges;
 }
 
-function orthogonalPath(from: OrgLayoutNode, to: OrgLayoutNode): string {
+function orthogonalPath(
+  from: OrgLayoutNode,
+  to: OrgLayoutNode,
+  obstacles: OrgLayoutNode[],
+): string {
   const points = staffEdgePolyline(
     { id: from.id, x: from.x, y: from.y, width: from.width, height: from.height },
     { id: to.id, x: to.x, y: to.y, width: to.width, height: to.height },
     'admin',
+    obstacles.map((n) => ({
+      id: n.id,
+      x: n.x,
+      y: n.y,
+      width: n.width,
+      height: n.height,
+    })),
   );
   return staffEdgePolylineToSvg(points);
 }

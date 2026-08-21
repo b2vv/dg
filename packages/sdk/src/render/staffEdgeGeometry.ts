@@ -200,11 +200,14 @@ function isClean(points: StaffEdgePoint[], from: StaffEdgeBox, to: StaffEdgeBox)
 /**
  * Orthogonal route by relative geometry.
  * Prefer clear vertical/horizontal gaps; if boxes overlap, lane around them.
+ * Optional `obstacles` (other cards) force a lane route when the direct path
+ * would cut through them — critical for matrix org trees.
  */
 export function staffEdgePolyline(
   from: StaffEdgeBox,
   to: StaffEdgeBox,
   kind: StaffEdgeLink['kind'] = 'admin',
+  obstacles: StaffEdgeBox[] = [],
 ): StaffEdgePoint[] {
   const fromCy = from.y + from.height / 2;
   const toCy = to.y + to.height / 2;
@@ -224,14 +227,23 @@ export function staffEdgePolyline(
     if (side) candidates.push(side);
   }
 
+  const others = obstacles.filter((b) => b.id !== from.id && b.id !== to.id);
+
   for (const c of candidates) {
-    if (isClean(c, from, to)) return c;
+    if (!isClean(c, from, to)) continue;
+    if (others.some((box) => polylineHitsBoxInterior(c, box))) continue;
+    return c;
   }
 
   // Overlap / blocked gap — go around. Prefer lane routes even if they graze
   // overlapping AABBs (orthogonal exterior is still better than center-cuts).
-  const preferTop = kind === 'matrix' || kind === 'dotted' || sameBand;
-  return preferTop ? aroundTopPolyline(from, to) : aroundLeftPolyline(from, to);
+  const preferTop = kind === 'matrix' || kind === 'dotted' || sameBand || others.length > 0;
+  const around = preferTop ? aroundTopPolyline(from, to) : aroundLeftPolyline(from, to);
+  if (!others.some((box) => polylineHitsBoxInterior(around, box))) {
+    return around;
+  }
+  const alt = preferTop ? aroundLeftPolyline(from, to) : aroundTopPolyline(from, to);
+  return alt;
 }
 
 export function staffEdgePolylineToSvg(points: StaffEdgePoint[]): string {
@@ -254,7 +266,7 @@ export function buildStaffEdgeSegments(
     const from = byId.get(edge.fromId);
     const to = byId.get(edge.toId);
     if (!from || !to) continue;
-    const points = staffEdgePolyline(from, to, edge.kind);
+    const points = staffEdgePolyline(from, to, edge.kind, boxes);
     const first = points[0]!;
     const last = points[points.length - 1]!;
     out.push({
