@@ -27,6 +27,11 @@ export {
   CONTOUR_OWN_PADDING_PX,
 } from './contourClearance.js';
 export type { ContourClearBox } from './contourClearance.js';
+export {
+  filletClosedRing,
+  maxChordTurn,
+  CONTOUR_CORNER_RADIUS,
+} from './contourFillet.js';
 export { parseSvgPath } from './svgPath.js';
 export {
   resampleClosedRing,
