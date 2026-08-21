@@ -20,6 +20,7 @@ import {
   resolveContourWorldTransform,
 } from '../render/contourWorldTransform.js';
 import { polishContourRing } from '../render/contourPolish.js';
+import { filterContoursForPaint } from '../render/contourPaintFilter.js';
 import { arrowHeadTriangle, shortenPolylineForArrow } from '../render/staffEdgeArrows.js';
 
 function esc(text: string): string {
@@ -132,8 +133,16 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
       boxesByDept.set(pos.departmentId, list);
     }
 
+    const personCounts = new Map<string, number>();
+    for (const p of data.positions) {
+      if (!p.departmentId) continue;
+      personCounts.set(p.departmentId, (personCounts.get(p.departmentId) ?? 0) + 1);
+    }
+    const minMembers = config.minContourMembers ?? 1;
+    const painted = filterContoursForPaint(contours, personCounts, minMembers);
+
     const polishedByDept: { deptId: string; d: string }[] = [];
-    for (const c of contours) {
+    for (const c of painted) {
       if (c.points.length < 2) continue;
       const mapped = c.points.map((p) => mapContourPointToWorld(p.x, p.y, world));
       const boxes = boxesByDept.get(c.departmentId) ?? [];
@@ -241,10 +250,21 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
       cellWidth: config.cellWidth,
       cellHeight: config.cellHeight,
       smoothIterations: config.smoothIterations,
+      magnetRadius: config.magnetRadius ?? 1.5,
       preferNotch: true,
     });
+    const personCounts = new Map<string, number>();
+    for (const p of data.positions) {
+      if (!p.departmentId) continue;
+      personCounts.set(p.departmentId, (personCounts.get(p.departmentId) ?? 0) + 1);
+    }
+    const painted = filterContoursForPaint(
+      contours,
+      personCounts,
+      config.minContourMembers ?? 1,
+    );
     parts.push('<g id="departments">');
-    for (const c of contours) {
+    for (const c of painted) {
       if (!c.path) continue;
       parts.push(
         `<path d="${esc(c.path)}" fill="${DEPT_FILL}" fill-opacity="${DEPT_FILL_ALPHA}" stroke="${DEPT_STROKE}" stroke-width="${DEPT_STROKE_W}" data-dept="${esc(c.departmentId)}"/>`,
