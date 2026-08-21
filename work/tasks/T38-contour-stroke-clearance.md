@@ -19,9 +19,9 @@ Chaikin corner-cutting shrinks the IT C-contour into option-A cards (esp. P5/P6 
 
 | # | Issue | Severity | Note |
 |---|--------|----------|------|
-| R1 | Large empty U-loops (smooth radius) | Med | Design of C-contour + Chaikin; tune Smooth default or corner-only fillet later |
-| R2 | Report edges low contrast on blue fill | Low | StaffEdgesView slate on `#dbeafe` |
-| R3 | Hierarchy still “notch legend” dependent | Med | Product/caption (T33 C8); not a stroke bug |
+| R1 | Large empty U-loops (smooth radius) | Med | Partially mitigated by T39 Smooth default 1; full G7 prune later |
+| R2 | Report edges low contrast on blue fill | ✅ | T38 contrast + T39 arrows + quieter fill |
+| R3 | Hierarchy still “notch legend” dependent | Med | T39 arrows help; caption updated |
 | R4 | LOD `simplifyPolyline` faceting at mid/far | Low | Only far/mid |
 
 ## Verify

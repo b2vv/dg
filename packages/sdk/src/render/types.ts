@@ -87,9 +87,9 @@ export function variantBAdjacentEdgeClearance(): {
 export const defaultNodeTheme: NodeTheme = {
   department: {
     fill: 0xdbeafe,
-    fillAlpha: 0.42,
-    stroke: 0x60a5fa,
-    strokeWidth: 1.25,
+    fillAlpha: 0.28,
+    stroke: 0x93c5fd,
+    strokeWidth: 0.9,
     labelColor: 0x1e3a5f,
     labelFontSize: 12,
   },
@@ -127,9 +127,9 @@ export const defaultNodeTheme: NodeTheme = {
 export const darkNodeTheme: NodeTheme = {
   department: {
     fill: 0x1e3a5f,
-    fillAlpha: 0.45,
+    fillAlpha: 0.32,
     stroke: 0x93c5fd,
-    strokeWidth: 1.25,
+    strokeWidth: 0.9,
     labelColor: 0xbfdbfe,
     labelFontSize: 12,
   },

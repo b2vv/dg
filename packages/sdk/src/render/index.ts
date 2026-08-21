@@ -11,6 +11,7 @@ export { personInitials, avatarColorFromName } from './personInitials.js';
 export { OrganizationNodeView } from './OrganizationNode.js';
 export { OrgEdgesView } from './OrgEdgesView.js';
 export { StaffEdgesView } from './StaffEdgesView.js';
+export { arrowHeadTriangle, shortenPolylineForArrow } from './staffEdgeArrows.js';
 export {
   buildStaffEdgeSegments,
   staffEdgeEndpoints,

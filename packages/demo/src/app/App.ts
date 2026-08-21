@@ -51,7 +51,7 @@ export class App {
   private diagram: OrgHierarchyDiagram | null = null;
   private tab: DemoTab = 'variant-b';
   private theme: 'light' | 'dark' = 'light';
-  private contourControls: ContourControls = { paddingCells: 1, smoothIterations: 2 };
+  private contourControls: ContourControls = { paddingCells: 1, smoothIterations: 1 };
   private flatOrgsData = buildFlatOrgsData(24);
   private scaleParents: Int32Array | null = null;
   private scaleWindow: ScaleOrgsWindow | null = null;
@@ -294,7 +294,7 @@ export class App {
     const caption = document.createElement('p');
     caption.className = 'scene-caption';
     caption.textContent =
-      'Staff tiers: reports above · head in the notch · reports below · orange T = temporary';
+      'Blue wash = department · arrow lines = reports · head in the notch · orange T = temporary';
     this.mountEl.appendChild(caption);
   }
 

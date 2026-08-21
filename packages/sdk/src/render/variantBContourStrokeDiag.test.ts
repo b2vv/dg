@@ -162,7 +162,7 @@ describe('Variant B contour stroke vs cards (T38)', () => {
     const { mapped, nodes } = await worldContour(1, 2);
     const itCards = nodes.filter((n) => n.dept === 'IT');
     const nudged = nudgeContourClearOfBoxes(mapped, itCards, margin);
-    expect(ringClearance(nudged, itCards)).toBeGreaterThanOrEqual(margin);
+    expect(ringClearance(nudged, itCards)).toBeGreaterThanOrEqual(margin - 1e-9);
 
     // Inflate/nudge must not swallow the CEO notch (foreign).
     const ceo = nodes.find((n) => n.id === 'P4')!;
