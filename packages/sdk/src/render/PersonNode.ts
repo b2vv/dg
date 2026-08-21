@@ -123,7 +123,8 @@ export class PersonNodeView extends Container {
       return;
     }
     const h = this.lod === 'mid' ? Math.min(style.height, Math.max(56, style.height * 0.48)) : style.height;
-    this.hoverRing.roundRect(-2, -2, style.width + 4, h + 4, style.borderRadius + 2);
+    const y0 = this.lod === 'mid' ? (style.height - h) / 2 : 0;
+    this.hoverRing.roundRect(-2, y0 - 2, style.width + 4, h + 4, style.borderRadius + 2);
     this.hoverRing.stroke({ color: 0x2563eb, width: 2 });
     this.hoverRing.visible = true;
   }
@@ -143,9 +144,10 @@ export class PersonNodeView extends Container {
     }
 
     const h = lod === 'mid' ? Math.min(height, Math.max(56, height * 0.48)) : height;
-    this.shadow.roundRect(2, 3, width, h, borderRadius);
+    const y0 = lod === 'mid' ? (height - h) / 2 : 0;
+    this.shadow.roundRect(2, y0 + 3, width, h, borderRadius);
     this.shadow.fill({ color: 0x0f172a, alpha: 0.1 });
-    this.card.roundRect(0, 0, width, h, borderRadius);
+    this.card.roundRect(0, y0, width, h, borderRadius);
     this.card.fill({ color: style.background });
     this.card.stroke({ color: style.border, width: style.borderWidth });
 
@@ -155,7 +157,9 @@ export class PersonNodeView extends Container {
       this.card.fill({ color: this.avatarFill });
     }
 
-    this.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= width && y <= h };
+    this.hitArea = {
+      contains: (x, y) => x >= 0 && y >= y0 && x <= width && y <= y0 + h,
+    };
   }
 
   private updateContent(
@@ -181,7 +185,13 @@ export class PersonNodeView extends Container {
     this.nameText.style.fontSize = style.nameFontSize;
     this.nameText.style.fill = style.nameColor;
     truncatePixiText(this.nameText, maxTextW);
-    this.nameText.position.set(pad, lod === 'mid' ? style.height * 0.18 : style.height * 0.48);
+    if (lod === 'mid') {
+      const h = Math.min(style.height, Math.max(56, style.height * 0.48));
+      const y0 = (style.height - h) / 2;
+      this.nameText.position.set(pad, y0 + h * 0.35);
+    } else {
+      this.nameText.position.set(pad, style.height * 0.48);
+    }
 
     if (lod === 'mid') {
       this.titleText.visible = false;

@@ -13,13 +13,12 @@ describe('visualPersonEdgeBox', () => {
     expect(visualPersonEdgeBox(full, 'near')).toEqual(full);
   });
 
-  it('success: mid shortens height top-aligned', () => {
+  it('success: mid shortens height and centers in layout AABB', () => {
     const mid = visualPersonEdgeBox(full, 'mid');
     expect(mid.x).toBe(10);
-    expect(mid.y).toBe(20);
     expect(mid.width).toBe(136);
-    expect(mid.height).toBeLessThan(156);
     expect(mid.height).toBe(Math.min(156, Math.max(56, 156 * 0.48)));
+    expect(mid.y).toBeCloseTo(20 + (156 - mid.height) / 2);
   });
 
   it('success: far docks to centered dot, not full card rim', () => {
@@ -43,6 +42,7 @@ describe('visualPersonEdgeBox', () => {
     const ep = staffEdgeEndpoints(mgr, rep);
     expect(ep.y1).toBe(mgr.y + mgr.height);
     expect(ep.y2).toBe(rep.y);
+    expect(mgr.y).toBeGreaterThan(0); // not top-aligned at layout y
     expect(ep.y1).toBeLessThan(156); // not full-card bottom
   });
 

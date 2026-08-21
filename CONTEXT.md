@@ -60,6 +60,10 @@ _Avoid_: Contour memo, blob cache (prefer this name in SDK docs)
 Point-ring lerp of department blobs while dragging a person across snap cells (G8 polish).
 _Avoid_: Path-string tween, SVG morph
 
+**Button-group contour**:
+Paint polish that replaces a solid magnetic component with a rounded rect around member cards (card border-radius), instead of cell-flood stairs.
+_Avoid_: Orthogonal “noise” wash; filling L/C holes with the member AABB
+
 **Worker search index**:
 Building `SearchIndex` off the main thread (single worker or WorkerPool chunks) for large diagrams.
 _Avoid_: Main-thread-only index at 2M scale

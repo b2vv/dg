@@ -39,6 +39,12 @@ export {
 } from './contourFillet.js';
 export { polishContourRing } from './contourPolish.js';
 export {
+  buttonGroupRingFromBoxes,
+  contourButtonGroupMargin,
+  memberBoxesInsideRing,
+  ringAllowsButtonGroup,
+} from './contourButtonGroup.js';
+export {
   shouldPaintDeptContour,
   filterContoursForPaint,
 } from './contourPaintFilter.js';

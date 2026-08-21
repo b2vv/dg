@@ -11,7 +11,9 @@ export function visualPersonEdgeBox(box: StaffEdgeBox, lod: LodLevel): StaffEdge
   }
   if (lod === 'mid') {
     const height = Math.min(box.height, Math.max(56, box.height * 0.48));
-    return { id: box.id, x: box.x, y: box.y, width: box.width, height };
+    // Center in the layout AABB so zoom/LOD does not pin chrome to the top.
+    const y = box.y + (box.height - height) / 2;
+    return { id: box.id, x: box.x, y, width: box.width, height };
   }
   // far: tight box around the centered avatar dot
   const r = Math.max(6, Math.min(box.width, box.height) * 0.18);
