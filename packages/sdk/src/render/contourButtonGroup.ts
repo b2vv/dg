@@ -1,6 +1,6 @@
 /**
- * Paint magnetic groups like a button-group chrome: one rounded rect
- * around member cards, instead of cell-flood stairs / Chaikin noise.
+ * Paint magnetic groups as button-group chrome: one rounded rect around
+ * member cards (no orthogonal stairs, no L/C fillet fallback).
  */
 import type { ContourClearBox } from './contourClearance.js';
 import { CONTOUR_CORNER_RADIUS, filletClosedRing, type ContourPoint } from './contourFillet.js';
@@ -50,7 +50,7 @@ function boxesAabb(boxes: readonly ContourClearBox[]): ContourClearBox | null {
 
 /**
  * Breathing room around the card union (REQUIREMENTS: ~8px / fraction of cell).
- * `paddingCells` scales the margin without reverting to multi-cell flood stairs.
+ * `paddingCells` scales the margin without multi-cell flood stairs.
  */
 export function contourButtonGroupMargin(
   paddingCells: number,
@@ -59,33 +59,6 @@ export function contourButtonGroupMargin(
   const pad = Number.isFinite(paddingCells) ? Math.max(0, paddingCells) : 0;
   const stroke = Number.isFinite(strokeWidth) ? Math.max(0, strokeWidth) : 0;
   return Math.max(6, stroke / 2 + 4) + pad * 8;
-}
-
-/**
- * True when member-card AABB is solidly covered by the cell ring (no L/C hole).
- * Large pad floods still qualify — paint uses a tight rounded rect instead.
- */
-export function ringAllowsButtonGroup(
-  ring: readonly ContourPoint[],
-  members: readonly ContourClearBox[],
-  sampleGrid = 5,
-): boolean {
-  if (ring.length < 3 || members.length === 0) return false;
-  const aabb = boxesAabb(members);
-  if (!aabb || aabb.width <= 0 || aabb.height <= 0) return false;
-
-  const n = Math.max(2, sampleGrid);
-  let inside = 0;
-  let total = 0;
-  for (let i = 0; i < n; i += 1) {
-    for (let j = 0; j < n; j += 1) {
-      const x = aabb.x + ((i + 0.5) / n) * aabb.width;
-      const y = aabb.y + ((j + 0.5) / n) * aabb.height;
-      total += 1;
-      if (pointInPolygon(x, y, ring)) inside += 1;
-    }
-  }
-  return inside / total >= 0.85;
 }
 
 /** Closed ring: expanded AABB of member cards with card-matching corner radius. */

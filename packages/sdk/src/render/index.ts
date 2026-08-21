@@ -42,7 +42,6 @@ export {
   buttonGroupRingFromBoxes,
   contourButtonGroupMargin,
   memberBoxesInsideRing,
-  ringAllowsButtonGroup,
 } from './contourButtonGroup.js';
 export {
   shouldPaintDeptContour,
