@@ -81,6 +81,7 @@ npm run dev          # http://localhost:3000
 34. [T34-p0-contour-staff-flat-edges.md](./tasks/T34-p0-contour-staff-flat-edges.md) — ✅ P0: IT C-contour, staff cross-tier, flat edge avoid
 35. [T35-polish-zoom-chrome.md](./tasks/T35-polish-zoom-chrome.md) — ✅ P1: padding/smooth defaults, Hi-DPI, demo chrome
 36. [T36-card-chrome-polish.md](./tasks/T36-card-chrome-polish.md) — ✅ P2: initials, contrast, hover, Variant B caption
+37. [T37-variant-b-edge-gaps.md](./tasks/T37-variant-b-edge-gaps.md) — ✅ Variant B corridor gaps for readable report edges
 
 ## Технічний борг
 

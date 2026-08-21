@@ -5,6 +5,8 @@ import {
   mapFlatRowsInPool,
   mapArrayItems,
   recommendWorkerPoolSize,
+  VARIANT_B_HORIZONTAL_GAP,
+  VARIANT_B_VERTICAL_GAP,
   type FlatDiagramRow,
 } from '@org-hierarchy/sdk';
 import {
@@ -328,10 +330,10 @@ export class App {
           ...base,
           data: buildVariantBData(),
           staffCurrentOrgId: 'org1',
-          // Gap 0 so staff pitch == contour cell; card nearly fills cell (option A).
+          // Corridor gaps so report edges are readable; contour pitch = cell + gap.
           staffLayout: {
-            horizontalGap: 0,
-            verticalGap: 0,
+            horizontalGap: VARIANT_B_HORIZONTAL_GAP,
+            verticalGap: VARIANT_B_VERTICAL_GAP,
             margin: 0,
             refCellWidth: 140,
             refCellHeight: 160,
@@ -404,8 +406,8 @@ export class App {
           data: buildVariantBData(),
           staffCurrentOrgId: 'org1',
           staffLayout: {
-            horizontalGap: 0,
-            verticalGap: 0,
+            horizontalGap: VARIANT_B_HORIZONTAL_GAP,
+            verticalGap: VARIANT_B_VERTICAL_GAP,
             margin: 0,
             refCellWidth: 140,
             refCellHeight: 160,
