@@ -1,19 +1,14 @@
 /**
- * Shared live + SVG post-pass: button-group rounded wrap when solid,
- * else fillet convex corners and clear own AABBs.
+ * Shared live + SVG post-pass: always button-group rounded wrap around
+ * member cards in the magnetic component.
  */
-import {
-  contourCardClearanceMargin,
-  nudgeContourClearOfBoxes,
-  type ContourClearBox,
-} from './contourClearance.js';
+import type { ContourClearBox } from './contourClearance.js';
 import {
   buttonGroupRingFromBoxes,
   contourButtonGroupMargin,
   memberBoxesInsideRing,
-  ringAllowsButtonGroup,
 } from './contourButtonGroup.js';
-import { CONTOUR_CORNER_RADIUS, filletClosedRing } from './contourFillet.js';
+import { CONTOUR_CORNER_RADIUS } from './contourFillet.js';
 
 export function polishContourRing(
   points: readonly { x: number; y: number }[],
@@ -24,16 +19,9 @@ export function polishContourRing(
   if (points.length < 2) return points.map((p) => ({ x: p.x, y: p.y }));
 
   const members = memberBoxesInsideRing(points, boxes);
-  if (ringAllowsButtonGroup(points, members)) {
-    const margin = contourButtonGroupMargin(paddingCells, strokeWidth);
-    // Radius must not exceed margin or filleted arcs cut into the cards.
-    const radius = Math.min(CONTOUR_CORNER_RADIUS, margin);
-    return buttonGroupRingFromBoxes(members, margin, radius);
-  }
+  if (members.length === 0) return [];
 
-  const filleted = filletClosedRing(points, CONTOUR_CORNER_RADIUS);
-  const clearBoxes = members.length > 0 ? members : boxes;
-  if (clearBoxes.length === 0) return filleted;
-  const margin = contourCardClearanceMargin(strokeWidth);
-  return nudgeContourClearOfBoxes(filleted, clearBoxes, margin);
+  const margin = contourButtonGroupMargin(paddingCells, strokeWidth);
+  const radius = Math.min(CONTOUR_CORNER_RADIUS, margin);
+  return buttonGroupRingFromBoxes(members, margin, radius);
 }

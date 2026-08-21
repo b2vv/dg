@@ -13,7 +13,7 @@
 
 - Mid LOD: `PersonNode` + `visualPersonEdgeBox` vertically center the shortened card
 - `contourButtonGroup` — member boxes inside ring → rounded AABB when solid (≥85% sample coverage)
-- `polishContourRing` prefers button-group wrap; L/C holes keep fillet + clearance
+- `polishContourRing` **always** button-group wrap around member cards (no L/C fillet fallback)
 - Demo Smooth default **2**; Padding still scales button-group margin in px
 
 ## Tests

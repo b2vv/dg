@@ -443,7 +443,7 @@ Demo Variant B: `VARIANT_B_MAGNET_RADIUS = 1.5` (`packages/sdk`).
 | **D&D person** | зміна **примітивних координат** у dept/org ієрархії |
 | **Block shift** | зсув **блоку посад** на рівень вище / нижче |
 
-**Контури dept:** union grid cells → polygon → Chaikin (topology) → paint polish: **button-group rounded rect** around member cards when the component is solid (no L/C hole); otherwise fillet + clearance. Не лишати ортогональний «шум» / сходинки на solid-групах.
+**Контури dept:** union grid cells → polygon (membership) → paint polish: **завжди button-group rounded rect** навколо карток компоненти. Без ортогонального «шуму» і без окремого L/C fillet-шляху.
 
 **LOD:** при віддаленні dept blob = simplified polygon + count badge; person nodes collapse to dots.
 

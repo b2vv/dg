@@ -61,8 +61,8 @@ Point-ring lerp of department blobs while dragging a person across snap cells (G
 _Avoid_: Path-string tween, SVG morph
 
 **Button-group contour**:
-Paint polish that replaces a solid magnetic component with a rounded rect around member cards (card border-radius), instead of cell-flood stairs.
-_Avoid_: Orthogonal “noise” wash; filling L/C holes with the member AABB
+Paint polish that draws each magnetic component as a rounded rect around its member cards (card border-radius).
+_Avoid_: Orthogonal “noise” wash; dual fillet/L-notch paint paths
 
 **Worker search index**:
 Building `SearchIndex` off the main thread (single worker or WorkerPool chunks) for large diagrams.
