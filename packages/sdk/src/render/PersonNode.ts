@@ -2,10 +2,11 @@ import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js';
 import type { DiagramPerson, DiagramPosition } from '../data/types.js';
 import type { LodLevel } from './lod.js';
 import { loadNodeTexture } from './nodeMedia.js';
-import { personInitials } from './personInitials.js';
+import { avatarColorFromName, personInitials } from './personInitials.js';
 import type { PersonNodeStyle } from './types.js';
 
 export class PersonNodeView extends Container {
+  private readonly shadow = new Graphics();
   private readonly card = new Graphics();
   private readonly hoverRing = new Graphics();
   private readonly nameText: Text;
@@ -18,11 +19,19 @@ export class PersonNodeView extends Container {
   readonly lod: LodLevel;
   /** Settles when optional photo load finishes (or immediately if none). */
   readonly mediaReady: Promise<void>;
+  /** Resolved avatar disc fill (hashed from name when present). */
+  readonly avatarFill: number;
 
-  private constructor(style: PersonNodeStyle, lod: LodLevel, mediaReady: Promise<void>) {
+  private constructor(
+    style: PersonNodeStyle,
+    lod: LodLevel,
+    mediaReady: Promise<void>,
+    avatarFill: number,
+  ) {
     super();
     this.lod = lod;
     this.mediaReady = mediaReady;
+    this.avatarFill = avatarFill;
     this.eventMode = 'static';
     this.cursor = 'pointer';
 
@@ -50,6 +59,7 @@ export class PersonNodeView extends Container {
     this.photoMask.visible = false;
     this.hoverRing.visible = false;
     this.addChild(
+      this.shadow,
       this.card,
       this.photoSprite,
       this.photoMask,
@@ -75,7 +85,8 @@ export class PersonNodeView extends Container {
     const mediaReady = new Promise<void>((resolve) => {
       resolveMedia = resolve;
     });
-    const view = new PersonNodeView(style, lod, mediaReady);
+    const avatarFill = avatarColorFromName(person?.fullName);
+    const view = new PersonNodeView(style, lod, mediaReady, avatarFill);
     view.drawCard(style, lod);
     view.updateContent(person, position, style, lod);
     void view.applyPhoto(person?.photoUrl, style, lod).finally(resolveMedia);
@@ -120,17 +131,20 @@ export class PersonNodeView extends Container {
   private drawCard(style: PersonNodeStyle, lod: LodLevel): void {
     const { width, height, borderRadius } = style;
     this.card.clear();
+    this.shadow.clear();
 
     if (lod === 'far') {
       const r = Math.max(6, Math.min(width, height) * 0.18);
       this.card.circle(width / 2, height / 2, r);
-      this.card.fill({ color: style.avatarColor });
+      this.card.fill({ color: this.avatarFill });
       this.card.stroke({ color: style.border, width: 1 });
       this.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= width && y <= height };
       return;
     }
 
     const h = lod === 'mid' ? Math.min(height, Math.max(56, height * 0.48)) : height;
+    this.shadow.roundRect(2, 3, width, h, borderRadius);
+    this.shadow.fill({ color: 0x0f172a, alpha: 0.1 });
     this.card.roundRect(0, 0, width, h, borderRadius);
     this.card.fill({ color: style.background });
     this.card.stroke({ color: style.border, width: style.borderWidth });
@@ -138,7 +152,7 @@ export class PersonNodeView extends Container {
     if (lod === 'near') {
       const r = Math.min(width, height) * 0.155;
       this.card.circle(width / 2, height * 0.26, r);
-      this.card.fill({ color: style.avatarColor });
+      this.card.fill({ color: this.avatarFill });
     }
 
     this.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= width && y <= h };

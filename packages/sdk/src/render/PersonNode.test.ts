@@ -35,6 +35,7 @@ describe('PersonNodeView', () => {
     expect(view.hasTempBadge()).toBe(true);
     expect(view.hasPhotoSprite()).toBe(false);
     expect(view.hasInitials()).toBe(true);
+    expect(view.avatarFill).toBeGreaterThan(0);
   });
 
   it('success: near lod shows photo sprite when texture loads', async () => {

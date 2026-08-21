@@ -10,6 +10,7 @@ export class OrganizationNodeView extends Container {
   readonly lod: LodLevel;
   /** Settles when optional symbol load finishes (or immediately if none). */
   readonly mediaReady: Promise<void>;
+  private readonly shadow = new Graphics();
   private readonly card = new Graphics();
   private readonly hoverRing = new Graphics();
   private readonly nameText: Text;
@@ -44,7 +45,7 @@ export class OrganizationNodeView extends Container {
 
     this.symbolSprite.visible = false;
     this.hoverRing.visible = false;
-    this.addChild(this.card, this.symbolSprite, this.nameText, this.groupText, this.hoverRing);
+    this.addChild(this.shadow, this.card, this.symbolSprite, this.nameText, this.groupText, this.hoverRing);
     this.drawCard(style, lod);
     this.layoutTexts(style, lod);
 
@@ -82,6 +83,7 @@ export class OrganizationNodeView extends Container {
   private drawCard(style: OrganizationNodeStyle, lod: LodLevel): void {
     const { width, height, borderRadius } = style;
     this.card.clear();
+    this.shadow.clear();
 
     if (lod === 'far') {
       const size = Math.min(style.symbolSize, 36);
@@ -94,6 +96,8 @@ export class OrganizationNodeView extends Container {
       return;
     }
 
+    this.shadow.roundRect(2, 3, width, height, borderRadius);
+    this.shadow.fill({ color: 0x0f172a, alpha: 0.1 });
     this.card.roundRect(0, 0, width, height, borderRadius);
     this.card.fill({ color: style.background });
     this.card.stroke({ color: style.border, width: style.borderWidth });

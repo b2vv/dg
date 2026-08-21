@@ -8,6 +8,8 @@
 
 ### Cards
 - Initials on avatar circle when no real photo; 1×1 placeholder PNGs ignored
+- Per-name stable avatar disc colors (muted palette, not one slate for all)
+- Soft card shadow on person / org near+mid cards
 - Darker title / group colors (WCAG-friendlier)
 - Person/org hover ring; thicker borders & staff edges
 - Org card text vertically centered
@@ -18,6 +20,7 @@
 - Variant B caption (tiers + orange T = temporary)
 - Initial Fit without animation (correct zoom immediately)
 - Slightly clearer UI font stack
+- Dark theme `--muted` lightened for caption/status contrast
 
 ## Tests
 - `personInitials.test.ts`
