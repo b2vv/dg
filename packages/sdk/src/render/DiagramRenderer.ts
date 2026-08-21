@@ -319,7 +319,12 @@ export class DiagramRenderer {
     const session = this.contourSession;
     if (!session) return mapped;
     const boxes = session.boxesByDept.get(result.departmentId) ?? [];
-    return polishContourRing(mapped, boxes, session.style.strokeWidth);
+    return polishContourRing(
+      mapped,
+      boxes,
+      session.style.strokeWidth,
+      session.magnet.paddingCells ?? 0,
+    );
   }
 
   private mountDeptBlob(blob: DepartmentBlobView): void {

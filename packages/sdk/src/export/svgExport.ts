@@ -146,7 +146,12 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
       if (c.points.length < 2) continue;
       const mapped = c.points.map((p) => mapContourPointToWorld(p.x, p.y, world));
       const boxes = boxesByDept.get(c.departmentId) ?? [];
-      const polished = polishContourRing(mapped, boxes, DEPT_STROKE_W);
+      const polished = polishContourRing(
+        mapped,
+        boxes,
+        DEPT_STROKE_W,
+        config.paddingCells ?? 0,
+      );
       const d = polished.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x} ${p.y}`).join(' ');
       polishedByDept.push({ deptId: c.departmentId, d });
     }
