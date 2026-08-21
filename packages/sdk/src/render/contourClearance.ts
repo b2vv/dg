@@ -145,9 +145,12 @@ export function nudgeContourClearOfBoxes(
   return ring;
 }
 
-/** Stroke half-width plus option-A card inset breathing room. */
+/** Own-card AABB padding (G7-lite) beyond stroke half-width, in world px. */
+export const CONTOUR_OWN_PADDING_PX = 6;
+
+/** Stroke half-width plus own-AABB breathing room (G7-lite). */
 export function contourCardClearanceMargin(strokeWidth: number): number {
-  return strokeWidth / 2 + 2;
+  return strokeWidth / 2 + CONTOUR_OWN_PADDING_PX;
 }
 
 /** @deprecated kept for unit tests — signed screen-left inflate. */

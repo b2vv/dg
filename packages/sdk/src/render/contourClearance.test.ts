@@ -54,8 +54,9 @@ describe('nudgeContourClearOfBoxes', () => {
     expect(nudgeContourClearOfBoxes(ring, [], 2)).toEqual(ring);
   });
 
-  it('success: margin includes stroke half + 2px inset', () => {
-    expect(contourCardClearanceMargin(1.25)).toBeCloseTo(2.625);
+  it('success: margin includes stroke half + own AABB padding', () => {
+    expect(contourCardClearanceMargin(1.25)).toBeCloseTo(1.25 / 2 + 6);
+    expect(contourCardClearanceMargin(0.9)).toBeCloseTo(0.9 / 2 + 6);
   });
 
   it('success: clockwise square inflates outward', () => {

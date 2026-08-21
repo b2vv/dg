@@ -84,6 +84,7 @@ npm run dev          # http://localhost:3000
 37. [T37-variant-b-edge-gaps.md](./tasks/T37-variant-b-edge-gaps.md) — ✅ Variant B corridor gaps for readable report edges
 38. [T38-contour-stroke-clearance.md](./tasks/T38-contour-stroke-clearance.md) — ✅ Chaikin contour clear of cards + round stroke joins
 39. [T39-tree-arrows-quiet-contour.md](./tasks/T39-tree-arrows-quiet-contour.md) — ✅ admin arrows + quieter dept fill; Smooth default 1
+40. [T40-g7-stroke-punchout.md](./tasks/T40-g7-stroke-punchout.md) — ✅ pad0 + own-AABB px clearance; contour stroke above cards
 
 ## Технічний борг
 
