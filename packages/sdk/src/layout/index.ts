@@ -19,7 +19,13 @@ export {
 export { computeMatrixLayout, swapMatrixOrder, placeOrgAtMatrixCell } from './matrixLayout.js';
 export { assignMatrixCells, resolveMatrixDimensions } from './matrixGrid.js';
 export type { MatrixDimensions, MatrixCellAssignment } from './matrixGrid.js';
-export type { MatrixShape } from './types.js';
+export type { MatrixShape, OrgEdgeStyle } from './types.js';
+export {
+  buildSpineBusPaths,
+  buildSpineBusEdgesForForest,
+  spineBusToOrgEdges,
+} from './spineBusEdges.js';
+export type { WorldBox, SpineBusOptions, SpineBusPolyline } from './spineBusEdges.js';
 
 export {
   computeOrgLayout,

@@ -3,6 +3,9 @@ export type OrgDisplayMode = 'matrix' | 'row-tree';
 /** auto — розширювана сітка; square/rectangle — фіксована матриця з overflow */
 export type MatrixShape = 'auto' | 'square' | 'rectangle';
 
+/** Matrix admin edge paint (T63). Row-tree ignores this. */
+export type OrgEdgeStyle = 'per-link' | 'spine-bus';
+
 export interface OrgLayoutOptions {
   nodeWidth?: number;
   nodeHeight?: number;
@@ -12,6 +15,12 @@ export interface OrgLayoutOptions {
   matrixShape?: MatrixShape;
   matrixRows?: number;
   matrixColumns?: number;
+  /**
+   * Matrix admin edges: shared spine + row bus + risers (T63),
+   * or classic per-link orthogonal routes.
+   * Default `spine-bus`. Row-tree mode ignores this (keeps tree paths).
+   */
+  orgEdgeStyle?: OrgEdgeStyle;
 }
 
 export interface OrgLayoutNode {
@@ -44,7 +53,11 @@ export interface OrgLayoutResult {
   height: number;
 }
 
-export const DEFAULT_ORG_LAYOUT_OPTIONS: Required<OrgLayoutOptions> = {
+export const DEFAULT_ORG_LAYOUT_OPTIONS: Required<
+  Omit<OrgLayoutOptions, 'orgEdgeStyle'>
+> & {
+  orgEdgeStyle: OrgEdgeStyle;
+} = {
   nodeWidth: 200,
   nodeHeight: 64,
   horizontalGap: 28,
@@ -53,4 +66,5 @@ export const DEFAULT_ORG_LAYOUT_OPTIONS: Required<OrgLayoutOptions> = {
   matrixShape: 'auto',
   matrixRows: 0,
   matrixColumns: 0,
+  orgEdgeStyle: 'spine-bus',
 };

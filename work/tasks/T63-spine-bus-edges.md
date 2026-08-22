@@ -1,7 +1,7 @@
 # T63 — Spine / шина / райзери для org-matrix (B3)
 
 **Пріоритет:** P1  
-**Статус:** planned  
+**Статус:** done  
 **Parity:** B3  
 **Зв’язок:** T03 matrix, T34/T37 edges, легасі `matrix-group.layout.ts`
 
@@ -32,26 +32,26 @@
 ## Пропозиція
 
 ```ts
-// render / orgEdges
-type OrgEdgeStyle = 'per-link' | 'spine-bus';
+// OrgLayoutOptions
+type OrgEdgeStyle = 'per-link' | 'spine-bus'; // default spine-bus
 
 function buildSpineBusPaths(
   parentBox: WorldBox,
   childBoxes: WorldBox[],
-  opts: { busY?: 'below-parent' | 'row-mid' }
+  opts: { busY?: 'below-parent' | 'row-top' }
 ): Polyline[];
 ```
 
-- Режим `spine-bus` для `orgMode === 'matrix'` або коли всі видимі діти — сітка.
+- Режим `spine-bus` для matrix admin parent→child.
 - Unit: N дітей в одному рядку → 1 horizontal bus + N risers + 1 spine segment.
-- LOD: far — спрощений spine (одна лінія) або hide.
+- Opt-out: `orgEdgeStyle: 'per-link'`. Row-tree paths unchanged.
 
 ## Acceptance
 
-- [ ] Flat orgs / matrix: візуально шина + райзери
-- [ ] Не ламає row-tree edges
-- [ ] Unit на геометрію bus
-- [ ] Опція вимкнути (`per-link`) для A/B
+- [x] Flat orgs / matrix: візуально шина + райзери
+- [x] Не ламає row-tree edges
+- [x] Unit на геометрію bus
+- [x] Опція вимкнути (`per-link`) для A/B
 
 ## Не входить
 

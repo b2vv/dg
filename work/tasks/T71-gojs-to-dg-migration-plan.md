@@ -31,10 +31,10 @@
 
 | ID | Тема | Пріоритет | Блокує cutover? |
 |----|------|-----------|-----------------|
-| [T64](./T64-named-display-zones-paint.md) | Іменовані зони (B8/B8a) — paint | **P0** | **Так** |
-| [T66](./T66-position-expand-depth.md) | Expand посади + depth N (C2/C3) | **P0** | **Так** |
-| [T70](./T70-position-card-chrome.md) | Chrome + **contain знака** (4231 №3) | **P0 Phase0** / P1 rest | Phase0 — так для 4231 |
-| [T63](./T63-spine-bus-edges.md) | Spine / шина org-matrix (B3) | P1 | Ні |
+| [T64](./T64-named-display-zones-paint.md) | Іменовані зони (B8/B8a) — paint | **P0** | **Так** ✅ |
+| [T66](./T66-position-expand-depth.md) | Expand посади + depth N (C2/C3) | **P0** | **Так** ✅ |
+| [T70](./T70-position-card-chrome.md) | Chrome + **contain знака** (4231 №3) | **P0 Phase0** / P1 rest | Phase0 — так для 4231 ✅ Phase0 |
+| [T63](./T63-spine-bus-edges.md) | Spine / шина org-matrix (B3) | P1 | Ні ✅ |
 | [T68](./T68-org-period-display.md) | Період на організації (D4*) | P1 | Ні |
 | [T69](./T69-node-double-click.md) | Dblclick → sidebar (D5) | P1 | Ні (у GoJS теж мертвий) |
 | [T65](./T65-multi-root-forest.md) | Detached placement (B9 🟡65) | P2 | **Ні** |

@@ -4,6 +4,7 @@ import {
   staffEdgePolylineToSvg,
 } from '../render/staffEdgeGeometry.js';
 import { assignMatrixCells, placeOrgAtMatrixCell, resolveMatrixDimensions } from './matrixGrid.js';
+import { buildSpineBusEdgesForForest } from './spineBusEdges.js';
 import {
   DEFAULT_ORG_LAYOUT_OPTIONS,
   type OrgLayoutEdge,
@@ -47,7 +48,7 @@ export function computeMatrixLayout(
   });
 
   const nodeMap = new Map(nodes.map((n) => [n.orgId, n]));
-  const edges = buildMatrixEdges(organizations, orgLinks, nodeMap);
+  const edges = buildMatrixEdges(organizations, orgLinks, nodeMap, opts);
 
   const maxX = Math.max(...nodes.map((n) => n.x + n.width), 0);
   const maxY = Math.max(...nodes.map((n) => n.y + n.height), 0);
@@ -65,11 +66,12 @@ function buildMatrixEdges(
   organizations: DiagramOrganization[],
   orgLinks: DiagramOrgLink[],
   nodeMap: Map<string, OrgLayoutNode>,
+  opts: typeof DEFAULT_ORG_LAYOUT_OPTIONS,
 ): OrgLayoutEdge[] {
   const edges: OrgLayoutEdge[] = [];
   const seen = new Set<string>();
 
-  const addEdge = (fromId: string, toId: string, kind: OrgLayoutEdge['kind']) => {
+  const addPerLink = (fromId: string, toId: string, kind: OrgLayoutEdge['kind']) => {
     const key = `${fromId}->${toId}`;
     if (seen.has(key)) return;
     const from = nodeMap.get(fromId);
@@ -85,14 +87,29 @@ function buildMatrixEdges(
     });
   };
 
+  const parentPairs: Array<{ parentId: string; childId: string }> = [];
   for (const org of organizations) {
     if (org.parentOrgId) {
-      addEdge(org.parentOrgId, org.id, 'admin');
+      parentPairs.push({ parentId: org.parentOrgId, childId: org.id });
     }
   }
 
+  if (opts.orgEdgeStyle === 'per-link') {
+    for (const { parentId, childId } of parentPairs) {
+      addPerLink(parentId, childId, 'admin');
+    }
+  } else {
+    const busGap = Math.max(8, Math.min(18, opts.verticalGap / 2));
+    edges.push(
+      ...buildSpineBusEdgesForForest([...nodeMap.values()], parentPairs, {
+        busGap,
+        busY: 'row-top',
+      }),
+    );
+  }
+
   for (const link of orgLinks) {
-    addEdge(link.fromOrgId, link.toOrgId, 'link');
+    addPerLink(link.fromOrgId, link.toOrgId, 'link');
   }
 
   return edges;

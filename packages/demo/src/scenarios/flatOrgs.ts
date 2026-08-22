@@ -3,7 +3,7 @@ import { DEMO_PLACEHOLDER_PNG } from './demoMedia.js';
 
 /**
  * Flat org matrix demo: a shallow tree that fits a row-major grid
- * (root → layer-1 → layer-2) so parent edges read top→down instead of a bus mesh.
+ * (root → layer-1 → layer-2). Matrix admin edges use spine+bus+risers (T63).
  */
 export function buildFlatOrgsData(count = 24): DiagramData {
   const organizations = Array.from({ length: count }, (_, i) => {

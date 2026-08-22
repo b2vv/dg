@@ -270,6 +270,8 @@ export {
   assignExpandToDepth,
   visiblePositions,
   expandIdsForDepth,
+  buildSpineBusPaths,
+  buildSpineBusEdgesForForest,
 } from './layout/index.js';
 export type {
   OrgDisplayMode,
@@ -282,6 +284,7 @@ export type {
   StaffLayoutOptions,
   StaffCanvasResult,
   StaffOrgBlockResult,
+  OrgEdgeStyle,
 } from './layout/index.js';
 export interface OrgHierarchyConfig<TRaw = DiagramData> {
   data: TRaw | DiagramData;
