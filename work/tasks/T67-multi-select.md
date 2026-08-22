@@ -1,7 +1,7 @@
 # T67 — Мультивибір вузлів (D2)
 
 **Пріоритет:** P2  
-**Статус:** planned  
+**Статус:** Phase 1 done  
 **Parity:** D2  
 **Узгодження:** [T73](./T73-remaining-agreements.md)  
 **Уточнення продукту:** вимога з **наступних задач** (не блокер поточного cutover)  
@@ -16,15 +16,17 @@
 ## Стан у `dg`
 
 ```ts
-// OrgHierarchyDiagram (internal)
-selection: NodeRef | null  // лише одиничне
-getSelection(): NodeRef | null
-// callbacks already array-shaped:
-onSelectionChange?(nodes: NodeRef[]): void
-// shiftKey / ctrlKey / marquee — відсутні
+// OrgHierarchyDiagram (T67 Phase 1)
+selections: NodeRef[]                 // internal set
+getSelection(): NodeRef | null        // primary / first (compat)
+getSelections(): readonly NodeRef[]
+selectMany(nodes) / toggleSelection(node) / clearSelection()
+onSelectionChange?(nodes: NodeRef[]): void  // fires with full set
+// gestures: meta/ctrl/shift+click toggle; plain click replace; canvas clear
+// marquee — відсутнє (не Phase 1)
 ```
 
-`selectNode` у `interaction/selection.ts` — replace-one semantics.
+`selectNode` у `interaction/selection.ts` — replace-one semantics (compat). Set helpers: `replaceSelection` / `toggleInSelection` / `selectMany`.
 
 ## Аргументація пріоритету P2
 
@@ -40,17 +42,17 @@ onSelectionChange?(nodes: NodeRef[]): void
 // Additive preferred (avoid breaking hosts on getSelection scalar)
 getSelections(): readonly NodeRef[]
 selectMany(nodes: NodeRef[]): Promise<void>
-toggleInSelection(node: NodeRef): Promise<void>
+toggleSelection(node: NodeRef): Promise<void>
 clearSelection(): Promise<void>
 // getSelection(): NodeRef | null  — keep = primary / first selected (compat)
 
 onSelectionChange?(nodes: NodeRef[]): void  // already exists
 
 // gestures (Phase 1)
-// - meta/ctrl+click toggle membership
+// - meta/ctrl/shift+click toggle membership
 // - plain click → single replace
 // - canvas click → clear
-// - shift+click range: optional later
+// - shift+click range: optional later (shift currently = toggle, same as ctrl)
 // marquee: NOT Phase 1 — only if product explicitly orders Phase 2
 ```
 
@@ -60,12 +62,12 @@ onSelectionChange?(nodes: NodeRef[]): void  // already exists
 
 ## Acceptance (Phase 1)
 
-- [ ] Ctrl/Cmd+click додає/знімає з вибору
-- [ ] `getSelections()` / docs узгоджено; scalar `getSelection()` не ламає hosts
-- [ ] Canvas click очищає multi
-- [ ] Unit success/failure
-- [ ] Host demo: status показує N selected
-- [ ] **Не** обіцяти marquee в UI
+- [x] Ctrl/Cmd+click додає/знімає з вибору
+- [x] `getSelections()` / docs узгоджено; scalar `getSelection()` не ламає hosts
+- [x] Canvas click очищає multi
+- [x] Unit success/failure
+- [x] Host demo: status показує N selected
+- [x] **Не** обіцяти marquee в UI
 
 ## Не входить (Phase 1)
 

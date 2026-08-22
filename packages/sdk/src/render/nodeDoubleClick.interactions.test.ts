@@ -51,7 +51,10 @@ function hostOf(diagram: OrgHierarchyDiagram): PixiHost {
   return host;
 }
 
-function tapEvent(local: { x: number; y: number } = { x: 40, y: 40 }) {
+function tapEvent(
+  local: { x: number; y: number } = { x: 40, y: 40 },
+  mods: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean } = {},
+) {
   return {
     stopPropagation: () => {},
     preventDefault: () => {},
@@ -59,6 +62,9 @@ function tapEvent(local: { x: number; y: number } = { x: 40, y: 40 }) {
     clientX: 10,
     clientY: 10,
     global: { x: 10, y: 10 },
+    ctrlKey: Boolean(mods.ctrlKey),
+    metaKey: Boolean(mods.metaKey),
+    shiftKey: Boolean(mods.shiftKey),
   };
 }
 
@@ -252,6 +258,42 @@ describe('onNodeDoubleClick (T69)', () => {
       node!.emit('pointertap', tapEvent());
       node!.emit('pointertap', tapEvent());
     }).not.toThrow();
+
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
+
+  it('success: ctrl/cmd click toggles multi-select and does not fire onNodeDoubleClick', async () => {
+    const onNodeClick = vi.fn();
+    const onNodeDoubleClick = vi.fn();
+    const onSelectionChange = vi.fn();
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: personData(),
+      staffCurrentOrgId: 'o1',
+      useWorker: false,
+      callbacks: { onNodeClick, onNodeDoubleClick, onSelectionChange },
+    });
+
+    const persons = hostOf(diagram).renderer.layers.persons;
+    const node = persons.children[0]!;
+
+    node.emit('pointertap', tapEvent({ x: 40, y: 40 }, { ctrlKey: true }));
+    node.emit('pointertap', tapEvent({ x: 40, y: 40 }, { metaKey: true }));
+
+    expect(onNodeDoubleClick).not.toHaveBeenCalled();
+    expect(onNodeClick).toHaveBeenCalledTimes(2);
+    // Two toggles on the same node → empty set
+    expect(diagram.getSelections()).toEqual([]);
+    expect(onSelectionChange).toHaveBeenLastCalledWith([]);
+
+    node.emit('pointertap', tapEvent({ x: 40, y: 40 }, { shiftKey: true }));
+    expect(diagram.getSelections()).toHaveLength(1);
+    expect(diagram.getSelection()?.id).toBe('p1');
 
     diagram.destroy();
     document.body.removeChild(container);

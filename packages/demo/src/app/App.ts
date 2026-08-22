@@ -196,6 +196,13 @@ export class App {
       this.diagram = await OrgHierarchyDiagram.create(this.mountEl, {
         ...config,
         callbacks: {
+          onSelectionChange: (nodes) => {
+            this.setStatus(
+              nodes.length === 0
+                ? `${this.tab} · 0 selected`
+                : `selection · ${nodes.length} selected`,
+            );
+          },
           onNodeClick: (node) => {
             this.contextMenu?.close();
             if (node.kind === 'organization' && (this.tab === 'flat-orgs' || this.tab === 'scale-100k')) {
@@ -223,8 +230,9 @@ export class App {
               const expanded = this.diagram?.getStaffExpandedOrgIds() ?? [];
               const exp =
                 expanded.length > 0 ? ` · expanded ${expanded.join(',')}` : '';
+              const n = this.diagram?.getSelections().length ?? 0;
               this.setStatus(
-                `staff-tree · focus ${focus}${exp} · click ${node.kind}:${node.id}`,
+                `staff-tree · focus ${focus}${exp} · click ${node.kind}:${node.id} · ${n} selected`,
               );
             }
           },

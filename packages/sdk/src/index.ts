@@ -43,7 +43,11 @@ import {
   resolveOrganizationIdForNode,
   movePositionToCell,
   shiftPositionBlock,
-  selectNode,
+  selectMany as dedupeSelections,
+  replaceSelection,
+  toggleInSelection,
+  sameSelectionSet,
+  isSelectionToggleModifier,
   defaultContextMenuItems,
   type SearchIndex,
   type NodeRef,
@@ -243,6 +247,13 @@ export {
   personTestId,
   positionTestId,
   resolveTestIdInData,
+  selectNode,
+  selectMany,
+  sameNodeRef,
+  replaceSelection,
+  toggleInSelection,
+  isSelectionToggleModifier,
+  type SelectionPointerMods,
   type TestAnchorCandidate,
 } from './interaction/index.js';
 export {
@@ -341,7 +352,8 @@ export class OrgHierarchyDiagram {
   private staffExpandedOrgIds = new Set<string>();
   private staffExpandedPositionIds = new Set<string>();
   private searchIdx: SearchIndex | null = null;
-  private selection: NodeRef | null = null;
+  /** Multi-select set (T67). Primary / first element is also exposed via getSelection(). */
+  private selections: NodeRef[] = [];
   private lodLevel: LodLevel = 'near';
   private lodRenderQueued = false;
   private contourComputer: IncrementalContourComputer | null = null;
@@ -454,11 +466,38 @@ export class OrgHierarchyDiagram {
   }
 
   private applySelection(next: NodeRef | null): void {
-    const result = selectNode(this.selection, next);
+    const result = replaceSelection(this.selections, next);
     if (!result.changed) return;
-    this.selection = result.selection;
-    this.callbacks.onSelectionChange?.(result.selection ? [result.selection] : []);
+    this.selections = result.selections;
+    this.callbacks.onSelectionChange?.(this.selections);
     this.notifyPromoteSync();
+  }
+
+  private applyToggleSelection(node: NodeRef): void {
+    const result = toggleInSelection(this.selections, node);
+    if (!result.changed) return;
+    this.selections = result.selections;
+    this.callbacks.onSelectionChange?.(this.selections);
+    this.notifyPromoteSync();
+  }
+
+  private applySelections(next: readonly NodeRef[]): void {
+    const selections = dedupeSelections(next);
+    if (sameSelectionSet(this.selections, selections)) return;
+    this.selections = selections;
+    this.callbacks.onSelectionChange?.(this.selections);
+    this.notifyPromoteSync();
+  }
+
+  private handleNodeSelect(
+    node: NodeRef,
+    mods?: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean },
+  ): void {
+    if (mods && isSelectionToggleModifier(mods)) {
+      this.applyToggleSelection(node);
+    } else {
+      this.applySelection(node);
+    }
   }
 
   private personNodeRef(personId: string, positionId: string): NodeRef {
@@ -591,14 +630,14 @@ export class OrgHierarchyDiagram {
             expandedOrgIds: [...this.staffExpandedOrgIds],
           }
         : undefined,
-      selected: this.selection,
+      selected: this.selections,
       onCanvasClick: () => {
         this.applySelection(null);
         void this.render();
       },
-      onOrgClick: (orgId) => {
+      onOrgClick: (orgId, mods) => {
         const node = this.orgNodeRef(orgId);
-        this.applySelection(node);
+        this.handleNodeSelect(node, mods);
         this.callbacks.onNodeClick?.(node);
         void this.render();
       },
@@ -614,9 +653,9 @@ export class OrgHierarchyDiagram {
       onPositionExpandToggle: (positionId) => {
         void this.togglePositionExpand(positionId);
       },
-      onPersonClick: (personId, positionId) => {
+      onPersonClick: (personId, positionId, mods) => {
         const node = this.personNodeRef(personId, positionId);
-        this.applySelection(node);
+        this.handleNodeSelect(node, mods);
         this.callbacks.onNodeClick?.(node);
         void this.render();
       },
@@ -948,8 +987,14 @@ export class OrgHierarchyDiagram {
     return querySearchIndex(this.searchIdx, query);
   }
 
+  /** Primary / first selected node (compat). Prefer {@link getSelections}. */
   getSelection(): NodeRef | null {
-    return this.selection;
+    return this.selections[0] ?? null;
+  }
+
+  /** Full multi-select set (T67 Phase 1). Order = selection order. */
+  getSelections(): readonly NodeRef[] {
+    return this.selections;
   }
 
   /** Soft layout warnings from the last render (anchor overlap, skipped expands, …). */
@@ -957,8 +1002,27 @@ export class OrgHierarchyDiagram {
     return this.host?.renderer.getLayoutDiagnostics() ?? [];
   }
 
+  /** Replace selection with one node (or clear). */
   async select(node: NodeRef | null): Promise<void> {
     this.applySelection(node);
+    await this.render();
+  }
+
+  /** Replace selection with many nodes (deduped). */
+  async selectMany(nodes: readonly NodeRef[]): Promise<void> {
+    this.applySelections(nodes);
+    await this.render();
+  }
+
+  /** Toggle membership of one node in the selection set. */
+  async toggleSelection(node: NodeRef): Promise<void> {
+    this.applyToggleSelection(node);
+    await this.render();
+  }
+
+  /** Clear the selection set. */
+  async clearSelection(): Promise<void> {
+    this.applySelection(null);
     await this.render();
   }
 
