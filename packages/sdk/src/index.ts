@@ -51,6 +51,12 @@ import {
   type ContextMenuRequest,
   type ContextMenuNodeData,
   type ContextMenuPointer,
+  resolveTestIdInData,
+  orgTestId,
+  personTestId,
+  positionTestId,
+  nodeDomTestId,
+  type TestAnchorCandidate,
 } from './interaction/index.js';
 import {
   buildSearchIndexForScale,
@@ -213,6 +219,13 @@ export {
   InteractionError,
   defaultContextMenuItems,
   resolveContextMenuNodeData,
+  nodeDomTestId,
+  normalizeTestIdKey,
+  orgTestId,
+  personTestId,
+  positionTestId,
+  resolveTestIdInData,
+  type TestAnchorCandidate,
 } from './interaction/index.js';
 export {
   buildSearchIndexInWorker,
@@ -281,6 +294,8 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
   orgLayout?: OrgLayoutOptions;
   /** Show +/− tree expand/collapse chrome on org cards (default true). Set false for 100k scale tab (T48). */
   orgTreeChrome?: boolean;
+  /** Enable DOM test anchors (`data-testid="node-*"`) — use with createTestAnchorOverlay (T55). */
+  testAnchors?: boolean;
 }
 
 /** Embed SDK — Pixi render + data/mappers + worker contour */
@@ -780,6 +795,63 @@ export class OrgHierarchyDiagram {
   }
 
   /**
+   * Resolve stable testId → node ref (first match). Accepts `node-` prefix.
+   */
+  resolveTestId(raw: string): NodeRef | null {
+    return resolveTestIdInData(this.data, raw);
+  }
+
+  /**
+   * Expand collapsed org (if applicable), reveal path, select + pan.
+   * Unknown testId → false.
+   */
+  async focusByTestId(raw: string): Promise<boolean> {
+    const ref = resolveTestIdInData(this.data, raw);
+    if (!ref) return false;
+    if (ref.kind === 'organization') {
+      const org = this.data.organizations.find((o) => o.id === ref.id);
+      if (org?.collapsed) {
+        await this.expandOrg(ref.id);
+        return true;
+      }
+    }
+    return this.revealPath(ref.id);
+  }
+
+  /** DOM anchor candidates synced to rendered node bounds (T55). */
+  listTestAnchors(): TestAnchorCandidate[] {
+    const boxes = this.host?.renderer.listNodeBoxes() ?? [];
+    const out: TestAnchorCandidate[] = [];
+    const seen = new Set<string>();
+    for (const box of boxes) {
+      const ref = this.resolveNodeRef(box.id);
+      if (!ref) continue;
+      const testId = this.testIdForRef(ref);
+      if (!testId) continue;
+      const dedupe = `${ref.kind}:${testId}`;
+      if (seen.has(dedupe)) continue;
+      seen.add(dedupe);
+      out.push({
+        testId,
+        kind: ref.kind,
+        ref,
+        world: { x: box.x, y: box.y, width: box.width, height: box.height },
+      });
+    }
+    return out;
+  }
+
+  /** Open context menu for a node (e2e / programmatic). */
+  openContextMenu(ref: NodeRef, pointer?: Partial<ContextMenuPointer>): void {
+    this.emitContextMenu(ref, {
+      clientX: pointer?.clientX ?? 0,
+      clientY: pointer?.clientY ?? 0,
+      canvasX: pointer?.canvasX,
+      canvasY: pointer?.canvasY,
+    });
+  }
+
+  /**
    * Select + pan to node. Unknown id → no-op, returns false.
    */
   async focusNode(nodeId: string): Promise<boolean> {
@@ -949,6 +1021,23 @@ export class OrgHierarchyDiagram {
     const byPerson = this.data.positions.find((p) => p.personId === nodeId);
     if (byPerson?.personId) return this.personNodeRef(byPerson.personId, byPerson.id);
     return null;
+  }
+
+  private testIdForRef(ref: NodeRef): string | null {
+    if (ref.kind === 'organization') {
+      const org = this.data.organizations.find((o) => o.id === ref.id);
+      return org ? orgTestId(org) : null;
+    }
+    if (ref.kind === 'person') {
+      const person = this.data.persons.find((p) => p.id === (ref.personId ?? ref.id));
+      return person ? personTestId(person) : null;
+    }
+    const position = this.data.positions.find((p) => p.id === (ref.positionId ?? ref.id));
+    if (!position) return null;
+    const person = position.personId
+      ? this.data.persons.find((p) => p.id === position.personId)
+      : undefined;
+    return positionTestId(position, person);
   }
 
   destroy(): void {

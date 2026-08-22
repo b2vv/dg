@@ -31,6 +31,8 @@ export interface DiagramOrganization {
   /** Явна позиція у matrix grid (row/col) */
   matrixRow?: number;
   matrixCol?: number;
+  /** Stable e2e / automation id (DOM: data-testid="node-<testId>"). Default: id. */
+  testId?: string;
 }
 
 export interface DiagramGroup {
@@ -53,6 +55,7 @@ export interface DiagramPerson {
   id: string;
   fullName: string;
   photoUrl?: string;
+  testId?: string;
 }
 
 export interface DiagramPosition {
@@ -78,6 +81,7 @@ export interface DiagramPosition {
   gridCell?: GridCell;
   /** Staff hierarchy band (block shift) */
   hierarchyLevel?: number;
+  testId?: string;
 }
 
 export interface DiagramReportLine {

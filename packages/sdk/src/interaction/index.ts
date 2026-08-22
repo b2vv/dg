@@ -31,3 +31,12 @@ export {
 export { selectNode, sameNodeRef } from './selection.js';
 export { defaultContextMenuItems } from './contextMenu.js';
 export { resolveContextMenuNodeData } from './contextMenuPayload.js';
+export {
+  nodeDomTestId,
+  normalizeTestIdKey,
+  orgTestId,
+  personTestId,
+  positionTestId,
+  resolveTestIdInData,
+  type TestAnchorCandidate,
+} from './nodeTestId.js';

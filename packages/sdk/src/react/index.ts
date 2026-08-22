@@ -14,3 +14,9 @@ export {
   type ReactPromoteOverlayOptions,
   type DefaultPromoteCardProps,
 } from './createReactPromoteOverlay.js';
+export {
+  createTestAnchorOverlay,
+  type TestAnchorOverlay,
+  type TestAnchorOverlayDiagram,
+  type TestAnchorOverlayOptions,
+} from './createTestAnchorOverlay.js';

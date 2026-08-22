@@ -14,9 +14,11 @@ import {
   createReactContextMenuHost,
   DefaultReactContextMenu,
   createReactPromoteOverlay,
+  createTestAnchorOverlay,
   DefaultPromoteCard,
   type ReactContextMenuHost,
   type ReactPromoteOverlay,
+  type TestAnchorOverlay,
   type PromoteSlotProps,
 } from '@org-hierarchy/sdk/react';
 import { createElement } from 'react';
@@ -58,6 +60,9 @@ export class App {
   private scaleWindow: ScaleOrgsWindow | null = null;
   private contextMenu: ReactContextMenuHost | null = null;
   private promote: ReactPromoteOverlay | null = null;
+  private testAnchors: TestAnchorOverlay | null = null;
+  private readonly e2eMode =
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('e2e');
 
   private readonly mountEl: HTMLElement;
   private readonly statusEl: HTMLElement;
@@ -178,9 +183,12 @@ export class App {
   private async reload(): Promise<void> {
     this.promote?.dispose();
     this.promote = null;
+    this.testAnchors?.dispose();
+    this.testAnchors = null;
     this.diagram?.destroy();
     this.diagram = null;
     this.mountEl.innerHTML = '';
+    this.mountEl.removeAttribute('data-testid');
 
     const config = this.buildConfig();
     try {
@@ -257,6 +265,14 @@ export class App {
         mode: 'near-selection',
         component: DemoPromoteCard,
       });
+      if (this.e2eMode) {
+        this.testAnchors = createTestAnchorOverlay({
+          diagram: this.diagram,
+          mount: this.mountEl,
+          interactive: true,
+        });
+        this.mountEl.setAttribute('data-testid', 'diagram-ready');
+      }
       this.mountZoomFab();
       if (this.tab === 'staff-tree') {
         this.setStatus(`Staff tree · focus ${this.diagram.getStaffFocus() ?? 'ops'}`);

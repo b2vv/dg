@@ -1,14 +1,16 @@
 # T56 — GoJS reverse-engineering: інвентаризація функціоналу
 
 **Пріоритет:** P2 (планування parity / roadmap)  
-**Статус:** draft  
+**Статус:** draft — **для product selection** (позначайте `[x]` що беремо)  
 **Джерела:** [gojs.net](https://gojs.net/latest/), samples (orgChartEditor, orgChartStatic, orgChartAssistants), intro/learn, API
 
 ---
 
-## Мета
+## Як користуватись цим документом
 
-Зафіксувати **що вміє GoJS** як reference-class diagramming library, і позначити **що вже є / частково / немає** в Org Hierarchy SDK — для roadmap без сліпого копіювання API.
+1. Пройдіться по **§16 Feature catalog** — там checkbox-групи з коротким описом і parity.
+2. Позначте `[x]` те, що хочете в roadmap (можна дописати свої пункти в §17).
+3. Пріоритети P0/P1/P2 — орієнтир, не жорстке правило.
 
 **Легенда parity**
 
@@ -16,7 +18,7 @@
 |---|---|
 | ✅ | Є в SDK (v1 або demo) |
 | 🔄 | Частково / інша модель |
-| ❌ | Немає (кандидат на backlog) |
+| ❌ | Немає (кандidat backlog) |
 | ➖ | N/A для нашого scope (2M staff, org matrix) |
 
 ---
@@ -47,6 +49,7 @@
 | **Categories** | різні templates per category | 🔄 kind: org / person / position |
 | **Copy/clone data** | `copyNodeData`, duplicate subtree | ❌ |
 | **JSON I/O** | `model.toJson()` / `fromJson` | 🔄 mapper JSON → DiagramData |
+| **testId / stable keys** | custom fields for automation | ✅ T55 `testId` + DOM anchors |
 
 ---
 
@@ -202,9 +205,10 @@
 |------|------|-----|
 | **200+ samples** | reference apps | 🔄 demo tabs |
 | **Extensions source** | Buttons.js, DataInspector | ❌ |
-| **React / Vue / Angular** | integration guides | 🔄 React menu/promote only |
+| **React / Vue / Angular** | integration guides | 🔄 React menu/promote/test anchors |
 | **TypeScript API** | typed | ✅ |
 | **Commercial license** | Northwoods | ➖ MIT OSS SDK |
+| **E2E automation** | no official DOM per node | ✅ T54 Playwright + T55 anchors |
 
 ---
 
@@ -212,23 +216,24 @@
 
 **P0-клас (org chart must-have в enterprise)**
 
-1. Tree expand/collapse з збереженням viewport — 🔄 T53 fix
+1. Tree expand/collapse з збереженням viewport — ✅ T53
 2. Search + reveal path — ✅
 3. Context menu on nodes — ✅ T52
 4. Pan/zoom/fit — ✅
 5. Export SVG/PNG/PDF — ✅
+6. E2E / stable selectors — ✅ T54 + T55
 
 **P1 (часто очікують поруч із GoJS org samples)**
 
-1. Overview minimap — ❌ → backlog
+1. Overview minimap — ❌ → T57
 2. Multi-select + bulk actions — ❌
-3. Undo/redo edit session — ❌
-4. Drag-reparent org tree — ❌
+3. Undo/redo edit session — ❌ → T59
+4. Drag-reparent org tree — ❌ → T60
 5. In-place rename — ❌
 6. Link draw / relink — ❌
-7. Search highlight (all matches) — ❌
-8. Assistant nodes / LastParents alignment — ❌
-9. testId / DOM anchors for e2e — 📋 T55
+7. Search highlight (all matches) — ❌ → T58
+8. Assistant nodes / LastParents alignment — ❌ → T61
+9. Tooltips on hover — ❌
 
 **P2 (diagramming platform — за межами v1 scope)**
 
@@ -243,18 +248,152 @@
 
 ## 15. Рекомендовані задачі (похідні від інвентаризації)
 
-| ID | Тема | Пріоритет |
-|----|------|-----------|
-| T54 | Playwright e2e smoke | P1 |
-| T55 | testId + DOM anchors | P1 |
-| T57 | Overview minimap (GoJS Overview parity) | P2 |
-| T58 | Search highlight collection | P2 |
-| T59 | Undo/redo для org expand + drag | P2 |
-| T60 | Org drag-reparent (LinkingTool parity) | P3 |
-| T61 | Assistant / LastParents tree layout | P3 |
+| ID | Тема | Пріоритет | Статус |
+|----|------|-----------|--------|
+| T54 | Playwright e2e smoke | P1 | ✅ done |
+| T55 | testId + DOM anchors | P1 | ✅ done |
+| T57 | Overview minimap (GoJS Overview parity) | P2 | backlog |
+| T58 | Search highlight collection | P2 | backlog |
+| T59 | Undo/redo для org expand + drag | P2 | backlog |
+| T60 | Org drag-reparent (LinkingTool parity) | P3 | backlog |
+| T61 | Assistant / LastParents tree layout | P3 | backlog |
+
+---
+
+## 16. Feature catalog — для вибору (checkbox)
+
+Позначте `[x]` що беремо в наступні спринти. Додаткові ідеї — §17.
+
+### A. Navigation & viewport
+
+- [ ] **A1 Overview minimap** — міні-карта з viewport rect (GoJS `Overview`) → T57
+- [x] **A2 Fit / reset / zoom FAB** — toolbar + on-diagram controls
+- [x] **A3 Pan after expand/collapse** — T53 viewport fix
+- [ ] **A4 Breadcrumb / focus path** — «Root › Ministry › Dept» для drill-down staff
+- [ ] **A5 Deep-link URL** — `?focus=org-123` / `?testId=root` для share
+- [ ] **A6 Keyboard navigation** — arrows між nodes, Enter expand
+
+### B. Org tree & matrix
+
+- [x] **B1 Row-tree layout** — WASM org tree
+- [x] **B2 Matrix layout** — flat org grid
+- [x] **B3 Matrix ↔ tree toggle** — expand/collapse per org
+- [x] **B4 Org +/− chrome** — T52 (off on 100k)
+- [ ] **B5 Collapse to level N** — «show 2 levels only»
+- [ ] **B6 Drag-reparent org** — DnD change `parentOrgId` → T60
+- [ ] **B7 Assistant nodes** — lateral siblings (GoJS assistants) → T61
+- [ ] **B8 LastParents alignment** — alternate last-row layout → T61
+- [ ] **B9 Org card inline edit** — rename org in place
+- [ ] **B10 Matrix reorder drag** — swap `matrixOrder` visually
+
+### C. Staff / positions
+
+- [x] **C1 Grid snap drag** — person move between cells
+- [x] **C2 Report lines (admin)** — ortho edges + arrows
+- [x] **C3 Dept contours** — WASM blob + magnetism
+- [x] **C4 Staff 3-tier canvas** — org cards + drill
+- [x] **C5 Staff org expand-in-place** — ▼/▲ under card
+- [ ] **C6 Vacant position styling** — dashed / placeholder avatar
+- [ ] **C7 Multi-report (matrix mgmt)** — кілька ліній на одну позицію
+- [ ] **C8 Link draw / relink** — interactive report line edit
+- [ ] **C9 Block move** — shift department block разом
+- [ ] **C10 Headcount badge** — FTE / vacant count on org card
+
+### D. Search & selection
+
+- [x] **D1 Full-text search** — worker index 2M scale
+- [x] **D2 revealPath / focusNode** — expand + pan
+- [x] **D3 testId search** — T55 in haystack
+- [ ] **D4 Highlight all matches** — dim non-matches → T58
+- [ ] **D5 Multi-select** — Shift+click, marquee
+- [ ] **D6 Selection scope export** — PNG/SVG лише subtree
+- [ ] **D7 Recent / pinned nodes** — sidebar shortcuts
+- [ ] **D8 Fuzzy search** — typo tolerance
+
+### E. Context menu & actions
+
+- [x] **E1 Context menu (React)** — T52 ⋮ + right-click
+- [x] **E2 Expand / collapse / focus** — menu actions wired
+- [ ] **E3 Copy id / copy subtree JSON** — clipboard helpers
+- [ ] **E4 Bulk actions** — collapse selected, export selected
+- [ ] **E5 Custom menu items** — host inject via callback (partial ✅)
+- [ ] **E6 Permissions** — hide actions by role (host-side)
+
+### F. Visual polish & LOD
+
+- [x] **F1 LOD far/mid/near** — simplify cards + edges
+- [x] **F2 Light/dark theme**
+- [x] **F3 Promote overlay (HTML card)** — near zoom detail
+- [ ] **F4 Tooltips** — name/title on hover delay
+- [ ] **F5 Animation on layout change** — morph positions (contour morph partial)
+- [ ] **F6 Custom node templates** — host-provided React card per kind
+- [ ] **F7 Edge labels** — «admin / func» on report lines
+- [ ] **F8 Emblem / photo lazy load** — progressive textures
+
+### G. Edit session & history
+
+- [ ] **G1 Undo / redo stack** — expand, drag, reparent → T59
+- [ ] **G2 Optimistic UI + rollback** — failed WASM layout
+- [ ] **G3 Dirty flag / beforeunload** — unsaved changes
+- [ ] **G4 Audit log hook** — who moved whom (callback)
+
+### H. Scale & perf
+
+- [x] **H1 100k org window** — sliding window + search jump
+- [x] **H2 Worker search index**
+- [x] **H3 Worker contour + layout WASM**
+- [ ] **H4 Incremental render** — patch layers без full clear
+- [ ] **H5 Virtual scrolling for flat matrix** — не materialize off-screen
+- [ ] **H6 Suspended diagram** — pause layout during bulk import
+- [ ] **H7 Memory budget telemetry** — callback on heap / texture count
+
+### I. Export & integration
+
+- [x] **I1 PNG / SVG / PDF / print**
+- [x] **I2 Mapper JSON pipeline**
+- [ ] **I3 Embed API (iframe postMessage)** — host ↔ diagram events
+- [ ] **I4 Server-side render** — headless PNG for reports
+- [ ] **I5 WCAG: focus ring + aria on anchors** — extend T55
+- [x] **I6 Playwright e2e** — T54 smoke
+
+### J. GoJS-only / low priority для нас
+
+- [ ] **J1 Force-directed layout**
+- [ ] **J2 Circular layout**
+- [ ] **J3 Rotating / resizing tools**
+- [ ] **J4 GraphObject binding DSL**
+- [ ] **J5 Data Inspector panel**
+- [ ] **J6 Swimlanes / BPMN**
+
+---
+
+## 17. Ваші доповнення (placeholder)
+
+Додайте сюди фічі, яких немає в GoJS, але потрібні продукту:
+
+- [ ] _(приклад)_ Інтеграція з LDAP / HRIS sync
+- [ ] _(приклад)_ Порівняння двох знімків штатки (diff view)
+- [ ] _(приклад)_ Compliance overlay (посади без наказу)
+- [ ] **…ваші пункти…**
+
+---
+
+## 18. Mapping: обрані фічі → задачі
+
+| Якщо обрали | Пропонований ticket |
+|-------------|---------------------|
+| A1 | T57 minimap |
+| B6 | T60 drag-reparent |
+| B7, B8 | T61 assistants / LastParents |
+| D4 | T58 search highlight |
+| G1 | T59 undo/redo |
+| I5 | T62 a11y anchors |
+| H4–H6 | T63 perf incremental |
 
 ---
 
 ## Verify
 
 Документ — planning only. Оновлювати після major releases SDK.
+
+**Останнє оновлення:** T54/T55 done — e2e + testId anchors in SDK/demo.

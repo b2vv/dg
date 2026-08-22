@@ -97,10 +97,10 @@ npm run dev          # http://localhost:3000
 50. [T50-chebyshev-pad-rect.md](./tasks/T50-chebyshev-pad-rect.md) — ✅ Chebyshev pad: adjacent row → rectangle, not hat
 51. [T51-zoom-mid-button-group.md](./tasks/T51-zoom-mid-button-group.md) — ✅ mid LOD center + button-group contour polish
 52. [T52-node-chrome-context-menu.md](./tasks/T52-node-chrome-context-menu.md) — ✅ ⋮ menu + expand chrome on cards
-53. [T53-flat-orgs-root-viewport.md](./tasks/T53-flat-orgs-root-viewport.md) — 🔄 root click viewport; 100k reload trim
-54. [T54-e2e-playwright.md](./tasks/T54-e2e-playwright.md) — 📋 Playwright smoke for demo tabs
-55. [T55-node-testid-anchors.md](./tasks/T55-node-testid-anchors.md) — 📋 testId + DOM anchors for e2e/search/focus
-56. [T56-gojs-feature-inventory.md](./tasks/T56-gojs-feature-inventory.md) — 📋 GoJS reverse-engineering + parity map
+53. [T53-flat-orgs-root-viewport.md](./tasks/T53-flat-orgs-root-viewport.md) — ✅ root click viewport; 100k focus without reload
+54. [T54-e2e-playwright.md](./tasks/T54-e2e-playwright.md) — ✅ Playwright smoke for demo tabs
+55. [T55-node-testid-anchors.md](./tasks/T55-node-testid-anchors.md) — ✅ testId + DOM anchors for e2e/search/focus
+56. [T56-gojs-feature-inventory.md](./tasks/T56-gojs-feature-inventory.md) — 📋 GoJS catalog + checkbox selection (§16)
 
 ## Технічний борг
 
@@ -119,6 +119,7 @@ npm run test:rust
 npm run build:wasm
 npm run typecheck
 npm test
+npm run test:e2e   # Playwright (needs build:demo via webServer)
 ```
 
 GitHub Actions: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)

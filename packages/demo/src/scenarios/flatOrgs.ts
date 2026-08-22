@@ -19,6 +19,7 @@ export function buildFlatOrgsData(count = 24): DiagramData {
     return {
       id: `org-${i + 1}`,
       name: `Organization ${i + 1}`,
+      ...(i === 0 ? { testId: 'root' as const } : {}),
       parentOrgId,
       groupIds: i % 4 === 0 ? ['g1'] : [],
       collapsed: true,
