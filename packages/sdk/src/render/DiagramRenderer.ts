@@ -17,12 +17,21 @@ import { isOrgCollapsed, orgHasChildren } from '../layout/orgMode.js';
 import { snapToGrid } from '../interaction/positionMove.js';
 import type { NodeRef } from '../interaction/types.js';
 import { DepartmentBlobView } from './DepartmentBlob.js';
+import { DepartmentCardView, paintDashedFrame } from './DepartmentCardView.js';
+import { StaffZonesView } from './StaffZonesView.js';
+import { enrichStaffTierBands, unionBoxes } from './staffZoneBounds.js';
 import { OrgEdgesView } from './OrgEdgesView.js';
 import { StaffEdgesView } from './StaffEdgesView.js';
 import { PersonNodeView } from './PersonNode.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
 import { runPointMorph, type PointMorphHandle } from './contourMorph.js';
-import type { DepartmentBlobStyle, NodeTheme, RenderConfig } from './types.js';
+import type {
+  DepartmentBlobStyle,
+  DepartmentCardStyle,
+  NodeTheme,
+  RenderConfig,
+  StaffZoneStyle,
+} from './types.js';
 import { defaultRenderConfig } from './types.js';
 import type { DiagramData, DiagramOrganization } from '../data/types.js';
 import type { LodLevel } from './lod.js';
@@ -113,6 +122,8 @@ interface ContourSession {
 
 export class LayerManager {
   readonly root = new Container();
+  /** T64 named zones under department chrome / cards. */
+  readonly zones = new Container();
   readonly departments = new Container();
   readonly edges = new Container();
   readonly organizations = new Container();
@@ -123,6 +134,7 @@ export class LayerManager {
 
   constructor() {
     this.root.addChild(
+      this.zones,
       this.departments,
       this.edges,
       this.organizations,
@@ -130,12 +142,14 @@ export class LayerManager {
       this.departmentStrokes,
       this.overlay,
     );
-    // Edges/strokes are paint-only — must not steal hits from node chrome underneath.
+    // Edges/strokes/zones are paint-only — must not steal hits from node chrome underneath.
     this.edges.eventMode = 'none';
     this.departmentStrokes.eventMode = 'none';
+    this.zones.eventMode = 'none';
   }
 
   clear(): void {
+    this.zones.removeChildren();
     this.departments.removeChildren();
     this.edges.removeChildren();
     this.organizations.removeChildren();
@@ -625,6 +639,27 @@ export class DiagramRenderer {
 
       const personById = new Map(data.persons.map((p) => [p.id, p]));
       const positionById = new Map(data.positions.map((p) => [p.id, p]));
+      const staffMerged = { ...DEFAULT_STAFF_LAYOUT_OPTIONS, ...staffOpts };
+
+      if (config.staffZoneChrome) {
+        const tiers = enrichStaffTierBands(
+          canvas.tiers,
+          canvas.positionNodes,
+          canvas.orgCards,
+          data.organizations,
+          { margin: staffMerged.margin, canvasWidth: canvas.width },
+        );
+        this.layers.zones.addChild(
+          StaffZonesView.fromCanvas({
+            tiers,
+            positionNodes: canvas.positionNodes,
+            orgCards: canvas.orgCards,
+            style: resolveStaffZoneStyle(theme, resolvedTheme),
+            margin: staffMerged.margin,
+            canvasWidth: canvas.width,
+          }),
+        );
+      }
 
       // Contours only for authored grid cells — remapping tree/hybrid world
       // coords into the cell grid produces crooked “macaroni” blobs.
@@ -641,10 +676,27 @@ export class DiagramRenderer {
           row: p.gridCell.row,
         }));
 
-      if (contourInputs.length > 0) {
-        const merged = { ...DEFAULT_STAFF_LAYOUT_OPTIONS, ...staffOpts };
-        const pitchX = merged.refCellWidth + merged.horizontalGap;
-        const pitchY = merged.refCellHeight + merged.verticalGap;
+      const memberBoxesByDept = new Map<string, ContourMemberBox[]>();
+      for (const n of canvas.positionNodes) {
+        const pos = positionById.get(n.id);
+        if (!pos?.departmentId) continue;
+        const list = memberBoxesByDept.get(pos.departmentId) ?? [];
+        list.push({
+          positionId: n.id,
+          x: n.x,
+          y: n.y,
+          width: n.width,
+          height: n.height,
+        });
+        memberBoxesByDept.set(pos.departmentId, list);
+      }
+
+      const deptStyle = config.departmentStyle ?? defaultRenderConfig.departmentStyle ?? 'blob';
+      if (deptStyle === 'card') {
+        this.paintDepartmentCards(data, theme, config, memberBoxesByDept);
+      } else if (contourInputs.length > 0) {
+        const pitchX = staffMerged.refCellWidth + staffMerged.horizontalGap;
+        const pitchY = staffMerged.refCellHeight + staffMerged.verticalGap;
         this.contourWorld = resolveContourWorldTransform(
           canvas.positionNodes,
           positionById,
@@ -653,24 +705,25 @@ export class DiagramRenderer {
           pitchX,
           pitchY,
         );
-        const memberBoxesByDept = new Map<string, ContourMemberBox[]>();
-        for (const n of canvas.positionNodes) {
-          const pos = positionById.get(n.id);
-          if (!pos?.departmentId) continue;
-          const list = memberBoxesByDept.get(pos.departmentId) ?? [];
-          list.push({
-            positionId: n.id,
-            x: n.x,
-            y: n.y,
-            width: n.width,
-            height: n.height,
-          });
-          memberBoxesByDept.set(pos.departmentId, list);
-        }
         await this.paintContours(contourInputs, data, theme, config, {
           ...options,
           contourMemberBoxesByDept: memberBoxesByDept,
         });
+      }
+
+      if (config.dashedGridFrame) {
+        const frame = unionBoxes(
+          canvas.positionNodes.map((n) => ({
+            x: n.x,
+            y: n.y,
+            width: n.width,
+            height: n.height,
+          })),
+          6,
+        );
+        if (frame) {
+          paintDashedFrame(this.layers.zones, frame, resolveStaffZoneStyle(theme, resolvedTheme).stroke);
+        }
       }
 
       const lod = options.lod ?? 'near';
@@ -913,6 +966,25 @@ export class DiagramRenderer {
       this.registerView(org.id, node);
     }
   }
+
+  private paintDepartmentCards(
+    data: DiagramData,
+    theme: NodeTheme,
+    config: RenderConfig,
+    memberBoxesByDept: Map<string, ContourMemberBox[]>,
+  ): void {
+    const style = resolveDepartmentCardStyle(theme);
+    const minMembers = config.minContourMembers ?? defaultRenderConfig.minContourMembers;
+    for (const dept of data.departments) {
+      const members = memberBoxesByDept.get(dept.id) ?? [];
+      const card = DepartmentCardView.fromMembers(dept, members, style, {
+        padding: 8,
+        minMembers,
+      });
+      if (card) this.layers.departments.addChild(card);
+    }
+  }
+
   private orgTreeOptions(
     org: DiagramOrganization,
     data: DiagramData,
@@ -988,4 +1060,46 @@ function countPositionsByDept(positions: DiagramData['positions']): Map<string, 
     map.set(p.departmentId, (map.get(p.departmentId) ?? 0) + 1);
   }
   return map;
+}
+
+function resolveStaffZoneStyle(
+  theme: NodeTheme,
+  mode: 'light' | 'dark',
+): StaffZoneStyle {
+  if (theme.staffZone) return theme.staffZone;
+  if (mode === 'dark') {
+    return {
+      fill: 0x191f26,
+      fillAlpha: 0.95,
+      stroke: 0x3d5067,
+      strokeWidth: 1,
+      borderRadius: 12,
+      labelColor: 0xf1f5f9,
+      labelFontSize: 14,
+      labelAlign: 'right',
+    };
+  }
+  return {
+    fill: 0xf1f5f9,
+    fillAlpha: 0.95,
+    stroke: 0xcbd5e1,
+    strokeWidth: 1,
+    borderRadius: 12,
+    labelColor: 0x0f172a,
+    labelFontSize: 14,
+    labelAlign: 'right',
+  };
+}
+
+function resolveDepartmentCardStyle(theme: NodeTheme): DepartmentCardStyle {
+  if (theme.departmentCard) return theme.departmentCard;
+  return {
+    fill: 0x242f3d,
+    fillAlpha: 0.88,
+    stroke: 0x3d5067,
+    strokeWidth: 1,
+    borderRadius: 8,
+    labelColor: 0xf1f5f9,
+    labelFontSize: 14,
+  };
 }

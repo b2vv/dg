@@ -101,4 +101,12 @@ export {
   type PersonNodeStyle,
   type OrganizationNodeStyle,
 } from './types.js';
+export { StaffZonesView } from './StaffZonesView.js';
+export { DepartmentCardView, paintDashedFrame } from './DepartmentCardView.js';
+export {
+  enrichStaffTierBands,
+  worldBoundsForTier,
+  unionBoxes,
+  type WorldRect,
+} from './staffZoneBounds.js';
 export { fitContain } from './fitContain.js';

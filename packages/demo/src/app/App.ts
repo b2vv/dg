@@ -393,6 +393,11 @@ export class App {
           ...base,
           data: buildStaffTreeData(),
           staffCurrentOrgId: 'ops',
+          render: {
+            ...base.render,
+            staffZoneChrome: true,
+            departmentStyle: 'card',
+          },
           staffLayout: {
             horizontalGap: 40,
             verticalGap: 52,
