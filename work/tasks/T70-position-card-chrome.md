@@ -1,7 +1,11 @@
 # T70 — Chrome карток + геометрія знака організації (E* / 4231)
 
 **Пріоритет:** P1 (Phase 0 — **P0** через 4231 №3)  
+<<<<<<< HEAD
 **Статус:** planned (Phase0/types done per T72; Phase1 sibling; Phase2 agreed in T73)  
+=======
+**Статус:** Phase 1 done · Phase 2 still open  
+>>>>>>> origin/cursor/t70-org-symbol-box-babc
 **Parity:** E1–E7, E10–E11 (§4 зображення)  
 **Узгодження:** [T72](./T72-types-algorithms-agreement.md) · [T73](./T73-remaining-agreements.md)  
 **Джерело:** скріни GoJS, 4231, 4245, parity ред. 2.1
@@ -16,9 +20,15 @@
 
 ### Acceptance Phase 0
 
+<<<<<<< HEAD
 - [x] Sprite зберігає aspect ratio текстури (fit inside max box) — `fitContain` / T72
 - [ ] Unit: wide 400×200 texture → width/height ≠ square unless source is square
 - [ ] Far LOD: contain у ≤36px box
+=======
+- [x] Sprite зберігає aspect ratio текстури (fit inside max box)
+- [x] Unit: wide 400×200 texture → width/height ≠ square unless source is square
+- [x] Far LOD: contain у ≤36px box
+>>>>>>> origin/cursor/t70-org-symbol-box-babc
 
 ---
 
@@ -30,10 +40,19 @@
 | Без підпису | FULL_W × FULL_H | знак займає місце рядка назви |
 | Full-bleed | NODE_W × NODE_H, padding 0 | intrinsic display-canvas ~400×200 |
 
+<<<<<<< HEAD
 - [ ] `DiagramOrganization.showShortName?`, `fullName?` (types ✅ T72)
 - [ ] Немає символу → текст `fullName`/`name`, не ромб-placeholder (E3)
 - [ ] E2: measurement test — розмір вузла з/без підпису (сітка, не контент)
 - [ ] Опційно: детект intrinsic з декодованої texture (як `recordSymbolCanvas`)
+=======
+- [x] `DiagramOrganization.showShortName?`, `fullName?`
+- [x] Немає символу → текст `fullName`/`name`, не ромб-placeholder (E3)
+- [x] E2: measurement test — розмір вузла з/без підпису (сітка, не контент)
+- [x] Опційно: детект intrinsic з декодованої texture (як `recordSymbolCanvas`)
+
+**Phase 1 note:** `resolveOrgSymbolLayout` + `OrganizationNode` box modes; demo `flatOrgs` org-3 `showShortName: false`, org-4 missing symbol + `fullName`. Card AABB fixed (E2).
+>>>>>>> origin/cursor/t70-org-symbol-box-babc
 
 Sibling agents own Phase 1 interaction/paint — do not conflict.
 
