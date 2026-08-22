@@ -100,6 +100,7 @@ npm run dev          # http://localhost:3000
 53. [T53-flat-orgs-root-viewport.md](./tasks/T53-flat-orgs-root-viewport.md) — 🔄 root click viewport; 100k reload trim
 54. [T54-e2e-playwright.md](./tasks/T54-e2e-playwright.md) — 📋 Playwright smoke for demo tabs
 55. [T55-node-testid-anchors.md](./tasks/T55-node-testid-anchors.md) — 📋 testId + DOM anchors for e2e/search/focus
+56. [T56-gojs-feature-inventory.md](./tasks/T56-gojs-feature-inventory.md) — 📋 GoJS reverse-engineering + parity map
 
 ## Технічний борг
 

@@ -26,7 +26,7 @@ Layout після expand **не порожній** (`flatOrgRootExpand.test.ts` 
 
 ## Залишилось (acceptance)
 
-- [ ] **100k:** прибрати tree `+/−` chrome на org-картках (align T48) — `orgChrome: 'none'` для tab або не передавати `onOrgExpand`/`onOrgCollapse`
+- [x] **100k:** прибрати tree `+/−` chrome на org-картках (align T48) — `orgTreeChrome: false` у demo config
 - [ ] **Flat orgs:** card click vs `+` — не подвоювати expand (T52 delegated hit-test вже відрізає chrome)
 - [ ] **Root expand row-tree:** опційно `fitView` коли subtree > N nodes (100k window 400)
 - [ ] Regression: `flatOrgRootViewport.test.ts` + demo integration «expand root → node box intersects viewport»

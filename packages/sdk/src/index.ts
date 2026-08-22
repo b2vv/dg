@@ -279,6 +279,8 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
   staffLayout?: StaffLayoutOptions;
   /** Org matrix / row-tree layout. */
   orgLayout?: OrgLayoutOptions;
+  /** Show +/− tree expand/collapse chrome on org cards (default true). Set false for 100k scale tab (T48). */
+  orgTreeChrome?: boolean;
 }
 
 /** Embed SDK — Pixi render + data/mappers + worker contour */
@@ -296,6 +298,7 @@ export class OrgHierarchyDiagram {
   private staffCurrentOrgId: string | undefined;
   private staffLayout: StaffLayoutOptions = {};
   private orgLayout: OrgLayoutOptions = {};
+  private orgTreeChrome = true;
   private staffExpandedOrgIds = new Set<string>();
   private searchIdx: SearchIndex | null = null;
   private selection: NodeRef | null = null;
@@ -323,6 +326,7 @@ export class OrgHierarchyDiagram {
     instance.staffCurrentOrgId = config.staffCurrentOrgId;
     instance.staffLayout = config.staffLayout ?? {};
     instance.orgLayout = config.orgLayout ?? {};
+    instance.orgTreeChrome = config.orgTreeChrome ?? true;
 
     const workerFactory = config.workerFactory ?? createTransformWorker;
     instance.workerFactory = workerFactory;
@@ -553,12 +557,16 @@ export class OrgHierarchyDiagram {
       onOrgContextMenu: (orgId, pointer) => {
         this.emitContextMenu(this.orgNodeRef(orgId), pointer);
       },
-      onOrgExpand: (orgId) => {
-        void this.expandOrg(orgId);
-      },
-      onOrgCollapse: (orgId) => {
-        void this.collapseOrg(orgId);
-      },
+      onOrgExpand: this.orgTreeChrome
+        ? (orgId) => {
+            void this.expandOrg(orgId);
+          }
+        : undefined,
+      onOrgCollapse: this.orgTreeChrome
+        ? (orgId) => {
+            void this.collapseOrg(orgId);
+          }
+        : undefined,
       onPersonDragEnd: (positionId, col, row) => {
         void this.movePersonToCell(positionId, col, row);
       },

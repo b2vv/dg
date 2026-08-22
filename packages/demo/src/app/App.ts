@@ -406,6 +406,7 @@ export class App {
         const win = this.scaleWindow ?? this.ensureScaleWindow(0);
         return {
           ...base,
+          orgTreeChrome: false,
           data: win.data,
           orgLayout: {
             nodeWidth: 160,
