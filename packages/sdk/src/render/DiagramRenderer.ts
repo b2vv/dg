@@ -20,6 +20,11 @@ import type { OrgLayoutOptions } from '../layout/types.js';
 import { isOrgCollapsed, orgHasChildren } from '../layout/orgMode.js';
 import { snapToGrid } from '../interaction/positionMove.js';
 import { DoubleTapTracker } from '../interaction/doubleTap.js';
+import {
+  isSelectionToggleModifier,
+  readSelectionPointerMods,
+  type SelectionPointerMods,
+} from '../interaction/selection.js';
 import type { NodeRef } from '../interaction/types.js';
 import { DepartmentBlobView } from './DepartmentBlob.js';
 import { DepartmentCardView, paintDashedFrame } from './DepartmentCardView.js';
@@ -64,7 +69,7 @@ export interface RenderOptions {
   lod?: LodLevel;
   /** Contour morph duration during drag (ms). `0` = snap. Default 160. */
   contourMorphMs?: number;
-  onOrgClick?: (orgId: string) => void;
+  onOrgClick?: (orgId: string, mods?: SelectionPointerMods) => void;
   /** Double-tap / dblclick on org card body (T69). Not fired for chrome. */
   onOrgDoubleClick?: (orgId: string) => void;
   /** Tier-3 card click: toggle expand-in-place (preferred). */
@@ -73,7 +78,7 @@ export interface RenderOptions {
   onStaffOrgDrill?: (orgId: string) => void;
   /** Position admin-subtree expand (T66). */
   onPositionExpandToggle?: (positionId: string) => void;
-  onPersonClick?: (personId: string, positionId: string) => void;
+  onPersonClick?: (personId: string, positionId: string, mods?: SelectionPointerMods) => void;
   /** Double-tap / dblclick on person card body (T69). Not fired for chrome. */
   onPersonDoubleClick?: (personId: string, positionId: string) => void;
   onPersonContextMenu?: (
@@ -89,7 +94,8 @@ export interface RenderOptions {
   onOrgCollapse?: (orgId: string) => void;
   onPersonDragEnd?: (positionId: string, col: number, row: number) => void;
   onCanvasClick?: () => void;
-  selected?: NodeRef | null;
+  /** Primary selection (compat) and/or full multi-select set (T67). */
+  selected?: NodeRef | null | readonly NodeRef[];
   staff?: {
     currentOrgId?: string;
     layout?: StaffLayoutOptions;
@@ -286,7 +292,7 @@ export class DiagramRenderer {
       await this.renderOrganizations(data, theme, resolvedTheme, { ...options, lod });
     }
 
-    this.drawSelection(options.selected ?? null);
+    this.drawSelection(options.selected ?? []);
     this.applyPromoteVisibility();
   }
 
@@ -306,17 +312,26 @@ export class DiagramRenderer {
     session.morphHandles.clear();
   }
 
-  private drawSelection(selected: NodeRef | null): void {
-    if (!selected) return;
-    const box =
-      this.nodeBoxes.get(selected.id) ??
-      (selected.positionId ? this.nodeBoxes.get(selected.positionId) : undefined) ??
-      (selected.personId ? this.nodeBoxes.get(selected.personId) : undefined);
-    if (!box) return;
-    const g = new Graphics();
-    g.rect(box.x - 3, box.y - 3, box.width + 6, box.height + 6);
-    g.stroke({ color: 0x2563eb, width: 2 });
-    this.layers.overlay.addChild(g);
+  private normalizeSelected(
+    selected: NodeRef | null | readonly NodeRef[] | undefined,
+  ): readonly NodeRef[] {
+    if (!selected) return [];
+    if (Array.isArray(selected)) return selected as readonly NodeRef[];
+    return [selected as NodeRef];
+  }
+
+  private drawSelection(selected: NodeRef | null | readonly NodeRef[]): void {
+    for (const node of this.normalizeSelected(selected)) {
+      const box =
+        this.nodeBoxes.get(node.id) ??
+        (node.positionId ? this.nodeBoxes.get(node.positionId) : undefined) ??
+        (node.personId ? this.nodeBoxes.get(node.personId) : undefined);
+      if (!box) continue;
+      const g = new Graphics();
+      g.rect(box.x - 3, box.y - 3, box.width + 6, box.height + 6);
+      g.stroke({ color: 0x2563eb, width: 2 });
+      this.layers.overlay.addChild(g);
+    }
   }
 
   private rememberBox(box: NodeWorldBox): void {
@@ -546,12 +561,19 @@ export class DiagramRenderer {
       }
       e.stopPropagation();
       if (!personId) return;
+      const mods = readSelectionPointerMods(e);
+      // Modifier+click toggles set membership — do not feed double-tap expand (T69).
+      if (isSelectionToggleModifier(mods)) {
+        this.nodeDoubleTap.reset();
+        options.onPersonClick?.(personId, positionId, mods);
+        return;
+      }
       const kind = this.nodeDoubleTap.tap(`person:${personId}:${positionId}`);
       if (kind === 'double') {
         options.onPersonDoubleClick?.(personId, positionId);
         return;
       }
-      options.onPersonClick?.(personId, positionId);
+      options.onPersonClick?.(personId, positionId, mods);
     });
 
     node.on('rightclick', (e) => {
@@ -867,6 +889,12 @@ export class DiagramRenderer {
             return;
           }
           e.stopPropagation();
+          const mods = readSelectionPointerMods(e);
+          if (isSelectionToggleModifier(mods)) {
+            this.nodeDoubleTap.reset();
+            options.onOrgClick?.(card.orgId, mods);
+            return;
+          }
           const kind = this.nodeDoubleTap.tap(`org:${card.orgId}`);
           if (kind === 'double') {
             options.onOrgDoubleClick?.(card.orgId);
@@ -877,7 +905,7 @@ export class DiagramRenderer {
           } else {
             options.onStaffOrgDrill?.(card.orgId);
           }
-          options.onOrgClick?.(card.orgId);
+          options.onOrgClick?.(card.orgId, mods);
         });
         view.on('pointerdown', (e) => {
           if (view.isChromePointer(e)) {
@@ -999,12 +1027,18 @@ export class DiagramRenderer {
           return;
         }
         e.stopPropagation();
+        const mods = readSelectionPointerMods(e);
+        if (isSelectionToggleModifier(mods)) {
+          this.nodeDoubleTap.reset();
+          options.onOrgClick?.(org.id, mods);
+          return;
+        }
         const kind = this.nodeDoubleTap.tap(`org:${org.id}`);
         if (kind === 'double') {
           options.onOrgDoubleClick?.(org.id);
           return;
         }
-        options.onOrgClick?.(org.id);
+        options.onOrgClick?.(org.id, mods);
       });
       node.on('pointerdown', (e) => {
         if (node.isChromePointer(e)) {

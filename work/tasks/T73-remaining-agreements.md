@@ -64,10 +64,10 @@ Detail + acceptance: [T65](./T65-multi-root-forest.md).
 
 | | |
 |--|--|
-| **Phase 1** | **Set selection API only** (programmatic + modifier click) |
+| **Phase 1** | **Set selection API only** (programmatic + modifier click) — **done** |
 | **Not in Phase 1** | Marquee / drag-select — **unless** product explicitly orders it later |
-| **Current code** | Internal `selection: NodeRef \| null`; `getSelection(): NodeRef \| null`; `onSelectionChange?(nodes: NodeRef[])` already array-shaped |
-| **API sketch** | See [T67](./T67-multi-select.md) — prefer additive `getSelections(): NodeRef[]` + `selectMany` / toggle helpers; keep `getSelection()` as primary or first for one release if breaking is costly |
+| **Current code** | Internal `selections: NodeRef[]`; `getSelection(): NodeRef \| null` = primary/first; `getSelections()`; `selectMany` / `toggleSelection` / `clearSelection`; `onSelectionChange?(nodes: NodeRef[])` |
+| **API sketch** | See [T67](./T67-multi-select.md) — additive `getSelections()` + keep scalar `getSelection()` |
 
 ---
 
@@ -101,7 +101,7 @@ If product does not answer, implementers use the **Default** column — treat as
 ## Checklist for parent implementer
 
 - [x] T70p2: paint E4–E7 from existing fields; E11 prefetch via `loadNodeTexture`
-- [ ] T67p1: Set API + ctrl/cmd toggle; **no** marquee copy in UI
+- [x] T67p1: Set API + ctrl/cmd toggle; **no** marquee copy in UI
 - [x] T65: side-zone placement; still P2 / non-cutover
 - [ ] T61: defer; label as new feature in any roadmap slide
 - [ ] Do not reopen T72 type shapes unless BE forces rename of E5 counts
