@@ -41,7 +41,8 @@
 | [T67](./T67-multi-select.md) | Мультивибір (D2) | P2 | Ні (наступні задачі) |
 | [T61](./T61-group-recursion-tier3.md) | Рекурсія груп орг (B8c) | P3 | **Ні** |
 
-Повний parity-текст: [PARITY-gojs-to-dg.md](./PARITY-gojs-to-dg.md).
+Повний parity-текст: [PARITY-gojs-to-dg.md](./PARITY-gojs-to-dg.md).  
+Залишкові угоди (T70p2 / T65 / T67 / T61): [T73](./T73-remaining-agreements.md).
 
 Вже зроблено: T52–T55, T56 inventory. **G1** закрито через T55 (anchors), не `getTestID()`.
 
@@ -49,9 +50,8 @@
 
 ```
 T70 Phase0 (contain) + T64 + T66
-  → T63 / T68 / T69 / T70 rest
-  → T65 / T67
-  → T61 коли макет
+  → T63 / T68 / T69 / T70 Phase1
+  → T70 Phase2 → T67 Phase1 → T65 → T61 (макет)
   → видалити gojs-diagram
 ```
 

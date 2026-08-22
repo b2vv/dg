@@ -3,6 +3,7 @@
 **Пріоритет:** P2  
 **Статус:** planned  
 **Parity:** D2  
+**Узгодження:** [T73](./T73-remaining-agreements.md)  
 **Уточнення продукту:** вимога з **наступних задач** (не блокер поточного cutover)  
 **Увага:** у GoJS-проді підказка обіцяє «Shift або рамка», рамки немає — не копіювати брехню UI
 
@@ -15,51 +16,66 @@
 ## Стан у `dg`
 
 ```ts
+// OrgHierarchyDiagram (internal)
 selection: NodeRef | null  // лише одиничне
+getSelection(): NodeRef | null
+// callbacks already array-shaped:
+onSelectionChange?(nodes: NodeRef[]): void
 // shiftKey / ctrlKey / marquee — відсутні
 ```
 
-`selectNode` / `onSelectionChange` орієнтовані на один ref.
+`selectNode` у `interaction/selection.ts` — replace-one semantics.
 
 ## Аргументація пріоритету P2
 
-1. Продукт: «D2 — вимога з наступних задач» → планувати API зараз, імплементувати в черзі після P0/P1.
+1. Продукт: «D2 — вимога з наступних задач» → планувати API зараз, імплементувати після P0/P1 + T70p2.
 2. Не викреслювати з 🔴 (лінза «мертве» не застосовується — це майбутня вимога).
-3. Не блокує T64/T66.
+3. Не блокує T64/T66/T70.
 
-## Пропозиція
+## Phase 1 = Set selection API only (agreed)
+
+**Так:** programmatic Set + modifier click. **Ні (Phase 1):** marquee / dragSelecting.
 
 ```ts
-selection: NodeRef[]  // breaking або parallel getSelection()/getSelections()
-onSelectionChange?(nodes: NodeRef[]): void
+// Additive preferred (avoid breaking hosts on getSelection scalar)
+getSelections(): readonly NodeRef[]
+selectMany(nodes: NodeRef[]): Promise<void>
+toggleInSelection(node: NodeRef): Promise<void>
+clearSelection(): Promise<void>
+// getSelection(): NodeRef | null  — keep = primary / first selected (compat)
 
-// gestures
-// - meta/ctrl+click toggle
-// - shift+click range (optional, tree order)
-// - marquee: Phase 2 (dragSelecting) — лише якщо продукт підтвердить рамку
+onSelectionChange?(nodes: NodeRef[]): void  // already exists
+
+// gestures (Phase 1)
+// - meta/ctrl+click toggle membership
+// - plain click → single replace
+// - canvas click → clear
+// - shift+click range: optional later
+// marquee: NOT Phase 1 — only if product explicitly orders Phase 2
 ```
 
-- Context menu: bulk items коли `selection.length > 1`.
-- Promote overlay: near-selection mode для multi — later.
-- Тести: toggle, clear on canvas click, max selection cap.
+- Context menu: bulk items коли `getSelections().length > 1`.
+- Promote overlay: multi near-selection — later.
+- Тести: toggle, clear on canvas click, optional max selection cap.
 
-## Acceptance
+## Acceptance (Phase 1)
 
 - [ ] Ctrl/Cmd+click додає/знімає з вибору
-- [ ] `getSelection()` / масив узгоджено в API docs
+- [ ] `getSelections()` / docs узгоджено; scalar `getSelection()` не ламає hosts
 - [ ] Canvas click очищає multi
 - [ ] Unit success/failure
 - [ ] Host demo: status показує N selected
-- [ ] **Не** обіцяти marquee в UI, доки Phase 2 не зроблено
+- [ ] **Не** обіцяти marquee в UI
 
 ## Не входить (Phase 1)
 
-- Рамкове виділення (окремий follow-up, якщо замовлять)
+- Рамкове виділення (окремий follow-up, **лише** якщо продукт підтвердить)
 - Bulk reparent UI (лише callback/patch)
+- Зміна T66 bulk expand (окремо після Set API)
 
 ## Verify
 
 ```bash
 npm test
-# Manual: ctrl+click 3 cards → selection length 3
+# Manual: ctrl+click 3 cards → getSelections().length === 3
 ```
