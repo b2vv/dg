@@ -183,6 +183,12 @@ export {
   resolvePromoteIds,
   screenRectInView,
   fitContain,
+  resolveOrgSymbolLayout,
+  isFullBleedIntrinsic,
+  orgCardAabb,
+  ORG_SYMBOL_PAD,
+  ORG_SYMBOL_W,
+  ORG_SYMBOL_H,
   formatOrgPeriodLabel,
   formatIsoDateUk,
 } from './render/index.js';
@@ -204,6 +210,9 @@ export type {
   DepartmentPaintStyle,
   DepartmentCardStyle,
   StaffZoneStyle,
+  OrgSymbolBox,
+  OrgSymbolBoxMode,
+  OrgSymbolLayout,
 } from './render/index.js';
 export type { LayoutPatch, OrgHierarchyCallbacks } from './callbacks.js';
 

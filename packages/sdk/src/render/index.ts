@@ -110,5 +110,18 @@ export {
   type WorldRect,
 } from './staffZoneBounds.js';
 export { fitContain } from './fitContain.js';
+export {
+  resolveOrgSymbolLayout,
+  isFullBleedIntrinsic,
+  orgCardAabb,
+  ORG_SYMBOL_PAD,
+  ORG_SYMBOL_W,
+  ORG_SYMBOL_H,
+} from './orgSymbolBox.js';
+export type {
+  OrgSymbolBox,
+  OrgSymbolBoxMode,
+  OrgSymbolLayout,
+} from './orgSymbolBox.js';
 export { formatOrgPeriodLabel, formatIsoDateUk } from './formatPeriodLabel.js';
 export type { PeriodFields } from './formatPeriodLabel.js';

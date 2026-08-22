@@ -154,4 +154,91 @@ describe('OrganizationNodeView', () => {
     await view.mediaReady;
     expect(view.findText('з наказу')).toBeTruthy();
   });
+
+  it('Phase1: showShortName false → no-caption box larger than symbolSize', async () => {
+    configureNodeTextureLoader(async () => Texture.WHITE);
+    const style = defaultNodeTheme.organization;
+    const view = OrganizationNodeView.create(
+      { ...org, showShortName: false },
+      undefined,
+      'light',
+      style,
+    );
+    await view.mediaReady;
+    expect(view.symbolBoxMode).toBe('no-caption');
+    expect(view.symbolBox.width).toBeGreaterThan(style.symbolSize);
+    expect(view.symbolBox.height).toBeGreaterThanOrEqual(style.symbolSize);
+    expect(view.findText('Міністерство')).toBeUndefined();
+    expect(view.hasSymbolSprite()).toBe(true);
+  });
+
+  it('Phase1 E2: card AABB identical with and without short name', async () => {
+    configureNodeTextureLoader(async () => Texture.WHITE);
+    const style = defaultNodeTheme.organization;
+    const withCaption = OrganizationNodeView.create(org, undefined, 'light', style);
+    const noCaption = OrganizationNodeView.create(
+      { ...org, showShortName: false },
+      undefined,
+      'light',
+      style,
+    );
+    await Promise.all([withCaption.mediaReady, noCaption.mediaReady]);
+    expect(withCaption.cardSize).toEqual({ width: style.width, height: style.height });
+    expect(noCaption.cardSize).toEqual(withCaption.cardSize);
+    expect(withCaption.symbolBoxMode).toBe('caption');
+    expect(noCaption.symbolBoxMode).toBe('no-caption');
+  });
+
+  it('Phase1 E3: no symbol → fullName text, no placeholder diamond', async () => {
+    const view = OrganizationNodeView.create(
+      {
+        id: 'org-nosym',
+        name: 'Short',
+        fullName: 'Повна назва організації',
+        groupIds: [],
+      },
+      undefined,
+      'light',
+      defaultNodeTheme.organization,
+    );
+    await view.mediaReady;
+    expect(view.hasSymbolSprite()).toBe(false);
+    expect(view.hasSymbolPlaceholder()).toBe(false);
+    expect(view.findText('Повна назва організації')).toBeTruthy();
+    expect(view.findText('Short')).toBeUndefined();
+  });
+
+  it('Phase1: full-bleed when texture is ~400×200', async () => {
+    configureNodeTextureLoader(async () => {
+      const base = Texture.WHITE;
+      return new Proxy(base, {
+        get(target, prop, receiver) {
+          if (prop === 'width') return 400;
+          if (prop === 'height') return 200;
+          if (prop === 'source') {
+            return new Proxy(target.source, {
+              get(s, p, r) {
+                if (p === 'width') return 400;
+                if (p === 'height') return 200;
+                return Reflect.get(s, p, r);
+              },
+            });
+          }
+          return Reflect.get(target, prop, receiver);
+        },
+      }) as Texture;
+    });
+    const style = defaultNodeTheme.organization;
+    const view = OrganizationNodeView.create(org, undefined, 'light', style);
+    await view.mediaReady;
+    expect(view.symbolBoxMode).toBe('full-bleed');
+    expect(view.symbolBox).toMatchObject({
+      x: 0,
+      y: 0,
+      width: style.width,
+      height: style.height,
+      padding: 0,
+    });
+    expect(view.cardSize).toEqual({ width: style.width, height: style.height });
+  });
 });

@@ -16,6 +16,11 @@ export function buildFlatOrgsData(count = 24): DiagramData {
       const pIdx = Number(parentOrgId.replace('org-', '')) - 1;
       if (pIdx < 0 || pIdx >= i) parentOrgId = 'org-1';
     }
+    // T70 Phase1 fixtures:
+    // - org-3: symbol without short-name caption (no-caption box)
+    // - org-4: missing symbol → fullName text (E3), no diamond placeholder
+    const noCaption = i === 2;
+    const missingSymbol = i === 3;
     return {
       id: `org-${i + 1}`,
       name: `Organization ${i + 1}`,
@@ -32,12 +37,21 @@ export function buildFlatOrgsData(count = 24): DiagramData {
             periodEnd: '2025-12-31',
           }
         : {}),
+      ...(noCaption ? { showShortName: false as const } : {}),
+      ...(missingSymbol
+        ? {
+            fullName: 'Organization 4 — Official Full Name',
+            symbolUrl: undefined,
+            symbolUrlLight: undefined,
+          }
+        : {
+            symbolUrl: DEMO_PLACEHOLDER_PNG,
+            symbolUrlLight: DEMO_PLACEHOLDER_PNG,
+          }),
       parentOrgId,
       groupIds: i % 4 === 0 ? ['g1'] : [],
       collapsed: true,
       matrixOrder: i,
-      symbolUrl: DEMO_PLACEHOLDER_PNG,
-      symbolUrlLight: DEMO_PLACEHOLDER_PNG,
     };
   });
 

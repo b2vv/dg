@@ -6,9 +6,21 @@ import { fitContain } from './fitContain.js';
 import { formatOrgPeriodLabel } from './formatPeriodLabel.js';
 import type { LodLevel } from './lod.js';
 import type { OrganizationNodeStyle } from './types.js';
-import { attachMenuButton, activateChromePointer, hitChromePointer, type ContextMenuPointer } from './nodeCardChrome.js';
+import {
+  attachMenuButton,
+  activateChromePointer,
+  hitChromePointer,
+  type ContextMenuPointer,
+} from './nodeCardChrome.js';
 import { mountOrgNodeChrome, type OrgNodeChrome } from './orgNodeChrome.js';
 import type { FederatedPointerEvent } from 'pixi.js';
+import {
+  ORG_SYMBOL_PAD,
+  resolveOrgSymbolLayout,
+  type OrgSymbolBox,
+  type OrgSymbolBoxMode,
+  type OrgSymbolLayout,
+} from './orgSymbolBox.js';
 
 export interface OrganizationNodeOptions {
   chrome?: OrgNodeChrome;
@@ -20,6 +32,7 @@ export class OrganizationNodeView extends Container {
   readonly lod: LodLevel;
   /** Settles when optional symbol load finishes (or immediately if none). */
   readonly mediaReady: Promise<void>;
+  private readonly org: DiagramOrganization;
   private readonly shadow = new Graphics();
   private readonly card = new Graphics();
   private readonly hoverRing = new Graphics();
@@ -28,6 +41,7 @@ export class OrganizationNodeView extends Container {
   private readonly periodText: Text;
   private readonly symbolSprite = new Sprite();
   private styleRef: OrganizationNodeStyle;
+  private symbolLayout: OrgSymbolLayout;
 
   private readonly chromeControls = new Container();
 
@@ -40,15 +54,20 @@ export class OrganizationNodeView extends Container {
     mediaReady: Promise<void>,
   ) {
     super();
+    this.org = org;
     this.lod = lod;
     this.mediaReady = mediaReady;
     this.eventMode = 'static';
     this.cursor = 'pointer';
     this.resolvedSymbolUrl = getOrgSymbolUrl(org, theme);
     this.styleRef = style;
+    this.symbolLayout = resolveOrgSymbolLayout(org, style, {
+      lod,
+      hasSymbol: false,
+    });
 
     this.nameText = new Text({
-      text: org.name,
+      text: this.symbolLayout.displayName,
       style: { fill: style.nameColor, fontSize: style.nameFontSize, fontWeight: '600' },
     });
     this.groupText = new Text({
@@ -106,6 +125,21 @@ export class OrganizationNodeView extends Container {
     return view;
   }
 
+  /** Current symbol box mode (caption / no-caption / full-bleed). */
+  get symbolBoxMode(): OrgSymbolBoxMode {
+    return this.symbolLayout.mode;
+  }
+
+  /** Symbol max-box inside the fixed card AABB. */
+  get symbolBox(): OrgSymbolBox {
+    return this.symbolLayout.box;
+  }
+
+  /** Fixed card size from style (E2 — independent of caption / symbol). */
+  get cardSize(): { width: number; height: number } {
+    return { width: this.styleRef.width, height: this.styleRef.height };
+  }
+
   hasMenuButton(): boolean {
     return this.chromeControls.children.length > 0;
   }
@@ -151,6 +185,11 @@ export class OrganizationNodeView extends Container {
     return this.symbolSprite.visible;
   }
 
+  /** E3: decorative symbol placeholder must not appear without a real symbol. */
+  hasSymbolPlaceholder(): boolean {
+    return false;
+  }
+
   hasPeriodLabel(): boolean {
     return this.periodText.visible && this.periodText.text.length > 0;
   }
@@ -177,9 +216,7 @@ export class OrganizationNodeView extends Container {
     this.card.fill({ color: style.background });
     this.card.stroke({ color: style.border, width: style.borderWidth });
 
-    this.card.roundRect(8, (height - style.symbolSize) / 2, style.symbolSize, style.symbolSize, 6);
-    this.card.fill({ color: 0xdbeafe });
-
+    // E3: no diamond / tint placeholder — only the card chrome. Symbol is the sprite.
     this.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= width && y <= height };
   }
 
@@ -190,28 +227,56 @@ export class OrganizationNodeView extends Container {
       this.periodText.visible = false;
       return;
     }
-    this.nameText.visible = true;
+
+    const layout = this.symbolLayout;
+    this.nameText.text = layout.displayName;
+    this.nameText.visible = layout.showNameText;
+
     const hasGroup = lod === 'near' && this.groupText.text.length > 0;
     const hasPeriod = this.periodText.text.length > 0;
-    this.groupText.visible = hasGroup;
+    // Full-bleed: keep period as an overlay when present (compose with T68).
+    this.groupText.visible = hasGroup && layout.mode !== 'full-bleed';
     this.periodText.visible = hasPeriod;
 
-    const textX = 8 + style.symbolSize + 10;
+    const box = layout.box;
+    const textX =
+      layout.mode === 'full-bleed' || !this.symbolSprite.visible
+        ? ORG_SYMBOL_PAD
+        : box.x + box.width + 10;
     const maxTextW = Math.max(24, style.width - textX - 10);
-    truncatePixiText(this.nameText, maxTextW);
-    if (hasGroup) truncatePixiText(this.groupText, maxTextW);
-    if (hasPeriod) truncatePixiText(this.periodText, maxTextW);
+
+    if (this.nameText.visible) truncatePixiText(this.nameText, maxTextW);
+    if (this.groupText.visible) truncatePixiText(this.groupText, maxTextW);
+    if (this.periodText.visible) truncatePixiText(this.periodText, maxTextW);
 
     const periodFs = style.periodFontSize ?? 10;
-    const lines: Array<{ text: Text; fontSize: number }> = [
-      { text: this.nameText, fontSize: style.nameFontSize },
-    ];
-    if (hasGroup) lines.push({ text: this.groupText, fontSize: style.groupFontSize });
-    if (hasPeriod) lines.push({ text: this.periodText, fontSize: periodFs });
+    const lines: Array<{ text: Text; fontSize: number }> = [];
+    if (this.nameText.visible) {
+      lines.push({ text: this.nameText, fontSize: style.nameFontSize });
+    }
+    if (this.groupText.visible) {
+      lines.push({ text: this.groupText, fontSize: style.groupFontSize });
+    }
+    if (this.periodText.visible) {
+      lines.push({ text: this.periodText, fontSize: periodFs });
+    }
+
+    if (lines.length === 0) return;
 
     const gap = 3;
     const blockH =
       lines.reduce((sum, l) => sum + l.fontSize, 0) + gap * Math.max(0, lines.length - 1);
+
+    if (layout.mode === 'full-bleed') {
+      // Bottom-left overlay so the banner symbol stays readable.
+      let y = style.height - blockH - 4;
+      for (const line of lines) {
+        line.text.position.set(textX, y);
+        y += line.fontSize + gap;
+      }
+      return;
+    }
+
     let y = (style.height - blockH) / 2;
     for (const line of lines) {
       line.text.position.set(textX, y);
@@ -239,33 +304,48 @@ export class OrganizationNodeView extends Container {
     const url = this.resolvedSymbolUrl;
     if (!url?.trim()) {
       this.symbolSprite.visible = false;
+      this.symbolLayout = resolveOrgSymbolLayout(this.org, style, {
+        lod,
+        hasSymbol: false,
+      });
+      this.layoutTexts(style, lod);
       return;
     }
 
     const texture = await loadNodeTexture(url);
     if (!texture || this.destroyed) {
       this.symbolSprite.visible = false;
+      this.symbolLayout = resolveOrgSymbolLayout(this.org, style, {
+        lod,
+        hasSymbol: false,
+      });
+      this.layoutTexts(style, lod);
       return;
     }
     this.showSymbol(texture, style, lod);
   }
 
   private showSymbol(texture: Texture, style: OrganizationNodeStyle, lod: LodLevel): void {
-    const maxSide =
-      lod === 'far' ? Math.min(style.symbolSize, 36) : style.symbolSize;
-    const boxY =
-      lod === 'far' ? (style.height - maxSide) / 2 : (style.height - style.symbolSize) / 2;
-    const boxX = lod === 'far' ? 0 : 8;
-
     const texW = texture.width || texture.source?.width || 0;
     const texH = texture.height || texture.source?.height || 0;
-    const fitted = fitContain(texW, texH, maxSide, maxSide);
+
+    this.symbolLayout = resolveOrgSymbolLayout(this.org, style, {
+      lod,
+      hasSymbol: true,
+      textureWidth: texW,
+      textureHeight: texH,
+    });
+
+    const box = this.symbolLayout.box;
+    const fitted = fitContain(texW, texH, box.width, box.height);
 
     this.symbolSprite.texture = texture;
     this.symbolSprite.width = fitted.width;
     this.symbolSprite.height = fitted.height;
-    this.symbolSprite.position.set(boxX + fitted.offsetX, boxY + fitted.offsetY);
+    this.symbolSprite.position.set(box.x + fitted.offsetX, box.y + fitted.offsetY);
     this.symbolSprite.visible = true;
+
+    this.layoutTexts(style, lod);
   }
 }
 
