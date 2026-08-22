@@ -3,6 +3,8 @@ import type { DiagramPerson, DiagramPosition } from '../data/types.js';
 import type { LodLevel } from './lod.js';
 import { loadNodeTexture } from './nodeMedia.js';
 import { avatarColorFromName, personInitials } from './personInitials.js';
+import { formatOrgPeriodLabel } from './formatPeriodLabel.js';
+import { VACANT_POSITION_LABEL } from './orgCardChrome.js';
 import type { PersonNodeStyle } from './types.js';
 import { attachMenuButton, attachIconButton, activateChromePointer, hitChromePointer, type ContextMenuPointer } from './nodeCardChrome.js';
 import type { FederatedPointerEvent } from 'pixi.js';
@@ -29,6 +31,8 @@ export class PersonNodeView extends Container {
   private readonly initialsText: Text;
   private readonly badge: Graphics;
   private readonly badgeLabel: Text;
+  private readonly periodChip = new Graphics();
+  private readonly periodChipLabel: Text;
   private readonly photoSprite = new Sprite();
   private readonly photoMask = new Graphics();
   readonly lod: LodLevel;
@@ -69,10 +73,20 @@ export class PersonNodeView extends Container {
       text: 'T',
       style: { fill: style.badgeTextColor, fontSize: 9, fontWeight: '700' },
     });
+    this.periodChipLabel = new Text({
+      text: '',
+      style: {
+        fill: style.periodChipTextColor ?? 0x15803d,
+        fontSize: style.periodChipFontSize ?? 9,
+        fontWeight: '600',
+      },
+    });
 
     this.photoSprite.visible = false;
     this.photoMask.visible = false;
     this.hoverRing.visible = false;
+    this.periodChip.visible = false;
+    this.periodChipLabel.visible = false;
     this.chromeControls.eventMode = 'static';
     this.chromeControls.sortableChildren = true;
     this.chromeControls.zIndex = 10;
@@ -85,6 +99,8 @@ export class PersonNodeView extends Container {
       this.initialsText,
       this.nameText,
       this.titleText,
+      this.periodChip,
+      this.periodChipLabel,
       this.badge,
       this.badgeLabel,
       this.hoverRing,
@@ -172,6 +188,10 @@ export class PersonNodeView extends Container {
     return this.badge.visible;
   }
 
+  hasPeriodChip(): boolean {
+    return this.periodChip.visible;
+  }
+
   hasPhotoSprite(): boolean {
     return this.photoSprite.visible;
   }
@@ -242,16 +262,20 @@ export class PersonNodeView extends Container {
       this.initialsText.visible = false;
       this.badge.visible = false;
       this.badgeLabel.visible = false;
+      this.periodChip.visible = false;
+      this.periodChipLabel.visible = false;
       return;
     }
 
     const pad = Math.max(6, style.width * 0.06);
     const maxTextW = Math.max(24, style.width - pad * 2);
-    const name = person?.fullName ?? '—';
+    const vacant = position.status === 'vacant' && !person?.fullName;
+    const name = person?.fullName ?? (vacant ? VACANT_POSITION_LABEL : '—');
     this.nameText.visible = true;
     this.nameText.text = name;
     this.nameText.style.fontSize = style.nameFontSize;
-    this.nameText.style.fill = style.nameColor;
+    this.nameText.style.fill =
+      vacant && style.vacantLabelColor !== undefined ? style.vacantLabelColor : style.nameColor;
     truncatePixiText(this.nameText, maxTextW);
     if (lod === 'mid') {
       const h = Math.min(style.height, Math.max(56, style.height * 0.48));
@@ -272,11 +296,11 @@ export class PersonNodeView extends Container {
       truncatePixiText(this.titleText, maxTextW);
       this.titleText.position.set(pad, style.height * 0.64);
 
-      const initials = personInitials(person?.fullName);
+      const initials = vacant ? '' : personInitials(person?.fullName);
       this.initialsText.text = initials;
       this.initialsText.style.fontSize = Math.max(11, Math.min(style.width, style.height) * 0.09);
       this.initialsText.position.set(style.width / 2, style.height * 0.26);
-      this.initialsText.visible = true;
+      this.initialsText.visible = initials.length > 0;
     }
 
     const showBadge = position.isTemporary;
@@ -291,6 +315,50 @@ export class PersonNodeView extends Container {
       this.badgeLabel.anchor.set(0.5);
       this.badgeLabel.position.set(style.width - br - 4, br + 4);
     }
+
+    this.layoutPeriodChip(position, style, lod, pad);
+  }
+
+  /** E7: position period chip (shared formatter; not T68 org period line). */
+  private layoutPeriodChip(
+    position: DiagramPosition,
+    style: PersonNodeStyle,
+    lod: LodLevel,
+    pad: number,
+  ): void {
+    const label = formatOrgPeriodLabel(position);
+    const show = !!label;
+    this.periodChip.visible = show;
+    this.periodChipLabel.visible = show;
+    if (!show || !label) return;
+
+    const fs = style.periodChipFontSize ?? 9;
+    this.periodChipLabel.text = label;
+    this.periodChipLabel.style.fontSize = fs;
+    this.periodChipLabel.style.fill = style.periodChipTextColor ?? 0x15803d;
+    this.periodChipLabel.anchor.set(0.5);
+
+    const maxChipW = Math.max(40, style.width - pad * 2);
+    truncatePixiText(this.periodChipLabel, maxChipW - 10);
+    const chipText = this.periodChipLabel.text;
+    const estW = Math.min(maxChipW, Math.max(36, chipText.length * fs * 0.55 + 10));
+    const estH = fs + 4;
+    const cx = style.width / 2;
+    let cy: number;
+    if (lod === 'mid') {
+      const h = Math.min(style.height, Math.max(56, style.height * 0.48));
+      const y0 = (style.height - h) / 2;
+      cy = y0 + 10 + estH / 2;
+    } else {
+      // Above name slot, below avatar disc.
+      cy = style.height * 0.4;
+    }
+    const bx = cx - estW / 2;
+    const by = cy - estH / 2;
+    this.periodChip.clear();
+    this.periodChip.roundRect(bx, by, estW, estH, 4);
+    this.periodChip.fill({ color: style.periodChipBackground ?? 0xdcfce7 });
+    this.periodChipLabel.position.set(cx, cy);
   }
 
   private async applyPhoto(

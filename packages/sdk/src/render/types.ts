@@ -66,8 +66,16 @@ export interface OrganizationNodeStyle {
   symbolSize: number;
   periodColor?: number;
   periodFontSize?: number;
+  /** E6 unit-code caption. */
   metaColor?: number;
   metaFontSize?: number;
+  /** E4 temp «T» badge (PersonNode-style). */
+  badgeColor?: number;
+  badgeTextColor?: number;
+  /** E5 `N [M]` counts pill. */
+  countsBadgeBackground?: number;
+  countsBadgeTextColor?: number;
+  countsBadgeFontSize?: number;
 }
 
 export interface NodeTheme {
@@ -162,6 +170,10 @@ export const defaultNodeTheme: NodeTheme = {
     badgeColor: 0xf59e0b,
     badgeTextColor: 0xffffff,
     avatarColor: 0x64748b,
+    periodChipBackground: 0xdcfce7,
+    periodChipTextColor: 0x15803d,
+    periodChipFontSize: 9,
+    vacantLabelColor: 0x64748b,
   },
   organization: {
     width: 200,
@@ -177,6 +189,13 @@ export const defaultNodeTheme: NodeTheme = {
     symbolSize: 36,
     periodColor: 0x15803d,
     periodFontSize: 10,
+    metaColor: 0x64748b,
+    metaFontSize: 10,
+    badgeColor: 0xf59e0b,
+    badgeTextColor: 0xffffff,
+    countsBadgeBackground: 0xf1f5f9,
+    countsBadgeTextColor: 0x334155,
+    countsBadgeFontSize: 9,
   },
 };
 
@@ -204,6 +223,10 @@ export const darkNodeTheme: NodeTheme = {
     badgeColor: 0xf59e0b,
     badgeTextColor: 0xffffff,
     avatarColor: 0x64748b,
+    periodChipBackground: 0x14532d,
+    periodChipTextColor: 0x4ade80,
+    periodChipFontSize: 9,
+    vacantLabelColor: 0x94a3b8,
   },
   organization: {
     width: 200,
@@ -219,6 +242,13 @@ export const darkNodeTheme: NodeTheme = {
     symbolSize: 36,
     periodColor: 0x4ade80,
     periodFontSize: 10,
+    metaColor: 0x94a3b8,
+    metaFontSize: 10,
+    badgeColor: 0xf59e0b,
+    badgeTextColor: 0xffffff,
+    countsBadgeBackground: 0x334155,
+    countsBadgeTextColor: 0xe2e8f0,
+    countsBadgeFontSize: 9,
   },
 };
 

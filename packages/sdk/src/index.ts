@@ -191,6 +191,10 @@ export {
   ORG_SYMBOL_H,
   formatOrgPeriodLabel,
   formatIsoDateUk,
+  formatOrgCountsBadge,
+  VACANT_POSITION_LABEL,
+  getOrgSymbolUrl,
+  getInactiveOrgSymbolUrl,
 } from './render/index.js';
 export type {
   NodeTheme,

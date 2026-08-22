@@ -98,6 +98,17 @@ export function buildStaffTreeData(): DiagramData {
         status: 'filled',
         isTemporary: false,
       },
+      {
+        id: 'pos-vacant',
+        title: 'Open Seat',
+        organizationId: 'eng',
+        departmentId: 'eng-core',
+        groupIds: [],
+        status: 'vacant',
+        isTemporary: false,
+        periodStart: '2025-01-01',
+        periodEnd: null,
+      },
     ],
     reportLines: [
       { fromId: 'pos-coo', toId: 'pos-lead', kind: 'admin' },
@@ -105,6 +116,7 @@ export function buildStaffTreeData(): DiagramData {
       { fromId: 'pos-lead', toId: 'pos-b', kind: 'admin' },
       { fromId: 'pos-a', toId: 'pos-b', kind: 'matrix' },
       { fromId: 'pos-eng-h', toId: 'pos-dev', kind: 'admin' },
+      { fromId: 'pos-eng-h', toId: 'pos-vacant', kind: 'admin' },
     ],
   };
 }

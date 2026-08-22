@@ -45,3 +45,20 @@ export function getOrgSymbolUrl(
   }
   return org.symbolUrlLight ?? org.symbolUrl ?? org.symbolUrlDark;
 }
+
+/**
+ * Opposite-theme symbol URL when both light and dark are present (E11 prefetch).
+ * Returns undefined if either URL is missing or inactive equals active.
+ */
+export function getInactiveOrgSymbolUrl(
+  org: DiagramOrganization,
+  theme: 'light' | 'dark',
+): string | undefined {
+  const light = org.symbolUrlLight?.trim();
+  const dark = org.symbolUrlDark?.trim();
+  if (!light || !dark) return undefined;
+  const inactive = theme === 'dark' ? light : dark;
+  const active = getOrgSymbolUrl(org, theme)?.trim();
+  if (!inactive || inactive === active) return undefined;
+  return inactive;
+}

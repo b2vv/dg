@@ -241,4 +241,98 @@ describe('OrganizationNodeView', () => {
     });
     expect(view.cardSize).toEqual({ width: style.width, height: style.height });
   });
+
+  it('Phase2 E4: isTemporary paints top-right T badge (near)', async () => {
+    const view = OrganizationNodeView.create(
+      { ...org, isTemporary: true },
+      undefined,
+      'light',
+      defaultNodeTheme.organization,
+    );
+    await view.mediaReady;
+    expect(view.hasTempBadge()).toBe(true);
+    expect(view.findText('T')).toBeTruthy();
+    expect(view.cardSize).toEqual({
+      width: defaultNodeTheme.organization.width,
+      height: defaultNodeTheme.organization.height,
+    });
+  });
+
+  it('Phase2 E4: far lod hides temp badge', async () => {
+    const view = OrganizationNodeView.create(
+      { ...org, isTemporary: true },
+      undefined,
+      'light',
+      defaultNodeTheme.organization,
+      'far',
+    );
+    await view.mediaReady;
+    expect(view.hasTempBadge()).toBe(false);
+  });
+
+  it('Phase2 E5: filledCount/vacantCount → N [M] badge', async () => {
+    const view = OrganizationNodeView.create(
+      { ...org, filledCount: 12, vacantCount: 3 },
+      undefined,
+      'light',
+      defaultNodeTheme.organization,
+    );
+    await view.mediaReady;
+    expect(view.hasCountsBadge()).toBe(true);
+    expect(view.findText('12 [3]')).toBeTruthy();
+  });
+
+  it('Phase2 E5: single count still shows badge with 0 other side', async () => {
+    const view = OrganizationNodeView.create(
+      { ...org, vacantCount: 2 },
+      undefined,
+      'light',
+      defaultNodeTheme.organization,
+    );
+    await view.mediaReady;
+    expect(view.hasCountsBadge()).toBe(true);
+    expect(view.findText('0 [2]')).toBeTruthy();
+  });
+
+  it('Phase2 E5: omit counts badge when both undefined', async () => {
+    const view = OrganizationNodeView.create(org, undefined, 'light', defaultNodeTheme.organization);
+    await view.mediaReady;
+    expect(view.hasCountsBadge()).toBe(false);
+  });
+
+  it('Phase2 E6: unitCode caption row (truncate)', async () => {
+    const view = OrganizationNodeView.create(
+      { ...org, unitCode: 'UNIT-42' },
+      undefined,
+      'light',
+      defaultNodeTheme.organization,
+    );
+    await view.mediaReady;
+    expect(view.hasUnitCode()).toBe(true);
+    expect(view.findText('UNIT-42')).toBeTruthy();
+  });
+
+  it('Phase2 E6: empty unitCode omits row', async () => {
+    const view = OrganizationNodeView.create(
+      { ...org, unitCode: '  ' },
+      undefined,
+      'light',
+      defaultNodeTheme.organization,
+    );
+    await view.mediaReady;
+    expect(view.hasUnitCode()).toBe(false);
+  });
+
+  it('Phase2 E11: prefetches inactive theme symbol URL into cache', async () => {
+    const loaded: string[] = [];
+    configureNodeTextureLoader(async (url) => {
+      loaded.push(url);
+      return Texture.WHITE;
+    });
+    const view = OrganizationNodeView.create(org, undefined, 'light', defaultNodeTheme.organization);
+    await view.mediaReady;
+    expect(view.resolvedSymbolUrl).toBe('/sym-light.png');
+    expect(loaded).toContain('/sym-light.png');
+    expect(loaded).toContain('/sym-dark.png');
+  });
 });

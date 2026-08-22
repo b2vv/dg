@@ -100,7 +100,7 @@ If product does not answer, implementers use the **Default** column — treat as
 
 ## Checklist for parent implementer
 
-- [ ] T70p2: paint E4–E7 from existing fields; E11 prefetch via `loadNodeTexture`
+- [x] T70p2: paint E4–E7 from existing fields; E11 prefetch via `loadNodeTexture`
 - [ ] T67p1: Set API + ctrl/cmd toggle; **no** marquee copy in UI
 - [ ] T65: side-zone placement; still P2 / non-cutover
 - [ ] T61: defer; label as new feature in any roadmap slide
