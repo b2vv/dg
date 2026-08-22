@@ -111,6 +111,7 @@ npm run dev          # http://localhost:3000
 64. [T69-node-double-click.md](./tasks/T69-node-double-click.md) — 📋 D5 dblclick → sidebar
 65. [T70-position-card-chrome.md](./tasks/T70-position-card-chrome.md) — 📋 E* chrome посад (скріни GoJS)
 66. [T71-gojs-to-dg-migration-plan.md](./tasks/T71-gojs-to-dg-migration-plan.md) — 📋 **план міграції GoJS→dg** (індекс)
+67. [PARITY-gojs-to-dg.md](./tasks/PARITY-gojs-to-dg.md) — 📋 parity ред. 2.1 (вимога→можливість)
 
 ## Технічний борг
 
