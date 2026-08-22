@@ -194,8 +194,17 @@ export class App {
               if (this.tab === 'scale-100k') {
                 const idx = Number(String(node.id).replace(/^org-/, ''));
                 if (Number.isFinite(idx)) {
-                  this.ensureScaleWindow(idx);
-                  void this.reload();
+                  const win = this.scaleWindow;
+                  const inWindow =
+                    win &&
+                    idx >= win.startIndex &&
+                    idx < win.startIndex + win.data.organizations.length;
+                  if (!inWindow) {
+                    this.ensureScaleWindow(idx);
+                    void this.reload();
+                  } else {
+                    void this.diagram?.focusNode(node.id);
+                  }
                   return;
                 }
               }

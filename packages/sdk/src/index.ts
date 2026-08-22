@@ -578,6 +578,7 @@ export class OrgHierarchyDiagram {
     };
     this.callbacks.onOrgModeChange?.(this.getOrgMode());
     await this.render();
+    this.panToOrg(orgId, { animate: true });
   }
 
   async collapseOrg(orgId: string): Promise<void> {
@@ -587,6 +588,7 @@ export class OrgHierarchyDiagram {
     };
     this.callbacks.onOrgModeChange?.(this.getOrgMode());
     await this.render();
+    this.panToOrg(orgId, { animate: true });
   }
 
   async collapseAllOrgs(): Promise<void> {
@@ -596,6 +598,14 @@ export class OrgHierarchyDiagram {
     };
     this.callbacks.onOrgModeChange?.(this.getOrgMode());
     await this.render();
+    this.host?.fitView(48, { animate: true });
+  }
+
+  /** Pan camera to an org card after matrix↔row-tree transitions (T53). */
+  private panToOrg(orgId: string, motion?: import('./render/Viewport.js').CameraMotionOptions): void {
+    const box = this.host?.renderer.getNodeBox(orgId);
+    if (!box) return;
+    this.host?.panTo(box.x + box.width / 2, box.y + box.height / 2, motion);
   }
 
   async reorderOrg(orgId: string, newIndex: number): Promise<void> {

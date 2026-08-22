@@ -96,6 +96,10 @@ npm run dev          # http://localhost:3000
 49. [T49-adjacency-magnetism.md](./tasks/T49-adjacency-magnetism.md) — ✅ magnetRadius 1.5: top row + two bottom blobs
 50. [T50-chebyshev-pad-rect.md](./tasks/T50-chebyshev-pad-rect.md) — ✅ Chebyshev pad: adjacent row → rectangle, not hat
 51. [T51-zoom-mid-button-group.md](./tasks/T51-zoom-mid-button-group.md) — ✅ mid LOD center + button-group contour polish
+52. [T52-node-chrome-context-menu.md](./tasks/T52-node-chrome-context-menu.md) — ✅ ⋮ menu + expand chrome on cards
+53. [T53-flat-orgs-root-viewport.md](./tasks/T53-flat-orgs-root-viewport.md) — 🔄 root click viewport; 100k reload trim
+54. [T54-e2e-playwright.md](./tasks/T54-e2e-playwright.md) — 📋 Playwright smoke for demo tabs
+55. [T55-node-testid-anchors.md](./tasks/T55-node-testid-anchors.md) — 📋 testId + DOM anchors for e2e/search/focus
 
 ## Технічний борг
 
