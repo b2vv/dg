@@ -12,3 +12,4 @@ blob-report/
 packages/core/target/
 
 # WASM pkg is built via `npm run build:wasm` (see packages/sdk/src/wasm/pkg/.gitignore)
+worktrees/
