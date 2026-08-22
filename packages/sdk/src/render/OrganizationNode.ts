@@ -209,8 +209,7 @@ export class OrganizationNodeView extends Container {
     if (lod === 'far' || !options.onContextMenu) return;
 
     // Leave top-right free for E4 temp badge (PersonNode convention).
-    const chromeWidth =
-      this.org.isTemporary && lod !== 'far' ? Math.max(80, style.width - 26) : style.width;
+    const chromeWidth = this.org.isTemporary ? Math.max(80, style.width - 26) : style.width;
 
     if (options.chrome) {
       mountOrgNodeChrome(this.chromeControls, chromeWidth, options.chrome, options.onContextMenu);
