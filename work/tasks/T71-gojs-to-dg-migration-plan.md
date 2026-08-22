@@ -33,28 +33,25 @@
 |----|------|-----------|-----------------|
 | [T64](./T64-named-display-zones-paint.md) | Іменовані зони (B8/B8a) — paint | **P0** | **Так** |
 | [T66](./T66-position-expand-depth.md) | Expand посади + depth N (C2/C3) | **P0** | **Так** |
-| [T63](./T63-spine-bus-edges.md) | Spine / шина org-matrix (B3) | P1 | Ні (org-matrix) |
-| [T65](./T65-multi-root-forest.md) | Ліс / непідвʼязані (B9) | P1 | Частково (модалка) |
+| [T70](./T70-position-card-chrome.md) | Chrome + **contain знака** (4231 №3) | **P0 Phase0** / P1 rest | Phase0 — так для 4231 |
+| [T63](./T63-spine-bus-edges.md) | Spine / шина org-matrix (B3) | P1 | Ні |
 | [T68](./T68-org-period-display.md) | Період на організації (D4*) | P1 | Ні |
-| [T69](./T69-node-double-click.md) | Dblclick → sidebar (D5) | P1 | Ні (UX) |
-| [T70](./T70-position-card-chrome.md) | Chrome посад зі скрінів (E*) | P1 | Візуальний паритет |
+| [T69](./T69-node-double-click.md) | Dblclick → sidebar (D5) | P1 | Ні (у GoJS теж мертвий) |
+| [T65](./T65-multi-root-forest.md) | Detached placement (B9 🟡65) | P2 | **Ні** |
 | [T67](./T67-multi-select.md) | Мультивибір (D2) | P2 | Ні (наступні задачі) |
 | [T61](./T61-group-recursion-tier3.md) | Рекурсія груп орг (B8c) | P3 | **Ні** |
 
-Вже зроблено (не в цій черзі): T52 chrome/menu, T53 viewport, T54 e2e, T55 testId, T56 inventory.
+Повний parity-текст: [PARITY-gojs-to-dg.md](./PARITY-gojs-to-dg.md).
 
-## §1 — не мігрувати
-
-`formMatrix` / structural group links / lazy `addChildren` / GoJS select hacks / `pendingReveal` / single nodeTemplate bindings.
+Вже зроблено: T52–T55, T56 inventory. **G1** закрито через T55 (anchors), не `getTestID()`.
 
 ## Стратегія
 
 ```
-T64 + T66 (P0)
-  → adapter modules/org-hierarchy|positions → OrgHierarchyDiagram
-  → T63 / T65 / T68 / T69 / T70
-  → T67 коли настане черга продукту
-  → T61 коли буде макет рекурсії
+T70 Phase0 (contain) + T64 + T66
+  → T63 / T68 / T69 / T70 rest
+  → T65 / T67
+  → T61 коли макет
   → видалити gojs-diagram
 ```
 

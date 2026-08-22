@@ -1,59 +1,55 @@
-# T65 — Ліс / кілька коренів / непідвʼязані посади (B9)
+# T65 — Непідпорядкована посада: розміщення (B9)
 
-**Пріоритет:** P1  
+**Пріоритет:** P2  
 **Статус:** planned  
-**Parity:** B9  
-**Джерело:** модалка «Непідвʼязані посади» у прод-продукті
+**Parity:** B9 🟡 ~65  
+**Блокує cutover:** **Ні**  
+**Джерело:** модалка «Непідвʼязані посади»
 
 ---
 
 ## Вимога
 
-Показати на полотні **відв’язані посади** (і/або кілька коренів ієрархії) — окремими коренями, не обов’язково під єдиним head.
+Показати посаду **без керівника** (з модалки) **без вигаданого підпорядкування** на ребрі.
 
-## Стан у `dg`
+## Уточнення parity ред. 2.1
 
-| Компонент | Стан |
-|-----------|------|
-| `packages/core/src/hierarchy.rs` | `roots.len() != 1` → **помилка** |
-| `orgsToSingleRootTree` / `__virtual_root__` | **експортовано**, у staff/org pipeline **майже не викликається** |
-| Staff layout | очікує head / current org |
+| Аспект | `dg` | % |
+|--------|------|---|
+| Ребро до вигаданого parent | Немає — edges лише з `reportLines` | ✅ |
+| Позиціонування | `layoutTreeBlock` ре-parent orphan **під head** лише щоб WASM мав unique root | 🟡 |
+| `hierarchy.rs` single-root error | На **org**-шляху `build_from_flat`, не на основному staff path | не той gap |
 
-Тобто інфраструктура «звести до одного кореня» частково є; **ліс як first-class** — ні.
+Тобто вимога «без фейкової лінії» **вже виконується**. Різниця з бажаним UX — **своя зона / збоку від дерева**, а не в потоці під head.
 
-## Аргументація
+GoJS-обхід «сирота = окремий корінь TreeLayout» → §1 (зникає).
 
-1. Модалка непідвʼязаних — реальний продуктовий сценарій (не GoJS-обхід).
-2. Scope: або (A) wire virtual root + pack «острівців», або (B) послабити WASM validate для forest + layout multi-root.
-3. Не плутати з B8c (групи орг) — це позиції/дерева без parent.
+## Аргументація пріоритету P2
+
+1. Не блокер 4245 / cutover.
+2. Малий візуальний/UX polish після P0.
+3. Не плутати з T61 (групи орг) і з «полагодити hierarchy.rs» як обов’язковий крок.
 
 ## Пропозиція
 
-**Варіант A (швидший, рекомендований для v1):**
-
-1. Mapper/API: `detachMode: 'virtual-root' | 'forest'`.
-2. Перед layout: `orgsToSingleRootTree` / аналог для positions forest.
-3. Virtual root **не рендерити** (invisible), діти — видимі корені зліва-направо (простий pack).
-
-**Варіант B:**
-
-- Змінити `hierarchy.rs` приймати N roots; layout staff для кожного кореня + horizontal packing.
+1. Flag `position.detached?: true` або membership у «unassigned» bucket.
+2. Layout: pack detached у окрему колонку / бічну зону (поруч із T64 zone chrome).
+3. Virtual root для WASM лишається внутрішнім — **не рендерити** і не малювати ребра на нього.
 
 ## Acceptance
 
-- [ ] Набір позицій без єдиного parent не падає з помилкою
-- [ ] Усі «острівці» видимі після `fitView`
-- [ ] Unit: 0 roots / 1 root / 3 roots
-- [ ] Demo або fixture «unassigned positions»
+- [ ] Detached position без reportLine → немає лінії до head
+- [ ] Візуально не в «хребті» підлеглих head (збоку / окрема зона)
+- [ ] Unit + demo fixture модалки
 
 ## Не входить
 
-- UI модалки (лишається в host)
-- Рекурсія DiagramGroup (T61)
+- UI модалки (host)
+- Повний multi-root org forest (окремо, якщо знадобиться)
 
 ## Verify
 
 ```bash
 npm test
-# Fixture: 3 roots → layout width > 0, no throw
+# Fixture: 1 head + 2 detached → no fake edges; detached not under head column
 ```

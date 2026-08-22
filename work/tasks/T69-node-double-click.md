@@ -3,7 +3,7 @@
 **Пріоритет:** P1  
 **Статус:** planned  
 **Parity:** D5  
-**Уточнення продукту:** double-click **мав би відкрити sidebar** (той самий drawer деталей, що й звичайний відкриття з D1)
+**Уточнення:** double-click **мав би відкрити sidebar**
 
 ---
 
@@ -11,43 +11,39 @@
 
 | Жест | Очікування |
 |------|------------|
-| Click | select + `onNodeClick` → host може відкрити sidebar |
-| **Double-click** | **відкрити sidebar** (явний намір «деталі») |
+| Click | select + `onNodeClick` (host → sidebar optional) |
+| **Double-click** | **відкрити sidebar** |
 
-Зараз у `dg`: є `onNodeClick`, **немає** `onNodeDoubleClick` / розрізнення dblclick.
+## Важливо (обидва світи)
 
-## Аргументація
+У **GoJS-проді** рушій емітить `nodeDoubleClick`, але **жоден контролер не підписаний** — другий «мертвий провід» (дзеркало до `reparent`).  
+Тобто D5 можна частково закрити **сьогодні одним рядком підписки в host**, без міграції.  
+У `dg` все одно потрібен публічний callback для strangler.
 
-1. Продукт підтвердив семантику (не «мертвий жест»).
-2. Дешево: Pixi `pointertap` vs double-tap timer або native dblclick на view.
-3. Host (React) підписує sidebar на новий callback — SDK не володіє drawer.
+## Стан у `dg`
+
+Є `onNodeClick`, **немає** `onNodeDoubleClick`.
 
 ## Пропозиція
 
 ```ts
-// callbacks.ts
 onNodeDoubleClick?(node: NodeRef): void;
 ```
 
-- У `DiagramRenderer` / node views: після другого click у ≤300ms (або platform dblclick) викликати callback **замість/після** другого `onNodeClick` (уникнути подвійного toggle expand).
-- Політика: dblclick **не** має trigger expandOrg (якщо click уже expand на flat-orgs) — документувати; host вирішує.
-- Unit: mock pointer sequence → `onNodeDoubleClick` called once.
+- Double-tap ≤300ms або native dblclick на node view.
+- Не тригерити expand на тому ж жесті (політика + тести).
+- Demo: status / drawer hook.
 
 ## Acceptance
 
-- [ ] API `onNodeDoubleClick` експортовано
-- [ ] Demo: dblclick person/org → status «sidebar» / існуючий drawer hook
-- [ ] Не ламає T52 chrome clicks (hit-test)
-- [ ] E2E опційно: dispatch dblclick на test anchor
-
-## Не входить
-
-- Реалізація самого sidebar (host)
-- Multi-select (T67)
+- [ ] API експортовано
+- [ ] Unit: sequence → один `onNodeDoubleClick`
+- [ ] Не ламає T52 chrome hit-test
+- [ ] Документація: host повинен підписатись (урок мертвого проводу GoJS)
 
 ## Verify
 
 ```bash
 npm test
-# Manual: dblclick card → host opens drawer
+# Manual: dblclick → sidebar
 ```
