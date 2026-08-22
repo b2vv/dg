@@ -3,27 +3,23 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  computeAllContours,
   resetContourWasmForTests,
   setContourWasmLoaderForTests,
   VARIANT_B_POSITIONS,
 } from '../contour/bridge.js';
 import { filterContoursForPaint } from './contourPaintFilter.js';
+import { paintMagneticGroups } from './paintMagneticGroups.js';
+import type { ContourMemberBox } from './contourClearance.js';
 import {
   PERSON_CARD_HEIGHT,
   PERSON_CARD_WIDTH,
-  GRID_CELL_WIDTH,
   GRID_CELL_HEIGHT,
+  GRID_CELL_WIDTH,
   VARIANT_B_HORIZONTAL_GAP,
-  VARIANT_B_VERTICAL_GAP,
   VARIANT_B_MAGNET_RADIUS,
+  VARIANT_B_VERTICAL_GAP,
 } from './types.js';
 import { resolvePositionAABB } from '../layout/staff/coords.js';
-import {
-  mapContourPointsToWorld,
-  resolveContourWorldTransform,
-} from './contourWorldTransform.js';
-import { polishContourRing } from './contourPolish.js';
 
 function pointInPoly(x: number, y: number, pts: { x: number; y: number }[]): boolean {
   let inside = false;
@@ -58,34 +54,19 @@ describe('Variant B notch paint (T46)', () => {
     resetContourWasmForTests();
   });
 
-  it('success: minContourMembers=2 paints only IT; CEO center outside painted wash', async () => {
+  it('success: minContourMembers=2 paints only IT; CEO center outside painted wash', () => {
     const cellW = GRID_CELL_WIDTH;
     const cellH = GRID_CELL_HEIGHT;
-    const pitchX = cellW + VARIANT_B_HORIZONTAL_GAP;
-    const pitchY = cellH + VARIANT_B_VERTICAL_GAP;
-    const all = await computeAllContours(
-      VARIANT_B_POSITIONS.map((p) => ({
-        id: p.id,
-        departmentId: p.departmentId,
-        col: p.col,
-        row: p.row,
-      })),
-      {
-        cellWidth: cellW,
-        cellHeight: cellH,
-        paddingCells: 1,
-        smoothIterations: 1,
-        magnetRadius: VARIANT_B_MAGNET_RADIUS,
-        preferNotch: true,
-      },
-    );
+    const inputs = VARIANT_B_POSITIONS.map((p) => ({
+      id: p.id,
+      departmentId: p.departmentId,
+      col: p.col,
+      row: p.row,
+    }));
     const counts = new Map<string, number>();
     for (const p of VARIANT_B_POSITIONS) {
       counts.set(p.departmentId, (counts.get(p.departmentId) ?? 0) + 1);
     }
-    const painted = filterContoursForPaint(all, counts, 2);
-    expect(painted.filter((c) => c.departmentId === 'IT')).toHaveLength(3);
-    expect(painted.some((c) => c.departmentId === 'CEO')).toBe(false);
 
     const geom = {
       nodeWidth: PERSON_CARD_WIDTH,
@@ -96,7 +77,8 @@ describe('Variant B notch paint (T46)', () => {
       refCellHeight: cellH,
       margin: 0,
     };
-    const nodes = VARIANT_B_POSITIONS.map((p) => {
+    const memberBoxesByDept = new Map<string, ContourMemberBox[]>();
+    for (const p of VARIANT_B_POSITIONS) {
       const box = resolvePositionAABB(
         {
           id: p.id,
@@ -111,17 +93,29 @@ describe('Variant B notch paint (T46)', () => {
         },
         geom,
       );
-      return { id: p.id, dept: p.departmentId, col: p.col, row: p.row, ...box };
+      const list = memberBoxesByDept.get(p.departmentId) ?? [];
+      list.push({ positionId: p.id, ...box });
+      memberBoxesByDept.set(p.departmentId, list);
+    }
+
+    const painted = paintMagneticGroups({
+      inputs,
+      memberBoxesByDept,
+      departmentIds: ['CEO', 'IT'],
+      magnetRadius: VARIANT_B_MAGNET_RADIUS,
+      strokeWidth: 0.9,
+      paddingCells: 1,
+      smoothIterations: 1,
+      personCounts: counts,
+      minContourMembers: 2,
     });
-    const posMap = new Map(
-      nodes.map((n) => [n.id, { gridCell: { col: n.col, row: n.row } }]),
-    );
-    const world = resolveContourWorldTransform(nodes, posMap, cellW, cellH, pitchX, pitchY);
-    const rings = painted.map((c) => {
-      const boxes = nodes
-        .filter((n) => n.dept === c.departmentId)
-        .map((n) => ({ x: n.x, y: n.y, width: n.width, height: n.height }));
-      return polishContourRing(mapContourPointsToWorld(c.points, world), boxes, 2);
+    expect(painted.filter((g) => g.departmentId === 'IT')).toHaveLength(3);
+    expect(painted.some((g) => g.departmentId === 'CEO')).toBe(false);
+
+    const rings = painted.map((g) => g.ring);
+    const nodes = VARIANT_B_POSITIONS.map((p) => {
+      const m = memberBoxesByDept.get(p.departmentId)!.find((b) => b.positionId === p.id)!;
+      return { id: p.id, dept: p.departmentId, ...m };
     });
     const ceo = nodes.find((n) => n.id === 'P4')!;
     expect(

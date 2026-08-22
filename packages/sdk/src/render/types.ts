@@ -48,6 +48,7 @@ export interface NodeTheme {
 export interface RenderConfig {
   cellWidth: number;
   cellHeight: number;
+  /** Відступ wash навколо union карток компоненти (px, paint layer). Не Rust flood / L/C. */
   paddingCells: number;
   smoothIterations: number;
   /** Contour own-cell merge radius (Manhattan); default 1.5 */

@@ -1,27 +1,24 @@
 /**
- * Shared live + SVG post-pass: always button-group rounded wrap around
- * member cards in the magnetic component.
+ * Paint-only polish: button-group rounded wrap around cluster member cards.
+ * Padding / smooth here — not in Rust flood (no L/C path).
  */
 import type { ContourClearBox } from './contourClearance.js';
 import {
   buttonGroupRingFromBoxes,
   contourButtonGroupMargin,
-  memberBoxesInsideRing,
 } from './contourButtonGroup.js';
 import { CONTOUR_CORNER_RADIUS } from './contourFillet.js';
 
 export function polishContourRing(
-  points: readonly { x: number; y: number }[],
-  boxes: readonly ContourClearBox[],
+  memberBoxes: readonly ContourClearBox[],
   strokeWidth: number,
   paddingCells = 0,
+  smoothIterations = 0,
 ): { x: number; y: number }[] {
-  if (points.length < 2) return points.map((p) => ({ x: p.x, y: p.y }));
-
-  const members = memberBoxesInsideRing(points, boxes);
-  if (members.length === 0) return [];
+  if (memberBoxes.length === 0) return [];
 
   const margin = contourButtonGroupMargin(paddingCells, strokeWidth);
   const radius = Math.min(CONTOUR_CORNER_RADIUS, margin);
-  return buttonGroupRingFromBoxes(members, margin, radius);
+  const arcSegments = Math.max(2, 2 + Math.max(0, Math.floor(smoothIterations)));
+  return buttonGroupRingFromBoxes(memberBoxes, margin, radius, arcSegments);
 }
