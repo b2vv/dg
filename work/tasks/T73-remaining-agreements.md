@@ -102,6 +102,6 @@ If product does not answer, implementers use the **Default** column — treat as
 
 - [ ] T70p2: paint E4–E7 from existing fields; E11 prefetch via `loadNodeTexture`
 - [ ] T67p1: Set API + ctrl/cmd toggle; **no** marquee copy in UI
-- [ ] T65: side-zone placement; still P2 / non-cutover
+- [x] T65: side-zone placement; still P2 / non-cutover
 - [ ] T61: defer; label as new feature in any roadmap slide
 - [ ] Do not reopen T72 type shapes unless BE forces rename of E5 counts

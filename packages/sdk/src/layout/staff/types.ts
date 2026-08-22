@@ -76,7 +76,7 @@ export interface StaffNodeBox {
   height: number;
   depth?: number;
   tier?: 1 | 2 | 3;
-  role?: 'anchor' | 'floating' | 'tree' | 'matrix';
+  role?: 'anchor' | 'floating' | 'tree' | 'matrix' | 'detached';
 }
 
 export interface StaffOrgBlockResult {

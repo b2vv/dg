@@ -17,8 +17,15 @@ describe('buildStaffTreeData', () => {
     expect(ops.every((p) => !p.gridCell && !p.layoutCoords && p.layoutX == null)).toBe(true);
   });
 
-  it('failure: missing admin chain for ops head would break layout — fixture has isHead', () => {
+  it('success: T65 detached fixtures are parentless in ops', () => {
     const data = buildStaffTreeData();
-    expect(data.positions.some((p) => p.organizationId === 'ops' && p.isHead)).toBe(true);
+    const detached = data.positions.filter(
+      (p) => p.id === 'pos-unassigned-1' || p.id === 'pos-unassigned-2',
+    );
+    expect(detached).toHaveLength(2);
+    const linked = new Set(
+      data.reportLines.flatMap((r) => [r.fromId, r.toId]),
+    );
+    expect(detached.every((p) => !linked.has(p.id))).toBe(true);
   });
 });

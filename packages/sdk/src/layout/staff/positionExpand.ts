@@ -1,5 +1,5 @@
 import type { DiagramPosition, DiagramReportLine } from '../../data/types.js';
-import { resolveStaffHead } from './resolveHead.js';
+import { detachedRootIds, resolveStaffHead } from './resolveHead.js';
 
 /** Admin children: reportLines fromId = manager, toId = report. */
 export function adminChildrenMap(
@@ -42,6 +42,7 @@ export function isPositionExpanded(
 /**
  * BFS from staff head along admin edges. When a node is not expanded,
  * its children are not enqueued (hidden from layout).
+ * Detached roots (T65) are always seeded so collapse does not drop them.
  */
 export function visiblePositions(
   positions: DiagramPosition[],
@@ -58,7 +59,7 @@ export function visiblePositions(
 
   const visible: DiagramPosition[] = [];
   const seen = new Set<string>();
-  const queue: string[] = [headId];
+  const queue: string[] = [headId, ...detachedRootIds(inOrg, reports, orgId, headId)];
 
   while (queue.length > 0) {
     const id = queue.shift()!;

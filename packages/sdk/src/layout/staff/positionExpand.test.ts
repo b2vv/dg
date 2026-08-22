@@ -137,4 +137,24 @@ describe('layoutStaffOrgBlock + collapseUnexpandedPositions', () => {
     });
     expect(result.nodes).toHaveLength(4);
   });
+
+  it('success: detached roots stay visible under collapse (T65+T66)', async () => {
+    const positions = [
+      ...treePositions,
+      pos('orphan', 'o1'),
+    ];
+    const visible = visiblePositions(positions, treeReports, 'o1', []);
+    expect(visible.map((p) => p.id).sort()).toEqual(['orphan', 'root']);
+
+    const result = await layoutStaffOrgBlock(positions, treeReports, 'o1', {
+      staffCoordMode: 'tree',
+      collapseUnexpandedPositions: true,
+      expandedPositionIds: [],
+    });
+    expect(result.nodes.map((n) => n.id).sort()).toEqual(['orphan', 'root']);
+    expect(result.edges).toHaveLength(0);
+    const head = result.nodes.find((n) => n.id === 'root')!;
+    const orphan = result.nodes.find((n) => n.id === 'orphan')!;
+    expect(orphan.x).toBeGreaterThan(head.x + head.width);
+  });
 });

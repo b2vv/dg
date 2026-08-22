@@ -87,6 +87,12 @@ export interface DiagramPosition {
   isTemporary: boolean;
   /** Керівна посада org (staff root); рівно одна на org */
   isHead?: boolean;
+  /**
+   * Host hint: seat has no admin manager (T65 / B9).
+   * Layout also **infers** detached when the seat is in-org, not `isHead`,
+   * and has no admin parent in `reportLines` — flag is optional additive.
+   */
+  detached?: boolean;
   /** Розмір картки (staff layout AABB) */
   width?: number;
   height?: number;
