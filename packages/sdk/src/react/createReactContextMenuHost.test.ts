@@ -76,4 +76,23 @@ describe('createReactContextMenuHost', () => {
       host.dispose();
     });
   });
+
+  it('success: enables pointer events on mount while open', async () => {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    const Menu = (props: ReactContextMenuRenderProps) =>
+      createElement('div', { 'data-testid': 'menu-pe' }, props.request.node.ref.id);
+    const host = createReactContextMenuHost({ component: Menu, container: mount });
+    expect(mount.style.pointerEvents).not.toBe('auto');
+    await act(async () => {
+      host.handleContextMenu(sampleRequest());
+    });
+    expect(mount.style.pointerEvents).toBe('auto');
+    await act(async () => {
+      host.close();
+    });
+    expect(mount.style.pointerEvents).toBe('none');
+    host.dispose();
+    mount.remove();
+  });
 });

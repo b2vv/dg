@@ -13,6 +13,7 @@ import {
 } from '../layout/staff/types.js';
 import { computeOrgLayout } from '../layout/rowTreeLayout.js';
 import type { OrgLayoutOptions } from '../layout/types.js';
+import { isOrgCollapsed, orgHasChildren } from '../layout/orgMode.js';
 import { snapToGrid } from '../interaction/positionMove.js';
 import type { NodeRef } from '../interaction/types.js';
 import { DepartmentBlobView } from './DepartmentBlob.js';
@@ -23,7 +24,7 @@ import { OrganizationNodeView } from './OrganizationNode.js';
 import { runPointMorph, type PointMorphHandle } from './contourMorph.js';
 import type { DepartmentBlobStyle, NodeTheme, RenderConfig } from './types.js';
 import { defaultRenderConfig } from './types.js';
-import type { DiagramData } from '../data/types.js';
+import type { DiagramData, DiagramOrganization } from '../data/types.js';
 import type { LodLevel } from './lod.js';
 import { mapStaffEdgeBoxesForLod } from './visualEdgeBox.js';
 import {
@@ -64,6 +65,8 @@ export interface RenderOptions {
     orgId: string,
     pointer: { clientX: number; clientY: number; canvasX: number; canvasY: number },
   ) => void;
+  onOrgExpand?: (orgId: string) => void;
+  onOrgCollapse?: (orgId: string) => void;
   onPersonDragEnd?: (positionId: string, col: number, row: number) => void;
   onCanvasClick?: () => void;
   selected?: NodeRef | null;
@@ -127,6 +130,9 @@ export class LayerManager {
       this.departmentStrokes,
       this.overlay,
     );
+    // Edges/strokes are paint-only — must not steal hits from node chrome underneath.
+    this.edges.eventMode = 'none';
+    this.departmentStrokes.eventMode = 'none';
   }
 
   clear(): void {
@@ -503,6 +509,10 @@ export class DiagramRenderer {
 
     node.on('pointertap', (e) => {
       if (this.drag?.moved) return;
+      if (node.activateChromePointer(e)) {
+        e.stopPropagation();
+        return;
+      }
       e.stopPropagation();
       if (personId) options.onPersonClick?.(personId, positionId);
     });
@@ -521,6 +531,10 @@ export class DiagramRenderer {
     });
 
     node.on('pointerdown', (e) => {
+      if (node.isChromePointer(e)) {
+        e.stopPropagation();
+        return;
+      }
       this.drag = {
         positionId,
         node,
@@ -684,7 +698,17 @@ export class DiagramRenderer {
           width: n.width,
           height: n.height,
         };
-        const node = PersonNodeView.create(person, position, personStyle, lod);
+        const node = PersonNodeView.create(person, position, personStyle, lod, {
+          onContextMenu:
+            position.personId && options.onPersonContextMenu
+              ? (pointer) =>
+                  options.onPersonContextMenu!(position.personId!, position.id, {
+                    ...pointer,
+                    canvasX: 0,
+                    canvasY: 0,
+                  })
+              : undefined,
+        });
         node.position.set(n.x, n.y);
         this.bindPersonInteractions(
           node,
@@ -720,6 +744,7 @@ export class DiagramRenderer {
           resolvedTheme,
           orgStyle,
           lod,
+          this.orgStaffCardOptions(org, card, options),
         );
         view.position.set(card.x, card.y);
         view.eventMode = 'static';
@@ -734,6 +759,10 @@ export class DiagramRenderer {
         });
         this.registerView(card.orgId, view);
         view.on('pointertap', (e) => {
+          if (view.activateChromePointer(e)) {
+            e.stopPropagation();
+            return;
+          }
           e.stopPropagation();
           if (options.onStaffOrgExpandToggle) {
             options.onStaffOrgExpandToggle(card.orgId);
@@ -743,6 +772,10 @@ export class DiagramRenderer {
           options.onOrgClick?.(card.orgId);
         });
         view.on('pointerdown', (e) => {
+          if (view.isChromePointer(e)) {
+            e.stopPropagation();
+            return;
+          }
           e.stopPropagation();
         });
         view.on('rightclick', (e) => {
@@ -767,7 +800,17 @@ export class DiagramRenderer {
     for (const position of data.positions) {
       if (!position.gridCell) continue;
       const person = position.personId ? personById.get(position.personId) : undefined;
-      const node = PersonNodeView.create(person, position, theme.person, options.lod ?? 'near');
+      const node = PersonNodeView.create(person, position, theme.person, options.lod ?? 'near', {
+        onContextMenu:
+          position.personId && options.onPersonContextMenu
+            ? (pointer) =>
+                options.onPersonContextMenu!(position.personId!, position.id, {
+                  ...pointer,
+                  canvasX: 0,
+                  canvasY: 0,
+                })
+            : undefined,
+      });
       const insetX = (config.cellWidth - theme.person.width) / 2;
       const insetY = (config.cellHeight - theme.person.height) / 2;
       const x = position.gridCell.col * config.cellWidth + insetX;
@@ -830,6 +873,7 @@ export class DiagramRenderer {
           height: ln.height,
         },
         options.lod ?? 'near',
+        this.orgTreeOptions(org, data, options),
       );
       node.position.set(ln.x, ln.y);
       this.rememberBox({
@@ -841,10 +885,18 @@ export class DiagramRenderer {
         height: ln.height,
       });
       node.on('pointertap', (e) => {
+        if (node.activateChromePointer(e)) {
+          e.stopPropagation();
+          return;
+        }
         e.stopPropagation();
         options.onOrgClick?.(org.id);
       });
       node.on('pointerdown', (e) => {
+        if (node.isChromePointer(e)) {
+          e.stopPropagation();
+          return;
+        }
         e.stopPropagation();
       });
       node.on('rightclick', (e) => {
@@ -860,6 +912,63 @@ export class DiagramRenderer {
       this.layers.organizations.addChild(node);
       this.registerView(org.id, node);
     }
+  }
+  private orgTreeOptions(
+    org: DiagramOrganization,
+    data: DiagramData,
+    options: RenderOptions,
+  ): import('./OrganizationNode.js').OrganizationNodeOptions {
+    if (!options.onOrgContextMenu && !options.onOrgExpand && !options.onOrgCollapse) {
+      return {};
+    }
+    const hasChildren = orgHasChildren(data.organizations, org.id);
+    const openMenu = (pointer: { clientX: number; clientY: number }) => {
+      options.onOrgContextMenu?.(org.id, {
+        clientX: pointer.clientX,
+        clientY: pointer.clientY,
+        canvasX: 0,
+        canvasY: 0,
+      });
+    };
+    return {
+      onContextMenu: options.onOrgContextMenu ? openMenu : undefined,
+      chrome:
+        hasChildren && (options.onOrgExpand || options.onOrgCollapse)
+          ? {
+              kind: 'tree',
+              collapsed: isOrgCollapsed(org),
+              hasChildren,
+              onExpand: () => options.onOrgExpand?.(org.id),
+              onCollapse: () => options.onOrgCollapse?.(org.id),
+            }
+          : undefined,
+    };
+  }
+
+  private orgStaffCardOptions(
+    org: DiagramOrganization,
+    card: { expanded?: boolean },
+    options: RenderOptions,
+  ): import('./OrganizationNode.js').OrganizationNodeOptions {
+    const openMenu = (pointer: { clientX: number; clientY: number }) => {
+      options.onOrgContextMenu?.(org.id, {
+        clientX: pointer.clientX,
+        clientY: pointer.clientY,
+        canvasX: 0,
+        canvasY: 0,
+      });
+    };
+    return {
+      onContextMenu: options.onOrgContextMenu ? openMenu : undefined,
+      chrome:
+        options.onStaffOrgExpandToggle
+          ? {
+              kind: 'staff-expand',
+              expanded: card.expanded ?? false,
+              onToggle: () => options.onStaffOrgExpandToggle!(org.id),
+            }
+          : undefined,
+    };
   }
 }
 

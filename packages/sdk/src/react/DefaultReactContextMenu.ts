@@ -2,6 +2,17 @@ import { createElement, type ReactElement } from 'react';
 import type { ReactContextMenuRenderProps } from './createReactContextMenuHost.js';
 import type { MenuItem } from '../interaction/types.js';
 
+function clampMenuPosition(clientX: number, clientY: number, menuW = 200, menuH = 240): {
+  left: number;
+  top: number;
+} {
+  if (typeof window === 'undefined') return { left: clientX, top: clientY };
+  const margin = 8;
+  const left = Math.min(Math.max(margin, clientX), window.innerWidth - menuW - margin);
+  const top = Math.min(Math.max(margin, clientY), window.innerHeight - menuH - margin);
+  return { left, top };
+}
+
 /** Minimal default React menu — hosts usually pass their own component. */
 export function DefaultReactContextMenu(props: ReactContextMenuRenderProps): ReactElement {
   const { request, onClose, onAction } = props;
@@ -12,15 +23,17 @@ export function DefaultReactContextMenu(props: ReactContextMenuRenderProps): Rea
     node.position?.title ??
     node.ref.id;
 
-  return createElement(
+  const pos = clampMenuPosition(pointer.clientX, pointer.clientY);
+
+  const panel = createElement(
     'div',
     {
       role: 'menu',
       'data-testid': 'org-context-menu',
       style: {
         position: 'fixed',
-        left: pointer.clientX,
-        top: pointer.clientY,
+        left: pos.left,
+        top: pos.top,
         pointerEvents: 'auto',
         minWidth: 180,
         background: '#fff',
@@ -32,6 +45,7 @@ export function DefaultReactContextMenu(props: ReactContextMenuRenderProps): Rea
         fontSize: 13,
         zIndex: 10001,
       },
+      onClick: (e: { stopPropagation: () => void }) => e.stopPropagation(),
       onContextMenu: (e: { preventDefault: () => void }) => e.preventDefault(),
     },
     createElement(
@@ -90,5 +104,20 @@ export function DefaultReactContextMenu(props: ReactContextMenuRenderProps): Rea
       },
       'Close',
     ),
+  );
+
+  return createElement(
+    'div',
+    {
+      style: {
+        position: 'fixed',
+        inset: 0,
+        pointerEvents: 'auto',
+        zIndex: 10000,
+      },
+      onClick: onClose,
+      onContextMenu: (e: { preventDefault: () => void }) => e.preventDefault(),
+    },
+    panel,
   );
 }
