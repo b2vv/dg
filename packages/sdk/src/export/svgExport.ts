@@ -15,11 +15,8 @@ import {
 } from '../render/types.js';
 import { buildStaffEdgeSegments } from '../render/staffEdgeGeometry.js';
 import { mapStaffEdgeBoxesForLod } from '../render/visualEdgeBox.js';
-import {
-  mapContourPointToWorld,
-  resolveContourWorldTransform,
-} from '../render/contourWorldTransform.js';
-import { polishContourRing } from '../render/contourPolish.js';
+import { paintMagneticGroups } from '../render/paintMagneticGroups.js';
+import type { ContourMemberBox } from '../render/contourClearance.js';
 import { filterContoursForPaint } from '../render/contourPaintFilter.js';
 import { arrowHeadTriangle, shortenPolylineForArrow } from '../render/staffEdgeArrows.js';
 
@@ -102,59 +99,45 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
         row: p.gridCell.row,
       }));
 
-    const contours =
-      contourInputs.length > 0
-        ? await computeAllContours(contourInputs, {
-            paddingCells: config.paddingCells,
-            cellWidth: config.cellWidth,
-            cellHeight: config.cellHeight,
-            smoothIterations: config.smoothIterations,
-            magnetRadius: config.magnetRadius ?? 1.5,
-            preferNotch: true,
-          })
-        : [];
-
-    const merged = { ...DEFAULT_STAFF_LAYOUT_OPTIONS, ...staffOpts };
-    const world = resolveContourWorldTransform(
-      canvas.positionNodes,
-      positionById,
-      config.cellWidth,
-      config.cellHeight,
-      merged.refCellWidth + merged.horizontalGap,
-      merged.refCellHeight + merged.verticalGap,
-    );
-
-    const boxesByDept = new Map<string, { x: number; y: number; width: number; height: number }[]>();
+    const memberBoxesByDept = new Map<string, ContourMemberBox[]>();
     for (const n of canvas.positionNodes) {
       const pos = positionById.get(n.id);
       if (!pos?.departmentId) continue;
-      const list = boxesByDept.get(pos.departmentId) ?? [];
-      list.push({ x: n.x, y: n.y, width: n.width, height: n.height });
-      boxesByDept.set(pos.departmentId, list);
+      const list = memberBoxesByDept.get(pos.departmentId) ?? [];
+      list.push({
+        positionId: n.id,
+        x: n.x,
+        y: n.y,
+        width: n.width,
+        height: n.height,
+      });
+      memberBoxesByDept.set(pos.departmentId, list);
     }
 
+    const deptIds = [...new Set(contourInputs.map((p) => p.departmentId))].sort();
     const personCounts = new Map<string, number>();
     for (const p of data.positions) {
       if (!p.departmentId) continue;
       personCounts.set(p.departmentId, (personCounts.get(p.departmentId) ?? 0) + 1);
     }
     const minMembers = config.minContourMembers ?? 1;
-    const painted = filterContoursForPaint(contours, personCounts, minMembers);
 
-    const polishedByDept: { deptId: string; d: string }[] = [];
-    for (const c of painted) {
-      if (c.points.length < 2) continue;
-      const mapped = c.points.map((p) => mapContourPointToWorld(p.x, p.y, world));
-      const boxes = boxesByDept.get(c.departmentId) ?? [];
-      const polished = polishContourRing(
-        mapped,
-        boxes,
-        DEPT_STROKE_W,
-        config.paddingCells ?? 0,
-      );
-      const d = polished.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x} ${p.y}`).join(' ');
-      polishedByDept.push({ deptId: c.departmentId, d });
-    }
+    const paintedRings = paintMagneticGroups({
+      inputs: contourInputs,
+      memberBoxesByDept,
+      departmentIds: deptIds,
+      magnetRadius: config.magnetRadius ?? 1.5,
+      strokeWidth: DEPT_STROKE_W,
+      paddingCells: config.paddingCells ?? 0,
+      smoothIterations: config.smoothIterations ?? 0,
+      personCounts,
+      minContourMembers: minMembers,
+    });
+
+    const polishedByDept: { deptId: string; d: string }[] = paintedRings.map((g) => ({
+      deptId: g.departmentId,
+      d: g.ring.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x} ${p.y}`).join(' '),
+    }));
 
     parts.push('<g id="departments">');
     for (const c of polishedByDept) {

@@ -391,15 +391,22 @@ P3 │              ← пряма вертикаль P3→P6 як internal edge
 interface ContourMagnetConfig {
   /** Радіус злипання own cells (grid Manhattan). Default 1.5 = сусіди. */
   magnetRadius: number;       // default: 1.5 — НЕ завищувати «щоб вийшов C»
-  /** Відступ contour від own bbox */
-  padding: number;            // default: 8 px або 0.25 cell
+  /** Rust flood pad (internal). Live demo paint uses RenderConfig.paddingCells instead. */
+  padding: number;            // default: 0 у paint path
   /** Мін. зазор до foreign bbox */
   corridorMin: number;        // default: 0.5 cell
-  /** Дозволити виїмку (notch) замість hole */
+  /** Дозволити виїмку (notch) замість hole — Rust membership only */
   preferNotch: boolean;       // default: true
-  /** Сгладжування після orthogonal walk */
+  /** Rust Chaikin (internal). Live paint: RenderConfig.smoothIterations → arc segments. */
   smooth: 'none' | 'chaikin' | 'bezier';
-  smoothIterations?: number;  // Chaikin default: 2
+  smoothIterations?: number;
+}
+
+interface RenderConfig {
+  /** Demo Padding slider: +8 px per step around member-card union (button-group paint). */
+  paddingCells: number;
+  /** Demo Smooth slider: corner arc density on button-group ring. */
+  smoothIterations: number;
 }
 ```
 

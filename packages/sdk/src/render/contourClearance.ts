@@ -10,6 +10,11 @@ export interface ContourClearBox {
   height: number;
 }
 
+/** Person card AABB keyed for magnetic cluster paint (button-group). */
+export interface ContourMemberBox extends ContourClearBox {
+  positionId: string;
+}
+
 function pointClearance(
   x: number,
   y: number,
