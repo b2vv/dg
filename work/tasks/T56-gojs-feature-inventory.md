@@ -256,7 +256,11 @@
 | T58 | Search highlight collection | P2 | backlog |
 | T59 | Undo/redo для org expand + drag | P2 | backlog |
 | T60 | Org drag-reparent (LinkingTool parity) | P3 | backlog |
-| T61 | Assistant / LastParents tree layout | P3 | backlog |
+| T61 | Assistant / LastParents **або** group recursion — див. [T61-group-recursion-tier3.md](./T61-group-recursion-tier3.md) | P3 | backlog |
+| T63–T70 | Міграційні gaps GoJS→dg — див. [T71](./T71-gojs-to-dg-migration-plan.md) | P0–P2 | planned |
+
+> **Нумерація:** T53–T56 зайняті зданими тікетами `dg`. Міграційні gaps починаються з **T63**; B8c = **T61**; індекс плану = **T71**.
+> Assistants (старий T61 у §15) при колізії перенести в **T72** при старті імплементації.
 
 ---
 

@@ -101,6 +101,16 @@ npm run dev          # http://localhost:3000
 54. [T54-e2e-playwright.md](./tasks/T54-e2e-playwright.md) — ✅ Playwright smoke for demo tabs
 55. [T55-node-testid-anchors.md](./tasks/T55-node-testid-anchors.md) — ✅ testId + DOM anchors for e2e/search/focus
 56. [T56-gojs-feature-inventory.md](./tasks/T56-gojs-feature-inventory.md) — 📋 GoJS catalog + checkbox selection (§16)
+57. [T61-group-recursion-tier3.md](./tasks/T61-group-recursion-tier3.md) — 📋 B8c рекурсія груп орг (не блокує cutover)
+58. [T63-spine-bus-edges.md](./tasks/T63-spine-bus-edges.md) — 📋 B3 spine/шина org-matrix
+59. [T64-named-display-zones-paint.md](./tasks/T64-named-display-zones-paint.md) — 📋 **P0** B8 іменовані зони (paint)
+60. [T65-multi-root-forest.md](./tasks/T65-multi-root-forest.md) — 📋 B9 ліс / непідвʼязані
+61. [T66-position-expand-depth.md](./tasks/T66-position-expand-depth.md) — 📋 **P0** C2/C3 expand посади + depth
+62. [T67-multi-select.md](./tasks/T67-multi-select.md) — 📋 D2 мультивибір (наступні задачі)
+63. [T68-org-period-display.md](./tasks/T68-org-period-display.md) — 📋 D4* період на організації
+64. [T69-node-double-click.md](./tasks/T69-node-double-click.md) — 📋 D5 dblclick → sidebar
+65. [T70-position-card-chrome.md](./tasks/T70-position-card-chrome.md) — 📋 E* chrome посад (скріни GoJS)
+66. [T71-gojs-to-dg-migration-plan.md](./tasks/T71-gojs-to-dg-migration-plan.md) — 📋 **план міграції GoJS→dg** (індекс)
 
 ## Технічний борг
 
