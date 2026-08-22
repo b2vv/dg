@@ -593,6 +593,9 @@ export class OrgHierarchyDiagram {
         this.callbacks.onNodeClick?.(node);
         void this.render();
       },
+      onOrgDoubleClick: (orgId) => {
+        this.callbacks.onNodeDoubleClick?.(this.orgNodeRef(orgId));
+      },
       onStaffOrgExpandToggle: (orgId) => {
         void this.toggleStaffOrgExpand(orgId);
       },
@@ -607,6 +610,9 @@ export class OrgHierarchyDiagram {
         this.applySelection(node);
         this.callbacks.onNodeClick?.(node);
         void this.render();
+      },
+      onPersonDoubleClick: (personId, positionId) => {
+        this.callbacks.onNodeDoubleClick?.(this.personNodeRef(personId, positionId));
       },
       onPersonContextMenu: (personId, positionId, pointer) => {
         this.emitContextMenu(this.personNodeRef(personId, positionId), pointer);

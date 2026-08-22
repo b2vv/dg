@@ -30,6 +30,7 @@ const diagram = await OrgHierarchyDiagram.create(container, {
   staffCurrentOrgId: 'org1',
   callbacks: {
     onNodeClick: (node) => console.log(node),
+    onNodeDoubleClick: (node) => console.log('sidebar', node),
     onContextMenu: (request) => menu.handleContextMenu(request),
   },
 });

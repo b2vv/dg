@@ -1,7 +1,7 @@
 # T69 — Double-click по вузлу → sidebar (D5)
 
 **Пріоритет:** P1  
-**Статус:** planned  
+**Статус:** done  
 **Parity:** D5  
 **Уточнення:** double-click **мав би відкрити sidebar**
 
@@ -22,28 +22,21 @@
 
 ## Стан у `dg`
 
-Є `onNodeClick`, **немає** `onNodeDoubleClick`.
-
-## Пропозиція
-
-```ts
-onNodeDoubleClick?(node: NodeRef): void;
-```
-
-- Double-tap ≤300ms або native dblclick на node view.
-- Не тригерити expand на тому ж жесті (політика + тести).
-- Demo: status / drawer hook.
+- `onNodeDoubleClick?(node: NodeRef)` уже в `packages/sdk/src/callbacks.ts`
+- DiagramRenderer: double-tap ≤300ms на body person/org → `onOrgDoubleClick` / `onPersonDoubleClick`
+- Chrome hit-test (T52) перший; той самий жест **не** тригерить expand/collapse
+- Demo підписаний: status `dblclick org:… · host opens sidebar`
 
 ## Acceptance
 
-- [ ] API експортовано
-- [ ] Unit: sequence → один `onNodeDoubleClick`
-- [ ] Не ламає T52 chrome hit-test
-- [ ] Документація: host повинен підписатись (урок мертвого проводу GoJS)
+- [x] API експортовано (`onNodeDoubleClick` у callbacks + emission)
+- [x] Unit: sequence → один `onNodeDoubleClick`
+- [x] Не ламає T52 chrome hit-test
+- [x] Документація: host повинен підписатись (урок мертвого проводу GoJS)
 
 ## Verify
 
 ```bash
-npm test
-# Manual: dblclick → sidebar
+npm test --workspace=@org-hierarchy/sdk
+# Manual: dblclick → status «host opens sidebar»
 ```

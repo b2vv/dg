@@ -42,7 +42,7 @@
 
 ### Callbacks
 `onPositionExpandChange?`, `LayoutPatch` `position-expand`  
-`onNodeDoubleClick?` (T69, можна окремим PR)
+`onNodeDoubleClick?` (T69 ✅ wired)
 
 ### API
 `togglePositionExpand`, `expandToDepth`, `collapsePositionSubtree`

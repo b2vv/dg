@@ -80,7 +80,7 @@
 | D2 | Multi-select → bulk | 📋 наступні задачі | selection одиничне | 🔴 10 | **T67** |
 | D3 | Context menu | 📋 | React host | ✅ 100 | T10/T52 |
 | D4 | Період підпорядкування **на організації** (відображення; не edge-click) | 📋 замовник | полів/paint нема | 🔴 0 | **T68** |
-| D5 | Dblclick → sidebar | 📋 замовник | нема callback; у GoJS теж мертвий провід (emit без підписки) | 🔴 0 | **T69** |
+| D5 | Dblclick → sidebar | 📋 замовник | `onNodeDoubleClick` wired (demo + tests); host must subscribe | ✅ 100 | **T69** |
 | D6 | Search + focus | 📋 | worker + revealPath | ✅ 100 | T18 |
 | D7–D8 | Fullscreen / timeline | 📋🧬 | host | ✅ n/a | — |
 | D9 | D&D reparent | ❓ мертвий у GoJS | ✅ у `dg` | ✅ 100 | T04/T17 |

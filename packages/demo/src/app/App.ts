@@ -228,6 +228,17 @@ export class App {
               );
             }
           },
+          onNodeDoubleClick: (node) => {
+            this.contextMenu?.close();
+            const label =
+              node.kind === 'organization'
+                ? `org:${node.id}`
+                : node.kind === 'person'
+                  ? `person:${node.id}`
+                  : `${node.kind}:${node.id}`;
+            // Host should open sidebar here (GoJS prod emitted but never subscribed — dead wire).
+            this.setStatus(`dblclick ${label} · host opens sidebar`);
+          },
           onContextMenu: (request) => {
             // 100k: no expand/collapse on nodes — tree↔matrix via focus path / Collapse all.
             if (this.tab === 'scale-100k') {

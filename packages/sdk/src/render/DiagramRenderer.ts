@@ -19,6 +19,7 @@ import { computeOrgLayout } from '../layout/rowTreeLayout.js';
 import type { OrgLayoutOptions } from '../layout/types.js';
 import { isOrgCollapsed, orgHasChildren } from '../layout/orgMode.js';
 import { snapToGrid } from '../interaction/positionMove.js';
+import { DoubleTapTracker } from '../interaction/doubleTap.js';
 import type { NodeRef } from '../interaction/types.js';
 import { DepartmentBlobView } from './DepartmentBlob.js';
 import { DepartmentCardView, paintDashedFrame } from './DepartmentCardView.js';
@@ -64,6 +65,8 @@ export interface RenderOptions {
   /** Contour morph duration during drag (ms). `0` = snap. Default 160. */
   contourMorphMs?: number;
   onOrgClick?: (orgId: string) => void;
+  /** Double-tap / dblclick on org card body (T69). Not fired for chrome. */
+  onOrgDoubleClick?: (orgId: string) => void;
   /** Tier-3 card click: toggle expand-in-place (preferred). */
   onStaffOrgExpandToggle?: (orgId: string) => void;
   /** Explicit drill (change focus); used when expand toggle is not provided. */
@@ -71,6 +74,8 @@ export interface RenderOptions {
   /** Position admin-subtree expand (T66). */
   onPositionExpandToggle?: (positionId: string) => void;
   onPersonClick?: (personId: string, positionId: string) => void;
+  /** Double-tap / dblclick on person card body (T69). Not fired for chrome. */
+  onPersonDoubleClick?: (personId: string, positionId: string) => void;
   onPersonContextMenu?: (
     personId: string,
     positionId: string,
@@ -188,6 +193,8 @@ export class DiagramRenderer {
     previewCol: number | null;
     previewRow: number | null;
   } | null = null;
+  /** Body double-tap tracker (T69); chrome / canvas resets it. */
+  private readonly nodeDoubleTap = new DoubleTapTracker();
 
   mount(stage: Container): void {
     stage.addChild(this.layers.root);
@@ -266,7 +273,10 @@ export class DiagramRenderer {
 
     this.layers.root.eventMode = 'static';
     this.layers.root.removeAllListeners('pointertap');
-    this.layers.root.on('pointertap', () => options.onCanvasClick?.());
+    this.layers.root.on('pointertap', () => {
+      this.nodeDoubleTap.reset();
+      options.onCanvasClick?.();
+    });
 
     const lod = options.lod ?? 'near';
     const hasStaff = data.positions.length > 0;
@@ -530,11 +540,18 @@ export class DiagramRenderer {
     node.on('pointertap', (e) => {
       if (this.drag?.moved) return;
       if (node.activateChromePointer(e)) {
+        this.nodeDoubleTap.reset();
         e.stopPropagation();
         return;
       }
       e.stopPropagation();
-      if (personId) options.onPersonClick?.(personId, positionId);
+      if (!personId) return;
+      const kind = this.nodeDoubleTap.tap(`person:${personId}:${positionId}`);
+      if (kind === 'double') {
+        options.onPersonDoubleClick?.(personId, positionId);
+        return;
+      }
+      options.onPersonClick?.(personId, positionId);
     });
 
     node.on('rightclick', (e) => {
@@ -845,10 +862,16 @@ export class DiagramRenderer {
         this.registerView(card.orgId, view);
         view.on('pointertap', (e) => {
           if (view.activateChromePointer(e)) {
+            this.nodeDoubleTap.reset();
             e.stopPropagation();
             return;
           }
           e.stopPropagation();
+          const kind = this.nodeDoubleTap.tap(`org:${card.orgId}`);
+          if (kind === 'double') {
+            options.onOrgDoubleClick?.(card.orgId);
+            return;
+          }
           if (options.onStaffOrgExpandToggle) {
             options.onStaffOrgExpandToggle(card.orgId);
           } else {
@@ -971,10 +994,16 @@ export class DiagramRenderer {
       });
       node.on('pointertap', (e) => {
         if (node.activateChromePointer(e)) {
+          this.nodeDoubleTap.reset();
           e.stopPropagation();
           return;
         }
         e.stopPropagation();
+        const kind = this.nodeDoubleTap.tap(`org:${org.id}`);
+        if (kind === 'double') {
+          options.onOrgDoubleClick?.(org.id);
+          return;
+        }
         options.onOrgClick?.(org.id);
       });
       node.on('pointerdown', (e) => {
