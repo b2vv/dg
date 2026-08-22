@@ -1,7 +1,7 @@
 # T70 — Chrome карток + геометрія знака організації (E* / 4231)
 
 **Пріоритет:** P1 (Phase 0 — **P0** через 4231 №3)  
-**Статус:** Phase 0 + Phase 1 done · Phase 2 still open (agreed in T73)  
+**Статус:** Phase 0 + Phase 1 + Phase 2 done (agreed in T73)  
 **Parity:** E1–E7, E10–E11 (§4 зображення)  
 **Узгодження:** [T72](./T72-types-algorithms-agreement.md) · [T73](./T73-remaining-agreements.md)  
 **Джерело:** скріни GoJS, 4231, 4245, parity ред. 2.1
@@ -48,6 +48,12 @@
 | E6 | unit-code | поле + caption |
 | E7 | «(вакансія)», чип періоду на посаді | copy + chip (окремо від T68 org period) |
 | E11 | Prefetch light+dark | optional preload другої URL при mount |
+
+- [x] `org.isTemporary` → top-right **T** badge (PersonNode-style; near/mid)
+- [x] `filledCount`/`vacantCount` → `N [M]` badge when either count defined
+- [x] `unitCode` caption row (truncate; omit if empty)
+- [x] Vacant position name → `(вакансія)`; period chip via `formatOrgPeriodLabel` (not T68 org line)
+- [x] E11: prefetch inactive light/dark symbol URL into texture cache when both present
 
 Promote (E9) — лише near/selection; сітка потребує Pixi мінімум.
 

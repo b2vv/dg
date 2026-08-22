@@ -60,6 +60,7 @@ export type { MorphPoint } from './contourMorph.js';
 export {
   resolveTheme,
   getOrgSymbolUrl,
+  getInactiveOrgSymbolUrl,
   resolveNodeTheme,
   canvasBackgroundForTheme,
 } from './theme.js';
@@ -125,3 +126,4 @@ export type {
 } from './orgSymbolBox.js';
 export { formatOrgPeriodLabel, formatIsoDateUk } from './formatPeriodLabel.js';
 export type { PeriodFields } from './formatPeriodLabel.js';
+export { formatOrgCountsBadge, VACANT_POSITION_LABEL } from './orgCardChrome.js';

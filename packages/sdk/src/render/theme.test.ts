@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   canvasBackgroundForTheme,
+  getInactiveOrgSymbolUrl,
   getOrgSymbolUrl,
   resolveNodeTheme,
   resolveTheme,
@@ -71,5 +72,29 @@ describe('getOrgSymbolUrl', () => {
       symbolUrl: '/only.svg',
     };
     expect(getOrgSymbolUrl(minimal, 'dark')).toBe('/only.svg');
+  });
+});
+
+describe('getInactiveOrgSymbolUrl', () => {
+  const org: DiagramOrganization = {
+    id: '1',
+    name: 'Org',
+    groupIds: [],
+    symbolUrlLight: '/light.svg',
+    symbolUrlDark: '/dark.svg',
+  };
+
+  it('success: returns opposite theme when both URLs present', () => {
+    expect(getInactiveOrgSymbolUrl(org, 'light')).toBe('/dark.svg');
+    expect(getInactiveOrgSymbolUrl(org, 'dark')).toBe('/light.svg');
+  });
+
+  it('failure: undefined when either theme URL missing', () => {
+    expect(
+      getInactiveOrgSymbolUrl(
+        { id: '2', name: 'X', groupIds: [], symbolUrlLight: '/light.svg' },
+        'light',
+      ),
+    ).toBeUndefined();
   });
 });
