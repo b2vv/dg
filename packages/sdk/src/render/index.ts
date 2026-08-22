@@ -41,9 +41,10 @@ export { polishContourRing } from './contourPolish.js';
 export {
   buttonGroupRingFromBoxes,
   contourButtonGroupMargin,
-  memberBoxesInsideRing,
-  ringAllowsButtonGroup,
+  memberBoxesForCluster,
 } from './contourButtonGroup.js';
+export { clusterPositionIds, clusterPositionsByDepartment } from './contourCluster.js';
+export { paintMagneticGroups } from './paintMagneticGroups.js';
 export {
   shouldPaintDeptContour,
   filterContoursForPaint,

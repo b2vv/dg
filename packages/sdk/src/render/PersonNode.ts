@@ -4,11 +4,18 @@ import type { LodLevel } from './lod.js';
 import { loadNodeTexture } from './nodeMedia.js';
 import { avatarColorFromName, personInitials } from './personInitials.js';
 import type { PersonNodeStyle } from './types.js';
+import { attachMenuButton, activateChromePointer, hitChromePointer, type ContextMenuPointer } from './nodeCardChrome.js';
+import type { FederatedPointerEvent } from 'pixi.js';
+
+export interface PersonNodeOptions {
+  onContextMenu?: (pointer: ContextMenuPointer) => void;
+}
 
 export class PersonNodeView extends Container {
   private readonly shadow = new Graphics();
   private readonly card = new Graphics();
   private readonly hoverRing = new Graphics();
+  private readonly chromeControls = new Container();
   private readonly nameText: Text;
   private readonly titleText: Text;
   private readonly initialsText: Text;
@@ -58,6 +65,10 @@ export class PersonNodeView extends Container {
     this.photoSprite.visible = false;
     this.photoMask.visible = false;
     this.hoverRing.visible = false;
+    this.chromeControls.eventMode = 'static';
+    this.chromeControls.sortableChildren = true;
+    this.chromeControls.zIndex = 10;
+    this.sortableChildren = true;
     this.addChild(
       this.shadow,
       this.card,
@@ -69,6 +80,7 @@ export class PersonNodeView extends Container {
       this.badge,
       this.badgeLabel,
       this.hoverRing,
+      this.chromeControls,
     );
 
     this.on('pointerover', () => this.setHovered(true, style));
@@ -80,6 +92,7 @@ export class PersonNodeView extends Container {
     position: DiagramPosition,
     style: PersonNodeStyle,
     lod: LodLevel = 'near',
+    options: PersonNodeOptions = {},
   ): PersonNodeView {
     let resolveMedia!: () => void;
     const mediaReady = new Promise<void>((resolve) => {
@@ -89,8 +102,35 @@ export class PersonNodeView extends Container {
     const view = new PersonNodeView(style, lod, mediaReady, avatarFill);
     view.drawCard(style, lod);
     view.updateContent(person, position, style, lod);
+    view.applyChrome(style, lod, options);
     void view.applyPhoto(person?.photoUrl, style, lod).finally(resolveMedia);
     return view;
+  }
+
+  hasMenuButton(): boolean {
+    return this.chromeControls.children.length > 0;
+  }
+
+  activateChromePointer(e: FederatedPointerEvent): boolean {
+    if (this.chromeControls.children.length === 0) return false;
+    return activateChromePointer(this.chromeControls, e);
+  }
+
+  isChromePointer(e: FederatedPointerEvent): boolean {
+    return hitChromePointer(this.chromeControls, e);
+  }
+
+  private applyChrome(
+    style: PersonNodeStyle,
+    lod: LodLevel,
+    options: PersonNodeOptions,
+  ): void {
+    this.chromeControls.removeChildren();
+    if (lod === 'far' || !options.onContextMenu) return;
+    const h = lod === 'mid' ? Math.min(style.height, Math.max(56, style.height * 0.48)) : style.height;
+    const y0 = lod === 'mid' ? (style.height - h) / 2 : 0;
+    // Top-left ⋮ — keeps top-right free for temp (T) badge.
+    attachMenuButton(this.chromeControls, style.width, y0 + 4, options.onContextMenu, 4);
   }
 
   findText(text: string): Text | undefined {

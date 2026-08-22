@@ -391,15 +391,22 @@ P3 │              ← пряма вертикаль P3→P6 як internal edge
 interface ContourMagnetConfig {
   /** Радіус злипання own cells (grid Manhattan). Default 1.5 = сусіди. */
   magnetRadius: number;       // default: 1.5 — НЕ завищувати «щоб вийшов C»
-  /** Відступ contour від own bbox */
-  padding: number;            // default: 8 px або 0.25 cell
+  /** Rust flood pad (internal). Live demo paint uses RenderConfig.paddingCells instead. */
+  padding: number;            // default: 0 у paint path
   /** Мін. зазор до foreign bbox */
   corridorMin: number;        // default: 0.5 cell
-  /** Дозволити виїмку (notch) замість hole */
+  /** Дозволити виїмку (notch) замість hole — Rust membership only */
   preferNotch: boolean;       // default: true
-  /** Сгладжування після orthogonal walk */
+  /** Rust Chaikin (internal). Live paint: RenderConfig.smoothIterations → arc segments. */
   smooth: 'none' | 'chaikin' | 'bezier';
-  smoothIterations?: number;  // Chaikin default: 2
+  smoothIterations?: number;
+}
+
+interface RenderConfig {
+  /** Demo Padding slider: +8 px per step around member-card union (button-group paint). */
+  paddingCells: number;
+  /** Demo Smooth slider: corner arc density on button-group ring. */
+  smoothIterations: number;
 }
 ```
 
@@ -443,7 +450,7 @@ Demo Variant B: `VARIANT_B_MAGNET_RADIUS = 1.5` (`packages/sdk`).
 | **D&D person** | зміна **примітивних координат** у dept/org ієрархії |
 | **Block shift** | зсув **блоку посад** на рівень вище / нижче |
 
-**Контури dept:** union grid cells → polygon → Chaikin (topology) → paint polish: **button-group rounded rect** around member cards when the component is solid (no L/C hole); otherwise fillet + clearance. Не лишати ортогональний «шум» / сходинки на solid-групах.
+**Контури dept:** union grid cells → polygon (membership) → paint polish: **завжди button-group rounded rect** навколо карток компоненти. Без ортогонального «шуму» і без окремого L/C fillet-шляху.
 
 **LOD:** при віддаленні dept blob = simplified polygon + count badge; person nodes collapse to dots.
 

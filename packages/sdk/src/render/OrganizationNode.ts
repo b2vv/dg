@@ -4,6 +4,14 @@ import { loadNodeTexture } from './nodeMedia.js';
 import { getOrgSymbolUrl } from './theme.js';
 import type { LodLevel } from './lod.js';
 import type { OrganizationNodeStyle } from './types.js';
+import { attachMenuButton, activateChromePointer, hitChromePointer, pointerClientCoords, type ContextMenuPointer } from './nodeCardChrome.js';
+import { mountOrgNodeChrome, type OrgNodeChrome } from './orgNodeChrome.js';
+import type { FederatedPointerEvent } from 'pixi.js';
+
+export interface OrganizationNodeOptions {
+  chrome?: OrgNodeChrome;
+  onContextMenu?: (pointer: ContextMenuPointer) => void;
+}
 
 export class OrganizationNodeView extends Container {
   readonly resolvedSymbolUrl: string | undefined;
@@ -17,6 +25,8 @@ export class OrganizationNodeView extends Container {
   private readonly groupText: Text;
   private readonly symbolSprite = new Sprite();
   private styleRef: OrganizationNodeStyle;
+
+  private readonly chromeControls = new Container();
 
   private constructor(
     org: DiagramOrganization,
@@ -45,7 +55,11 @@ export class OrganizationNodeView extends Container {
 
     this.symbolSprite.visible = false;
     this.hoverRing.visible = false;
-    this.addChild(this.shadow, this.card, this.symbolSprite, this.nameText, this.groupText, this.hoverRing);
+    this.chromeControls.eventMode = 'static';
+    this.chromeControls.sortableChildren = true;
+    this.chromeControls.zIndex = 10;
+    this.sortableChildren = true;
+    this.addChild(this.shadow, this.card, this.symbolSprite, this.nameText, this.groupText, this.hoverRing, this.chromeControls);
     this.drawCard(style, lod);
     this.layoutTexts(style, lod);
 
@@ -59,14 +73,50 @@ export class OrganizationNodeView extends Container {
     theme: 'light' | 'dark',
     style: OrganizationNodeStyle,
     lod: LodLevel = 'near',
+    options: OrganizationNodeOptions = {},
   ): OrganizationNodeView {
     let resolveMedia!: () => void;
     const mediaReady = new Promise<void>((resolve) => {
       resolveMedia = resolve;
     });
     const view = new OrganizationNodeView(org, group, theme, style, lod, mediaReady);
+    view.applyChrome(style, lod, options);
     void view.applySymbol(style, lod).finally(resolveMedia);
     return view;
+  }
+
+  hasMenuButton(): boolean {
+    return this.chromeControls.children.length > 0;
+  }
+
+  hasExpandControl(): boolean {
+    return this.chromeControls.children.length > 1;
+  }
+
+  /** Route pointer to ⋮ / expand chrome when Pixi child hit-test misses. */
+  activateChromePointer(e: FederatedPointerEvent): boolean {
+    if (this.chromeControls.children.length === 0) return false;
+    return activateChromePointer(this.chromeControls, e);
+  }
+
+  isChromePointer(e: FederatedPointerEvent): boolean {
+    return hitChromePointer(this.chromeControls, e);
+  }
+
+  private applyChrome(
+    style: OrganizationNodeStyle,
+    lod: LodLevel,
+    options: OrganizationNodeOptions,
+  ): void {
+    this.chromeControls.removeChildren();
+    if (lod === 'far' || !options.onContextMenu) return;
+
+    if (options.chrome) {
+      mountOrgNodeChrome(this.chromeControls, style.width, options.chrome, options.onContextMenu);
+      return;
+    }
+
+    attachMenuButton(this.chromeControls, style.width, 4, options.onContextMenu);
   }
 
   findText(text: string): Text | undefined {

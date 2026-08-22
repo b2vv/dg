@@ -52,11 +52,13 @@ export function createReactContextMenuHost(
 
   const close = (): void => {
     open = false;
+    mount.style.pointerEvents = 'none';
     root?.render(null);
   };
 
   const handleContextMenu = (request: ContextMenuRequest): void => {
     open = true;
+    mount.style.pointerEvents = 'auto';
     const element: ReactElement = createElement(options.component, {
       request,
       onClose: close,

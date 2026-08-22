@@ -13,8 +13,9 @@
 
 - Mid LOD: `PersonNode` + `visualPersonEdgeBox` vertically center the shortened card
 - `contourButtonGroup` — member boxes inside ring → rounded AABB when solid (≥85% sample coverage)
-- `polishContourRing` prefers button-group wrap; L/C holes keep fillet + clearance
-- Demo Smooth default **2**; Padding still scales button-group margin in px
+- `polishContourRing` / `paintMagneticGroups` — button-group only; members from grid clusters (not Rust L/C ring)
+- Demo **Padding** → paint margin only (`paddingCells × 8px`); Rust always `paddingCells: 0`
+- Demo **Smooth** → corner arc segments in paint; Rust always `smoothIterations: 0`
 
 ## Tests
 

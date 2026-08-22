@@ -29,6 +29,13 @@ export function collapseOrg(
   return organizations.map((o) => (o.id === orgId ? { ...o, collapsed: true } : o));
 }
 
+export function orgHasChildren(
+  organizations: readonly DiagramOrganization[],
+  orgId: string,
+): boolean {
+  return organizations.some((o) => o.parentOrgId === orgId);
+}
+
 export function findExpandedRootId(organizations: DiagramOrganization[]): string | null {
   const expanded = organizations.filter((o) => !isOrgCollapsed(o));
   if (expanded.length === 0) return null;

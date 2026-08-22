@@ -1,37 +1,9 @@
 /**
- * Paint magnetic groups like a button-group chrome: one rounded rect
- * around member cards, instead of cell-flood stairs / Chaikin noise.
+ * Paint magnetic groups as button-group chrome: one rounded rect around
+ * member cards (no cell-flood L/C geometry).
  */
-import type { ContourClearBox } from './contourClearance.js';
+import type { ContourClearBox, ContourMemberBox } from './contourClearance.js';
 import { CONTOUR_CORNER_RADIUS, filletClosedRing, type ContourPoint } from './contourFillet.js';
-
-export function pointInPolygon(
-  x: number,
-  y: number,
-  ring: readonly ContourPoint[],
-): boolean {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const xi = ring[i]!.x;
-    const yi = ring[i]!.y;
-    const xj = ring[j]!.x;
-    const yj = ring[j]!.y;
-    const inter = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi + 1e-9) + xi;
-    if (inter) inside = !inside;
-  }
-  return inside;
-}
-
-/** Cards whose centers lie inside the component ring (this magnetic group). */
-export function memberBoxesInsideRing(
-  ring: readonly ContourPoint[],
-  boxes: readonly ContourClearBox[],
-): ContourClearBox[] {
-  if (ring.length < 3) return [];
-  return boxes.filter((b) =>
-    pointInPolygon(b.x + b.width / 2, b.y + b.height / 2, ring),
-  );
-}
 
 function boxesAabb(boxes: readonly ContourClearBox[]): ContourClearBox | null {
   if (boxes.length === 0) return null;
@@ -49,8 +21,8 @@ function boxesAabb(boxes: readonly ContourClearBox[]): ContourClearBox | null {
 }
 
 /**
- * Breathing room around the card union (REQUIREMENTS: ~8px / fraction of cell).
- * `paddingCells` scales the margin without reverting to multi-cell flood stairs.
+ * Demo Padding slider: extra px margin around the card union only (paint layer).
+ * Does not expand Rust flood / G7 / notch geometry.
  */
 export function contourButtonGroupMargin(
   paddingCells: number,
@@ -61,31 +33,12 @@ export function contourButtonGroupMargin(
   return Math.max(6, stroke / 2 + 4) + pad * 8;
 }
 
-/**
- * True when member-card AABB is solidly covered by the cell ring (no L/C hole).
- * Large pad floods still qualify — paint uses a tight rounded rect instead.
- */
-export function ringAllowsButtonGroup(
-  ring: readonly ContourPoint[],
-  members: readonly ContourClearBox[],
-  sampleGrid = 5,
-): boolean {
-  if (ring.length < 3 || members.length === 0) return false;
-  const aabb = boxesAabb(members);
-  if (!aabb || aabb.width <= 0 || aabb.height <= 0) return false;
-
-  const n = Math.max(2, sampleGrid);
-  let inside = 0;
-  let total = 0;
-  for (let i = 0; i < n; i += 1) {
-    for (let j = 0; j < n; j += 1) {
-      const x = aabb.x + ((i + 0.5) / n) * aabb.width;
-      const y = aabb.y + ((j + 0.5) / n) * aabb.height;
-      total += 1;
-      if (pointInPolygon(x, y, ring)) inside += 1;
-    }
-  }
-  return inside / total >= 0.85;
+export function memberBoxesForCluster(
+  clusterIds: readonly string[],
+  members: readonly ContourMemberBox[],
+): ContourClearBox[] {
+  const set = new Set(clusterIds);
+  return members.filter((m) => set.has(m.positionId));
 }
 
 /** Closed ring: expanded AABB of member cards with card-matching corner radius. */
@@ -93,6 +46,7 @@ export function buttonGroupRingFromBoxes(
   boxes: readonly ContourClearBox[],
   margin: number,
   radius: number = CONTOUR_CORNER_RADIUS,
+  arcSegments = 4,
 ): ContourPoint[] {
   const aabb = boxesAabb(boxes);
   if (!aabb) return [];
@@ -107,5 +61,6 @@ export function buttonGroupRingFromBoxes(
     { x: x + w, y: y + h },
     { x, y: y + h },
   ];
-  return filletClosedRing(sharp, Math.min(radius, Math.min(w, h) / 2));
+  const r = Math.min(radius, margin, Math.min(w, h) / 2);
+  return filletClosedRing(sharp, r, Math.max(1, arcSegments));
 }

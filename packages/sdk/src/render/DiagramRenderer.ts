@@ -13,6 +13,7 @@ import {
 } from '../layout/staff/types.js';
 import { computeOrgLayout } from '../layout/rowTreeLayout.js';
 import type { OrgLayoutOptions } from '../layout/types.js';
+import { isOrgCollapsed, orgHasChildren } from '../layout/orgMode.js';
 import { snapToGrid } from '../interaction/positionMove.js';
 import type { NodeRef } from '../interaction/types.js';
 import { DepartmentBlobView } from './DepartmentBlob.js';
@@ -20,23 +21,23 @@ import { OrgEdgesView } from './OrgEdgesView.js';
 import { StaffEdgesView } from './StaffEdgesView.js';
 import { PersonNodeView } from './PersonNode.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
-import { parseSvgPath } from './svgPath.js';
 import { runPointMorph, type PointMorphHandle } from './contourMorph.js';
 import type { DepartmentBlobStyle, NodeTheme, RenderConfig } from './types.js';
 import { defaultRenderConfig } from './types.js';
-import type { DiagramData } from '../data/types.js';
+import type { DiagramData, DiagramOrganization } from '../data/types.js';
 import type { LodLevel } from './lod.js';
 import { mapStaffEdgeBoxesForLod } from './visualEdgeBox.js';
 import {
-  mapContourPointsToWorld,
   resolveContourWorldTransform,
   type ContourWorldTransform,
 } from './contourWorldTransform.js';
 import {
-  type ContourClearBox,
+  type ContourMemberBox,
 } from './contourClearance.js';
+import { clusterPositionsByDepartment } from './contourCluster.js';
+import { memberBoxesForCluster } from './contourButtonGroup.js';
 import { polishContourRing } from './contourPolish.js';
-import { filterContoursForPaint } from './contourPaintFilter.js';
+import { shouldPaintDeptContour } from './contourPaintFilter.js';
 
 export type ContourComputer = (
   positions: ContourPositionInput[],
@@ -64,6 +65,8 @@ export interface RenderOptions {
     orgId: string,
     pointer: { clientX: number; clientY: number; canvasX: number; canvasY: number },
   ) => void;
+  onOrgExpand?: (orgId: string) => void;
+  onOrgCollapse?: (orgId: string) => void;
   onPersonDragEnd?: (positionId: string, col: number, row: number) => void;
   onCanvasClick?: () => void;
   selected?: NodeRef | null;
@@ -73,8 +76,8 @@ export interface RenderOptions {
     /** Tier-3 orgs expanded in place under their cards. */
     expandedOrgIds?: readonly string[];
   };
-  /** World card AABBs per department — keeps Chaikin contour clear of cards. */
-  contourBoxesByDept?: Map<string, ContourClearBox[]>;
+  /** World card AABBs per department (with position id) for button-group paint. */
+  contourMemberBoxesByDept?: Map<string, ContourMemberBox[]>;
 }
 
 export interface NodeWorldBox {
@@ -98,8 +101,11 @@ interface ContourSession {
   personCounts: Map<string, number>;
   /** Paint only depts with at least this many positions (T46). */
   minContourMembers: number;
-  /** World AABBs of cards per department — used to keep Chaikin stroke clear. */
-  boxesByDept: Map<string, ContourClearBox[]>;
+  /** Paint-only: demo Padding slider → px margin around card union. */
+  paintPaddingCells: number;
+  /** Paint-only: demo Smooth slider → corner arc segments. */
+  paintSmoothIterations: number;
+  memberBoxesByDept: Map<string, ContourMemberBox[]>;
   blobsByDept: Map<string, DepartmentBlobView[]>;
   morphHandles: Map<DepartmentBlobView, PointMorphHandle>;
   previewGen: number;
@@ -124,6 +130,9 @@ export class LayerManager {
       this.departmentStrokes,
       this.overlay,
     );
+    // Edges/strokes are paint-only — must not steal hits from node chrome underneath.
+    this.edges.eventMode = 'none';
+    this.departmentStrokes.eventMode = 'none';
   }
 
   clear(): void {
@@ -294,13 +303,15 @@ export class DiagramRenderer {
     deptNames: Map<string, string>;
     personCounts: Map<string, number>;
     minContourMembers: number;
-    boxesByDept?: Map<string, ContourClearBox[]>;
+    paintPaddingCells: number;
+    paintSmoothIterations: number;
+    memberBoxesByDept?: Map<string, ContourMemberBox[]>;
   }): ContourSession {
     this.cancelContourMorphs();
     const cloned = args.inputs.map((p) => ({ ...p }));
     this.contourSession = {
       ...args,
-      boxesByDept: args.boxesByDept ?? new Map(),
+      memberBoxesByDept: args.memberBoxesByDept ?? new Map(),
       baseInputs: cloned.map((p) => ({ ...p })),
       inputs: cloned,
       blobsByDept: new Map(),
@@ -310,21 +321,35 @@ export class DiagramRenderer {
     return this.contourSession;
   }
 
-  private contourPoints(result: DeptContourResult): { x: number; y: number }[] {
-    const raw =
-      result.points.length >= 2
-        ? result.points.map((p) => ({ x: p.x, y: p.y }))
-        : (parseSvgPath(result.path)?.points.map((p) => ({ x: p.x, y: p.y })) ?? []);
-    const mapped = this.contourWorld ? mapContourPointsToWorld(raw, this.contourWorld) : raw;
+  /** Paint rings from magnetic clusters — no Rust L/C geometry. */
+  private buildPaintRingsByDept(): Map<string, { x: number; y: number }[][]> {
     const session = this.contourSession;
-    if (!session) return mapped;
-    const boxes = session.boxesByDept.get(result.departmentId) ?? [];
-    return polishContourRing(
-      mapped,
-      boxes,
-      session.style.strokeWidth,
-      session.magnet.paddingCells ?? 0,
-    );
+    if (!session) return new Map();
+
+    const radius = session.magnet.magnetRadius ?? 1.5;
+    const deptIds = [...new Set(session.inputs.map((p) => p.departmentId))].sort();
+    const out = new Map<string, { x: number; y: number }[][]>();
+
+    for (const deptId of deptIds) {
+      if (!shouldPaintDeptContour(session.personCounts.get(deptId), session.minContourMembers)) {
+        continue;
+      }
+      const members = session.memberBoxesByDept.get(deptId) ?? [];
+      const clusters = clusterPositionsByDepartment(session.inputs, deptId, radius);
+      const rings: { x: number; y: number }[][] = [];
+      for (const clusterIds of clusters) {
+        const boxes = memberBoxesForCluster(clusterIds, members);
+        const ring = polishContourRing(
+          boxes,
+          session.style.strokeWidth,
+          session.paintPaddingCells,
+          session.paintSmoothIterations,
+        );
+        if (ring.length >= 2) rings.push(ring);
+      }
+      if (rings.length > 0) out.set(deptId, rings);
+    }
+    return out;
   }
 
   private mountDeptBlob(blob: DepartmentBlobView): void {
@@ -338,25 +363,14 @@ export class DiagramRenderer {
     blob.destroy();
   }
 
-  private applyContourResults(results: DeptContourResult[], morph: boolean): void {
+  private applyContourResults(_results: DeptContourResult[], morph: boolean): void {
     const session = this.contourSession;
     if (!session) return;
 
-    const painted = filterContoursForPaint(
-      results,
-      session.personCounts,
-      session.minContourMembers,
-    );
-
-    const byDept = new Map<string, DeptContourResult[]>();
-    for (const r of painted) {
-      const list = byDept.get(r.departmentId) ?? [];
-      list.push(r);
-      byDept.set(r.departmentId, list);
-    }
+    const ringsByDept = this.buildPaintRingsByDept();
 
     for (const [deptId, blobs] of [...session.blobsByDept.entries()]) {
-      if (byDept.has(deptId)) continue;
+      if (ringsByDept.has(deptId)) continue;
       for (const blob of blobs) {
         session.morphHandles.get(blob)?.cancel();
         session.morphHandles.delete(blob);
@@ -365,7 +379,7 @@ export class DiagramRenderer {
       session.blobsByDept.delete(deptId);
     }
 
-    for (const [deptId, contours] of byDept) {
+    for (const [deptId, rings] of ringsByDept) {
       let blobs = session.blobsByDept.get(deptId);
       if (!blobs) {
         blobs = [];
@@ -375,16 +389,16 @@ export class DiagramRenderer {
       const label = session.deptNames.get(deptId) ?? deptId;
       const count = session.personCounts.get(deptId);
 
-      if (blobs.length !== contours.length) {
+      if (blobs.length !== rings.length) {
         for (const blob of blobs) {
           session.morphHandles.get(blob)?.cancel();
           session.morphHandles.delete(blob);
           this.unmountDeptBlob(blob);
         }
         blobs.length = 0;
-        for (const contour of contours) {
+        for (const ring of rings) {
           const blob = DepartmentBlobView.fromPoints(
-            this.contourPoints(contour),
+            ring,
             label,
             session.style,
             session.lod,
@@ -396,9 +410,9 @@ export class DiagramRenderer {
         continue;
       }
 
-      for (let i = 0; i < contours.length; i += 1) {
+      for (let i = 0; i < rings.length; i += 1) {
         const blob = blobs[i]!;
-        const to = this.contourPoints(contours[i]!);
+        const to = rings[i]!;
         const from = blob.getDrawnPoints().map((p) => ({ x: p.x, y: p.y }));
         session.morphHandles.get(blob)?.cancel();
         session.morphHandles.delete(blob);
@@ -429,11 +443,12 @@ export class DiagramRenderer {
     options: RenderOptions,
   ): Promise<void> {
     const compute = options.computeContours ?? computeAllContours;
+    // Rust: membership/cluster count only — pad/smooth do not affect paint (button-group).
     const magnet: ContourMagnetConfig = {
-      paddingCells: config.paddingCells,
+      paddingCells: 0,
       cellWidth: config.cellWidth,
       cellHeight: config.cellHeight,
-      smoothIterations: config.smoothIterations,
+      smoothIterations: 0,
       magnetRadius: config.magnetRadius,
     };
     const lod = options.lod ?? 'near';
@@ -449,7 +464,9 @@ export class DiagramRenderer {
       deptNames,
       personCounts,
       minContourMembers: config.minContourMembers ?? defaultRenderConfig.minContourMembers,
-      boxesByDept: options.contourBoxesByDept,
+      paintPaddingCells: config.paddingCells,
+      paintSmoothIterations: config.smoothIterations,
+      memberBoxesByDept: options.contourMemberBoxesByDept,
     });
     const contours = await compute(inputs, magnet);
     if (this.destroyed || !this.contourSession) return;
@@ -492,6 +509,10 @@ export class DiagramRenderer {
 
     node.on('pointertap', (e) => {
       if (this.drag?.moved) return;
+      if (node.activateChromePointer(e)) {
+        e.stopPropagation();
+        return;
+      }
       e.stopPropagation();
       if (personId) options.onPersonClick?.(personId, positionId);
     });
@@ -510,6 +531,10 @@ export class DiagramRenderer {
     });
 
     node.on('pointerdown', (e) => {
+      if (node.isChromePointer(e)) {
+        e.stopPropagation();
+        return;
+      }
       this.drag = {
         positionId,
         node,
@@ -628,17 +653,23 @@ export class DiagramRenderer {
           pitchX,
           pitchY,
         );
-        const boxesByDept = new Map<string, ContourClearBox[]>();
+        const memberBoxesByDept = new Map<string, ContourMemberBox[]>();
         for (const n of canvas.positionNodes) {
           const pos = positionById.get(n.id);
           if (!pos?.departmentId) continue;
-          const list = boxesByDept.get(pos.departmentId) ?? [];
-          list.push({ x: n.x, y: n.y, width: n.width, height: n.height });
-          boxesByDept.set(pos.departmentId, list);
+          const list = memberBoxesByDept.get(pos.departmentId) ?? [];
+          list.push({
+            positionId: n.id,
+            x: n.x,
+            y: n.y,
+            width: n.width,
+            height: n.height,
+          });
+          memberBoxesByDept.set(pos.departmentId, list);
         }
         await this.paintContours(contourInputs, data, theme, config, {
           ...options,
-          contourBoxesByDept: boxesByDept,
+          contourMemberBoxesByDept: memberBoxesByDept,
         });
       }
 
@@ -667,7 +698,17 @@ export class DiagramRenderer {
           width: n.width,
           height: n.height,
         };
-        const node = PersonNodeView.create(person, position, personStyle, lod);
+        const node = PersonNodeView.create(person, position, personStyle, lod, {
+          onContextMenu:
+            position.personId && options.onPersonContextMenu
+              ? (pointer) =>
+                  options.onPersonContextMenu!(position.personId!, position.id, {
+                    ...pointer,
+                    canvasX: 0,
+                    canvasY: 0,
+                  })
+              : undefined,
+        });
         node.position.set(n.x, n.y);
         this.bindPersonInteractions(
           node,
@@ -703,6 +744,7 @@ export class DiagramRenderer {
           resolvedTheme,
           orgStyle,
           lod,
+          this.orgStaffCardOptions(org, card, options),
         );
         view.position.set(card.x, card.y);
         view.eventMode = 'static';
@@ -717,6 +759,10 @@ export class DiagramRenderer {
         });
         this.registerView(card.orgId, view);
         view.on('pointertap', (e) => {
+          if (view.activateChromePointer(e)) {
+            e.stopPropagation();
+            return;
+          }
           e.stopPropagation();
           if (options.onStaffOrgExpandToggle) {
             options.onStaffOrgExpandToggle(card.orgId);
@@ -726,6 +772,10 @@ export class DiagramRenderer {
           options.onOrgClick?.(card.orgId);
         });
         view.on('pointerdown', (e) => {
+          if (view.isChromePointer(e)) {
+            e.stopPropagation();
+            return;
+          }
           e.stopPropagation();
         });
         view.on('rightclick', (e) => {
@@ -750,7 +800,17 @@ export class DiagramRenderer {
     for (const position of data.positions) {
       if (!position.gridCell) continue;
       const person = position.personId ? personById.get(position.personId) : undefined;
-      const node = PersonNodeView.create(person, position, theme.person, options.lod ?? 'near');
+      const node = PersonNodeView.create(person, position, theme.person, options.lod ?? 'near', {
+        onContextMenu:
+          position.personId && options.onPersonContextMenu
+            ? (pointer) =>
+                options.onPersonContextMenu!(position.personId!, position.id, {
+                  ...pointer,
+                  canvasX: 0,
+                  canvasY: 0,
+                })
+            : undefined,
+      });
       const insetX = (config.cellWidth - theme.person.width) / 2;
       const insetY = (config.cellHeight - theme.person.height) / 2;
       const x = position.gridCell.col * config.cellWidth + insetX;
@@ -813,6 +873,7 @@ export class DiagramRenderer {
           height: ln.height,
         },
         options.lod ?? 'near',
+        this.orgTreeOptions(org, data, options),
       );
       node.position.set(ln.x, ln.y);
       this.rememberBox({
@@ -824,10 +885,18 @@ export class DiagramRenderer {
         height: ln.height,
       });
       node.on('pointertap', (e) => {
+        if (node.activateChromePointer(e)) {
+          e.stopPropagation();
+          return;
+        }
         e.stopPropagation();
         options.onOrgClick?.(org.id);
       });
       node.on('pointerdown', (e) => {
+        if (node.isChromePointer(e)) {
+          e.stopPropagation();
+          return;
+        }
         e.stopPropagation();
       });
       node.on('rightclick', (e) => {
@@ -843,6 +912,63 @@ export class DiagramRenderer {
       this.layers.organizations.addChild(node);
       this.registerView(org.id, node);
     }
+  }
+  private orgTreeOptions(
+    org: DiagramOrganization,
+    data: DiagramData,
+    options: RenderOptions,
+  ): import('./OrganizationNode.js').OrganizationNodeOptions {
+    if (!options.onOrgContextMenu && !options.onOrgExpand && !options.onOrgCollapse) {
+      return {};
+    }
+    const hasChildren = orgHasChildren(data.organizations, org.id);
+    const openMenu = (pointer: { clientX: number; clientY: number }) => {
+      options.onOrgContextMenu?.(org.id, {
+        clientX: pointer.clientX,
+        clientY: pointer.clientY,
+        canvasX: 0,
+        canvasY: 0,
+      });
+    };
+    return {
+      onContextMenu: options.onOrgContextMenu ? openMenu : undefined,
+      chrome:
+        hasChildren && (options.onOrgExpand || options.onOrgCollapse)
+          ? {
+              kind: 'tree',
+              collapsed: isOrgCollapsed(org),
+              hasChildren,
+              onExpand: () => options.onOrgExpand?.(org.id),
+              onCollapse: () => options.onOrgCollapse?.(org.id),
+            }
+          : undefined,
+    };
+  }
+
+  private orgStaffCardOptions(
+    org: DiagramOrganization,
+    card: { expanded?: boolean },
+    options: RenderOptions,
+  ): import('./OrganizationNode.js').OrganizationNodeOptions {
+    const openMenu = (pointer: { clientX: number; clientY: number }) => {
+      options.onOrgContextMenu?.(org.id, {
+        clientX: pointer.clientX,
+        clientY: pointer.clientY,
+        canvasX: 0,
+        canvasY: 0,
+      });
+    };
+    return {
+      onContextMenu: options.onOrgContextMenu ? openMenu : undefined,
+      chrome:
+        options.onStaffOrgExpandToggle
+          ? {
+              kind: 'staff-expand',
+              expanded: card.expanded ?? false,
+              onToggle: () => options.onStaffOrgExpandToggle!(org.id),
+            }
+          : undefined,
+    };
   }
 }
 

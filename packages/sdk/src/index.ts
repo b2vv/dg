@@ -553,6 +553,12 @@ export class OrgHierarchyDiagram {
       onOrgContextMenu: (orgId, pointer) => {
         this.emitContextMenu(this.orgNodeRef(orgId), pointer);
       },
+      onOrgExpand: (orgId) => {
+        void this.expandOrg(orgId);
+      },
+      onOrgCollapse: (orgId) => {
+        void this.collapseOrg(orgId);
+      },
       onPersonDragEnd: (positionId, col, row) => {
         void this.movePersonToCell(positionId, col, row);
       },

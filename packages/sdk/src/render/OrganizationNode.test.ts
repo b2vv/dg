@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Texture } from 'pixi.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
 import { configureNodeTextureLoader, clearNodeTextureCache } from './nodeMedia.js';
@@ -66,5 +66,62 @@ describe('OrganizationNodeView', () => {
     expect(view.lod).toBe('far');
     expect(view.findText('Міністерство')).toBeUndefined();
     expect(view.hasSymbolSprite()).toBe(true);
+  });
+
+  it('success: tree chrome shows expand control and menu', () => {
+    const onMenu = vi.fn();
+    const onExpand = vi.fn();
+    const view = OrganizationNodeView.create(
+      org,
+      group,
+      'light',
+      defaultNodeTheme.organization,
+      'near',
+      {
+        onContextMenu: onMenu,
+        chrome: {
+          kind: 'tree',
+          collapsed: true,
+          hasChildren: true,
+          onExpand,
+          onCollapse: () => {},
+        },
+      },
+    );
+    expect(view.hasMenuButton()).toBe(true);
+    expect(view.hasExpandControl()).toBe(true);
+  });
+
+  it('failure: far lod hides chrome controls', () => {
+    const view = OrganizationNodeView.create(
+      org,
+      group,
+      'light',
+      defaultNodeTheme.organization,
+      'far',
+      { onContextMenu: () => {} },
+    );
+    expect(view.hasMenuButton()).toBe(false);
+  });
+
+  it('success: activateChromePointer triggers menu callback', () => {
+    const onMenu = vi.fn();
+    const view = OrganizationNodeView.create(
+      org,
+      group,
+      'light',
+      defaultNodeTheme.organization,
+      'near',
+      { onContextMenu: onMenu },
+    );
+    const menuX = defaultNodeTheme.organization.width - 22 - 4 + 10;
+    const e = {
+      getLocalPosition: () => ({ x: menuX, y: 14 }),
+      clientX: 120,
+      clientY: 80,
+      stopPropagation: () => {},
+    } as never;
+    expect(view.activateChromePointer(e)).toBe(true);
+    expect(onMenu).toHaveBeenCalledWith({ clientX: 120, clientY: 80 });
   });
 });
