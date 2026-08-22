@@ -409,6 +409,7 @@ export class App {
             orgCardHeight: 64,
             refCellWidth: 140,
             refCellHeight: 160,
+            collapseUnexpandedPositions: true,
           },
         };
       case 'flat-orgs':

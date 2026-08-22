@@ -8,6 +8,7 @@ import {
   type StaffGeom,
 } from './coords.js';
 import { adminParentMap, resolveStaffHead } from './resolveHead.js';
+import { visiblePositions } from './positionExpand.js';
 import {
   DEFAULT_STAFF_LAYOUT_OPTIONS,
   StaffLayoutError,
@@ -149,7 +150,7 @@ export async function layoutStaffOrgBlock(
 ): Promise<StaffOrgBlockResult> {
   const mode = options.staffCoordMode ?? DEFAULT_STAFF_LAYOUT_OPTIONS.staffCoordMode;
   const geom = resolveGeom(options);
-  const inOrg = positions.filter((p) => p.organizationId === orgId);
+  let inOrg = positions.filter((p) => p.organizationId === orgId);
   if (inOrg.length === 0) {
     return {
       organizationId: orgId,
@@ -160,6 +161,13 @@ export async function layoutStaffOrgBlock(
       height: 0,
       diagnostics: [],
     };
+  }
+
+  const collapse =
+    options.collapseUnexpandedPositions ??
+    DEFAULT_STAFF_LAYOUT_OPTIONS.collapseUnexpandedPositions;
+  if (collapse) {
+    inOrg = visiblePositions(inOrg, reports, orgId, options.expandedPositionIds ?? []);
   }
 
   const withCoords = inOrg.filter(positionHasCoords);

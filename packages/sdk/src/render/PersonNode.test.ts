@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Texture } from 'pixi.js';
 import { PersonNodeView } from './PersonNode.js';
 import { configureNodeTextureLoader, clearNodeTextureCache } from './nodeMedia.js';
@@ -140,5 +140,27 @@ describe('PersonNodeView', () => {
     expect(view.findText('Іваненко Іван')).toBeUndefined();
     expect(view.hasTempBadge()).toBe(false);
     expect(view.hasPhotoSprite()).toBe(false);
+  });
+
+  it('success: expand chrome shows when hasChildren', async () => {
+    const onToggle = vi.fn();
+    const view = PersonNodeView.create(
+      { id: 'p1', fullName: 'Lead' },
+      {
+        id: 'pos1',
+        title: 'Lead',
+        organizationId: 'org1',
+        groupIds: [],
+        status: 'filled',
+        isTemporary: false,
+      },
+      defaultNodeTheme.person,
+      'near',
+      {
+        expand: { hasChildren: true, expanded: false, onToggle },
+      },
+    );
+    await view.mediaReady;
+    expect(view.hasExpandButton()).toBe(true);
   });
 });

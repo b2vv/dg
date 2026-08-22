@@ -1,7 +1,7 @@
 # T66 — Розкриття посади + початкова глибина (C2 / C3)
 
 **Пріоритет:** P0  
-**Статус:** planned  
+**Статус:** done  
 **Parity:** C2, C3  
 **Джерело:** вимоги **замовника** (підтверджено в parity-дискусії)  
 **Блокує:** cutover / здача staff UX vs GoJS
@@ -51,11 +51,11 @@ await diagram.collapsePositionSubtree(positionId: string): Promise<void>
 
 ## Acceptance
 
-- [ ] Expand/collapse **position** показує/ховає підлеглих по admin report lines
-- [ ] `expandToDepth(n)` відтворює сценарій першого завантаження
-- [ ] Viewport: після expand — `panTo` / не «зникає» дерево (урок T53)
-- [ ] Unit: success + failure (немає дітей; unknown id)
-- [ ] Demo: staff-tree — expander на позиції, не лише на org card
+- [x] Expand/collapse **position** показує/ховає підлеглих по admin report lines
+- [x] `expandToDepth(n)` відтворює сценарій першого завантаження
+- [x] Viewport: після expand — `panTo` / не «зникає» дерево (урок T53)
+- [x] Unit: success + failure (немає дітей; unknown id)
+- [x] Demo: staff-tree — expander на позиції, не лише на org card
 
 ## Не входить
 

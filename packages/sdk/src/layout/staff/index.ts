@@ -17,3 +17,12 @@ export {
 } from './coords.js';
 export { layoutStaffOrgBlock } from './orgBlockLayout.js';
 export { layoutStaffCanvas } from './canvasLayout.js';
+export {
+  adminChildrenMap,
+  adminDescendantIds,
+  assignExpandToDepth,
+  expandIdsForDepth,
+  isPositionExpanded,
+  positionHasAdminChildren,
+  visiblePositions,
+} from './positionExpand.js';

@@ -26,6 +26,9 @@ import {
   swapMatrixOrder,
   placeOrgAtMatrixCell,
   assignMatrixCells,
+  assignExpandToDepth,
+  adminDescendantIds,
+  positionHasAdminChildren,
   type OrgDisplayMode,
   type OrgLayoutOptions,
   type StaffLayoutOptions,
@@ -264,6 +267,9 @@ export {
   resolveStaffHead,
   StaffLayoutError,
   DEFAULT_STAFF_LAYOUT_OPTIONS,
+  assignExpandToDepth,
+  visiblePositions,
+  expandIdsForDepth,
 } from './layout/index.js';
 export type {
   OrgDisplayMode,
@@ -319,6 +325,7 @@ export class OrgHierarchyDiagram {
   private orgLayout: OrgLayoutOptions = {};
   private orgTreeChrome = true;
   private staffExpandedOrgIds = new Set<string>();
+  private staffExpandedPositionIds = new Set<string>();
   private searchIdx: SearchIndex | null = null;
   private selection: NodeRef | null = null;
   private lodLevel: LodLevel = 'near';
@@ -528,6 +535,26 @@ export class OrgHierarchyDiagram {
     } else {
       throw new Error('Provide DiagramData or data + mappers.toDiagram');
     }
+    this.seedExpandedPositionsFromData();
+  }
+
+  /** Sync interactive expand set from mapper/`position.expanded` flags. */
+  private seedExpandedPositionsFromData(): void {
+    this.staffExpandedPositionIds.clear();
+    for (const p of this.data.positions) {
+      if (p.expanded === true) this.staffExpandedPositionIds.add(p.id);
+    }
+  }
+
+  private setPositionExpandedFlag(positionId: string, expanded: boolean): void {
+    this.data = {
+      ...this.data,
+      positions: this.data.positions.map((p) =>
+        p.id === positionId && p.expanded !== expanded ? { ...p, expanded } : p,
+      ),
+    };
+    if (expanded) this.staffExpandedPositionIds.add(positionId);
+    else this.staffExpandedPositionIds.delete(positionId);
   }
 
   private async render(): Promise<void> {
@@ -543,7 +570,10 @@ export class OrgHierarchyDiagram {
       staff: this.staffCurrentOrgId
         ? {
             currentOrgId: this.staffCurrentOrgId,
-            layout: this.staffLayout,
+            layout: {
+              ...this.staffLayout,
+              expandedPositionIds: [...this.staffExpandedPositionIds],
+            },
             expandedOrgIds: [...this.staffExpandedOrgIds],
           }
         : undefined,
@@ -563,6 +593,9 @@ export class OrgHierarchyDiagram {
       },
       onStaffOrgDrill: (orgId) => {
         void this.focusStaffOrg(orgId);
+      },
+      onPositionExpandToggle: (positionId) => {
+        void this.togglePositionExpand(positionId);
       },
       onPersonClick: (personId, positionId) => {
         const node = this.personNodeRef(personId, positionId);
@@ -742,6 +775,10 @@ export class OrgHierarchyDiagram {
     return [...this.staffExpandedOrgIds];
   }
 
+  getStaffExpandedPositionIds(): string[] {
+    return [...this.staffExpandedPositionIds];
+  }
+
   /**
    * Toggle expand-in-place for a tier-3 org card (staff under the card).
    * Caps at one expanded card by default (clears others).
@@ -757,11 +794,134 @@ export class OrgHierarchyDiagram {
     return this.staffExpandedOrgIds.has(orgId);
   }
 
+  /**
+   * Toggle admin-subtree visibility for a position (T66 / C2).
+   * No-op when id unknown or position has no admin children.
+   * Honors `staffLayout.maxExpandedPositions` (expandToDepth bypasses the cap).
+   */
+  async togglePositionExpand(positionId: string): Promise<boolean> {
+    const position = this.data.positions.find((p) => p.id === positionId);
+    if (!position) return false;
+    if (!positionHasAdminChildren(positionId, this.data.positions, this.data.reportLines)) {
+      return false;
+    }
+
+    const wasExpanded = this.staffExpandedPositionIds.has(positionId) || position.expanded === true;
+    if (wasExpanded) {
+      this.setPositionExpandedFlag(positionId, false);
+      this.callbacks.onLayoutChange?.({
+        type: 'position-expand',
+        positionId,
+        expanded: false,
+      });
+      this.callbacks.onPositionExpandChange?.({
+        positionId,
+        expanded: false,
+        changedIds: [positionId],
+      });
+      await this.render();
+      this.panToPosition(positionId, { animate: true });
+      return false;
+    }
+
+    const max = this.staffLayout.maxExpandedPositions ?? Number.POSITIVE_INFINITY;
+    if (Number.isFinite(max)) {
+      while (this.staffExpandedPositionIds.size >= max) {
+        const victim = this.staffExpandedPositionIds.values().next().value as string | undefined;
+        if (victim === undefined) break;
+        this.setPositionExpandedFlag(victim, false);
+      }
+    }
+
+    this.setPositionExpandedFlag(positionId, true);
+    this.callbacks.onLayoutChange?.({
+      type: 'position-expand',
+      positionId,
+      expanded: true,
+    });
+    this.callbacks.onPositionExpandChange?.({
+      positionId,
+      expanded: true,
+      changedIds: [positionId],
+    });
+    await this.render();
+    this.panToPosition(positionId, { animate: true });
+    return true;
+  }
+
+  /**
+   * Expand ancestors so nodes at depth ≤ `depth` are visible (T66 / C3).
+   * Depth 0 = head only. Bypasses `maxExpandedPositions`.
+   */
+  async expandToDepth(options: {
+    organizationId?: string;
+    depth: number;
+  }): Promise<void> {
+    const organizationId = options.organizationId ?? this.staffCurrentOrgId;
+    if (!organizationId) return;
+
+    const { expandedIds, positions } = assignExpandToDepth(
+      this.data.positions,
+      this.data.reportLines,
+      organizationId,
+      options.depth,
+    );
+
+    const expandSet = new Set(expandedIds);
+    // Drop prior expands for this org, then apply depth set (bypass cap).
+    for (const p of this.data.positions) {
+      if (p.organizationId !== organizationId) continue;
+      this.staffExpandedPositionIds.delete(p.id);
+    }
+    for (const id of expandSet) this.staffExpandedPositionIds.add(id);
+    this.data = { ...this.data, positions };
+
+    const changedIds = [...expandSet];
+    this.callbacks.onPositionExpandChange?.({
+      positionId: changedIds[0] ?? '',
+      expanded: changedIds.length > 0,
+      changedIds,
+    });
+    await this.render();
+    const head = this.data.positions.find(
+      (p) => p.organizationId === organizationId && p.isHead,
+    );
+    if (head) this.panToPosition(head.id, { animate: true });
+  }
+
+  /** Collapse a position and clear expand flags on its admin descendants. */
+  async collapsePositionSubtree(positionId: string): Promise<void> {
+    const ids = adminDescendantIds(
+      positionId,
+      this.data.positions,
+      this.data.reportLines,
+    );
+    if (ids.length === 0) return;
+    for (const id of ids) this.setPositionExpandedFlag(id, false);
+    this.callbacks.onPositionExpandChange?.({
+      positionId,
+      expanded: false,
+      changedIds: ids,
+    });
+    await this.render();
+    this.panToPosition(positionId, { animate: true });
+  }
+
   /** Apply staff focus and re-render (drill into Tier-3 org card). Clears expands. */
   async focusStaffOrg(orgId: string | null): Promise<void> {
     this.staffExpandedOrgIds.clear();
     this.setStaffFocus(orgId);
     await this.render();
+  }
+
+  /** Pan camera to a position card after expand/collapse (T53 lesson). */
+  private panToPosition(
+    positionId: string,
+    motion?: import('./render/Viewport.js').CameraMotionOptions,
+  ): void {
+    const box = this.host?.renderer.getNodeBox(positionId);
+    if (!box) return;
+    this.host?.panTo(box.x + box.width / 2, box.y + box.height / 2, motion);
   }
 
   async search(query: string): Promise<SearchResult[]> {
@@ -989,7 +1149,10 @@ export class OrgHierarchyDiagram {
         renderConfig: this.renderConfig,
         currentOrgId: this.staffCurrentOrgId,
         expandedOrgIds: [...this.staffExpandedOrgIds],
-        staffLayout: this.staffLayout,
+        staffLayout: {
+          ...this.staffLayout,
+          expandedPositionIds: [...this.staffExpandedPositionIds],
+        },
       },
       options,
     );

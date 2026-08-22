@@ -11,6 +11,10 @@ import {
   DEFAULT_STAFF_LAYOUT_OPTIONS,
   type StaffLayoutOptions,
 } from '../layout/staff/types.js';
+import {
+  adminChildrenMap,
+  isPositionExpanded,
+} from '../layout/staff/positionExpand.js';
 import { computeOrgLayout } from '../layout/rowTreeLayout.js';
 import type { OrgLayoutOptions } from '../layout/types.js';
 import { isOrgCollapsed, orgHasChildren } from '../layout/orgMode.js';
@@ -64,6 +68,8 @@ export interface RenderOptions {
   onStaffOrgExpandToggle?: (orgId: string) => void;
   /** Explicit drill (change focus); used when expand toggle is not provided. */
   onStaffOrgDrill?: (orgId: string) => void;
+  /** Position admin-subtree expand (T66). */
+  onPositionExpandToggle?: (positionId: string) => void;
   onPersonClick?: (personId: string, positionId: string) => void;
   onPersonContextMenu?: (
     personId: string,
@@ -742,6 +748,23 @@ export class DiagramRenderer {
         StaffEdgesView.fromLayout(canvas.edges, edgeBoxes, resolvedTheme),
       );
 
+      const staffLayoutOpts = {
+        ...DEFAULT_STAFF_LAYOUT_OPTIONS,
+        ...options.staff?.layout,
+        expandedOrgIds: options.staff?.expandedOrgIds ?? options.staff?.layout?.expandedOrgIds,
+      };
+      const expandedPosIds = new Set(staffLayoutOpts.expandedPositionIds ?? []);
+      const collapsePositions = staffLayoutOpts.collapseUnexpandedPositions === true;
+      const childrenByOrg = new Map<string, Map<string, string[]>>();
+      const childrenFor = (orgId: string) => {
+        let m = childrenByOrg.get(orgId);
+        if (!m) {
+          m = adminChildrenMap(data.positions, data.reportLines, orgId);
+          childrenByOrg.set(orgId, m);
+        }
+        return m;
+      };
+
       for (const n of canvas.positionNodes) {
         const position = positionById.get(n.id);
         if (!position) continue;
@@ -751,6 +774,8 @@ export class DiagramRenderer {
           width: n.width,
           height: n.height,
         };
+        const kids = childrenFor(position.organizationId).get(position.id) ?? [];
+        const showExpand = collapsePositions && kids.length > 0 && !!options.onPositionExpandToggle;
         const node = PersonNodeView.create(person, position, personStyle, lod, {
           onContextMenu:
             position.personId && options.onPersonContextMenu
@@ -761,6 +786,13 @@ export class DiagramRenderer {
                     canvasY: 0,
                   })
               : undefined,
+          expand: showExpand
+            ? {
+                hasChildren: true,
+                expanded: isPositionExpanded(position, expandedPosIds),
+                onToggle: () => options.onPositionExpandToggle!(position.id),
+              }
+            : undefined,
         });
         node.position.set(n.x, n.y);
         this.bindPersonInteractions(

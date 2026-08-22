@@ -42,6 +42,13 @@ export {
   positionHasCoords,
   StaffLayoutError,
   DEFAULT_STAFF_LAYOUT_OPTIONS,
+  adminChildrenMap,
+  adminDescendantIds,
+  assignExpandToDepth,
+  expandIdsForDepth,
+  isPositionExpanded,
+  positionHasAdminChildren,
+  visiblePositions,
 } from './staff/index.js';
 export type {
   StaffCoordMode,

@@ -44,6 +44,8 @@ export function buildStaffTreeData(): DiagramData {
         status: 'filled',
         isTemporary: false,
         isHead: true,
+        /** First paint: depth-1 under head (T66 / countFirstLoad analogue). */
+        expanded: true,
       },
       {
         id: 'pos-lead',

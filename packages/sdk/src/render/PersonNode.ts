@@ -4,11 +4,19 @@ import type { LodLevel } from './lod.js';
 import { loadNodeTexture } from './nodeMedia.js';
 import { avatarColorFromName, personInitials } from './personInitials.js';
 import type { PersonNodeStyle } from './types.js';
-import { attachMenuButton, activateChromePointer, hitChromePointer, type ContextMenuPointer } from './nodeCardChrome.js';
+import { attachMenuButton, attachIconButton, activateChromePointer, hitChromePointer, type ContextMenuPointer } from './nodeCardChrome.js';
 import type { FederatedPointerEvent } from 'pixi.js';
+
+export interface PersonNodeExpandChrome {
+  expanded: boolean;
+  hasChildren: boolean;
+  onToggle: () => void;
+}
 
 export interface PersonNodeOptions {
   onContextMenu?: (pointer: ContextMenuPointer) => void;
+  /** Position subtree expand (T66) — shown when hasChildren. */
+  expand?: PersonNodeExpandChrome;
 }
 
 export class PersonNodeView extends Container {
@@ -108,7 +116,11 @@ export class PersonNodeView extends Container {
   }
 
   hasMenuButton(): boolean {
-    return this.chromeControls.children.length > 0;
+    return this.chromeControls.children.some((c) => c.label === 'person-menu');
+  }
+
+  hasExpandButton(): boolean {
+    return this.chromeControls.children.some((c) => c.label === 'person-expand');
   }
 
   activateChromePointer(e: FederatedPointerEvent): boolean {
@@ -126,11 +138,27 @@ export class PersonNodeView extends Container {
     options: PersonNodeOptions,
   ): void {
     this.chromeControls.removeChildren();
-    if (lod === 'far' || !options.onContextMenu) return;
+    if (lod === 'far') return;
     const h = lod === 'mid' ? Math.min(style.height, Math.max(56, style.height * 0.48)) : style.height;
     const y0 = lod === 'mid' ? (style.height - h) / 2 : 0;
+    let x = 4;
     // Top-left ⋮ — keeps top-right free for temp (T) badge.
-    attachMenuButton(this.chromeControls, style.width, y0 + 4, options.onContextMenu, 4);
+    if (options.onContextMenu) {
+      const menu = attachMenuButton(this.chromeControls, style.width, y0 + 4, options.onContextMenu, x);
+      menu.label = 'person-menu';
+      x += 28;
+    }
+    if (options.expand?.hasChildren) {
+      const expand = attachIconButton(
+        this.chromeControls,
+        x,
+        y0 + 4,
+        options.expand.expanded ? '▲' : '▼',
+        options.expand.expanded ? 'Collapse reports' : 'Expand reports',
+        options.expand.onToggle,
+      );
+      expand.label = 'person-expand';
+    }
   }
 
   findText(text: string): Text | undefined {

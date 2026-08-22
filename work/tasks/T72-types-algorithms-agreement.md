@@ -79,5 +79,5 @@ w,h = tex * scale; center in max box
 - [x] Узгодження (цей файл)
 - [x] Data / RenderConfig / Staff types / callbacks поля
 - [x] `fitContain` + `showSymbol` contain (Phase0)
-- [ ] Paint zones (T64)
-- [ ] Position expand layout (T66)
+- [x] Paint zones (T64)
+- [x] Position expand layout (T66)
