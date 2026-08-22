@@ -28,11 +28,27 @@ export interface StaffLayoutOptions {
   expandedOrgIds?: readonly string[];
   /** Cap simultaneous expands (default 1). */
   maxExpandedOrgCards?: number;
+  /**
+   * Position ids whose admin-report subtrees are visible when
+   * `collapseUnexpandedPositions` is true (T66).
+   */
+  expandedPositionIds?: readonly string[];
+  /** Cap interactive position expands; `expandToDepth` bypasses this. */
+  maxExpandedPositions?: number;
+  /**
+   * When true, honor `position.expanded` / `expandedPositionIds` and hide
+   * collapsed subtrees. Default false — demos keep showing full trees.
+   */
+  collapseUnexpandedPositions?: boolean;
 }
 
 export const DEFAULT_STAFF_LAYOUT_OPTIONS: Required<
-  Omit<StaffLayoutOptions, 'expandedOrgIds'>
-> & { expandedOrgIds: readonly string[] } = {
+  Omit<StaffLayoutOptions, 'expandedOrgIds' | 'expandedPositionIds' | 'maxExpandedPositions'>
+> & {
+  expandedOrgIds: readonly string[];
+  expandedPositionIds: readonly string[];
+  maxExpandedPositions: number;
+} = {
   staffCoordMode: 'hybrid',
   nodeWidth: 136,
   nodeHeight: 156,
@@ -46,6 +62,9 @@ export const DEFAULT_STAFF_LAYOUT_OPTIONS: Required<
   orgCardHeight: 64,
   expandedOrgIds: [],
   maxExpandedOrgCards: 1,
+  expandedPositionIds: [],
+  maxExpandedPositions: Number.POSITIVE_INFINITY,
+  collapseUnexpandedPositions: false,
 };
 
 export interface StaffNodeBox {
@@ -89,6 +108,12 @@ export interface StaffTierBand {
   height: number;
   organizationId?: string;
   cards?: StaffOrgCard[];
+  /** World x of zone chrome (T64); filled by layout when available. */
+  x?: number;
+  /** World width of zone chrome. */
+  width?: number;
+  /** Resolved label for paint (usually org.name). */
+  label?: string;
 }
 
 export interface StaffCanvasResult {

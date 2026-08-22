@@ -179,6 +179,7 @@ export {
   worldBoxToScreen,
   resolvePromoteIds,
   screenRectInView,
+  fitContain,
 } from './render/index.js';
 export type {
   NodeTheme,
@@ -195,6 +196,9 @@ export type {
   PromoteMode,
   ScreenRect,
   WorldBox,
+  DepartmentPaintStyle,
+  DepartmentCardStyle,
+  StaffZoneStyle,
 } from './render/index.js';
 export type { LayoutPatch, OrgHierarchyCallbacks } from './callbacks.js';
 

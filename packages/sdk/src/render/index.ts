@@ -94,7 +94,11 @@ export {
   type NodeTheme,
   type ThemeMode,
   type RenderConfig,
+  type DepartmentPaintStyle,
   type DepartmentBlobStyle,
+  type DepartmentCardStyle,
+  type StaffZoneStyle,
   type PersonNodeStyle,
   type OrganizationNodeStyle,
 } from './types.js';
+export { fitContain } from './fitContain.js';

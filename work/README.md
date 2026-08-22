@@ -112,6 +112,7 @@ npm run dev          # http://localhost:3000
 65. [T70-position-card-chrome.md](./tasks/T70-position-card-chrome.md) — 📋 E* chrome посад (скріни GoJS)
 66. [T71-gojs-to-dg-migration-plan.md](./tasks/T71-gojs-to-dg-migration-plan.md) — 📋 **план міграції GoJS→dg** (індекс)
 67. [PARITY-gojs-to-dg.md](./tasks/PARITY-gojs-to-dg.md) — 📋 parity ред. 2.1 (вимога→можливість)
+68. [T72-types-algorithms-agreement.md](./tasks/T72-types-algorithms-agreement.md) — ✅ узгоджені типи + алгоритми P0 (+ fitContain)
 
 ## Технічний борг
 

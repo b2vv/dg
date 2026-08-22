@@ -2,6 +2,7 @@ import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js';
 import type { DiagramGroup, DiagramOrganization } from '../data/types.js';
 import { loadNodeTexture } from './nodeMedia.js';
 import { getOrgSymbolUrl } from './theme.js';
+import { fitContain } from './fitContain.js';
 import type { LodLevel } from './lod.js';
 import type { OrganizationNodeStyle } from './types.js';
 import { attachMenuButton, activateChromePointer, hitChromePointer, pointerClientCoords, type ContextMenuPointer } from './nodeCardChrome.js';
@@ -211,15 +212,20 @@ export class OrganizationNodeView extends Container {
   }
 
   private showSymbol(texture: Texture, style: OrganizationNodeStyle, lod: LodLevel): void {
-    const size =
+    const maxSide =
       lod === 'far' ? Math.min(style.symbolSize, 36) : style.symbolSize;
-    const y =
-      lod === 'far' ? (style.height - size) / 2 : (style.height - style.symbolSize) / 2;
+    const boxY =
+      lod === 'far' ? (style.height - maxSide) / 2 : (style.height - style.symbolSize) / 2;
+    const boxX = lod === 'far' ? 0 : 8;
+
+    const texW = texture.width || texture.source?.width || 0;
+    const texH = texture.height || texture.source?.height || 0;
+    const fitted = fitContain(texW, texH, maxSide, maxSide);
 
     this.symbolSprite.texture = texture;
-    this.symbolSprite.width = size;
-    this.symbolSprite.height = size;
-    this.symbolSprite.position.set(lod === 'far' ? 0 : 8, y);
+    this.symbolSprite.width = fitted.width;
+    this.symbolSprite.height = fitted.height;
+    this.symbolSprite.position.set(boxX + fitted.offsetX, boxY + fitted.offsetY);
     this.symbolSprite.visible = true;
   }
 }

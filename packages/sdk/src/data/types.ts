@@ -18,6 +18,24 @@ export interface DiagramData {
 export interface DiagramOrganization {
   id: string;
   name: string;
+  /** Official / long name when symbol missing (E3) or captions need it. */
+  fullName?: string;
+  /** When false, hide short name beside symbol (E1). Default: show name. */
+  showShortName?: boolean;
+  /** Structural / unit code caption (E6). */
+  unitCode?: string;
+  /** Temporary structure marker on org card (E4). */
+  isTemporary?: boolean;
+  /** Badge N in `N [M]` (E5) — filled / occupied; confirm with BE. */
+  filledCount?: number;
+  /** Badge M in `N [M]` (E5) — vacant seats. */
+  vacantCount?: number;
+  /** Org validity / subordination window start (ISO date). */
+  periodStart?: string;
+  /** End date; `null` = open-ended («по т.ч.»). */
+  periodEnd?: string | null;
+  /** Preformatted period line from host (wins over SDK formatting). */
+  periodLabel?: string;
   symbolUrl?: string;
   symbolUrlLight?: string;
   symbolUrlDark?: string;
@@ -81,6 +99,15 @@ export interface DiagramPosition {
   gridCell?: GridCell;
   /** Staff hierarchy band (block shift) */
   hierarchyLevel?: number;
+  /**
+   * When true and `collapseUnexpandedPositions` is on, admin-report children are laid out.
+   * Default omitted/false — only honored when collapse mode is enabled (T66).
+   */
+  expanded?: boolean;
+  /** Assignment / acting window on the seat (E7 chip). */
+  periodStart?: string;
+  periodEnd?: string | null;
+  periodLabel?: string;
   testId?: string;
 }
 
