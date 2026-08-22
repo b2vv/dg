@@ -183,6 +183,8 @@ export {
   resolvePromoteIds,
   screenRectInView,
   fitContain,
+  formatOrgPeriodLabel,
+  formatIsoDateUk,
 } from './render/index.js';
 export type {
   NodeTheme,

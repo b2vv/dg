@@ -19,7 +19,19 @@ export function buildFlatOrgsData(count = 24): DiagramData {
     return {
       id: `org-${i + 1}`,
       name: `Organization ${i + 1}`,
-      ...(i === 0 ? { testId: 'root' as const } : {}),
+      ...(i === 0
+        ? {
+            testId: 'root' as const,
+            periodStart: '2024-01-01',
+            periodEnd: null,
+          }
+        : {}),
+      ...(i === 1
+        ? {
+            periodStart: '2023-06-15',
+            periodEnd: '2025-12-31',
+          }
+        : {}),
       parentOrgId,
       groupIds: i % 4 === 0 ? ['g1'] : [],
       collapsed: true,

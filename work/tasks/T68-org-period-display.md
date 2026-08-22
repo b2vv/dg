@@ -1,7 +1,7 @@
 # T68 — Відображення періоду на організації (D4*)
 
 **Пріоритет:** P1  
-**Статус:** planned  
+**Статус:** done  
 **Parity:** D4 (переформульовано)  
 **Уточнення продукту (2026-08-22):** кліку по ребру **немає**; потрібно **відображення періоду для організацій**.  
 Старий формулювання «popover по лінії» — не scope цього тікета.
@@ -20,9 +20,8 @@
 
 ## Стан у `dg`
 
-- `DiagramOrganization` — немає полів періоду.
-- `DiagramReportLine` — лише `{fromId,toId,kind}`, без meta.
-- Org card — name / symbol / group caption / chrome expand.
+- `DiagramOrganization` — `periodStart` / `periodEnd` / `periodLabel` ✅
+- Org card — name / symbol / group / **period line** ✅
 
 ## Аргументація
 
@@ -33,25 +32,19 @@
 ## Пропозиція
 
 ```ts
-interface DiagramOrganization {
-  // ...
-  /** Inclusive start of org validity / subordination window */
-  periodStart?: string; // ISO date
-  periodEnd?: string | null; // null = «по т.ч.»
-  periodLabel?: string; // optional preformatted from mapper
-}
+formatOrgPeriodLabel({ periodStart, periodEnd, periodLabel })
+// periodLabel wins; else «з DD.MM.YYYY по т.ч.» / closed window
 ```
 
-- Render: рядок над/під назвою, колір theme (зелений як у легасі посад — токен).
-- Mapper: зібрати з API org DTO.
-- i18n label «по т.ч.» — через `periodLabel` з host або SDK uk default.
+- Render: рядок під назвою (і group), `periodColor` theme (зелений).
+- i18n: `periodLabel` з host виграє; інакше SDK uk «по т.ч.»
 
 ## Acceptance
 
-- [ ] Org з `periodStart` показує період на картці
-- [ ] Без періоду — layout картки без дірки (E2-сумісно)
-- [ ] Unit + visual на OrganizationNode
-- [ ] Demo fixture з 1–2 org з періодом
+- [x] Org з `periodStart` показує період на картці
+- [x] Без періоду — layout картки без дірки (E2-сумісно)
+- [x] Unit + visual на OrganizationNode
+- [x] Demo fixture з 1–2 org з періодом (flat-orgs root + org-2)
 
 ## Не входить
 
@@ -63,5 +56,5 @@ interface DiagramOrganization {
 
 ```bash
 npm test
-# Demo: org card shows «з … по т.ч.»
+# Demo: Flat orgs — org-1 «з 01.01.2024 по т.ч.»
 ```

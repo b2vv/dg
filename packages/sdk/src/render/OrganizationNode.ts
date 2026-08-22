@@ -3,9 +3,10 @@ import type { DiagramGroup, DiagramOrganization } from '../data/types.js';
 import { loadNodeTexture } from './nodeMedia.js';
 import { getOrgSymbolUrl } from './theme.js';
 import { fitContain } from './fitContain.js';
+import { formatOrgPeriodLabel } from './formatPeriodLabel.js';
 import type { LodLevel } from './lod.js';
 import type { OrganizationNodeStyle } from './types.js';
-import { attachMenuButton, activateChromePointer, hitChromePointer, pointerClientCoords, type ContextMenuPointer } from './nodeCardChrome.js';
+import { attachMenuButton, activateChromePointer, hitChromePointer, type ContextMenuPointer } from './nodeCardChrome.js';
 import { mountOrgNodeChrome, type OrgNodeChrome } from './orgNodeChrome.js';
 import type { FederatedPointerEvent } from 'pixi.js';
 
@@ -24,6 +25,7 @@ export class OrganizationNodeView extends Container {
   private readonly hoverRing = new Graphics();
   private readonly nameText: Text;
   private readonly groupText: Text;
+  private readonly periodText: Text;
   private readonly symbolSprite = new Sprite();
   private styleRef: OrganizationNodeStyle;
 
@@ -53,6 +55,15 @@ export class OrganizationNodeView extends Container {
       text: group?.name ?? '',
       style: { fill: style.groupColor, fontSize: style.groupFontSize },
     });
+    const periodLabel = formatOrgPeriodLabel(org) ?? '';
+    this.periodText = new Text({
+      text: periodLabel,
+      style: {
+        fill: style.periodColor ?? 0x15803d,
+        fontSize: style.periodFontSize ?? 10,
+        fontWeight: '500',
+      },
+    });
 
     this.symbolSprite.visible = false;
     this.hoverRing.visible = false;
@@ -60,7 +71,16 @@ export class OrganizationNodeView extends Container {
     this.chromeControls.sortableChildren = true;
     this.chromeControls.zIndex = 10;
     this.sortableChildren = true;
-    this.addChild(this.shadow, this.card, this.symbolSprite, this.nameText, this.groupText, this.hoverRing, this.chromeControls);
+    this.addChild(
+      this.shadow,
+      this.card,
+      this.symbolSprite,
+      this.nameText,
+      this.groupText,
+      this.periodText,
+      this.hoverRing,
+      this.chromeControls,
+    );
     this.drawCard(style, lod);
     this.layoutTexts(style, lod);
 
@@ -131,6 +151,10 @@ export class OrganizationNodeView extends Container {
     return this.symbolSprite.visible;
   }
 
+  hasPeriodLabel(): boolean {
+    return this.periodText.visible && this.periodText.text.length > 0;
+  }
+
   private drawCard(style: OrganizationNodeStyle, lod: LodLevel): void {
     const { width, height, borderRadius } = style;
     this.card.clear();
@@ -163,20 +187,35 @@ export class OrganizationNodeView extends Container {
     if (lod === 'far') {
       this.nameText.visible = false;
       this.groupText.visible = false;
+      this.periodText.visible = false;
       return;
     }
     this.nameText.visible = true;
     const hasGroup = lod === 'near' && this.groupText.text.length > 0;
+    const hasPeriod = this.periodText.text.length > 0;
     this.groupText.visible = hasGroup;
+    this.periodText.visible = hasPeriod;
+
     const textX = 8 + style.symbolSize + 10;
-    if (hasGroup) {
-      const blockH = style.nameFontSize + 4 + style.groupFontSize;
-      const top = (style.height - blockH) / 2;
-      this.nameText.position.set(textX, top);
-      this.groupText.position.set(textX, top + style.nameFontSize + 4);
-    } else {
-      const nameH = style.nameFontSize;
-      this.nameText.position.set(textX, (style.height - nameH) / 2);
+    const maxTextW = Math.max(24, style.width - textX - 10);
+    truncatePixiText(this.nameText, maxTextW);
+    if (hasGroup) truncatePixiText(this.groupText, maxTextW);
+    if (hasPeriod) truncatePixiText(this.periodText, maxTextW);
+
+    const periodFs = style.periodFontSize ?? 10;
+    const lines: Array<{ text: Text; fontSize: number }> = [
+      { text: this.nameText, fontSize: style.nameFontSize },
+    ];
+    if (hasGroup) lines.push({ text: this.groupText, fontSize: style.groupFontSize });
+    if (hasPeriod) lines.push({ text: this.periodText, fontSize: periodFs });
+
+    const gap = 3;
+    const blockH =
+      lines.reduce((sum, l) => sum + l.fontSize, 0) + gap * Math.max(0, lines.length - 1);
+    let y = (style.height - blockH) / 2;
+    for (const line of lines) {
+      line.text.position.set(textX, y);
+      y += line.fontSize + gap;
     }
   }
 
@@ -228,4 +267,13 @@ export class OrganizationNodeView extends Container {
     this.symbolSprite.position.set(boxX + fitted.offsetX, boxY + fitted.offsetY);
     this.symbolSprite.visible = true;
   }
+}
+
+function truncatePixiText(label: Text, maxWidth: number): void {
+  const raw = label.text;
+  if (!raw) return;
+  const fontSize = Number(label.style.fontSize) || 12;
+  const maxChars = Math.max(1, Math.floor(maxWidth / (fontSize * 0.55)));
+  if (raw.length <= maxChars) return;
+  label.text = `${raw.slice(0, Math.max(1, maxChars - 1))}…`;
 }

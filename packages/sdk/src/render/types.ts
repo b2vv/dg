@@ -175,6 +175,8 @@ export const defaultNodeTheme: NodeTheme = {
     nameFontSize: 13,
     groupFontSize: 11,
     symbolSize: 36,
+    periodColor: 0x15803d,
+    periodFontSize: 10,
   },
 };
 
@@ -215,6 +217,8 @@ export const darkNodeTheme: NodeTheme = {
     nameFontSize: 13,
     groupFontSize: 11,
     symbolSize: 36,
+    periodColor: 0x4ade80,
+    periodFontSize: 10,
   },
 };
 

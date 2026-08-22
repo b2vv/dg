@@ -124,4 +124,34 @@ describe('OrganizationNodeView', () => {
     expect(view.activateChromePointer(e)).toBe(true);
     expect(onMenu).toHaveBeenCalledWith({ clientX: 120, clientY: 80 });
   });
+
+  it('success: periodStart paints «з … по т.ч.»', async () => {
+    const view = OrganizationNodeView.create(
+      { ...org, periodStart: '2024-01-15', periodEnd: null },
+      undefined,
+      'light',
+      defaultNodeTheme.organization,
+    );
+    await view.mediaReady;
+    expect(view.hasPeriodLabel()).toBe(true);
+    expect(view.findText('з 15.01.2024 по т.ч.')).toBeTruthy();
+  });
+
+  it('failure: without period — no period line (no hole)', async () => {
+    const view = OrganizationNodeView.create(org, undefined, 'light', defaultNodeTheme.organization);
+    await view.mediaReady;
+    expect(view.hasPeriodLabel()).toBe(false);
+    expect(view.findText('Міністерство')).toBeTruthy();
+  });
+
+  it('success: periodLabel from host wins', async () => {
+    const view = OrganizationNodeView.create(
+      { ...org, periodStart: '2020-01-01', periodLabel: 'з наказу' },
+      undefined,
+      'light',
+      defaultNodeTheme.organization,
+    );
+    await view.mediaReady;
+    expect(view.findText('з наказу')).toBeTruthy();
+  });
 });

@@ -110,3 +110,5 @@ export {
   type WorldRect,
 } from './staffZoneBounds.js';
 export { fitContain } from './fitContain.js';
+export { formatOrgPeriodLabel, formatIsoDateUk } from './formatPeriodLabel.js';
+export type { PeriodFields } from './formatPeriodLabel.js';
