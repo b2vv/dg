@@ -19,6 +19,7 @@ import { paintMagneticGroups } from '../render/paintMagneticGroups.js';
 import type { ContourMemberBox } from '../render/contourClearance.js';
 import { filterContoursForPaint } from '../render/contourPaintFilter.js';
 import { arrowHeadTriangle, shortenPolylineForArrow } from '../render/staffEdgeArrows.js';
+import { enrichStaffTierBands } from '../render/staffZoneBounds.js';
 
 function esc(text: string): string {
   return text
@@ -87,7 +88,6 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
 
     const staffMerged = { ...DEFAULT_STAFF_LAYOUT_OPTIONS, ...staffOpts };
     if (config.staffZoneChrome) {
-      const { enrichStaffTierBands } = await import('../render/staffZoneBounds.js');
       const tiers = enrichStaffTierBands(
         canvas.tiers,
         canvas.positionNodes,

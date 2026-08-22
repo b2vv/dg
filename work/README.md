@@ -103,7 +103,7 @@ npm run dev          # http://localhost:3000
 56. [T56-gojs-feature-inventory.md](./tasks/T56-gojs-feature-inventory.md) — 📋 GoJS catalog + checkbox selection (§16)
 57. [T61-group-recursion-tier3.md](./tasks/T61-group-recursion-tier3.md) — 📋 B8c рекурсія груп орг (не блокує cutover)
 58. [T63-spine-bus-edges.md](./tasks/T63-spine-bus-edges.md) — 📋 B3 spine/шина org-matrix
-59. [T64-named-display-zones-paint.md](./tasks/T64-named-display-zones-paint.md) — 📋 **P0** B8 іменовані зони (paint)
+59. [T64-named-display-zones-paint.md](./tasks/T64-named-display-zones-paint.md) — ✅ **P0** B8 іменовані зони (paint)
 60. [T65-multi-root-forest.md](./tasks/T65-multi-root-forest.md) — 📋 B9 ліс / непідвʼязані
 61. [T66-position-expand-depth.md](./tasks/T66-position-expand-depth.md) — 📋 **P0** C2/C3 expand посади + depth
 62. [T67-multi-select.md](./tasks/T67-multi-select.md) — 📋 D2 мультивибір (наступні задачі)
