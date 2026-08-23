@@ -1,10 +1,9 @@
 # T73 — Remaining agreements (post T69 / T70 Phase1)
 
-**Status:** planning / docs  
+**Status:** ✅ closed (2026-08-23) — T70p2, T67p1, T65 done; T61 deferred  
 **Date:** 2026-08-22  
 **Branch context:** after T64, T66, T70 Phase0, T63, T68; siblings implement T69 + T70 Phase1  
-**SoT types:** [T72](./T72-types-algorithms-agreement.md) · `packages/sdk/src/data/types.ts`  
-**Do not:** edit OrganizationNode / PersonNode / DiagramRenderer interaction code in this ticket — **docs only**.
+**SoT types:** [T72](./T72-types-algorithms-agreement.md) · `packages/sdk/src/data/types.ts`
 
 ---
 
@@ -103,5 +102,5 @@ If product does not answer, implementers use the **Default** column — treat as
 - [x] T70p2: paint E4–E7 from existing fields; E11 prefetch via `loadNodeTexture`
 - [x] T67p1: Set API + ctrl/cmd toggle; **no** marquee copy in UI
 - [x] T65: side-zone placement; still P2 / non-cutover
-- [ ] T61: defer; label as new feature in any roadmap slide
-- [ ] Do not reopen T72 type shapes unless BE forces rename of E5 counts
+- [x] T61: defer; label as new feature in [T71](./T71-gojs-to-dg-migration-plan.md)
+- [x] Do not reopen T72 type shapes unless BE forces rename of E5 counts

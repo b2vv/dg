@@ -278,6 +278,33 @@ describe('PersonNodeView', () => {
     expect(title!.position.y).toBe(112);
   });
 
+  it('gojs-row near: hit stack excludes empty layout padding below card', async () => {
+    const view = PersonNodeView.create(
+      { id: 'p1', fullName: 'Alex Morgan' },
+      {
+        id: 'pos1',
+        title: 'Regional Director',
+        organizationId: 'org1',
+        groupIds: [],
+        status: 'filled',
+        isTemporary: false,
+      },
+      {
+        ...defaultNodeTheme.person,
+        width: 200,
+        height: 98,
+        cardRowHeight: 56,
+        personLayout: 'gojs-row',
+      },
+      'near',
+    );
+    await view.mediaReady;
+    const hit = view.hitArea as { contains(x: number, y: number): boolean } | null;
+    expect(hit).toBeTruthy();
+    expect(hit!.contains(10, 40)).toBe(true);
+    expect(hit!.contains(10, 90)).toBe(false);
+  });
+
   it('gojs-portrait explicit wins over landscape aspect', async () => {
     const view = PersonNodeView.create(
       { id: 'p1', fullName: 'Alex Morgan' },
