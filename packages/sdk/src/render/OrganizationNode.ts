@@ -1,16 +1,33 @@
 import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js';
 import type { DiagramGroup, DiagramOrganization } from '../data/types.js';
 import { loadNodeTexture } from './nodeMedia.js';
-import { getOrgSymbolUrl } from './theme.js';
+import { getInactiveOrgSymbolUrl, getOrgSymbolUrl } from './theme.js';
+import { fitContain } from './fitContain.js';
+import { formatOrgPeriodLabel } from './formatPeriodLabel.js';
+import { formatOrgCountsBadge } from './orgCardChrome.js';
 import type { LodLevel } from './lod.js';
 import type { OrganizationNodeStyle } from './types.js';
-import { attachMenuButton, activateChromePointer, hitChromePointer, pointerClientCoords, type ContextMenuPointer } from './nodeCardChrome.js';
+import {
+  attachMenuButton,
+  activateChromePointer,
+  hitChromePointer,
+  type ContextMenuPointer,
+} from './nodeCardChrome.js';
 import { mountOrgNodeChrome, type OrgNodeChrome } from './orgNodeChrome.js';
 import type { FederatedPointerEvent } from 'pixi.js';
+import {
+  ORG_SYMBOL_PAD,
+  resolveOrgSymbolLayout,
+  type OrgSymbolBox,
+  type OrgSymbolBoxMode,
+  type OrgSymbolLayout,
+} from './orgSymbolBox.js';
 
 export interface OrganizationNodeOptions {
   chrome?: OrgNodeChrome;
   onContextMenu?: (pointer: ContextMenuPointer) => void;
+  /** Opt-in E11 prefetch of inactive theme symbol (default false). */
+  prefetchInactiveSymbol?: boolean;
 }
 
 export class OrganizationNodeView extends Container {
@@ -18,13 +35,22 @@ export class OrganizationNodeView extends Container {
   readonly lod: LodLevel;
   /** Settles when optional symbol load finishes (or immediately if none). */
   readonly mediaReady: Promise<void>;
+  private readonly org: DiagramOrganization;
+  private readonly theme: 'light' | 'dark';
   private readonly shadow = new Graphics();
   private readonly card = new Graphics();
   private readonly hoverRing = new Graphics();
   private readonly nameText: Text;
+  private readonly unitCodeText: Text;
   private readonly groupText: Text;
+  private readonly periodText: Text;
+  private readonly tempBadge = new Graphics();
+  private readonly tempBadgeLabel: Text;
+  private readonly countsBadge = new Graphics();
+  private readonly countsBadgeLabel: Text;
   private readonly symbolSprite = new Sprite();
   private styleRef: OrganizationNodeStyle;
+  private symbolLayout: OrgSymbolLayout;
 
   private readonly chromeControls = new Container();
 
@@ -37,30 +63,87 @@ export class OrganizationNodeView extends Container {
     mediaReady: Promise<void>,
   ) {
     super();
+    this.org = org;
+    this.theme = theme;
     this.lod = lod;
     this.mediaReady = mediaReady;
     this.eventMode = 'static';
     this.cursor = 'pointer';
     this.resolvedSymbolUrl = getOrgSymbolUrl(org, theme);
     this.styleRef = style;
+    this.symbolLayout = resolveOrgSymbolLayout(org, style, {
+      lod,
+      hasSymbol: false,
+    });
 
     this.nameText = new Text({
-      text: org.name,
+      text: this.symbolLayout.displayName,
       style: { fill: style.nameColor, fontSize: style.nameFontSize, fontWeight: '600' },
+    });
+    this.unitCodeText = new Text({
+      text: org.unitCode?.trim() ?? '',
+      style: {
+        fill: style.metaColor ?? style.groupColor,
+        fontSize: style.metaFontSize ?? 10,
+      },
     });
     this.groupText = new Text({
       text: group?.name ?? '',
       style: { fill: style.groupColor, fontSize: style.groupFontSize },
     });
+    const periodLabel = formatOrgPeriodLabel(org) ?? '';
+    this.periodText = new Text({
+      text: periodLabel,
+      style: {
+        fill: style.periodColor ?? 0x15803d,
+        fontSize: style.periodFontSize ?? 10,
+        fontWeight: '500',
+      },
+    });
+    this.tempBadgeLabel = new Text({
+      text: 'T',
+      style: {
+        fill: style.badgeTextColor ?? 0xffffff,
+        fontSize: 9,
+        fontWeight: '700',
+      },
+    });
+    this.countsBadgeLabel = new Text({
+      text: '',
+      style: {
+        fill: style.countsBadgeTextColor ?? 0x334155,
+        fontSize: style.countsBadgeFontSize ?? 9,
+        fontWeight: '600',
+      },
+    });
 
     this.symbolSprite.visible = false;
     this.hoverRing.visible = false;
+    this.tempBadge.visible = false;
+    this.tempBadgeLabel.visible = false;
+    this.countsBadge.visible = false;
+    this.countsBadgeLabel.visible = false;
     this.chromeControls.eventMode = 'static';
     this.chromeControls.sortableChildren = true;
     this.chromeControls.zIndex = 10;
     this.sortableChildren = true;
-    this.addChild(this.shadow, this.card, this.symbolSprite, this.nameText, this.groupText, this.hoverRing, this.chromeControls);
+    this.addChild(
+      this.shadow,
+      this.card,
+      this.symbolSprite,
+      this.nameText,
+      this.unitCodeText,
+      this.groupText,
+      this.periodText,
+      this.tempBadge,
+      this.tempBadgeLabel,
+      this.countsBadge,
+      this.countsBadgeLabel,
+      this.hoverRing,
+      this.chromeControls,
+    );
     this.drawCard(style, lod);
+    this.layoutChromeBadges(style, lod);
     this.layoutTexts(style, lod);
 
     this.on('pointerover', () => this.setHovered(true));
@@ -81,8 +164,26 @@ export class OrganizationNodeView extends Container {
     });
     const view = new OrganizationNodeView(org, group, theme, style, lod, mediaReady);
     view.applyChrome(style, lod, options);
+    if (options.prefetchInactiveSymbol) {
+      view.prefetchInactiveSymbol();
+    }
     void view.applySymbol(style, lod).finally(resolveMedia);
     return view;
+  }
+
+  /** Current symbol box mode (caption / no-caption / full-bleed). */
+  get symbolBoxMode(): OrgSymbolBoxMode {
+    return this.symbolLayout.mode;
+  }
+
+  /** Symbol max-box inside the fixed card AABB. */
+  get symbolBox(): OrgSymbolBox {
+    return this.symbolLayout.box;
+  }
+
+  /** Fixed card size from style (E2 — independent of caption / symbol). */
+  get cardSize(): { width: number; height: number } {
+    return { width: this.styleRef.width, height: this.styleRef.height };
   }
 
   hasMenuButton(): boolean {
@@ -111,12 +212,15 @@ export class OrganizationNodeView extends Container {
     this.chromeControls.removeChildren();
     if (lod === 'far' || !options.onContextMenu) return;
 
+    // Leave top-right free for E4 temp badge (PersonNode convention).
+    const chromeWidth = this.org.isTemporary ? Math.max(80, style.width - 26) : style.width;
+
     if (options.chrome) {
-      mountOrgNodeChrome(this.chromeControls, style.width, options.chrome, options.onContextMenu);
+      mountOrgNodeChrome(this.chromeControls, chromeWidth, options.chrome, options.onContextMenu);
       return;
     }
 
-    attachMenuButton(this.chromeControls, style.width, 4, options.onContextMenu);
+    attachMenuButton(this.chromeControls, chromeWidth, 4, options.onContextMenu);
   }
 
   findText(text: string): Text | undefined {
@@ -128,6 +232,27 @@ export class OrganizationNodeView extends Container {
 
   hasSymbolSprite(): boolean {
     return this.symbolSprite.visible;
+  }
+
+  /** E3: decorative symbol placeholder must not appear without a real symbol. */
+  hasSymbolPlaceholder(): boolean {
+    return false;
+  }
+
+  hasPeriodLabel(): boolean {
+    return this.periodText.visible && this.periodText.text.length > 0;
+  }
+
+  hasTempBadge(): boolean {
+    return this.tempBadge.visible;
+  }
+
+  hasCountsBadge(): boolean {
+    return this.countsBadge.visible;
+  }
+
+  hasUnitCode(): boolean {
+    return this.unitCodeText.visible && this.unitCodeText.text.length > 0;
   }
 
   private drawCard(style: OrganizationNodeStyle, lod: LodLevel): void {
@@ -152,30 +277,132 @@ export class OrganizationNodeView extends Container {
     this.card.fill({ color: style.background });
     this.card.stroke({ color: style.border, width: style.borderWidth });
 
-    this.card.roundRect(8, (height - style.symbolSize) / 2, style.symbolSize, style.symbolSize, 6);
-    this.card.fill({ color: 0xdbeafe });
-
+    // E3: no diamond / tint placeholder — only the card chrome. Symbol is the sprite.
     this.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= width && y <= height };
+  }
+
+  private layoutChromeBadges(style: OrganizationNodeStyle, lod: LodLevel): void {
+    if (lod === 'far') {
+      this.tempBadge.visible = false;
+      this.tempBadgeLabel.visible = false;
+      this.countsBadge.visible = false;
+      this.countsBadgeLabel.visible = false;
+      return;
+    }
+
+    const showTemp = !!this.org.isTemporary;
+    this.tempBadge.visible = showTemp;
+    this.tempBadgeLabel.visible = showTemp;
+    if (showTemp) {
+      const br = Math.max(7, style.width * 0.045);
+      const cx = style.width - br - 4;
+      const cy = br + 4;
+      this.tempBadge.clear();
+      this.tempBadge.circle(cx, cy, br);
+      this.tempBadge.fill({ color: style.badgeColor ?? 0xf59e0b });
+      this.tempBadgeLabel.text = 'T';
+      this.tempBadgeLabel.anchor.set(0.5);
+      this.tempBadgeLabel.style.fill = style.badgeTextColor ?? 0xffffff;
+      this.tempBadgeLabel.position.set(cx, cy);
+    }
+
+    const counts = formatOrgCountsBadge(this.org);
+    const showCounts = !!counts;
+    this.countsBadge.visible = showCounts;
+    this.countsBadgeLabel.visible = showCounts;
+    if (showCounts && counts) {
+      const fs = style.countsBadgeFontSize ?? 9;
+      this.countsBadgeLabel.text = counts;
+      this.countsBadgeLabel.style.fontSize = fs;
+      this.countsBadgeLabel.style.fill = style.countsBadgeTextColor ?? 0x334155;
+      this.countsBadgeLabel.anchor.set(0.5);
+      const padX = 5;
+      const padY = 2;
+      const estW = Math.max(28, counts.length * fs * 0.58 + padX * 2);
+      const estH = fs + padY * 2;
+      const bx = style.width - estW - 4;
+      const by = style.height - estH - 4;
+      this.countsBadge.clear();
+      this.countsBadge.roundRect(bx, by, estW, estH, 4);
+      this.countsBadge.fill({ color: style.countsBadgeBackground ?? 0xf1f5f9 });
+      this.countsBadgeLabel.position.set(bx + estW / 2, by + estH / 2);
+    }
   }
 
   private layoutTexts(style: OrganizationNodeStyle, lod: LodLevel): void {
     if (lod === 'far') {
       this.nameText.visible = false;
+      this.unitCodeText.visible = false;
       this.groupText.visible = false;
+      this.periodText.visible = false;
       return;
     }
-    this.nameText.visible = true;
+
+    const layout = this.symbolLayout;
+    this.nameText.text = layout.displayName;
+    this.nameText.visible = layout.showNameText;
+
+    const unitRaw = this.org.unitCode?.trim() ?? '';
+    this.unitCodeText.text = unitRaw;
+    this.unitCodeText.visible = unitRaw.length > 0 && layout.mode !== 'full-bleed';
+
     const hasGroup = lod === 'near' && this.groupText.text.length > 0;
-    this.groupText.visible = hasGroup;
-    const textX = 8 + style.symbolSize + 10;
-    if (hasGroup) {
-      const blockH = style.nameFontSize + 4 + style.groupFontSize;
-      const top = (style.height - blockH) / 2;
-      this.nameText.position.set(textX, top);
-      this.groupText.position.set(textX, top + style.nameFontSize + 4);
-    } else {
-      const nameH = style.nameFontSize;
-      this.nameText.position.set(textX, (style.height - nameH) / 2);
+    const hasPeriod = this.periodText.text.length > 0;
+    // Full-bleed: keep period as an overlay when present (compose with T68).
+    this.groupText.visible = hasGroup && layout.mode !== 'full-bleed';
+    this.periodText.visible = hasPeriod;
+
+    const box = layout.box;
+    const textX =
+      layout.mode === 'full-bleed' || !this.symbolSprite.visible
+        ? ORG_SYMBOL_PAD
+        : box.x + box.width + 10;
+    // Leave room for top-right T and bottom-right counts when present.
+    const rightPad =
+      (this.tempBadge.visible ? 22 : 10) + (this.countsBadge.visible ? 8 : 0);
+    const maxTextW = Math.max(24, style.width - textX - rightPad);
+
+    if (this.nameText.visible) truncatePixiText(this.nameText, maxTextW);
+    if (this.unitCodeText.visible) truncatePixiText(this.unitCodeText, maxTextW);
+    if (this.groupText.visible) truncatePixiText(this.groupText, maxTextW);
+    if (this.periodText.visible) truncatePixiText(this.periodText, maxTextW);
+
+    const periodFs = style.periodFontSize ?? 10;
+    const metaFs = style.metaFontSize ?? 10;
+    const lines: Array<{ text: Text; fontSize: number }> = [];
+    if (this.nameText.visible) {
+      lines.push({ text: this.nameText, fontSize: style.nameFontSize });
+    }
+    if (this.unitCodeText.visible) {
+      lines.push({ text: this.unitCodeText, fontSize: metaFs });
+    }
+    if (this.groupText.visible) {
+      lines.push({ text: this.groupText, fontSize: style.groupFontSize });
+    }
+    if (this.periodText.visible) {
+      lines.push({ text: this.periodText, fontSize: periodFs });
+    }
+
+    if (lines.length === 0) return;
+
+    const gap = 3;
+    const blockH =
+      lines.reduce((sum, l) => sum + l.fontSize, 0) + gap * Math.max(0, lines.length - 1);
+
+    if (layout.mode === 'full-bleed') {
+      // Bottom-left overlay so the banner symbol stays readable.
+      let y = style.height - blockH - 4;
+      for (const line of lines) {
+        line.text.position.set(textX, y);
+        y += line.fontSize + gap;
+      }
+      return;
+    }
+
+    let y = (style.height - blockH) / 2;
+    for (const line of lines) {
+      line.text.position.set(textX, y);
+      y += line.fontSize + gap;
     }
   }
 
@@ -195,31 +422,67 @@ export class OrganizationNodeView extends Container {
     this.hoverRing.visible = true;
   }
 
+  /** E11: fill texture cache with inactive theme URL when both light+dark exist. */
+  private prefetchInactiveSymbol(): void {
+    const inactive = getInactiveOrgSymbolUrl(this.org, this.theme);
+    if (!inactive) return;
+    void loadNodeTexture(inactive);
+  }
+
   private async applySymbol(style: OrganizationNodeStyle, lod: LodLevel): Promise<void> {
     const url = this.resolvedSymbolUrl;
     if (!url?.trim()) {
       this.symbolSprite.visible = false;
+      this.symbolLayout = resolveOrgSymbolLayout(this.org, style, {
+        lod,
+        hasSymbol: false,
+      });
+      this.layoutTexts(style, lod);
       return;
     }
 
     const texture = await loadNodeTexture(url);
     if (!texture || this.destroyed) {
       this.symbolSprite.visible = false;
+      this.symbolLayout = resolveOrgSymbolLayout(this.org, style, {
+        lod,
+        hasSymbol: false,
+      });
+      this.layoutTexts(style, lod);
       return;
     }
     this.showSymbol(texture, style, lod);
   }
 
   private showSymbol(texture: Texture, style: OrganizationNodeStyle, lod: LodLevel): void {
-    const size =
-      lod === 'far' ? Math.min(style.symbolSize, 36) : style.symbolSize;
-    const y =
-      lod === 'far' ? (style.height - size) / 2 : (style.height - style.symbolSize) / 2;
+    const texW = texture.width || texture.source?.width || 0;
+    const texH = texture.height || texture.source?.height || 0;
+
+    this.symbolLayout = resolveOrgSymbolLayout(this.org, style, {
+      lod,
+      hasSymbol: true,
+      textureWidth: texW,
+      textureHeight: texH,
+    });
+
+    const box = this.symbolLayout.box;
+    const fitted = fitContain(texW, texH, box.width, box.height);
 
     this.symbolSprite.texture = texture;
-    this.symbolSprite.width = size;
-    this.symbolSprite.height = size;
-    this.symbolSprite.position.set(lod === 'far' ? 0 : 8, y);
+    this.symbolSprite.width = fitted.width;
+    this.symbolSprite.height = fitted.height;
+    this.symbolSprite.position.set(box.x + fitted.offsetX, box.y + fitted.offsetY);
     this.symbolSprite.visible = true;
+
+    this.layoutTexts(style, lod);
   }
+}
+
+function truncatePixiText(label: Text, maxWidth: number): void {
+  const raw = label.text;
+  if (!raw) return;
+  const fontSize = Number(label.style.fontSize) || 12;
+  const maxChars = Math.max(1, Math.floor(maxWidth / (fontSize * 0.55)));
+  if (raw.length <= maxChars) return;
+  label.text = `${raw.slice(0, Math.max(1, maxChars - 1))}…`;
 }

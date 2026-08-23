@@ -1,4 +1,5 @@
 import type { DiagramData, DiagramOrganization, DiagramPerson, DiagramPosition } from '../data/types.js';
+import { orgTestId, personTestId, positionTestId } from './nodeTestId.js';
 import type { NodeRef, SearchResult } from './types.js';
 
 export interface SearchIndexEntry {
@@ -27,6 +28,8 @@ export interface PositionSearchRow {
   departmentId?: string;
   personId?: string;
   label: string;
+  personTestId?: string;
+  positionTestId?: string;
 }
 
 export function emptySearchIndex(): SearchIndex {
@@ -66,7 +69,7 @@ export function buildOrgSearchIndex(organizations: DiagramOrganization[]): Searc
     pushEntry(index, {
       node: { kind: 'organization', id: org.id, organizationId: org.id },
       label: org.name,
-      haystack: org.name.toLowerCase(),
+      haystack: `${org.name} ${orgTestId(org)} ${org.id}`.toLowerCase(),
     });
   }
   return index;
@@ -86,6 +89,8 @@ export function flattenPositionSearchRows(
       departmentId: position.departmentId,
       personId: position.personId,
       label: person?.fullName ?? position.title,
+      personTestId: person ? personTestId(person) : undefined,
+      positionTestId: positionTestId(position, person),
     };
   });
 }
@@ -103,7 +108,7 @@ export function buildSearchIndexFromPositionRows(rows: PositionSearchRow[]): Sea
         personId: row.personId,
       },
       label: row.label,
-      haystack: `${row.label} ${row.title}`.toLowerCase(),
+      haystack: `${row.label} ${row.title} ${row.personTestId ?? ''} ${row.positionTestId ?? ''} ${row.positionId}`.toLowerCase(),
     });
     pushEntry(index, {
       node: {
@@ -115,7 +120,7 @@ export function buildSearchIndexFromPositionRows(rows: PositionSearchRow[]): Sea
         personId: row.personId,
       },
       label: row.title,
-      haystack: `${row.title} ${row.label}`.toLowerCase(),
+      haystack: `${row.title} ${row.label} ${row.positionTestId ?? ''} ${row.positionId}`.toLowerCase(),
     });
   }
   return index;

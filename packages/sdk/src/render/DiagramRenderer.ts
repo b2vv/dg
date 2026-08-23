@@ -11,18 +11,38 @@ import {
   DEFAULT_STAFF_LAYOUT_OPTIONS,
   type StaffLayoutOptions,
 } from '../layout/staff/types.js';
+import {
+  adminChildrenMap,
+  isPositionExpanded,
+} from '../layout/staff/positionExpand.js';
 import { computeOrgLayout } from '../layout/rowTreeLayout.js';
+import { siblingOrgGroupBounds } from '../layout/siblingOrgGroups.js';
 import type { OrgLayoutOptions } from '../layout/types.js';
 import { isOrgCollapsed, orgHasChildren } from '../layout/orgMode.js';
 import { snapToGrid } from '../interaction/positionMove.js';
+import { DoubleTapTracker } from '../interaction/doubleTap.js';
+import {
+  isSelectionToggleModifier,
+  readSelectionPointerMods,
+  type SelectionPointerMods,
+} from '../interaction/selection.js';
 import type { NodeRef } from '../interaction/types.js';
 import { DepartmentBlobView } from './DepartmentBlob.js';
+import { DepartmentCardView, paintDashedFrame } from './DepartmentCardView.js';
+import { StaffZonesView } from './StaffZonesView.js';
+import { enrichStaffTierBands, unionBoxes } from './staffZoneBounds.js';
 import { OrgEdgesView } from './OrgEdgesView.js';
 import { StaffEdgesView } from './StaffEdgesView.js';
 import { PersonNodeView } from './PersonNode.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
 import { runPointMorph, type PointMorphHandle } from './contourMorph.js';
-import type { DepartmentBlobStyle, NodeTheme, RenderConfig } from './types.js';
+import type {
+  DepartmentBlobStyle,
+  DepartmentCardStyle,
+  NodeTheme,
+  RenderConfig,
+  StaffZoneStyle,
+} from './types.js';
 import { defaultRenderConfig } from './types.js';
 import type { DiagramData, DiagramOrganization } from '../data/types.js';
 import type { LodLevel } from './lod.js';
@@ -50,12 +70,18 @@ export interface RenderOptions {
   lod?: LodLevel;
   /** Contour morph duration during drag (ms). `0` = snap. Default 160. */
   contourMorphMs?: number;
-  onOrgClick?: (orgId: string) => void;
+  onOrgClick?: (orgId: string, mods?: SelectionPointerMods) => void;
+  /** Double-tap / dblclick on org card body (T69). Not fired for chrome. */
+  onOrgDoubleClick?: (orgId: string) => void;
   /** Tier-3 card click: toggle expand-in-place (preferred). */
   onStaffOrgExpandToggle?: (orgId: string) => void;
   /** Explicit drill (change focus); used when expand toggle is not provided. */
   onStaffOrgDrill?: (orgId: string) => void;
-  onPersonClick?: (personId: string, positionId: string) => void;
+  /** Position admin-subtree expand (T66). */
+  onPositionExpandToggle?: (positionId: string) => void;
+  onPersonClick?: (personId: string, positionId: string, mods?: SelectionPointerMods) => void;
+  /** Double-tap / dblclick on person card body (T69). Not fired for chrome. */
+  onPersonDoubleClick?: (personId: string, positionId: string) => void;
   onPersonContextMenu?: (
     personId: string,
     positionId: string,
@@ -69,7 +95,8 @@ export interface RenderOptions {
   onOrgCollapse?: (orgId: string) => void;
   onPersonDragEnd?: (positionId: string, col: number, row: number) => void;
   onCanvasClick?: () => void;
-  selected?: NodeRef | null;
+  /** Primary selection (compat) and/or full multi-select set (T67). */
+  selected?: NodeRef | null | readonly NodeRef[];
   staff?: {
     currentOrgId?: string;
     layout?: StaffLayoutOptions;
@@ -113,6 +140,8 @@ interface ContourSession {
 
 export class LayerManager {
   readonly root = new Container();
+  /** T64 named zones under department chrome / cards. */
+  readonly zones = new Container();
   readonly departments = new Container();
   readonly edges = new Container();
   readonly organizations = new Container();
@@ -123,6 +152,7 @@ export class LayerManager {
 
   constructor() {
     this.root.addChild(
+      this.zones,
       this.departments,
       this.edges,
       this.organizations,
@@ -130,12 +160,14 @@ export class LayerManager {
       this.departmentStrokes,
       this.overlay,
     );
-    // Edges/strokes are paint-only — must not steal hits from node chrome underneath.
+    // Edges/strokes/zones are paint-only — must not steal hits from node chrome underneath.
     this.edges.eventMode = 'none';
     this.departmentStrokes.eventMode = 'none';
+    this.zones.eventMode = 'none';
   }
 
   clear(): void {
+    this.zones.removeChildren();
     this.departments.removeChildren();
     this.edges.removeChildren();
     this.organizations.removeChildren();
@@ -168,6 +200,8 @@ export class DiagramRenderer {
     previewCol: number | null;
     previewRow: number | null;
   } | null = null;
+  /** Body double-tap tracker (T69); chrome / canvas resets it. */
+  private readonly nodeDoubleTap = new DoubleTapTracker();
 
   mount(stage: Container): void {
     stage.addChild(this.layers.root);
@@ -246,17 +280,20 @@ export class DiagramRenderer {
 
     this.layers.root.eventMode = 'static';
     this.layers.root.removeAllListeners('pointertap');
-    this.layers.root.on('pointertap', () => options.onCanvasClick?.());
+    this.layers.root.on('pointertap', () => {
+      this.nodeDoubleTap.reset();
+      options.onCanvasClick?.();
+    });
 
     const lod = options.lod ?? 'near';
     const hasStaff = data.positions.length > 0;
     if (hasStaff) {
       await this.renderStaff(data, theme, resolvedTheme, config, { ...options, lod });
     } else if (data.organizations.length > 0) {
-      await this.renderOrganizations(data, theme, resolvedTheme, { ...options, lod });
+      await this.renderOrganizations(data, theme, resolvedTheme, config, { ...options, lod });
     }
 
-    this.drawSelection(options.selected ?? null);
+    this.drawSelection(options.selected ?? []);
     this.applyPromoteVisibility();
   }
 
@@ -276,17 +313,26 @@ export class DiagramRenderer {
     session.morphHandles.clear();
   }
 
-  private drawSelection(selected: NodeRef | null): void {
-    if (!selected) return;
-    const box =
-      this.nodeBoxes.get(selected.id) ??
-      (selected.positionId ? this.nodeBoxes.get(selected.positionId) : undefined) ??
-      (selected.personId ? this.nodeBoxes.get(selected.personId) : undefined);
-    if (!box) return;
-    const g = new Graphics();
-    g.rect(box.x - 3, box.y - 3, box.width + 6, box.height + 6);
-    g.stroke({ color: 0x2563eb, width: 2 });
-    this.layers.overlay.addChild(g);
+  private normalizeSelected(
+    selected: NodeRef | null | readonly NodeRef[] | undefined,
+  ): readonly NodeRef[] {
+    if (!selected) return [];
+    if (Array.isArray(selected)) return selected as readonly NodeRef[];
+    return [selected as NodeRef];
+  }
+
+  private drawSelection(selected: NodeRef | null | readonly NodeRef[]): void {
+    for (const node of this.normalizeSelected(selected)) {
+      const box =
+        this.nodeBoxes.get(node.id) ??
+        (node.positionId ? this.nodeBoxes.get(node.positionId) : undefined) ??
+        (node.personId ? this.nodeBoxes.get(node.personId) : undefined);
+      if (!box) continue;
+      const g = new Graphics();
+      g.rect(box.x - 3, box.y - 3, box.width + 6, box.height + 6);
+      g.stroke({ color: 0x2563eb, width: 2 });
+      this.layers.overlay.addChild(g);
+    }
   }
 
   private rememberBox(box: NodeWorldBox): void {
@@ -510,11 +556,25 @@ export class DiagramRenderer {
     node.on('pointertap', (e) => {
       if (this.drag?.moved) return;
       if (node.activateChromePointer(e)) {
+        this.nodeDoubleTap.reset();
         e.stopPropagation();
         return;
       }
       e.stopPropagation();
-      if (personId) options.onPersonClick?.(personId, positionId);
+      if (!personId) return;
+      const mods = readSelectionPointerMods(e);
+      // Modifier+click toggles set membership — do not feed double-tap expand (T69).
+      if (isSelectionToggleModifier(mods)) {
+        this.nodeDoubleTap.reset();
+        options.onPersonClick?.(personId, positionId, mods);
+        return;
+      }
+      const kind = this.nodeDoubleTap.tap(`person:${personId}:${positionId}`);
+      if (kind === 'double') {
+        options.onPersonDoubleClick?.(personId, positionId);
+        return;
+      }
+      options.onPersonClick?.(personId, positionId, mods);
     });
 
     node.on('rightclick', (e) => {
@@ -625,6 +685,27 @@ export class DiagramRenderer {
 
       const personById = new Map(data.persons.map((p) => [p.id, p]));
       const positionById = new Map(data.positions.map((p) => [p.id, p]));
+      const staffMerged = { ...DEFAULT_STAFF_LAYOUT_OPTIONS, ...staffOpts };
+
+      if (config.staffZoneChrome) {
+        const tiers = enrichStaffTierBands(
+          canvas.tiers,
+          canvas.positionNodes,
+          canvas.orgCards,
+          data.organizations,
+          { margin: staffMerged.margin, canvasWidth: canvas.width },
+        );
+        this.layers.zones.addChild(
+          StaffZonesView.fromCanvas({
+            tiers,
+            positionNodes: canvas.positionNodes,
+            orgCards: canvas.orgCards,
+            style: resolveStaffZoneStyle(theme, resolvedTheme),
+            margin: staffMerged.margin,
+            canvasWidth: canvas.width,
+          }),
+        );
+      }
 
       // Contours only for authored grid cells — remapping tree/hybrid world
       // coords into the cell grid produces crooked “macaroni” blobs.
@@ -641,10 +722,27 @@ export class DiagramRenderer {
           row: p.gridCell.row,
         }));
 
-      if (contourInputs.length > 0) {
-        const merged = { ...DEFAULT_STAFF_LAYOUT_OPTIONS, ...staffOpts };
-        const pitchX = merged.refCellWidth + merged.horizontalGap;
-        const pitchY = merged.refCellHeight + merged.verticalGap;
+      const memberBoxesByDept = new Map<string, ContourMemberBox[]>();
+      for (const n of canvas.positionNodes) {
+        const pos = positionById.get(n.id);
+        if (!pos?.departmentId) continue;
+        const list = memberBoxesByDept.get(pos.departmentId) ?? [];
+        list.push({
+          positionId: n.id,
+          x: n.x,
+          y: n.y,
+          width: n.width,
+          height: n.height,
+        });
+        memberBoxesByDept.set(pos.departmentId, list);
+      }
+
+      const deptStyle = config.departmentStyle ?? defaultRenderConfig.departmentStyle ?? 'blob';
+      if (deptStyle === 'card') {
+        this.paintDepartmentCards(data, theme, config, memberBoxesByDept);
+      } else if (contourInputs.length > 0) {
+        const pitchX = staffMerged.refCellWidth + staffMerged.horizontalGap;
+        const pitchY = staffMerged.refCellHeight + staffMerged.verticalGap;
         this.contourWorld = resolveContourWorldTransform(
           canvas.positionNodes,
           positionById,
@@ -653,24 +751,25 @@ export class DiagramRenderer {
           pitchX,
           pitchY,
         );
-        const memberBoxesByDept = new Map<string, ContourMemberBox[]>();
-        for (const n of canvas.positionNodes) {
-          const pos = positionById.get(n.id);
-          if (!pos?.departmentId) continue;
-          const list = memberBoxesByDept.get(pos.departmentId) ?? [];
-          list.push({
-            positionId: n.id,
-            x: n.x,
-            y: n.y,
-            width: n.width,
-            height: n.height,
-          });
-          memberBoxesByDept.set(pos.departmentId, list);
-        }
         await this.paintContours(contourInputs, data, theme, config, {
           ...options,
           contourMemberBoxesByDept: memberBoxesByDept,
         });
+      }
+
+      if (config.dashedGridFrame) {
+        const frame = unionBoxes(
+          canvas.positionNodes.map((n) => ({
+            x: n.x,
+            y: n.y,
+            width: n.width,
+            height: n.height,
+          })),
+          6,
+        );
+        if (frame) {
+          paintDashedFrame(this.layers.zones, frame, resolveStaffZoneStyle(theme, resolvedTheme).stroke);
+        }
       }
 
       const lod = options.lod ?? 'near';
@@ -689,6 +788,23 @@ export class DiagramRenderer {
         StaffEdgesView.fromLayout(canvas.edges, edgeBoxes, resolvedTheme),
       );
 
+      const staffLayoutOpts = {
+        ...DEFAULT_STAFF_LAYOUT_OPTIONS,
+        ...options.staff?.layout,
+        expandedOrgIds: options.staff?.expandedOrgIds ?? options.staff?.layout?.expandedOrgIds,
+      };
+      const expandedPosIds = new Set(staffLayoutOpts.expandedPositionIds ?? []);
+      const collapsePositions = staffLayoutOpts.collapseUnexpandedPositions === true;
+      const childrenByOrg = new Map<string, Map<string, string[]>>();
+      const childrenFor = (orgId: string) => {
+        let m = childrenByOrg.get(orgId);
+        if (!m) {
+          m = adminChildrenMap(data.positions, data.reportLines, orgId);
+          childrenByOrg.set(orgId, m);
+        }
+        return m;
+      };
+
       for (const n of canvas.positionNodes) {
         const position = positionById.get(n.id);
         if (!position) continue;
@@ -698,6 +814,8 @@ export class DiagramRenderer {
           width: n.width,
           height: n.height,
         };
+        const kids = childrenFor(position.organizationId).get(position.id) ?? [];
+        const showExpand = collapsePositions && kids.length > 0 && !!options.onPositionExpandToggle;
         const node = PersonNodeView.create(person, position, personStyle, lod, {
           onContextMenu:
             position.personId && options.onPersonContextMenu
@@ -708,6 +826,13 @@ export class DiagramRenderer {
                     canvasY: 0,
                   })
               : undefined,
+          expand: showExpand
+            ? {
+                hasChildren: true,
+                expanded: isPositionExpanded(position, expandedPosIds),
+                onToggle: () => options.onPositionExpandToggle!(position.id),
+              }
+            : undefined,
         });
         node.position.set(n.x, n.y);
         this.bindPersonInteractions(
@@ -744,7 +869,7 @@ export class DiagramRenderer {
           resolvedTheme,
           orgStyle,
           lod,
-          this.orgStaffCardOptions(org, card, options),
+          this.orgStaffCardOptions(org, card, options, config),
         );
         view.position.set(card.x, card.y);
         view.eventMode = 'static';
@@ -760,16 +885,28 @@ export class DiagramRenderer {
         this.registerView(card.orgId, view);
         view.on('pointertap', (e) => {
           if (view.activateChromePointer(e)) {
+            this.nodeDoubleTap.reset();
             e.stopPropagation();
             return;
           }
           e.stopPropagation();
+          const mods = readSelectionPointerMods(e);
+          if (isSelectionToggleModifier(mods)) {
+            this.nodeDoubleTap.reset();
+            options.onOrgClick?.(card.orgId, mods);
+            return;
+          }
+          const kind = this.nodeDoubleTap.tap(`org:${card.orgId}`);
+          if (kind === 'double') {
+            options.onOrgDoubleClick?.(card.orgId);
+            return;
+          }
           if (options.onStaffOrgExpandToggle) {
             options.onStaffOrgExpandToggle(card.orgId);
           } else {
             options.onStaffOrgDrill?.(card.orgId);
           }
-          options.onOrgClick?.(card.orgId);
+          options.onOrgClick?.(card.orgId, mods);
         });
         view.on('pointerdown', (e) => {
           if (view.isChromePointer(e)) {
@@ -841,6 +978,7 @@ export class DiagramRenderer {
     data: DiagramData,
     theme: NodeTheme,
     resolvedTheme: 'light' | 'dark',
+    config: RenderConfig,
     options: RenderOptions,
   ): Promise<void> {
     const layout = await computeOrgLayout(
@@ -854,6 +992,14 @@ export class DiagramRenderer {
       resolvedTheme === 'dark' ? 0x64748b : 0x94a3b8,
     );
     this.layers.edges.addChild(edgesView);
+
+    if (config.orgSiblingGroupChrome) {
+      const groups = siblingOrgGroupBounds(layout.nodes, 14);
+      const stroke = resolvedTheme === 'dark' ? 0x3b82f6 : 0x2563eb;
+      for (const g of groups) {
+        paintDashedFrame(this.layers.zones, g.bounds, stroke, 1.25);
+      }
+    }
 
     const orgById = new Map(data.organizations.map((o) => [o.id, o]));
     const groupById = new Map(data.groups.map((g) => [g.id, g]));
@@ -873,7 +1019,7 @@ export class DiagramRenderer {
           height: ln.height,
         },
         options.lod ?? 'near',
-        this.orgTreeOptions(org, data, options),
+        this.orgTreeOptions(org, data, options, config),
       );
       node.position.set(ln.x, ln.y);
       this.rememberBox({
@@ -886,11 +1032,23 @@ export class DiagramRenderer {
       });
       node.on('pointertap', (e) => {
         if (node.activateChromePointer(e)) {
+          this.nodeDoubleTap.reset();
           e.stopPropagation();
           return;
         }
         e.stopPropagation();
-        options.onOrgClick?.(org.id);
+        const mods = readSelectionPointerMods(e);
+        if (isSelectionToggleModifier(mods)) {
+          this.nodeDoubleTap.reset();
+          options.onOrgClick?.(org.id, mods);
+          return;
+        }
+        const kind = this.nodeDoubleTap.tap(`org:${org.id}`);
+        if (kind === 'double') {
+          options.onOrgDoubleClick?.(org.id);
+          return;
+        }
+        options.onOrgClick?.(org.id, mods);
       });
       node.on('pointerdown', (e) => {
         if (node.isChromePointer(e)) {
@@ -913,12 +1071,37 @@ export class DiagramRenderer {
       this.registerView(org.id, node);
     }
   }
+
+  private paintDepartmentCards(
+    data: DiagramData,
+    theme: NodeTheme,
+    config: RenderConfig,
+    memberBoxesByDept: Map<string, ContourMemberBox[]>,
+  ): void {
+    const style = resolveDepartmentCardStyle(theme);
+    const minMembers = config.minContourMembers ?? defaultRenderConfig.minContourMembers;
+    for (const dept of data.departments) {
+      const members = memberBoxesByDept.get(dept.id) ?? [];
+      const card = DepartmentCardView.fromMembers(dept, members, style, {
+        padding: 8,
+        minMembers,
+      });
+      if (card) this.layers.departments.addChild(card);
+    }
+  }
+
   private orgTreeOptions(
     org: DiagramOrganization,
     data: DiagramData,
     options: RenderOptions,
+    config: RenderConfig = defaultRenderConfig,
   ): import('./OrganizationNode.js').OrganizationNodeOptions {
-    if (!options.onOrgContextMenu && !options.onOrgExpand && !options.onOrgCollapse) {
+    if (
+      !options.onOrgContextMenu &&
+      !options.onOrgExpand &&
+      !options.onOrgCollapse &&
+      !config.prefetchInactiveOrgSymbol
+    ) {
       return {};
     }
     const hasChildren = orgHasChildren(data.organizations, org.id);
@@ -932,6 +1115,7 @@ export class DiagramRenderer {
     };
     return {
       onContextMenu: options.onOrgContextMenu ? openMenu : undefined,
+      prefetchInactiveSymbol: config.prefetchInactiveOrgSymbol === true,
       chrome:
         hasChildren && (options.onOrgExpand || options.onOrgCollapse)
           ? {
@@ -949,6 +1133,7 @@ export class DiagramRenderer {
     org: DiagramOrganization,
     card: { expanded?: boolean },
     options: RenderOptions,
+    config: RenderConfig = defaultRenderConfig,
   ): import('./OrganizationNode.js').OrganizationNodeOptions {
     const openMenu = (pointer: { clientX: number; clientY: number }) => {
       options.onOrgContextMenu?.(org.id, {
@@ -960,6 +1145,7 @@ export class DiagramRenderer {
     };
     return {
       onContextMenu: options.onOrgContextMenu ? openMenu : undefined,
+      prefetchInactiveSymbol: config.prefetchInactiveOrgSymbol === true,
       chrome:
         options.onStaffOrgExpandToggle
           ? {
@@ -988,4 +1174,46 @@ function countPositionsByDept(positions: DiagramData['positions']): Map<string, 
     map.set(p.departmentId, (map.get(p.departmentId) ?? 0) + 1);
   }
   return map;
+}
+
+function resolveStaffZoneStyle(
+  theme: NodeTheme,
+  mode: 'light' | 'dark',
+): StaffZoneStyle {
+  if (theme.staffZone) return theme.staffZone;
+  if (mode === 'dark') {
+    return {
+      fill: 0x191f26,
+      fillAlpha: 0.95,
+      stroke: 0x3d5067,
+      strokeWidth: 1,
+      borderRadius: 12,
+      labelColor: 0xf1f5f9,
+      labelFontSize: 14,
+      labelAlign: 'right',
+    };
+  }
+  return {
+    fill: 0xf1f5f9,
+    fillAlpha: 0.95,
+    stroke: 0xcbd5e1,
+    strokeWidth: 1,
+    borderRadius: 12,
+    labelColor: 0x0f172a,
+    labelFontSize: 14,
+    labelAlign: 'right',
+  };
+}
+
+function resolveDepartmentCardStyle(theme: NodeTheme): DepartmentCardStyle {
+  if (theme.departmentCard) return theme.departmentCard;
+  return {
+    fill: 0x242f3d,
+    fillAlpha: 0.88,
+    stroke: 0x3d5067,
+    strokeWidth: 1,
+    borderRadius: 8,
+    labelColor: 0xf1f5f9,
+    labelFontSize: 14,
+  };
 }

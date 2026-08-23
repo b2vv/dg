@@ -3,7 +3,13 @@ dist/
 *.log
 .DS_Store
 
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+
 # Rust build artifacts
 packages/core/target/
 
 # WASM pkg is built via `npm run build:wasm` (see packages/sdk/src/wasm/pkg/.gitignore)
+worktrees/

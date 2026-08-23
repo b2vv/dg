@@ -8,7 +8,12 @@ export type {
   StaffTierBand,
 } from './types.js';
 export { DEFAULT_STAFF_LAYOUT_OPTIONS, StaffLayoutError } from './types.js';
-export { resolveStaffHead, adminParentMap } from './resolveHead.js';
+export {
+  resolveStaffHead,
+  adminParentMap,
+  isDetachedPosition,
+  detachedRootIds,
+} from './resolveHead.js';
 export {
   positionHasCoords,
   resolvePositionAABB,
@@ -17,3 +22,12 @@ export {
 } from './coords.js';
 export { layoutStaffOrgBlock } from './orgBlockLayout.js';
 export { layoutStaffCanvas } from './canvasLayout.js';
+export {
+  adminChildrenMap,
+  adminDescendantIds,
+  assignExpandToDepth,
+  expandIdsForDepth,
+  isPositionExpanded,
+  positionHasAdminChildren,
+  visiblePositions,
+} from './positionExpand.js';

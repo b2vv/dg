@@ -31,6 +31,7 @@ export function buildVariantBData(): DiagramData {
     persons: VARIANT_B_POSITIONS.map((p) => ({
       id: `person-${p.id}`,
       fullName: PEOPLE[p.id]?.name ?? `Person ${p.id}`,
+      ...(p.id === 'P4' ? { testId: 'ceo' as const } : {}),
       // No photoUrl — 1×1 demo PNG stretched into a solid blob; initials render instead.
     })),
     positions: VARIANT_B_POSITIONS.map((p) => ({

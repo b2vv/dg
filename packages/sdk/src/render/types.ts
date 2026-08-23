@@ -9,6 +9,31 @@ export interface DepartmentBlobStyle {
   labelFontSize: number;
 }
 
+/** T64 — rectangular dept chrome (alternative to organic blob). */
+export interface DepartmentCardStyle {
+  fill: number;
+  fillAlpha: number;
+  stroke: number;
+  strokeWidth: number;
+  borderRadius: number;
+  labelColor: number;
+  labelFontSize: number;
+}
+
+/** T64 / B8 — named staff-block zone chrome. */
+export interface StaffZoneStyle {
+  fill: number;
+  fillAlpha: number;
+  stroke: number;
+  strokeWidth: number;
+  borderRadius: number;
+  labelColor: number;
+  labelFontSize: number;
+  labelAlign: 'left' | 'right';
+  /** Figma mockup: dashed zone outline (default solid). */
+  dashed?: boolean;
+}
+
 export interface PersonNodeStyle {
   width: number;
   height: number;
@@ -23,6 +48,14 @@ export interface PersonNodeStyle {
   badgeColor: number;
   badgeTextColor: number;
   avatarColor: number;
+  periodChipBackground?: number;
+  periodChipTextColor?: number;
+  periodChipFontSize?: number;
+  vacantLabelColor?: number;
+  /** When set, temporary seats use this name color (Figma orange). */
+  temporaryNameColor?: number;
+  /** Permanent / non-temp name color when temporaryNameColor is used. */
+  permanentNameColor?: number;
 }
 
 export interface OrganizationNodeStyle {
@@ -37,13 +70,29 @@ export interface OrganizationNodeStyle {
   nameFontSize: number;
   groupFontSize: number;
   symbolSize: number;
+  periodColor?: number;
+  periodFontSize?: number;
+  /** E6 unit-code caption. */
+  metaColor?: number;
+  metaFontSize?: number;
+  /** E4 temp «T» badge (PersonNode-style). */
+  badgeColor?: number;
+  badgeTextColor?: number;
+  /** E5 `N [M]` counts pill. */
+  countsBadgeBackground?: number;
+  countsBadgeTextColor?: number;
+  countsBadgeFontSize?: number;
 }
 
 export interface NodeTheme {
   organization: OrganizationNodeStyle;
   department: DepartmentBlobStyle;
   person: PersonNodeStyle;
+  departmentCard?: DepartmentCardStyle;
+  staffZone?: StaffZoneStyle;
 }
+
+export type DepartmentPaintStyle = 'blob' | 'card';
 
 export interface RenderConfig {
   cellWidth: number;
@@ -59,6 +108,23 @@ export interface RenderConfig {
    * Use 2 on Variant B so a singleton CEO does not refill the IT notch.
    */
   minContourMembers: number;
+  /** T64: paint StaffTierBand chrome (default false — opt-in). */
+  staffZoneChrome?: boolean;
+  /** T64: department paint mode (default blob). */
+  departmentStyle?: DepartmentPaintStyle;
+  /** T64 / B8a: dashed frame around grid union. */
+  dashedGridFrame?: boolean;
+  /**
+   * Paint dashed AABB around sibling org cards that share a parent
+   * (Figma org mockup / B8c preview). Org-layout only.
+   */
+  orgSiblingGroupChrome?: boolean;
+  /**
+   * T70 E11: prefetch the inactive theme’s org symbol URL on mount.
+   * Default false — avoids automatic cross-theme fetches of untrusted URLs
+   * (security review). Opt in when both light/dark URLs are host-trusted.
+   */
+  prefetchInactiveOrgSymbol?: boolean;
 }
 
 /**
@@ -121,6 +187,10 @@ export const defaultNodeTheme: NodeTheme = {
     badgeColor: 0xf59e0b,
     badgeTextColor: 0xffffff,
     avatarColor: 0x64748b,
+    periodChipBackground: 0xdcfce7,
+    periodChipTextColor: 0x15803d,
+    periodChipFontSize: 9,
+    vacantLabelColor: 0x64748b,
   },
   organization: {
     width: 200,
@@ -134,6 +204,15 @@ export const defaultNodeTheme: NodeTheme = {
     nameFontSize: 13,
     groupFontSize: 11,
     symbolSize: 36,
+    periodColor: 0x15803d,
+    periodFontSize: 10,
+    metaColor: 0x64748b,
+    metaFontSize: 10,
+    badgeColor: 0xf59e0b,
+    badgeTextColor: 0xffffff,
+    countsBadgeBackground: 0xf1f5f9,
+    countsBadgeTextColor: 0x334155,
+    countsBadgeFontSize: 9,
   },
 };
 
@@ -161,6 +240,10 @@ export const darkNodeTheme: NodeTheme = {
     badgeColor: 0xf59e0b,
     badgeTextColor: 0xffffff,
     avatarColor: 0x64748b,
+    periodChipBackground: 0x14532d,
+    periodChipTextColor: 0x4ade80,
+    periodChipFontSize: 9,
+    vacantLabelColor: 0x94a3b8,
   },
   organization: {
     width: 200,
@@ -174,6 +257,15 @@ export const darkNodeTheme: NodeTheme = {
     nameFontSize: 13,
     groupFontSize: 11,
     symbolSize: 36,
+    periodColor: 0x4ade80,
+    periodFontSize: 10,
+    metaColor: 0x94a3b8,
+    metaFontSize: 10,
+    badgeColor: 0xf59e0b,
+    badgeTextColor: 0xffffff,
+    countsBadgeBackground: 0x334155,
+    countsBadgeTextColor: 0xe2e8f0,
+    countsBadgeFontSize: 9,
   },
 };
 
@@ -185,6 +277,11 @@ export const defaultRenderConfig: RenderConfig = {
   smoothIterations: 0,
   magnetRadius: 1.5,
   minContourMembers: 1,
+  staffZoneChrome: false,
+  departmentStyle: 'blob',
+  dashedGridFrame: false,
+  orgSiblingGroupChrome: false,
+  prefetchInactiveOrgSymbol: false,
 };
 
 export function mergeTheme(
@@ -196,11 +293,42 @@ export function mergeTheme(
       organization: { ...base.organization },
       department: { ...base.department },
       person: { ...base.person },
+      departmentCard: base.departmentCard ? { ...base.departmentCard } : undefined,
+      staffZone: base.staffZone ? { ...base.staffZone } : undefined,
     };
   }
   return {
     organization: { ...base.organization, ...partial.organization },
     department: { ...base.department, ...partial.department },
     person: { ...base.person, ...partial.person },
+    departmentCard:
+      base.departmentCard || partial.departmentCard
+        ? {
+            fill: 0x242f3d,
+            fillAlpha: 1,
+            stroke: 0x3d5067,
+            strokeWidth: 1,
+            borderRadius: 8,
+            labelColor: 0xf1f5f9,
+            labelFontSize: 14,
+            ...base.departmentCard,
+            ...partial.departmentCard,
+          }
+        : undefined,
+    staffZone:
+      base.staffZone || partial.staffZone
+        ? {
+            fill: 0x191f26,
+            fillAlpha: 1,
+            stroke: 0x3d5067,
+            strokeWidth: 1,
+            borderRadius: 12,
+            labelColor: 0xf1f5f9,
+            labelFontSize: 14,
+            labelAlign: 'right' as const,
+            ...base.staffZone,
+            ...partial.staffZone,
+          }
+        : undefined,
   };
 }

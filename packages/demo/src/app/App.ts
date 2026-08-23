@@ -14,15 +14,25 @@ import {
   createReactContextMenuHost,
   DefaultReactContextMenu,
   createReactPromoteOverlay,
+  createTestAnchorOverlay,
   DefaultPromoteCard,
   type ReactContextMenuHost,
   type ReactPromoteOverlay,
+  type TestAnchorOverlay,
   type PromoteSlotProps,
 } from '@org-hierarchy/sdk/react';
 import { createElement } from 'react';
 import { buildVariantBData } from '../scenarios/variantB.js';
 import { buildFlatOrgsData } from '../scenarios/flatOrgs.js';
 import { buildStaffTreeData } from '../scenarios/staffTree.js';
+import {
+  buildMockupOrgsFigmaData,
+  buildMockupOrgsGojsData,
+  buildMockupStaffFigmaData,
+  buildMockupStaffGojsData,
+  MOCKUP_FIGMA_STYLES,
+  MOCKUP_GOJS_STYLES,
+} from '../scenarios/mockupFigma.js';
 import {
   SCALE_ORG_TOTAL,
   SCALE_ORG_WINDOW,
@@ -38,10 +48,23 @@ import { requireElement, setThemeAttribute, showError } from '../utils/dom.js';
 export type DemoTab =
   | 'variant-b'
   | 'staff-tree'
+  | 'mockup-orgs-figma'
+  | 'mockup-orgs-gojs'
+  | 'mockup-staff-figma'
+  | 'mockup-staff-gojs'
   | 'flat-orgs'
   | 'scale-100k'
   | 'mapper'
   | 'worker';
+
+const FIGMA_MOCKUP_TABS: ReadonlySet<DemoTab> = new Set([
+  'mockup-orgs-figma',
+  'mockup-staff-figma',
+]);
+const GOJS_MOCKUP_TABS: ReadonlySet<DemoTab> = new Set([
+  'mockup-orgs-gojs',
+  'mockup-staff-gojs',
+]);
 
 export interface ContourControls {
   paddingCells: number;
@@ -58,6 +81,9 @@ export class App {
   private scaleWindow: ScaleOrgsWindow | null = null;
   private contextMenu: ReactContextMenuHost | null = null;
   private promote: ReactPromoteOverlay | null = null;
+  private testAnchors: TestAnchorOverlay | null = null;
+  private readonly e2eMode =
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('e2e');
 
   private readonly mountEl: HTMLElement;
   private readonly statusEl: HTMLElement;
@@ -166,6 +192,16 @@ export class App {
       el.classList.toggle('active', (el as HTMLElement).dataset.tab === tab);
     });
     document.body.dataset.activeTab = tab;
+    // Style mockups pin theme: Figma = dark, GoJS = light (production screens).
+    if (FIGMA_MOCKUP_TABS.has(tab)) {
+      this.theme = 'dark';
+      setThemeAttribute('dark');
+      this.syncThemeToggleLabel();
+    } else if (GOJS_MOCKUP_TABS.has(tab)) {
+      this.theme = 'light';
+      setThemeAttribute('light');
+      this.syncThemeToggleLabel();
+    }
     const search = requireElement('search-input') as HTMLInputElement;
     search.value = '';
     this.syncContourControlsEnabled();
@@ -178,9 +214,12 @@ export class App {
   private async reload(): Promise<void> {
     this.promote?.dispose();
     this.promote = null;
+    this.testAnchors?.dispose();
+    this.testAnchors = null;
     this.diagram?.destroy();
     this.diagram = null;
     this.mountEl.innerHTML = '';
+    this.mountEl.removeAttribute('data-testid');
 
     const config = this.buildConfig();
     try {
@@ -188,14 +227,30 @@ export class App {
       this.diagram = await OrgHierarchyDiagram.create(this.mountEl, {
         ...config,
         callbacks: {
+          onSelectionChange: (nodes) => {
+            this.setStatus(
+              nodes.length === 0
+                ? `${this.tab} · 0 selected`
+                : `selection · ${nodes.length} selected`,
+            );
+          },
           onNodeClick: (node) => {
             this.contextMenu?.close();
             if (node.kind === 'organization' && (this.tab === 'flat-orgs' || this.tab === 'scale-100k')) {
               if (this.tab === 'scale-100k') {
                 const idx = Number(String(node.id).replace(/^org-/, ''));
                 if (Number.isFinite(idx)) {
-                  this.ensureScaleWindow(idx);
-                  void this.reload();
+                  const win = this.scaleWindow;
+                  const inWindow =
+                    win &&
+                    idx >= win.startIndex &&
+                    idx < win.startIndex + win.data.organizations.length;
+                  if (!inWindow) {
+                    this.ensureScaleWindow(idx);
+                    void this.reload();
+                  } else {
+                    void this.diagram?.focusNode(node.id);
+                  }
                   return;
                 }
               }
@@ -206,10 +261,22 @@ export class App {
               const expanded = this.diagram?.getStaffExpandedOrgIds() ?? [];
               const exp =
                 expanded.length > 0 ? ` · expanded ${expanded.join(',')}` : '';
+              const n = this.diagram?.getSelections().length ?? 0;
               this.setStatus(
-                `staff-tree · focus ${focus}${exp} · click ${node.kind}:${node.id}`,
+                `staff-tree · focus ${focus}${exp} · click ${node.kind}:${node.id} · ${n} selected`,
               );
             }
+          },
+          onNodeDoubleClick: (node) => {
+            this.contextMenu?.close();
+            const label =
+              node.kind === 'organization'
+                ? `org:${node.id}`
+                : node.kind === 'person'
+                  ? `person:${node.id}`
+                  : `${node.kind}:${node.id}`;
+            // Host should open sidebar here (GoJS prod emitted but never subscribed — dead wire).
+            this.setStatus(`dblclick ${label} · host opens sidebar`);
           },
           onContextMenu: (request) => {
             // 100k: no expand/collapse on nodes — tree↔matrix via focus path / Collapse all.
@@ -248,6 +315,14 @@ export class App {
         mode: 'near-selection',
         component: DemoPromoteCard,
       });
+      if (this.e2eMode) {
+        this.testAnchors = createTestAnchorOverlay({
+          diagram: this.diagram,
+          mount: this.mountEl,
+          interactive: true,
+        });
+        this.mountEl.setAttribute('data-testid', 'diagram-ready');
+      }
       this.mountZoomFab();
       if (this.tab === 'staff-tree') {
         this.setStatus(`Staff tree · focus ${this.diagram.getStaffFocus() ?? 'ops'}`);
@@ -305,12 +380,45 @@ export class App {
 
   private mountSceneCaption(): void {
     this.mountEl.querySelectorAll('.scene-caption').forEach((el) => el.remove());
-    if (this.tab !== 'variant-b') return;
-    const caption = document.createElement('p');
-    caption.className = 'scene-caption';
-    caption.textContent =
-      'Blue wash = magnetic groups (same dept, adjacent cells) · arrows = reports · orange T = temporary';
-    this.mountEl.appendChild(caption);
+    if (this.tab === 'variant-b') {
+      const caption = document.createElement('p');
+      caption.className = 'scene-caption';
+      caption.textContent =
+        'Blue wash = magnetic groups (same dept, adjacent cells) · arrows = reports · orange T = temporary';
+      this.mountEl.appendChild(caption);
+      return;
+    }
+    if (this.tab === 'mockup-orgs-figma') {
+      const caption = document.createElement('p');
+      caption.className = 'scene-caption';
+      caption.textContent =
+        'Figma orgs · dashed blue sibling group · tall cards · N [M] counts · dark chrome';
+      this.mountEl.appendChild(caption);
+      return;
+    }
+    if (this.tab === 'mockup-orgs-gojs') {
+      const caption = document.createElement('p');
+      caption.className = 'scene-caption';
+      caption.textContent =
+        'GoJS orgs · compact cards · period line · T badge / unit code · light chrome (no sibling frame)';
+      this.mountEl.appendChild(caption);
+      return;
+    }
+    if (this.tab === 'mockup-staff-figma') {
+      const caption = document.createElement('p');
+      caption.className = 'scene-caption';
+      caption.textContent =
+        'Figma staff · dashed zones · dept cards · row seats · orange name = temporary · green period';
+      this.mountEl.appendChild(caption);
+      return;
+    }
+    if (this.tab === 'mockup-staff-gojs') {
+      const caption = document.createElement('p');
+      caption.className = 'scene-caption';
+      caption.textContent =
+        'GoJS staff · solid zones · portrait seats · blob/card depts · light production chrome';
+      this.mountEl.appendChild(caption);
+    }
   }
 
   private ensureScaleWindow(focusIndex = 0): ScaleOrgsWindow {
@@ -368,6 +476,11 @@ export class App {
           ...base,
           data: buildStaffTreeData(),
           staffCurrentOrgId: 'ops',
+          render: {
+            ...base.render,
+            staffZoneChrome: true,
+            departmentStyle: 'card',
+          },
           staffLayout: {
             horizontalGap: 40,
             verticalGap: 52,
@@ -379,6 +492,104 @@ export class App {
             orgCardHeight: 64,
             refCellWidth: 140,
             refCellHeight: 160,
+            collapseUnexpandedPositions: true,
+          },
+        };
+      case 'mockup-orgs-figma':
+        return {
+          ...base,
+          theme: 'dark',
+          data: buildMockupOrgsFigmaData(),
+          styles: MOCKUP_FIGMA_STYLES,
+          orgLayout: {
+            nodeWidth: 200,
+            nodeHeight: 120,
+            horizontalGap: 36,
+            verticalGap: 48,
+            margin: 40,
+            orgEdgeStyle: 'spine-bus',
+          },
+          render: {
+            ...base.render,
+            orgSiblingGroupChrome: true,
+          },
+        };
+      case 'mockup-orgs-gojs':
+        return {
+          ...base,
+          theme: 'light',
+          data: buildMockupOrgsGojsData(),
+          styles: MOCKUP_GOJS_STYLES,
+          orgLayout: {
+            nodeWidth: 200,
+            nodeHeight: 64,
+            horizontalGap: 40,
+            verticalGap: 44,
+            margin: 40,
+            orgEdgeStyle: 'spine-bus',
+          },
+          render: {
+            ...base.render,
+            orgSiblingGroupChrome: false,
+          },
+        };
+      case 'mockup-staff-figma':
+        return {
+          ...base,
+          theme: 'dark',
+          data: buildMockupStaffFigmaData(),
+          styles: MOCKUP_FIGMA_STYLES,
+          staffCurrentOrgId: 'region',
+          staffLayout: {
+            horizontalGap: 36,
+            verticalGap: 40,
+            tierGap: 48,
+            margin: 28,
+            nodeWidth: 248,
+            nodeHeight: 72,
+            orgCardWidth: 220,
+            orgCardHeight: 56,
+            refCellWidth: 260,
+            refCellHeight: 88,
+            collapseUnexpandedPositions: false,
+          },
+          render: {
+            ...base.render,
+            staffZoneChrome: true,
+            departmentStyle: 'card',
+            cellWidth: 260,
+            cellHeight: 88,
+          },
+        };
+      case 'mockup-staff-gojs':
+        return {
+          ...base,
+          theme: 'light',
+          data: buildMockupStaffGojsData(),
+          styles: MOCKUP_GOJS_STYLES,
+          staffCurrentOrgId: 'region',
+          staffLayout: {
+            horizontalGap: 40,
+            verticalGap: 52,
+            tierGap: 36,
+            margin: 24,
+            nodeWidth: 136,
+            nodeHeight: 156,
+            orgCardWidth: 200,
+            orgCardHeight: 64,
+            refCellWidth: 140,
+            refCellHeight: 160,
+            collapseUnexpandedPositions: false,
+          },
+          render: {
+            ...base.render,
+            staffZoneChrome: true,
+            departmentStyle: 'blob',
+            cellWidth: 140,
+            cellHeight: 160,
+            magnetRadius: VARIANT_B_MAGNET_RADIUS,
+            minContourMembers: 2,
+            smoothIterations: this.contourControls.smoothIterations,
           },
         };
       case 'flat-orgs':
@@ -397,6 +608,7 @@ export class App {
         const win = this.scaleWindow ?? this.ensureScaleWindow(0);
         return {
           ...base,
+          orgTreeChrome: false,
           data: win.data,
           orgLayout: {
             nodeWidth: 160,
@@ -561,12 +773,12 @@ export class App {
   }
 
   private syncContourControlsEnabled(): void {
-    const enabled = this.tab === 'variant-b';
+    const enabled = this.tab === 'variant-b' || this.tab === 'mockup-staff-gojs';
     for (const id of ['padding-control', 'smooth-control']) {
       const el = document.getElementById(id);
       if (!el) continue;
       el.dataset.disabled = enabled ? 'false' : 'true';
-      el.title = enabled ? '' : 'Variant B only';
+      el.title = enabled ? '' : 'Variant B / Staff · GoJS only';
     }
     const padding = document.getElementById('padding-slider') as HTMLInputElement | null;
     const smooth = document.getElementById('smooth-slider') as HTMLInputElement | null;
@@ -592,6 +804,14 @@ export class App {
         return 'Variant B';
       case 'staff-tree':
         return 'Staff tree';
+      case 'mockup-orgs-figma':
+        return 'Orgs · Figma';
+      case 'mockup-orgs-gojs':
+        return 'Orgs · GoJS';
+      case 'mockup-staff-figma':
+        return 'Staff · Figma';
+      case 'mockup-staff-gojs':
+        return 'Staff · GoJS';
       case 'flat-orgs':
         return 'Flat orgs';
       case 'scale-100k':

@@ -3,7 +3,12 @@ import type { DiagramOrganization, DiagramPosition, DiagramReportLine } from '..
 import { positionHasCoords, resolvePositionAABB } from './coords.js';
 import { layoutStaffCanvas } from './canvasLayout.js';
 import { layoutStaffOrgBlock } from './orgBlockLayout.js';
-import { resolveStaffHead } from './resolveHead.js';
+import {
+  adminParentMap,
+  detachedRootIds,
+  isDetachedPosition,
+  resolveStaffHead,
+} from './resolveHead.js';
 import { StaffLayoutError } from './types.js';
 
 function pos(
@@ -55,6 +60,29 @@ describe('resolveStaffHead', () => {
   it('failure: no head and no unique parentless throws', () => {
     const positions = [pos('a', 'o1'), pos('b', 'o1')];
     expect(() => resolveStaffHead(positions, 'o1', [])).toThrow(/head|parentless/i);
+  });
+});
+
+describe('detached inference (T65)', () => {
+  it('success: parentless non-head inferred detached', () => {
+    const positions = [
+      pos('head', 'o1', { isHead: true }),
+      pos('orphan', 'o1'),
+    ];
+    const parents = adminParentMap(positions, [], 'o1');
+    expect(isDetachedPosition(positions[1]!, 'head', parents)).toBe(true);
+    expect(detachedRootIds(positions, [], 'o1', 'head')).toEqual(['orphan']);
+  });
+
+  it('success: explicit detached flag', () => {
+    const positions = [
+      pos('head', 'o1', { isHead: true }),
+      pos('flagged', 'o1', { detached: true }),
+    ];
+    const reports: DiagramReportLine[] = [
+      { fromId: 'head', toId: 'flagged', kind: 'admin' },
+    ];
+    expect(detachedRootIds(positions, reports, 'o1', 'head')).toEqual(['flagged']);
   });
 });
 
@@ -139,6 +167,43 @@ describe('layoutStaffOrgBlock', () => {
     await expect(
       layoutStaffOrgBlock(positions, [], 'o1', { staffCoordMode: 'strict' }),
     ).rejects.toThrow(/mix|strict/i);
+  });
+
+  it('success: detached seats pack beside head column, no fabricated edges', async () => {
+    const positions = [
+      pos('head', 'o1', { isHead: true }),
+      pos('report', 'o1'),
+      pos('orphan-a', 'o1'),
+      pos('orphan-b', 'o1'),
+    ];
+    const reports: DiagramReportLine[] = [
+      { fromId: 'head', toId: 'report', kind: 'admin' },
+    ];
+    const result = await layoutStaffOrgBlock(positions, reports, 'o1', {
+      staffCoordMode: 'tree',
+    });
+
+    const head = result.nodes.find((n) => n.id === 'head')!;
+    const report = result.nodes.find((n) => n.id === 'report')!;
+    const a = result.nodes.find((n) => n.id === 'orphan-a')!;
+    const b = result.nodes.find((n) => n.id === 'orphan-b')!;
+
+    // Side column: detached x clearly to the right of head column
+    const headColRight = Math.max(head.x + head.width, report.x + report.width);
+    expect(a.x).toBeGreaterThan(headColRight);
+    expect(b.x).toBeGreaterThan(headColRight);
+    expect(a.role).toBe('detached');
+    expect(b.role).toBe('detached');
+
+    // Edges only from real reportLines — no head→orphan fabrications
+    expect(result.edges).toEqual([
+      { fromId: 'head', toId: 'report', kind: 'admin' },
+    ]);
+    expect(
+      result.edges.some(
+        (e) => e.toId === 'orphan-a' || e.toId === 'orphan-b' || e.fromId === 'orphan-a',
+      ),
+    ).toBe(false);
   });
 });
 

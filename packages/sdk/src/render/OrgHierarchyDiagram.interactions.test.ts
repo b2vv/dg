@@ -168,4 +168,81 @@ describe('OrgHierarchyDiagram interactions', () => {
     diagram.destroy();
     document.body.removeChild(container);
   });
+
+  it('success: multi-select Set API add/toggle/clear; single-select still works', async () => {
+    const onSelectionChange = vi.fn();
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: makeData(),
+      staffCurrentOrgId: 'org1',
+      useWorker: false,
+      callbacks: { onSelectionChange },
+    });
+
+    const a = { kind: 'person' as const, id: 'person-alice', personId: 'person-alice', positionId: 'P1' };
+    const b = {
+      kind: 'person' as const,
+      id: 'person-P2',
+      personId: 'person-P2',
+      positionId: 'P2',
+    };
+
+    // Single-select path (compat)
+    await diagram.select(a);
+    expect(diagram.getSelection()).toMatchObject({ id: 'person-alice' });
+    expect(diagram.getSelections()).toHaveLength(1);
+    expect(onSelectionChange).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: 'person-alice' }),
+    ]);
+
+    await diagram.selectMany([a, b]);
+    expect(diagram.getSelections().map((n) => n.id)).toEqual(['person-alice', 'person-P2']);
+    expect(diagram.getSelection()?.id).toBe('person-alice');
+
+    await diagram.toggleSelection(a);
+    expect(diagram.getSelections().map((n) => n.id)).toEqual(['person-P2']);
+
+    await diagram.toggleSelection(a);
+    expect(diagram.getSelections().map((n) => n.id)).toEqual(['person-P2', 'person-alice']);
+
+    await diagram.clearSelection();
+    expect(diagram.getSelections()).toEqual([]);
+    expect(diagram.getSelection()).toBeNull();
+    expect(onSelectionChange).toHaveBeenLastCalledWith([]);
+
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
+
+  it('success: focusByTestId expands collapsed org then selects', async () => {
+    const onSelectionChange = vi.fn();
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: {
+        ...makeData(),
+        organizations: [
+          { id: 'root', name: 'Root', groupIds: [], collapsed: true, testId: 'root' },
+          { id: 'org1', name: 'Demo Org', groupIds: [], parentOrgId: 'root', collapsed: true },
+        ],
+      },
+      useWorker: false,
+      callbacks: { onSelectionChange },
+    });
+    expect(diagram.getData().organizations.find((o) => o.id === 'root')?.collapsed).toBe(true);
+    const ok = await diagram.focusByTestId('root');
+    expect(ok).toBe(true);
+    expect(diagram.getData().organizations.find((o) => o.id === 'root')?.collapsed).toBe(false);
+    expect(diagram.getSelection()?.id).toBe('root');
+    expect(onSelectionChange).toHaveBeenCalledWith([
+      expect.objectContaining({ kind: 'organization', id: 'root' }),
+    ]);
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
 });

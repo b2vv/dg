@@ -96,6 +96,23 @@ npm run dev          # http://localhost:3000
 49. [T49-adjacency-magnetism.md](./tasks/T49-adjacency-magnetism.md) — ✅ magnetRadius 1.5: top row + two bottom blobs
 50. [T50-chebyshev-pad-rect.md](./tasks/T50-chebyshev-pad-rect.md) — ✅ Chebyshev pad: adjacent row → rectangle, not hat
 51. [T51-zoom-mid-button-group.md](./tasks/T51-zoom-mid-button-group.md) — ✅ mid LOD center + button-group contour polish
+52. [T52-node-chrome-context-menu.md](./tasks/T52-node-chrome-context-menu.md) — ✅ ⋮ menu + expand chrome on cards
+53. [T53-flat-orgs-root-viewport.md](./tasks/T53-flat-orgs-root-viewport.md) — ✅ root click viewport; 100k focus without reload
+54. [T54-e2e-playwright.md](./tasks/T54-e2e-playwright.md) — ✅ Playwright smoke for demo tabs
+55. [T55-node-testid-anchors.md](./tasks/T55-node-testid-anchors.md) — ✅ testId + DOM anchors for e2e/search/focus
+56. [T56-gojs-feature-inventory.md](./tasks/T56-gojs-feature-inventory.md) — 📋 GoJS catalog + checkbox selection (§16)
+57. [T61-group-recursion-tier3.md](./tasks/T61-group-recursion-tier3.md) — 📋 B8c рекурсія груп орг (не блокує cutover)
+58. [T63-spine-bus-edges.md](./tasks/T63-spine-bus-edges.md) — 📋 B3 spine/шина org-matrix
+59. [T64-named-display-zones-paint.md](./tasks/T64-named-display-zones-paint.md) — ✅ **P0** B8 іменовані зони (paint)
+60. [T65-multi-root-forest.md](./tasks/T65-multi-root-forest.md) — 📋 B9 ліс / непідвʼязані
+61. [T66-position-expand-depth.md](./tasks/T66-position-expand-depth.md) — 📋 **P0** C2/C3 expand посади + depth
+62. [T67-multi-select.md](./tasks/T67-multi-select.md) — 📋 D2 мультивибір (наступні задачі)
+63. [T68-org-period-display.md](./tasks/T68-org-period-display.md) — 📋 D4* період на організації
+64. [T69-node-double-click.md](./tasks/T69-node-double-click.md) — 📋 D5 dblclick → sidebar
+65. [T70-position-card-chrome.md](./tasks/T70-position-card-chrome.md) — 📋 E* chrome посад (скріни GoJS)
+66. [T71-gojs-to-dg-migration-plan.md](./tasks/T71-gojs-to-dg-migration-plan.md) — 📋 **план міграції GoJS→dg** (індекс)
+67. [PARITY-gojs-to-dg.md](./tasks/PARITY-gojs-to-dg.md) — 📋 parity ред. 2.1 (вимога→можливість)
+68. [T72-types-algorithms-agreement.md](./tasks/T72-types-algorithms-agreement.md) — ✅ узгоджені типи + алгоритми P0 (+ fitContain)
 
 ## Технічний борг
 
@@ -114,6 +131,7 @@ npm run test:rust
 npm run build:wasm
 npm run typecheck
 npm test
+npm run test:e2e   # Playwright (needs build:demo via webServer)
 ```
 
 GitHub Actions: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)

@@ -12,8 +12,13 @@
     "build:demo": "npm run build -w @org-hierarchy/demo",
     "dev": "npm run dev -w @org-hierarchy/demo",
     "test": "npm run test -w @org-hierarchy/sdk && npm run test -w @org-hierarchy/demo",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "test:rust": "cd packages/core && cargo test",
     "typecheck": "npm run typecheck -w @org-hierarchy/sdk && npm run build:types -w @org-hierarchy/sdk && npm run typecheck -w @org-hierarchy/demo"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
   },
   "engines": {
     "node": ">=20"

@@ -60,6 +60,7 @@ export type { MorphPoint } from './contourMorph.js';
 export {
   resolveTheme,
   getOrgSymbolUrl,
+  getInactiveOrgSymbolUrl,
   resolveNodeTheme,
   canvasBackgroundForTheme,
 } from './theme.js';
@@ -67,6 +68,7 @@ export {
   loadNodeTexture,
   configureNodeTextureLoader,
   clearNodeTextureCache,
+  isAllowedNodeMediaUrl,
   type NodeTextureLoader,
 } from './nodeMedia.js';
 export {
@@ -94,7 +96,35 @@ export {
   type NodeTheme,
   type ThemeMode,
   type RenderConfig,
+  type DepartmentPaintStyle,
   type DepartmentBlobStyle,
+  type DepartmentCardStyle,
+  type StaffZoneStyle,
   type PersonNodeStyle,
   type OrganizationNodeStyle,
 } from './types.js';
+export { StaffZonesView } from './StaffZonesView.js';
+export { DepartmentCardView, paintDashedFrame } from './DepartmentCardView.js';
+export {
+  enrichStaffTierBands,
+  worldBoundsForTier,
+  unionBoxes,
+  type WorldRect,
+} from './staffZoneBounds.js';
+export { fitContain } from './fitContain.js';
+export {
+  resolveOrgSymbolLayout,
+  isFullBleedIntrinsic,
+  orgCardAabb,
+  ORG_SYMBOL_PAD,
+  ORG_SYMBOL_W,
+  ORG_SYMBOL_H,
+} from './orgSymbolBox.js';
+export type {
+  OrgSymbolBox,
+  OrgSymbolBoxMode,
+  OrgSymbolLayout,
+} from './orgSymbolBox.js';
+export { formatOrgPeriodLabel, formatIsoDateUk } from './formatPeriodLabel.js';
+export type { PeriodFields } from './formatPeriodLabel.js';
+export { formatOrgCountsBadge, VACANT_POSITION_LABEL } from './orgCardChrome.js';

@@ -26,6 +26,9 @@ import {
   swapMatrixOrder,
   placeOrgAtMatrixCell,
   assignMatrixCells,
+  assignExpandToDepth,
+  adminDescendantIds,
+  positionHasAdminChildren,
   type OrgDisplayMode,
   type OrgLayoutOptions,
   type StaffLayoutOptions,
@@ -40,7 +43,11 @@ import {
   resolveOrganizationIdForNode,
   movePositionToCell,
   shiftPositionBlock,
-  selectNode,
+  selectMany as dedupeSelections,
+  replaceSelection,
+  toggleInSelection,
+  sameSelectionSet,
+  isSelectionToggleModifier,
   defaultContextMenuItems,
   type SearchIndex,
   type NodeRef,
@@ -51,6 +58,12 @@ import {
   type ContextMenuRequest,
   type ContextMenuNodeData,
   type ContextMenuPointer,
+  resolveTestIdInData,
+  orgTestId,
+  personTestId,
+  positionTestId,
+  nodeDomTestId,
+  type TestAnchorCandidate,
 } from './interaction/index.js';
 import {
   buildSearchIndexForScale,
@@ -170,9 +183,23 @@ export {
   loadNodeTexture,
   configureNodeTextureLoader,
   clearNodeTextureCache,
+  isAllowedNodeMediaUrl,
   worldBoxToScreen,
   resolvePromoteIds,
   screenRectInView,
+  fitContain,
+  resolveOrgSymbolLayout,
+  isFullBleedIntrinsic,
+  orgCardAabb,
+  ORG_SYMBOL_PAD,
+  ORG_SYMBOL_W,
+  ORG_SYMBOL_H,
+  formatOrgPeriodLabel,
+  formatIsoDateUk,
+  formatOrgCountsBadge,
+  VACANT_POSITION_LABEL,
+  getOrgSymbolUrl,
+  getInactiveOrgSymbolUrl,
 } from './render/index.js';
 export type {
   NodeTheme,
@@ -189,6 +216,12 @@ export type {
   PromoteMode,
   ScreenRect,
   WorldBox,
+  DepartmentPaintStyle,
+  DepartmentCardStyle,
+  StaffZoneStyle,
+  OrgSymbolBox,
+  OrgSymbolBoxMode,
+  OrgSymbolLayout,
 } from './render/index.js';
 export type { LayoutPatch, OrgHierarchyCallbacks } from './callbacks.js';
 
@@ -213,6 +246,20 @@ export {
   InteractionError,
   defaultContextMenuItems,
   resolveContextMenuNodeData,
+  nodeDomTestId,
+  normalizeTestIdKey,
+  orgTestId,
+  personTestId,
+  positionTestId,
+  resolveTestIdInData,
+  selectNode,
+  selectMany,
+  sameNodeRef,
+  replaceSelection,
+  toggleInSelection,
+  isSelectionToggleModifier,
+  type SelectionPointerMods,
+  type TestAnchorCandidate,
 } from './interaction/index.js';
 export {
   buildSearchIndexInWorker,
@@ -247,6 +294,11 @@ export {
   resolveStaffHead,
   StaffLayoutError,
   DEFAULT_STAFF_LAYOUT_OPTIONS,
+  assignExpandToDepth,
+  visiblePositions,
+  expandIdsForDepth,
+  buildSpineBusPaths,
+  buildSpineBusEdgesForForest,
 } from './layout/index.js';
 export type {
   OrgDisplayMode,
@@ -259,6 +311,7 @@ export type {
   StaffLayoutOptions,
   StaffCanvasResult,
   StaffOrgBlockResult,
+  OrgEdgeStyle,
 } from './layout/index.js';
 export interface OrgHierarchyConfig<TRaw = DiagramData> {
   data: TRaw | DiagramData;
@@ -279,6 +332,10 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
   staffLayout?: StaffLayoutOptions;
   /** Org matrix / row-tree layout. */
   orgLayout?: OrgLayoutOptions;
+  /** Show +/− tree expand/collapse chrome on org cards (default true). Set false for 100k scale tab (T48). */
+  orgTreeChrome?: boolean;
+  /** Enable DOM test anchors (`data-testid="node-*"`) — use with createTestAnchorOverlay (T55). */
+  testAnchors?: boolean;
 }
 
 /** Embed SDK — Pixi render + data/mappers + worker contour */
@@ -296,9 +353,12 @@ export class OrgHierarchyDiagram {
   private staffCurrentOrgId: string | undefined;
   private staffLayout: StaffLayoutOptions = {};
   private orgLayout: OrgLayoutOptions = {};
+  private orgTreeChrome = true;
   private staffExpandedOrgIds = new Set<string>();
+  private staffExpandedPositionIds = new Set<string>();
   private searchIdx: SearchIndex | null = null;
-  private selection: NodeRef | null = null;
+  /** Multi-select set (T67). Primary / first element is also exposed via getSelection(). */
+  private selections: NodeRef[] = [];
   private lodLevel: LodLevel = 'near';
   private lodRenderQueued = false;
   private contourComputer: IncrementalContourComputer | null = null;
@@ -323,6 +383,7 @@ export class OrgHierarchyDiagram {
     instance.staffCurrentOrgId = config.staffCurrentOrgId;
     instance.staffLayout = config.staffLayout ?? {};
     instance.orgLayout = config.orgLayout ?? {};
+    instance.orgTreeChrome = config.orgTreeChrome ?? true;
 
     const workerFactory = config.workerFactory ?? createTransformWorker;
     instance.workerFactory = workerFactory;
@@ -410,11 +471,38 @@ export class OrgHierarchyDiagram {
   }
 
   private applySelection(next: NodeRef | null): void {
-    const result = selectNode(this.selection, next);
+    const result = replaceSelection(this.selections, next);
     if (!result.changed) return;
-    this.selection = result.selection;
-    this.callbacks.onSelectionChange?.(result.selection ? [result.selection] : []);
+    this.selections = result.selections;
+    this.callbacks.onSelectionChange?.(this.selections);
     this.notifyPromoteSync();
+  }
+
+  private applyToggleSelection(node: NodeRef): void {
+    const result = toggleInSelection(this.selections, node);
+    if (!result.changed) return;
+    this.selections = result.selections;
+    this.callbacks.onSelectionChange?.(this.selections);
+    this.notifyPromoteSync();
+  }
+
+  private applySelections(next: readonly NodeRef[]): void {
+    const selections = dedupeSelections(next);
+    if (sameSelectionSet(this.selections, selections)) return;
+    this.selections = selections;
+    this.callbacks.onSelectionChange?.(this.selections);
+    this.notifyPromoteSync();
+  }
+
+  private handleNodeSelect(
+    node: NodeRef,
+    mods?: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean },
+  ): void {
+    if (mods && isSelectionToggleModifier(mods)) {
+      this.applyToggleSelection(node);
+    } else {
+      this.applySelection(node);
+    }
   }
 
   private personNodeRef(personId: string, positionId: string): NodeRef {
@@ -505,6 +593,26 @@ export class OrgHierarchyDiagram {
     } else {
       throw new Error('Provide DiagramData or data + mappers.toDiagram');
     }
+    this.seedExpandedPositionsFromData();
+  }
+
+  /** Sync interactive expand set from mapper/`position.expanded` flags. */
+  private seedExpandedPositionsFromData(): void {
+    this.staffExpandedPositionIds.clear();
+    for (const p of this.data.positions) {
+      if (p.expanded === true) this.staffExpandedPositionIds.add(p.id);
+    }
+  }
+
+  private setPositionExpandedFlag(positionId: string, expanded: boolean): void {
+    this.data = {
+      ...this.data,
+      positions: this.data.positions.map((p) =>
+        p.id === positionId && p.expanded !== expanded ? { ...p, expanded } : p,
+      ),
+    };
+    if (expanded) this.staffExpandedPositionIds.add(positionId);
+    else this.staffExpandedPositionIds.delete(positionId);
   }
 
   private async render(): Promise<void> {
@@ -520,20 +628,26 @@ export class OrgHierarchyDiagram {
       staff: this.staffCurrentOrgId
         ? {
             currentOrgId: this.staffCurrentOrgId,
-            layout: this.staffLayout,
+            layout: {
+              ...this.staffLayout,
+              expandedPositionIds: [...this.staffExpandedPositionIds],
+            },
             expandedOrgIds: [...this.staffExpandedOrgIds],
           }
         : undefined,
-      selected: this.selection,
+      selected: this.selections,
       onCanvasClick: () => {
         this.applySelection(null);
         void this.render();
       },
-      onOrgClick: (orgId) => {
+      onOrgClick: (orgId, mods) => {
         const node = this.orgNodeRef(orgId);
-        this.applySelection(node);
+        this.handleNodeSelect(node, mods);
         this.callbacks.onNodeClick?.(node);
         void this.render();
+      },
+      onOrgDoubleClick: (orgId) => {
+        this.callbacks.onNodeDoubleClick?.(this.orgNodeRef(orgId));
       },
       onStaffOrgExpandToggle: (orgId) => {
         void this.toggleStaffOrgExpand(orgId);
@@ -541,11 +655,17 @@ export class OrgHierarchyDiagram {
       onStaffOrgDrill: (orgId) => {
         void this.focusStaffOrg(orgId);
       },
-      onPersonClick: (personId, positionId) => {
+      onPositionExpandToggle: (positionId) => {
+        void this.togglePositionExpand(positionId);
+      },
+      onPersonClick: (personId, positionId, mods) => {
         const node = this.personNodeRef(personId, positionId);
-        this.applySelection(node);
+        this.handleNodeSelect(node, mods);
         this.callbacks.onNodeClick?.(node);
         void this.render();
+      },
+      onPersonDoubleClick: (personId, positionId) => {
+        this.callbacks.onNodeDoubleClick?.(this.personNodeRef(personId, positionId));
       },
       onPersonContextMenu: (personId, positionId, pointer) => {
         this.emitContextMenu(this.personNodeRef(personId, positionId), pointer);
@@ -553,12 +673,16 @@ export class OrgHierarchyDiagram {
       onOrgContextMenu: (orgId, pointer) => {
         this.emitContextMenu(this.orgNodeRef(orgId), pointer);
       },
-      onOrgExpand: (orgId) => {
-        void this.expandOrg(orgId);
-      },
-      onOrgCollapse: (orgId) => {
-        void this.collapseOrg(orgId);
-      },
+      onOrgExpand: this.orgTreeChrome
+        ? (orgId) => {
+            void this.expandOrg(orgId);
+          }
+        : undefined,
+      onOrgCollapse: this.orgTreeChrome
+        ? (orgId) => {
+            void this.collapseOrg(orgId);
+          }
+        : undefined,
       onPersonDragEnd: (positionId, col, row) => {
         void this.movePersonToCell(positionId, col, row);
       },
@@ -578,6 +702,7 @@ export class OrgHierarchyDiagram {
     };
     this.callbacks.onOrgModeChange?.(this.getOrgMode());
     await this.render();
+    this.panToOrg(orgId, { animate: true });
   }
 
   async collapseOrg(orgId: string): Promise<void> {
@@ -587,6 +712,7 @@ export class OrgHierarchyDiagram {
     };
     this.callbacks.onOrgModeChange?.(this.getOrgMode());
     await this.render();
+    this.panToOrg(orgId, { animate: true });
   }
 
   async collapseAllOrgs(): Promise<void> {
@@ -596,6 +722,14 @@ export class OrgHierarchyDiagram {
     };
     this.callbacks.onOrgModeChange?.(this.getOrgMode());
     await this.render();
+    this.host?.fitView(48, { animate: true });
+  }
+
+  /** Pan camera to an org card after matrix↔row-tree transitions (T53). */
+  private panToOrg(orgId: string, motion?: import('./render/Viewport.js').CameraMotionOptions): void {
+    const box = this.host?.renderer.getNodeBox(orgId);
+    if (!box) return;
+    this.host?.panTo(box.x + box.width / 2, box.y + box.height / 2, motion);
   }
 
   async reorderOrg(orgId: string, newIndex: number): Promise<void> {
@@ -705,6 +839,10 @@ export class OrgHierarchyDiagram {
     return [...this.staffExpandedOrgIds];
   }
 
+  getStaffExpandedPositionIds(): string[] {
+    return [...this.staffExpandedPositionIds];
+  }
+
   /**
    * Toggle expand-in-place for a tier-3 org card (staff under the card).
    * Caps at one expanded card by default (clears others).
@@ -720,6 +858,133 @@ export class OrgHierarchyDiagram {
     return this.staffExpandedOrgIds.has(orgId);
   }
 
+  /**
+   * Toggle admin-subtree visibility for a position (T66 / C2).
+   * No-op when id unknown or position has no admin children.
+   * Honors `staffLayout.maxExpandedPositions` (expandToDepth bypasses the cap).
+   */
+  async togglePositionExpand(positionId: string): Promise<boolean> {
+    const position = this.data.positions.find((p) => p.id === positionId);
+    if (!position) return false;
+    if (!positionHasAdminChildren(positionId, this.data.positions, this.data.reportLines)) {
+      return false;
+    }
+
+    const wasExpanded = this.staffExpandedPositionIds.has(positionId) || position.expanded === true;
+    if (wasExpanded) {
+      this.setPositionExpandedFlag(positionId, false);
+      this.callbacks.onLayoutChange?.({
+        type: 'position-expand',
+        positionId,
+        expanded: false,
+      });
+      this.callbacks.onPositionExpandChange?.({
+        positionId,
+        expanded: false,
+        changedIds: [positionId],
+      });
+      await this.render();
+      this.panToPosition(positionId, { animate: true });
+      return false;
+    }
+
+    const max = this.staffLayout.maxExpandedPositions ?? Number.POSITIVE_INFINITY;
+    const evicted: string[] = [];
+    if (Number.isFinite(max)) {
+      while (this.staffExpandedPositionIds.size >= max) {
+        const victim = this.staffExpandedPositionIds.values().next().value as string | undefined;
+        if (victim === undefined) break;
+        this.setPositionExpandedFlag(victim, false);
+        evicted.push(victim);
+      }
+    }
+
+    this.setPositionExpandedFlag(positionId, true);
+    for (const id of evicted) {
+      this.callbacks.onLayoutChange?.({
+        type: 'position-expand',
+        positionId: id,
+        expanded: false,
+      });
+      this.callbacks.onPositionExpandChange?.({
+        positionId: id,
+        expanded: false,
+        changedIds: [id],
+      });
+    }
+    this.callbacks.onLayoutChange?.({
+      type: 'position-expand',
+      positionId,
+      expanded: true,
+    });
+    this.callbacks.onPositionExpandChange?.({
+      positionId,
+      expanded: true,
+      changedIds: [positionId, ...evicted],
+    });
+    await this.render();
+    this.panToPosition(positionId, { animate: true });
+    return true;
+  }
+
+  /**
+   * Expand ancestors so nodes at depth ≤ `depth` are visible (T66 / C3).
+   * Depth 0 = head only. Bypasses `maxExpandedPositions`.
+   */
+  async expandToDepth(options: {
+    organizationId?: string;
+    depth: number;
+  }): Promise<void> {
+    const organizationId = options.organizationId ?? this.staffCurrentOrgId;
+    if (!organizationId) return;
+
+    const { expandedIds, positions } = assignExpandToDepth(
+      this.data.positions,
+      this.data.reportLines,
+      organizationId,
+      options.depth,
+    );
+
+    const expandSet = new Set(expandedIds);
+    // Drop prior expands for this org, then apply depth set (bypass cap).
+    for (const p of this.data.positions) {
+      if (p.organizationId !== organizationId) continue;
+      this.staffExpandedPositionIds.delete(p.id);
+    }
+    for (const id of expandSet) this.staffExpandedPositionIds.add(id);
+    this.data = { ...this.data, positions };
+
+    const changedIds = [...expandSet];
+    this.callbacks.onPositionExpandChange?.({
+      positionId: changedIds[0] ?? '',
+      expanded: changedIds.length > 0,
+      changedIds,
+    });
+    await this.render();
+    const head = this.data.positions.find(
+      (p) => p.organizationId === organizationId && p.isHead,
+    );
+    if (head) this.panToPosition(head.id, { animate: true });
+  }
+
+  /** Collapse a position and clear expand flags on its admin descendants. */
+  async collapsePositionSubtree(positionId: string): Promise<void> {
+    const ids = adminDescendantIds(
+      positionId,
+      this.data.positions,
+      this.data.reportLines,
+    );
+    if (ids.length === 0) return;
+    for (const id of ids) this.setPositionExpandedFlag(id, false);
+    this.callbacks.onPositionExpandChange?.({
+      positionId,
+      expanded: false,
+      changedIds: ids,
+    });
+    await this.render();
+    this.panToPosition(positionId, { animate: true });
+  }
+
   /** Apply staff focus and re-render (drill into Tier-3 org card). Clears expands. */
   async focusStaffOrg(orgId: string | null): Promise<void> {
     this.staffExpandedOrgIds.clear();
@@ -727,12 +992,28 @@ export class OrgHierarchyDiagram {
     await this.render();
   }
 
+  /** Pan camera to a position card after expand/collapse (T53 lesson). */
+  private panToPosition(
+    positionId: string,
+    motion?: import('./render/Viewport.js').CameraMotionOptions,
+  ): void {
+    const box = this.host?.renderer.getNodeBox(positionId);
+    if (!box) return;
+    this.host?.panTo(box.x + box.width / 2, box.y + box.height / 2, motion);
+  }
+
   async search(query: string): Promise<SearchResult[]> {
     return querySearchIndex(this.searchIdx, query);
   }
 
+  /** Primary / first selected node (compat). Prefer {@link getSelections}. */
   getSelection(): NodeRef | null {
-    return this.selection;
+    return this.selections[0] ?? null;
+  }
+
+  /** Full multi-select set (T67 Phase 1). Order = selection order. */
+  getSelections(): readonly NodeRef[] {
+    return this.selections;
   }
 
   /** Soft layout warnings from the last render (anchor overlap, skipped expands, …). */
@@ -740,8 +1021,27 @@ export class OrgHierarchyDiagram {
     return this.host?.renderer.getLayoutDiagnostics() ?? [];
   }
 
+  /** Replace selection with one node (or clear). */
   async select(node: NodeRef | null): Promise<void> {
     this.applySelection(node);
+    await this.render();
+  }
+
+  /** Replace selection with many nodes (deduped). */
+  async selectMany(nodes: readonly NodeRef[]): Promise<void> {
+    this.applySelections(nodes);
+    await this.render();
+  }
+
+  /** Toggle membership of one node in the selection set. */
+  async toggleSelection(node: NodeRef): Promise<void> {
+    this.applyToggleSelection(node);
+    await this.render();
+  }
+
+  /** Clear the selection set. */
+  async clearSelection(): Promise<void> {
+    this.applySelection(null);
     await this.render();
   }
 
@@ -759,6 +1059,62 @@ export class OrgHierarchyDiagram {
     this.callbacks.onOrgModeChange?.(this.getOrgMode());
     await this.focusNode(nodeId);
     return true;
+  }
+
+  /**
+   * Resolve stable testId → node ref (first match). Accepts `node-` prefix.
+   */
+  resolveTestId(raw: string): NodeRef | null {
+    return resolveTestIdInData(this.data, raw);
+  }
+
+  /**
+   * Expand collapsed org (if applicable), reveal path, select + pan.
+   * Unknown testId → false.
+   */
+  async focusByTestId(raw: string): Promise<boolean> {
+    const ref = resolveTestIdInData(this.data, raw);
+    if (!ref) return false;
+    if (ref.kind === 'organization') {
+      const org = this.data.organizations.find((o) => o.id === ref.id);
+      if (org?.collapsed) {
+        await this.expandOrg(ref.id);
+      }
+    }
+    return this.revealPath(ref.id);
+  }
+
+  /** DOM anchor candidates synced to rendered node bounds (T55). */
+  listTestAnchors(): TestAnchorCandidate[] {
+    const boxes = this.host?.renderer.listNodeBoxes() ?? [];
+    const out: TestAnchorCandidate[] = [];
+    const seen = new Set<string>();
+    for (const box of boxes) {
+      const ref = this.resolveNodeRef(box.id);
+      if (!ref) continue;
+      const testId = this.testIdForRef(ref);
+      if (!testId) continue;
+      const dedupe = `${ref.kind}:${testId}`;
+      if (seen.has(dedupe)) continue;
+      seen.add(dedupe);
+      out.push({
+        testId,
+        kind: ref.kind,
+        ref,
+        world: { x: box.x, y: box.y, width: box.width, height: box.height },
+      });
+    }
+    return out;
+  }
+
+  /** Open context menu for a node (e2e / programmatic). */
+  openContextMenu(ref: NodeRef, pointer?: Partial<ContextMenuPointer>): void {
+    this.emitContextMenu(ref, {
+      clientX: pointer?.clientX ?? 0,
+      clientY: pointer?.clientY ?? 0,
+      canvasX: pointer?.canvasX,
+      canvasY: pointer?.canvasY,
+    });
   }
 
   /**
@@ -895,7 +1251,10 @@ export class OrgHierarchyDiagram {
         renderConfig: this.renderConfig,
         currentOrgId: this.staffCurrentOrgId,
         expandedOrgIds: [...this.staffExpandedOrgIds],
-        staffLayout: this.staffLayout,
+        staffLayout: {
+          ...this.staffLayout,
+          expandedPositionIds: [...this.staffExpandedPositionIds],
+        },
       },
       options,
     );
@@ -931,6 +1290,23 @@ export class OrgHierarchyDiagram {
     const byPerson = this.data.positions.find((p) => p.personId === nodeId);
     if (byPerson?.personId) return this.personNodeRef(byPerson.personId, byPerson.id);
     return null;
+  }
+
+  private testIdForRef(ref: NodeRef): string | null {
+    if (ref.kind === 'organization') {
+      const org = this.data.organizations.find((o) => o.id === ref.id);
+      return org ? orgTestId(org) : null;
+    }
+    if (ref.kind === 'person') {
+      const person = this.data.persons.find((p) => p.id === (ref.personId ?? ref.id));
+      return person ? personTestId(person) : null;
+    }
+    const position = this.data.positions.find((p) => p.id === (ref.positionId ?? ref.id));
+    if (!position) return null;
+    const person = position.personId
+      ? this.data.persons.find((p) => p.id === position.personId)
+      : undefined;
+    return positionTestId(position, person);
   }
 
   destroy(): void {

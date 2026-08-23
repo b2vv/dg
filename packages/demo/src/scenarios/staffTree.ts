@@ -20,6 +20,8 @@ export function buildStaffTreeData(): DiagramData {
       { id: 'p-lead', fullName: 'Cara Lead' },
       { id: 'p-a', fullName: 'Dan Alpha' },
       { id: 'p-b', fullName: 'Eve Beta' },
+      { id: 'p-ua1', fullName: 'Una Signed' },
+      { id: 'p-ua2', fullName: 'Uri Vacant' },
       { id: 'p-eng-h', fullName: 'Fay EngHead' },
       { id: 'p-dev', fullName: 'Gus Dev' },
     ],
@@ -44,6 +46,8 @@ export function buildStaffTreeData(): DiagramData {
         status: 'filled',
         isTemporary: false,
         isHead: true,
+        /** First paint: depth-1 under head (T66 / countFirstLoad analogue). */
+        expanded: true,
       },
       {
         id: 'pos-lead',
@@ -75,6 +79,28 @@ export function buildStaffTreeData(): DiagramData {
         status: 'filled',
         isTemporary: true,
       },
+      // T65: parentless seats (modal “unassigned”) — side column, no fake edges
+      {
+        id: 'pos-unassigned-1',
+        title: 'Unassigned A',
+        organizationId: 'ops',
+        departmentId: 'ops-core',
+        groupIds: [],
+        personId: 'p-ua1',
+        status: 'filled',
+        isTemporary: false,
+        detached: true,
+      },
+      {
+        id: 'pos-unassigned-2',
+        title: 'Unassigned B',
+        organizationId: 'ops',
+        departmentId: 'ops-core',
+        groupIds: [],
+        personId: 'p-ua2',
+        status: 'vacant',
+        isTemporary: false,
+      },
       {
         id: 'pos-eng-h',
         title: 'Eng Head',
@@ -96,6 +122,17 @@ export function buildStaffTreeData(): DiagramData {
         status: 'filled',
         isTemporary: false,
       },
+      {
+        id: 'pos-vacant',
+        title: 'Open Seat',
+        organizationId: 'eng',
+        departmentId: 'eng-core',
+        groupIds: [],
+        status: 'vacant',
+        isTemporary: false,
+        periodStart: '2025-01-01',
+        periodEnd: null,
+      },
     ],
     reportLines: [
       { fromId: 'pos-coo', toId: 'pos-lead', kind: 'admin' },
@@ -103,6 +140,7 @@ export function buildStaffTreeData(): DiagramData {
       { fromId: 'pos-lead', toId: 'pos-b', kind: 'admin' },
       { fromId: 'pos-a', toId: 'pos-b', kind: 'matrix' },
       { fromId: 'pos-eng-h', toId: 'pos-dev', kind: 'admin' },
+      { fromId: 'pos-eng-h', toId: 'pos-vacant', kind: 'admin' },
     ],
   };
 }

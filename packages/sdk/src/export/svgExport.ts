@@ -19,6 +19,7 @@ import { paintMagneticGroups } from '../render/paintMagneticGroups.js';
 import type { ContourMemberBox } from '../render/contourClearance.js';
 import { filterContoursForPaint } from '../render/contourPaintFilter.js';
 import { arrowHeadTriangle, shortenPolylineForArrow } from '../render/staffEdgeArrows.js';
+import { enrichStaffTierBands } from '../render/staffZoneBounds.js';
 
 function esc(text: string): string {
   return text
@@ -84,6 +85,34 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
     );
     width = Math.max(width, Math.ceil(canvas.width));
     height = Math.max(height, Math.ceil(canvas.height));
+
+    const staffMerged = { ...DEFAULT_STAFF_LAYOUT_OPTIONS, ...staffOpts };
+    if (config.staffZoneChrome) {
+      const tiers = enrichStaffTierBands(
+        canvas.tiers,
+        canvas.positionNodes,
+        canvas.orgCards,
+        data.organizations,
+        { margin: staffMerged.margin, canvasWidth: canvas.width },
+      );
+      parts.push('<g id="zones">');
+      for (const tier of tiers) {
+        if (tier.kind !== 'staff-block' || tier.x === undefined || tier.width === undefined) continue;
+        const fill = bg === '#0f172a' || bg.startsWith('#0') || bg.startsWith('#1') ? '#191f26' : '#f1f5f9';
+        const stroke = fill === '#191f26' ? '#3d5067' : '#cbd5e1';
+        const labelFill = fill === '#191f26' ? '#f1f5f9' : '#0f172a';
+        parts.push(
+          `<rect x="${tier.x}" y="${tier.y}" width="${tier.width}" height="${tier.height}" rx="12" fill="${fill}" fill-opacity="0.95" stroke="${stroke}" stroke-width="1"/>`,
+        );
+        if (includeLabels && tier.label) {
+          const tx = tier.x + tier.width - 8;
+          parts.push(
+            `<text x="${tx}" y="${tier.y + 18}" text-anchor="end" fill="${labelFill}" font-size="14" font-family="system-ui,sans-serif">${esc(tier.label)}</text>`,
+          );
+        }
+      }
+      parts.push('</g>');
+    }
 
     const positionById = new Map(data.positions.map((p) => [p.id, p]));
     const contourInputs = canvas.positionNodes

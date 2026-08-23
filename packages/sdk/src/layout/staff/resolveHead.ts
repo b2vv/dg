@@ -17,6 +17,32 @@ export function adminParentMap(
   return parents;
 }
 
+/**
+ * Detached (T65): explicit `position.detached === true`, or inferred —
+ * in-org, not the staff head, and no admin parent in `reportLines`.
+ */
+export function isDetachedPosition(
+  position: DiagramPosition,
+  headId: string,
+  parents: Map<string, string>,
+): boolean {
+  if (position.id === headId) return false;
+  if (position.detached === true) return true;
+  return !parents.has(position.id);
+}
+
+/** Detached roots only (not their admin descendants). */
+export function detachedRootIds(
+  positions: DiagramPosition[],
+  reports: DiagramReportLine[],
+  orgId: string,
+  headId: string,
+): string[] {
+  const inOrg = positions.filter((p) => p.organizationId === orgId);
+  const parents = adminParentMap(inOrg, reports, orgId);
+  return inOrg.filter((p) => isDetachedPosition(p, headId, parents)).map((p) => p.id);
+}
+
 export function resolveStaffHead(
   positions: DiagramPosition[],
   orgId: string,

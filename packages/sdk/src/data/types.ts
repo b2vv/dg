@@ -18,6 +18,24 @@ export interface DiagramData {
 export interface DiagramOrganization {
   id: string;
   name: string;
+  /** Official / long name when symbol missing (E3) or captions need it. */
+  fullName?: string;
+  /** When false, hide short name beside symbol (E1). Default: show name. */
+  showShortName?: boolean;
+  /** Structural / unit code caption (E6). */
+  unitCode?: string;
+  /** Temporary structure marker on org card (E4). */
+  isTemporary?: boolean;
+  /** Badge N in `N [M]` (E5) — filled / occupied; confirm with BE. */
+  filledCount?: number;
+  /** Badge M in `N [M]` (E5) — vacant seats. */
+  vacantCount?: number;
+  /** Org validity / subordination window start (ISO date). */
+  periodStart?: string;
+  /** End date; `null` = open-ended («по т.ч.»). */
+  periodEnd?: string | null;
+  /** Preformatted period line from host (wins over SDK formatting). */
+  periodLabel?: string;
   symbolUrl?: string;
   symbolUrlLight?: string;
   symbolUrlDark?: string;
@@ -31,6 +49,8 @@ export interface DiagramOrganization {
   /** Явна позиція у matrix grid (row/col) */
   matrixRow?: number;
   matrixCol?: number;
+  /** Stable e2e / automation id (DOM: data-testid="node-<testId>"). Default: id. */
+  testId?: string;
 }
 
 export interface DiagramGroup {
@@ -53,6 +73,7 @@ export interface DiagramPerson {
   id: string;
   fullName: string;
   photoUrl?: string;
+  testId?: string;
 }
 
 export interface DiagramPosition {
@@ -66,6 +87,12 @@ export interface DiagramPosition {
   isTemporary: boolean;
   /** Керівна посада org (staff root); рівно одна на org */
   isHead?: boolean;
+  /**
+   * Host hint: seat has no admin manager (T65 / B9).
+   * Layout also **infers** detached when the seat is in-org, not `isHead`,
+   * and has no admin parent in `reportLines` — flag is optional additive.
+   */
+  detached?: boolean;
   /** Розмір картки (staff layout AABB) */
   width?: number;
   height?: number;
@@ -78,6 +105,16 @@ export interface DiagramPosition {
   gridCell?: GridCell;
   /** Staff hierarchy band (block shift) */
   hierarchyLevel?: number;
+  /**
+   * When true and `collapseUnexpandedPositions` is on, admin-report children are laid out.
+   * Default omitted/false — only honored when collapse mode is enabled (T66).
+   */
+  expanded?: boolean;
+  /** Assignment / acting window on the seat (E7 chip). */
+  periodStart?: string;
+  periodEnd?: string | null;
+  periodLabel?: string;
+  testId?: string;
 }
 
 export interface DiagramReportLine {

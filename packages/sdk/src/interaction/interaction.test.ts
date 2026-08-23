@@ -4,7 +4,14 @@ import { buildSearchIndex, buildSearchIndexAsync, searchIndex } from './searchIn
 import { revealOrgPath, resolveOrganizationIdForNode } from './revealPath.js';
 import { movePositionToCell, shiftPositionBlock, snapToGrid } from './positionMove.js';
 import { InteractionError } from './types.js';
-import { selectNode } from './selection.js';
+import {
+  selectNode,
+  selectMany,
+  replaceSelection,
+  toggleInSelection,
+  sameSelectionSet,
+  isSelectionToggleModifier,
+} from './selection.js';
 
 function sampleData(): DiagramData {
   return {
@@ -140,5 +147,57 @@ describe('selectNode', () => {
     expect(selectNode(null, a)).toEqual({ selection: a, changed: true });
     expect(selectNode(a, null)).toEqual({ selection: null, changed: true });
     expect(selectNode(a, a).changed).toBe(false);
+  });
+});
+
+describe('multi-select Set API (T67 Phase 1)', () => {
+  const a = { kind: 'person' as const, id: 'p1' };
+  const b = { kind: 'person' as const, id: 'p2' };
+  const c = { kind: 'organization' as const, id: 'o1', organizationId: 'o1' };
+
+  it('success: selectMany dedupes and preserves order', () => {
+    expect(selectMany([a, b, a, c])).toEqual([a, b, c]);
+  });
+
+  it('success: replaceSelection single-select path', () => {
+    expect(replaceSelection([], a)).toEqual({ selections: [a], changed: true });
+    expect(replaceSelection([a], a).changed).toBe(false);
+    expect(replaceSelection([a, b], a)).toEqual({ selections: [a], changed: true });
+    expect(replaceSelection([a], null)).toEqual({ selections: [], changed: true });
+    expect(replaceSelection([], null).changed).toBe(false);
+  });
+
+  it('success: toggleInSelection add/remove', () => {
+    expect(toggleInSelection([], a)).toEqual({ selections: [a], changed: true });
+    expect(toggleInSelection([a], b)).toEqual({ selections: [a, b], changed: true });
+    expect(toggleInSelection([a, b], a)).toEqual({ selections: [b], changed: true });
+    expect(toggleInSelection([b], b)).toEqual({ selections: [], changed: true });
+  });
+
+  it('success: clear via replaceSelection(null)', () => {
+    const cleared = replaceSelection([a, b, c], null);
+    expect(cleared.selections).toEqual([]);
+    expect(cleared.changed).toBe(true);
+  });
+
+  it('failure: sameSelectionSet detects order/identity mismatch', () => {
+    expect(sameSelectionSet([a, b], [a, b])).toBe(true);
+    expect(sameSelectionSet([a, b], [b, a])).toBe(false);
+    expect(sameSelectionSet([a], [])).toBe(false);
+  });
+
+  it('success: isSelectionToggleModifier ctrl/meta/shift', () => {
+    expect(isSelectionToggleModifier({ ctrlKey: true, metaKey: false, shiftKey: false })).toBe(
+      true,
+    );
+    expect(isSelectionToggleModifier({ ctrlKey: false, metaKey: true, shiftKey: false })).toBe(
+      true,
+    );
+    expect(isSelectionToggleModifier({ ctrlKey: false, metaKey: false, shiftKey: true })).toBe(
+      true,
+    );
+    expect(isSelectionToggleModifier({ ctrlKey: false, metaKey: false, shiftKey: false })).toBe(
+      false,
+    );
   });
 });
