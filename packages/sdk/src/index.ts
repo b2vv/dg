@@ -18,6 +18,7 @@ import {
   type CameraMotionOptions,
 } from './render/index.js';
 import { resolveLodLevel, defaultLodThresholds, type LodLevel, type LodThresholds } from './render/lod.js';
+import { createRenderCoalesce } from './render/renderCoalesce.js';
 import type { PromoteCandidate } from './render/promoteTypes.js';
 import {
   collapseAllOrgs,
@@ -393,6 +394,9 @@ export class OrgHierarchyDiagram {
   private lodLevel: LodLevel = 'near';
   private lodThresholds: LodThresholds = defaultLodThresholds;
   private lodRenderQueued = false;
+  /** T75 D2: coalesce overlapping render() so layers.clear never races. */
+  private readonly renderCoalesce = createRenderCoalesce(() => this.renderNow());
+  private destroyed = false;
   private contourComputer: IncrementalContourComputer | null = null;
   private promoteSyncListeners = new Set<() => void>();
   private mediaService: MediaService | null = null;
@@ -678,13 +682,23 @@ export class OrgHierarchyDiagram {
     else this.staffExpandedPositionIds.delete(positionId);
   }
 
+  /**
+   * Coalesce concurrent renders (T75 D2). Overlapping callers share one promise;
+   * a dirty flag schedules exactly one follow-up pass after the in-flight work.
+   */
   private async render(): Promise<void> {
-    if (!this.host) return;
+    if (!this.host || this.destroyed) return;
+    await this.renderCoalesce.schedule();
+  }
+
+  private async renderNow(): Promise<void> {
+    if (!this.host || this.destroyed) return;
+    const host = this.host;
     const resolved = resolveTheme(this.themeMode);
     this.nodeTheme = resolveNodeTheme(resolved, this.stylesPartial);
-    this.host.setBackground(canvasBackgroundForTheme(resolved));
+    host.setBackground(canvasBackgroundForTheme(resolved));
     const computeContours = this.getContourComputer();
-    await this.host.renderer.render(this.data, this.nodeTheme, resolved, this.renderConfig, {
+    await host.renderer.render(this.data, this.nodeTheme, resolved, this.renderConfig, {
       computeContours,
       lod: this.lodLevel,
       orgLayout: this.orgLayout,
@@ -700,10 +714,12 @@ export class OrgHierarchyDiagram {
         : undefined,
       selected: this.selections,
       onCanvasClick: () => {
+        if (this.destroyed) return;
         this.applySelection(null);
         void this.render();
       },
       onOrgClick: (orgId, mods) => {
+        if (this.destroyed) return;
         const node = this.orgNodeRef(orgId);
         this.handleNodeSelect(node, mods);
         this.callbacks.onNodeClick?.(node);
@@ -722,6 +738,7 @@ export class OrgHierarchyDiagram {
         void this.togglePositionExpand(positionId);
       },
       onPersonClick: (personId, positionId, mods) => {
+        if (this.destroyed) return;
         const node = this.personNodeRef(personId, positionId);
         this.handleNodeSelect(node, mods);
         this.callbacks.onNodeClick?.(node);
@@ -753,6 +770,7 @@ export class OrgHierarchyDiagram {
         void this.movePersonToCell(positionId, col, row);
       },
     });
+    if (this.destroyed || !this.host) return;
     this.callbacks.onLayoutDiagnostics?.(this.getLayoutDiagnostics());
     this.notifyPromoteSync();
   }
@@ -1397,6 +1415,8 @@ export class OrgHierarchyDiagram {
   }
 
   destroy(): void {
+    this.destroyed = true;
+    this.renderCoalesce.stop();
     this.promoteSyncListeners.clear();
     void this.mediaService?.destroy();
     this.mediaService = null;

@@ -183,6 +183,8 @@ const DEFAULT_MORPH_MS = 160;
 export class DiagramRenderer {
   readonly layers = new LayerManager();
   private destroyed = false;
+  /** Bumped at each render entry; stale async passes bail after await (T75 D2). */
+  private renderEpoch = 0;
   private nodeBoxes = new Map<string, NodeWorldBox>();
   /** Pixi views keyed by node/position/org id — for promote hide/show. */
   private nodeViews = new Map<string, Container>();
@@ -270,6 +272,7 @@ export class DiagramRenderer {
     options: RenderOptions = {},
   ): Promise<void> {
     if (this.destroyed) return;
+    const epoch = ++this.renderEpoch;
     this.cancelContourMorphs();
     this.contourSession = null;
     this.contourWorld = null;
@@ -293,14 +296,21 @@ export class DiagramRenderer {
     } else if (data.organizations.length > 0) {
       await this.renderOrganizations(data, theme, resolvedTheme, config, { ...options, lod });
     }
+    if (this.destroyed || epoch !== this.renderEpoch) return;
 
     this.drawSelection(options.selected ?? []);
     this.applyPromoteVisibility();
   }
 
+  /** True while this async render pass is still the latest (T75 D2). */
+  private isRenderCurrent(epoch: number): boolean {
+    return !this.destroyed && epoch === this.renderEpoch;
+  }
+
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
+    this.renderEpoch += 1;
     this.cancelContourMorphs();
     this.contourSession = null;
     this.layers.clear();

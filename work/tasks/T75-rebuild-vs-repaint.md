@@ -1,7 +1,7 @@
 # T75 — Rebuild vs repaint + render queue + view destroy
 
 **Пріоритет:** P0  
-**Статус:** planned  
+**Статус:** D2 done · D1+D3 next  
 **Базис:** [REVIEW-dg-805efee-architecture.md](../tech-debt/REVIEW-dg-805efee-architecture.md) **D1 · D2 · D3**  
 **Залежності:** немає (блокує масштаб і коректність; T74 M1 не повинен опиратись на full `render()`)
 
@@ -9,7 +9,7 @@
 
 ## Мета
 
-1. **D2** — один активний `render` / черга (без гонки `clear` + `await`).
+1. **D2** ✅ — один активний `render` / черга (`createRenderCoalesce` + `renderEpoch`).
 2. **D1** — `rebuild()` (дані/layout) vs `repaint()` (selection / LOD / theme chrome).
 3. **D3** — `LayerManager.clear` / зняття view → справжній Pixi `destroy`.
 
@@ -17,13 +17,14 @@
 
 ---
 
-## D2 — черга рендера
+## D2 — черга рендера ✅
 
-- Прапорці `rendering` + `renderQueued` (або generation token).
-- Повторний вхід під час `await` → не `clear()` вдруге; позначити dirty і перезапустити після.
-- `onOrgClick` / selection / LOD не стартують паралельний orphan-render.
+- `packages/sdk/src/render/renderCoalesce.ts` — `schedule` / `stop`
+- `OrgHierarchyDiagram.render()` → `renderCoalesce.schedule()` → `renderNow()`
+- `DiagramRenderer.renderEpoch` — stale async pass bails after `await`
+- Tests: `renderCoalesce.test.ts`
 
-**Acceptance:** два швидкі `select` + LOD flip під час текстур → один узгоджений display-list; `nodeViews` ≡ діти шарів.
+**Acceptance:** два швидкі `select` + LOD flip під час текстур → один узгоджений display-list.
 
 ---
 
