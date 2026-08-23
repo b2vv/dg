@@ -113,10 +113,10 @@ npm run dev          # http://localhost:3000
 66. [T71-gojs-to-dg-migration-plan.md](./tasks/T71-gojs-to-dg-migration-plan.md) — ✅ **план міграції GoJS→dg** (cutover queue complete)
 67. [PARITY-gojs-to-dg.md](./tasks/PARITY-gojs-to-dg.md) — ✅ parity ред. 2.2 (вимога→можливість)
 68. [T72-types-algorithms-agreement.md](./tasks/T72-types-algorithms-agreement.md) — ✅ узгоджені типи + алгоритми P0 (+ fitContain)
-69. [T74-node-media-lifecycle.md](./tasks/T74-node-media-lifecycle.md) — 🚧 P0 M0+M1 done; M2–M6 next
-70. [T75-rebuild-vs-repaint.md](./tasks/T75-rebuild-vs-repaint.md) — 🚧 D2+D3+selection repaint done; LOD/theme repaint later
-71. [T76-diagram-facade-stores.md](./tasks/T76-diagram-facade-stores.md) — 📋 P1 D4: SelectionStore / ViewStateStore / DataStore (після T75)
-72. [REVIEW-dg-pr56-media-and-abstraction.md](./tasks/REVIEW-dg-pr56-media-and-abstraction.md) — 📋 D6 defects MediaService (M-A/B/C)
+69. [T74-node-media-lifecycle.md](./tasks/T74-node-media-lifecycle.md) — ✅ P0 M0–M4/M6 (+ M5 host blob docs); far skip + refresh + prefetch
+70. [T75-rebuild-vs-repaint.md](./tasks/T75-rebuild-vs-repaint.md) — 🚧 D2+D3+selection+epoch ✅; LOD/theme full rebuild remaining
+71. [T76-diagram-facade-stores.md](./tasks/T76-diagram-facade-stores.md) — ✅ D4 SelectionStore + ViewStateStore + DataStore
+72. [REVIEW-dg-pr56-media-and-abstraction.md](./tasks/REVIEW-dg-pr56-media-and-abstraction.md) — ✅ D6 M-A/B/C remediated in T74 M0
 
 ## Технічний борг
 
