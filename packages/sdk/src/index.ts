@@ -6,6 +6,7 @@ import { computeAllContoursInWorker, computeDeptContourInWorker } from './contou
 import { computeAllContours as computeAllContoursMain, computeDeptContour as computeDeptContourMain } from './contour/bridge.js';
 import { createIncrementalContourComputer, type IncrementalContourComputer } from './contour/incremental.js';
 import { PixiHost } from './render/PixiHost.js';
+import { MediaService, type DiagramMediaFacade, type MediaPlaceholderRegistry } from './media/index.js';
 import {
   defaultRenderConfig,
   mergeTheme,
@@ -83,8 +84,9 @@ export type {
   GridCell,
   Point2D,
   DiagramDataStats,
+  ThemedMedia,
 } from './data/types.js';
-export type { DiagramOrganization, DiagramPerson, DiagramPosition } from './data/types.js';
+export type { DiagramOrganization, DiagramPerson, DiagramPosition, DiagramGroup } from './data/types.js';
 export { emptyDiagramData, computeStats } from './data/types.js';
 
 export type { DataMapper, DiagramMappers, MapperContext, MapResult } from './mappers/types.js';
@@ -201,6 +203,22 @@ export {
   getOrgSymbolUrl,
   getInactiveOrgSymbolUrl,
 } from './render/index.js';
+export {
+  MediaService,
+  mediaCacheKey,
+  resolveThemedMediaUrl,
+  resolveThemedMediaFromOrganization,
+  resolveThemedMediaFromPerson,
+  resolveThemedMediaFromPosition,
+  resolveThemedMediaFromGroup,
+} from './media/index.js';
+export type {
+  DiagramMediaFacade,
+  MediaPlaceholderKind,
+  MediaPlaceholderRegistry,
+  MediaPlaceholderSet,
+  MediaServiceOptions,
+} from './media/index.js';
 export type {
   NodeTheme,
   ThemeMode,
@@ -340,6 +358,10 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
   lodThresholds?: LodThresholds;
   /** Enable DOM test anchors (`data-testid="node-*"`) — use with createTestAnchorOverlay (T55). */
   testAnchors?: boolean;
+  /** Per-diagram media placeholders keyed by host `entityType` (T74). */
+  mediaPlaceholders?: MediaPlaceholderRegistry;
+  /** Theme keys to prefetch besides active (T74 M4). */
+  prefetchMediaThemeKeys?: readonly string[];
 }
 
 /** Embed SDK — Pixi render + data/mappers + worker contour */
@@ -368,6 +390,7 @@ export class OrgHierarchyDiagram {
   private lodRenderQueued = false;
   private contourComputer: IncrementalContourComputer | null = null;
   private promoteSyncListeners = new Set<() => void>();
+  private mediaService: MediaService | null = null;
   static async create<TRaw>(
     container: HTMLElement,
     config: OrgHierarchyConfig<TRaw>,
@@ -420,8 +443,20 @@ export class OrgHierarchyDiagram {
       instance.notifyPromoteSync();
     });
     instance.lodLevel = resolveLodLevel(instance.host.getZoom(), instance.lodThresholds);
+    const resolvedTheme = resolveTheme(instance.themeMode);
+    instance.mediaService = new MediaService(resolvedTheme, config.mediaPlaceholders ?? { default: {} }, {
+      prefetchThemeKeys: config.prefetchMediaThemeKeys,
+    });
     await instance.render();
     return instance;
+  }
+
+  /** Per-diagram media loader / invalidation (T74). */
+  get media(): DiagramMediaFacade {
+    if (!this.mediaService) {
+      throw new Error('OrgHierarchyDiagram: media service not initialized');
+    }
+    return this.mediaService;
   }
 
   private notifyPromoteSync(): void {
@@ -842,6 +877,7 @@ export class OrgHierarchyDiagram {
 
   async setTheme(theme: 'light' | 'dark' | 'auto'): Promise<void> {
     this.themeMode = theme;
+    this.mediaService?.setActiveThemeKey(resolveTheme(theme));
     await this.render();
   }
 
@@ -1357,6 +1393,8 @@ export class OrgHierarchyDiagram {
 
   destroy(): void {
     this.promoteSyncListeners.clear();
+    void this.mediaService?.destroy();
+    this.mediaService = null;
     this.contourComputer?.invalidate();
     this.contourComputer = null;
     this.workerPool?.dispose();

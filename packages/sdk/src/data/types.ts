@@ -3,6 +3,13 @@ export type NodeVisualKind = 'organization' | 'department' | 'person' | 'positio
 
 export type PositionStatus = 'filled' | 'vacant' | 'acting';
 
+/** Theme-keyed media URLs (T74). Host supplies URLs; SDK loads textures. */
+export interface ThemedMedia {
+  fallback?: string;
+  byTheme?: Record<string, string>;
+  revision?: string | number;
+}
+
 /** Канонічна модель — те, з чим працює layout і render */
 export interface DiagramData {
   organizations: DiagramOrganization[];
@@ -40,6 +47,10 @@ export interface DiagramOrganization {
   periodEnd?: string | null;
   /** Preformatted period line from host (wins over SDK formatting). */
   periodLabel?: string;
+  /** Canonical themed symbol URLs (T74). Wins over legacy symbolUrl* when set. */
+  media?: ThemedMedia;
+  /** Host taxonomy key for placeholder SVG (e.g. military / civilian / group). */
+  entityType?: string;
   symbolUrl?: string;
   symbolUrlLight?: string;
   symbolUrlDark?: string;
@@ -61,6 +72,8 @@ export interface DiagramGroup {
   id: string;
   name: string;
   emblemUrl?: string;
+  media?: ThemedMedia;
+  entityType?: string;
 }
 
 export interface DiagramDepartment {
@@ -77,6 +90,8 @@ export interface DiagramPerson {
   id: string;
   fullName: string;
   photoUrl?: string;
+  media?: ThemedMedia;
+  entityType?: string;
   testId?: string;
 }
 
@@ -126,6 +141,8 @@ export interface DiagramPosition {
   isKeyPosition?: boolean;
   /** Pending assignment — hourglass marker (GoJS, distinct from isTemporary). */
   pending?: boolean;
+  media?: ThemedMedia;
+  entityType?: string;
   testId?: string;
 }
 

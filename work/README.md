@@ -113,6 +113,7 @@ npm run dev          # http://localhost:3000
 66. [T71-gojs-to-dg-migration-plan.md](./tasks/T71-gojs-to-dg-migration-plan.md) — ✅ **план міграції GoJS→dg** (cutover queue complete)
 67. [PARITY-gojs-to-dg.md](./tasks/PARITY-gojs-to-dg.md) — ✅ parity ред. 2.2 (вимога→можливість)
 68. [T72-types-algorithms-agreement.md](./tasks/T72-types-algorithms-agreement.md) — ✅ узгоджені типи + алгоритми P0 (+ fitContain)
+69. [T74-node-media-lifecycle.md](./tasks/T74-node-media-lifecycle.md) — 📋 P0/P1 media lazy load + hot refresh (skeleton)
 
 ## Технічний борг
 
