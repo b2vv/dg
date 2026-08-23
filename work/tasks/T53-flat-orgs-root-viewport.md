@@ -1,7 +1,7 @@
 # T53 — Flat orgs / 100k root click: viewport + interaction model
 
 **Пріоритет:** P0  
-**Статус:** in progress (partial fix on branch)  
+**Статус:** ✅ closed (2026-08-23) — SDK camera + demo click model + regression test  
 **Зв’язок:** T31, T48, T52
 
 ---
@@ -27,9 +27,9 @@ Layout після expand **не порожній** (`flatOrgRootExpand.test.ts` 
 ## Залишилось (acceptance)
 
 - [x] **100k:** прибрати tree `+/−` chrome на org-картках (align T48) — `orgTreeChrome: false` у demo config
-- [ ] **Flat orgs:** card click vs `+` — не подвоювати expand (T52 delegated hit-test вже відрізає chrome)
-- [ ] **Root expand row-tree:** опційно `fitView` коли subtree > N nodes (100k window 400)
-- [ ] Regression: `flatOrgRootViewport.test.ts` + demo integration «expand root → node box intersects viewport»
+- [x] **Flat orgs:** card click vs `+` — collapsed → expand; expanded → focus (chrome hit-test відрізає `+`)
+- [x] **Root expand row-tree:** `fitView` при першому matrix→row-tree transition
+- [x] Regression: `flatOrgRootViewport.test.ts` — child box intersects viewport after expand
 - [ ] Manual QA: Flat orgs org-1 `+` і click; 100k org-0 click in-window vs search `org-90000`
 
 ## Verify

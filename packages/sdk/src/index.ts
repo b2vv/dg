@@ -722,12 +722,19 @@ export class OrgHierarchyDiagram {
   }
 
   async expandOrg(orgId: string): Promise<void> {
+    const modeBefore = this.getOrgMode();
     this.data = {
       ...this.data,
       organizations: expandOrg(this.data.organizations, orgId),
     };
     this.callbacks.onOrgModeChange?.(this.getOrgMode());
     await this.render();
+    const modeAfter = this.getOrgMode();
+    // T53: first matrix→row-tree expand frames the whole visible subtree.
+    if (modeBefore === 'matrix' && modeAfter === 'row-tree') {
+      this.host?.fitView(48, { animate: true });
+      return;
+    }
     this.panToOrg(orgId, { animate: true });
   }
 
