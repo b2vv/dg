@@ -1,0 +1,179 @@
+/**
+ * Generates side-by-side + 50% overlay PNGs: diagram crop vs isolated SDK specimen.
+ * Output: work/tasks/node-compare/
+ *
+ * Run: npm run compare:nodes
+ */
+import { test } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const OUT_DIR = path.join(process.cwd(), 'work/tasks/node-compare');
+
+const SPECIMENS = [
+  { id: 'org-figma-root', tab: 'Orgs · Figma', testId: 'mockup-root' },
+  { id: 'org-gojs-hq', tab: 'Orgs · GoJS', testId: 'mockup-hq' },
+  { id: 'person-figma-head', tab: 'Staff · Figma', testId: 'staff-head' },
+  { id: 'person-figma-temp', tab: 'Staff · Figma', testId: 'staff-temp' },
+  { id: 'person-figma-vacant', tab: 'Staff · Figma', testId: 'staff-vacant' },
+  { id: 'person-gojs-head', tab: 'Staff · GoJS', testId: 'staff-head' },
+  { id: 'person-gojs-temp', tab: 'Staff · GoJS', testId: 'staff-temp' },
+] as const;
+
+async function openMockupTab(page: import('@playwright/test').Page, tab: string): Promise<void> {
+  await page.getByRole('button', { name: tab, exact: true }).click();
+  await page.waitForSelector('[data-testid="diagram-ready"]', { timeout: 60_000 });
+  await page.waitForTimeout(500);
+}
+
+async function compositeImages(
+  page: import('@playwright/test').Page,
+  diagramB64: string,
+  isolatedB64: string,
+  mode: 'side-by-side' | 'overlay',
+): Promise<Buffer> {
+  const outB64 = await page.evaluate(
+    async ({ diagram, isolated, mode }) => {
+      const load = (b64: string) =>
+        new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = `data:image/png;base64,${b64}`;
+        });
+
+      const [dImg, iImg] = await Promise.all([load(diagram), load(isolated)]);
+
+      if (mode === 'side-by-side') {
+        const labelH = 28;
+        const gap = 12;
+        const w = dImg.width + gap + iImg.width;
+        const h = Math.max(dImg.height, iImg.height) + labelH;
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = '#64748b';
+        ctx.font = '14px system-ui, sans-serif';
+        ctx.fillText('diagram crop', 0, 18);
+        ctx.fillText('isolated SDK', dImg.width + gap, 18);
+        ctx.drawImage(dImg, 0, labelH);
+        ctx.drawImage(iImg, dImg.width + gap, labelH);
+        return canvas.toDataURL('image/png').split(',')[1]!;
+      }
+
+      const w = Math.max(dImg.width, iImg.width);
+      const h = Math.max(dImg.height, iImg.height);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+      const ix = Math.round((w - iImg.width) / 2);
+      const iy = Math.round((h - iImg.height) / 2);
+      const dx = Math.round((w - dImg.width) / 2);
+      const dy = Math.round((h - dImg.height) / 2);
+      ctx.drawImage(iImg, ix, iy);
+      ctx.globalAlpha = 0.52;
+      ctx.drawImage(dImg, dx, dy);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+      return canvas.toDataURL('image/png').split(',')[1]!;
+    },
+    { diagram: diagramB64, isolated: isolatedB64, mode },
+  );
+  return Buffer.from(outB64, 'base64');
+}
+
+function writeGallery(specimenIds: readonly string[]): void {
+  const rows = specimenIds
+    .map(
+      (id) => `
+    <section>
+      <h2>${id}</h2>
+      <div class="pair">
+        <figure><img src="${id}-side-by-side.png" alt="${id} side by side" /><figcaption>diagram crop · isolated SDK</figcaption></figure>
+        <figure><img src="${id}-overlay.png" alt="${id} overlay" /><figcaption>52% overlay (ghost = mismatch)</figcaption></figure>
+      </div>
+    </section>`,
+    )
+    .join('\n');
+
+  const html = `<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <title>Node compare — diagram vs isolated SDK</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1.5rem; background: #f8fafc; color: #0f172a; }
+    h1 { font-size: 1.25rem; }
+    section { margin: 2rem 0; padding: 1rem; background: #fff; border-radius: 10px; border: 1px solid #e2e8f0; }
+    section h2 { font-size: 1rem; margin-bottom: 0.75rem; }
+    .pair { display: flex; flex-wrap: wrap; gap: 1rem; }
+    figure { margin: 0; }
+    img { max-width: 100%; height: auto; border: 1px solid #cbd5e1; border-radius: 6px; }
+    figcaption { font-size: 0.75rem; color: #64748b; margin-top: 0.35rem; }
+    .note { color: #64748b; font-size: 0.9rem; max-width: 48rem; }
+  </style>
+</head>
+<body>
+  <h1>Node compare — mockup diagram crop vs isolated SDK render</h1>
+  <p class="note">Generated by <code>npm run compare:nodes</code>.
+    <strong>Side-by-side:</strong> left = node clipped from live mockup tab; right = same data/styles rendered alone.
+    <strong>Overlay:</strong> isolated base + 52% diagram on top — double edges / offset text = chrome drift.</p>
+  ${rows}
+</body>
+</html>`;
+  fs.writeFileSync(path.join(OUT_DIR, 'index.html'), html);
+}
+
+test.describe('node compare generator', () => {
+  test('export diagram vs isolated PNG pairs', async ({ page }) => {
+    test.setTimeout(180_000);
+    fs.mkdirSync(OUT_DIR, { recursive: true });
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+
+    for (const spec of SPECIMENS) {
+      await page.goto('/?e2e=1');
+      await openMockupTab(page, spec.tab);
+      await page.evaluate(async (testId) => {
+        const bridge = (
+          window as unknown as {
+            __demoE2e?: { focusTestId(id: string): Promise<boolean> | undefined };
+          }
+        ).__demoE2e;
+        await bridge?.focusTestId(testId);
+      }, spec.testId);
+      await page.waitForTimeout(700);
+      const node = page.getByTestId(`node-${spec.testId}`);
+      await node.waitFor({ state: 'visible', timeout: 30_000 });
+      const diagramPath = path.join(OUT_DIR, `${spec.id}-diagram.png`);
+      await node.screenshot({ path: diagramPath });
+
+      await page.goto('/?node-compare=1');
+      await page.waitForSelector('[data-testid="node-compare-ready"]', { timeout: 60_000 });
+      const specimen = page.getByTestId(`specimen-${spec.id}`);
+      await specimen.waitFor({ state: 'visible' });
+      const isolatedPath = path.join(OUT_DIR, `${spec.id}-isolated.png`);
+      await specimen.screenshot({ path: isolatedPath });
+
+      const diagramB64 = fs.readFileSync(diagramPath).toString('base64');
+      const isolatedB64 = fs.readFileSync(isolatedPath).toString('base64');
+
+      const sideBySide = await compositeImages(page, diagramB64, isolatedB64, 'side-by-side');
+      fs.writeFileSync(path.join(OUT_DIR, `${spec.id}-side-by-side.png`), sideBySide);
+
+      const overlay = await compositeImages(page, diagramB64, isolatedB64, 'overlay');
+      fs.writeFileSync(path.join(OUT_DIR, `${spec.id}-overlay.png`), overlay);
+    }
+
+    writeGallery(SPECIMENS.map((s) => s.id));
+  });
+});
