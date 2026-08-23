@@ -8,6 +8,13 @@ import { VACANT_POSITION_LABEL } from './orgCardChrome.js';
 import type { PersonNodeStyle } from './types.js';
 import { attachMenuButton, attachIconButton, activateChromePointer, hitChromePointer, type ContextMenuPointer } from './nodeCardChrome.js';
 import type { FederatedPointerEvent } from 'pixi.js';
+import {
+  figmaRowAvatar,
+  figmaRowTextX,
+  gojsPortraitAvatar,
+  resolvePersonLayout,
+  type ResolvedPersonLayout,
+} from './personLayout.js';
 
 export interface PersonNodeExpandChrome {
   expanded: boolean;
@@ -240,15 +247,10 @@ export class PersonNodeView extends Container {
     this.card.stroke({ color: style.border, width: style.borderWidth });
 
     if (lod === 'near') {
-      if (isRowPersonCard(style)) {
-        const r = Math.min(height * 0.32, 22);
-        this.card.circle(padX(style) + r, height / 2, r);
-        this.card.fill({ color: this.avatarFill });
-      } else {
-        const r = Math.min(width, height) * 0.155;
-        this.card.circle(width / 2, height * 0.26, r);
-        this.card.fill({ color: this.avatarFill });
-      }
+      const layout = resolvePersonLayout(style);
+      const avatar = layout === 'figma-row' ? figmaRowAvatar(style) : gojsPortraitAvatar(style);
+      this.card.circle(avatar.cx, avatar.cy, avatar.r);
+      this.card.fill({ color: this.avatarFill });
     }
 
     this.hitArea = {
@@ -273,7 +275,8 @@ export class PersonNodeView extends Container {
       return;
     }
 
-    const row = isRowPersonCard(style) && lod === 'near';
+    const layout = resolvePersonLayout(style);
+    const row = layout === 'figma-row' && lod === 'near';
     const pad = Math.max(6, style.width * 0.06);
     const vacant = position.status === 'vacant' && !person?.fullName;
     const name = person?.fullName ?? (vacant ? VACANT_POSITION_LABEL : '—');
@@ -286,48 +289,16 @@ export class PersonNodeView extends Container {
     this.nameText.visible = true;
     this.nameText.text = name;
     this.nameText.style.fontSize = style.nameFontSize;
+    this.nameText.style.fontWeight = layout === 'figma-row' ? '600' : '600';
     this.nameText.style.fill = nameFill;
+    this.nameText.anchor.set(0, 0);
 
     if (row) {
-      const avatarR = Math.min(style.height * 0.32, 22);
-      const textX = padX(style) + avatarR * 2 + 10;
-      const maxTextW = Math.max(24, style.width - textX - pad);
-      truncatePixiText(this.nameText, maxTextW);
-      this.titleText.visible = true;
-      this.titleText.text = position.title;
-      this.titleText.style.fontSize = style.titleFontSize;
-      this.titleText.style.fill = style.titleColor;
-      truncatePixiText(this.titleText, maxTextW);
-      this.titleText.position.set(textX, style.height * 0.22);
-      this.nameText.position.set(textX, style.height * 0.52);
-      const initials = vacant ? '' : personInitials(person?.fullName);
-      this.initialsText.text = initials;
-      this.initialsText.style.fontSize = Math.max(10, avatarR * 0.7);
-      this.initialsText.position.set(padX(style) + avatarR, style.height / 2);
-      this.initialsText.visible = initials.length > 0;
+      this.layoutFigmaRowContent(person, position, style, vacant, nameFill);
+    } else if (layout === 'gojs-portrait' && lod === 'near') {
+      this.layoutGojsPortraitContent(person, position, style, pad, vacant);
     } else {
-      const maxTextW = Math.max(24, style.width - pad * 2);
-      truncatePixiText(this.nameText, maxTextW);
-      if (lod === 'mid') {
-        const h = Math.min(style.height, Math.max(56, style.height * 0.48));
-        const y0 = (style.height - h) / 2;
-        this.nameText.position.set(pad, y0 + h * 0.35);
-        this.titleText.visible = false;
-        this.initialsText.visible = false;
-      } else {
-        this.nameText.position.set(pad, style.height * 0.48);
-        this.titleText.visible = true;
-        this.titleText.text = position.title;
-        this.titleText.style.fontSize = style.titleFontSize;
-        this.titleText.style.fill = style.titleColor;
-        truncatePixiText(this.titleText, maxTextW);
-        this.titleText.position.set(pad, style.height * 0.64);
-        const initials = vacant ? '' : personInitials(person?.fullName);
-        this.initialsText.text = initials;
-        this.initialsText.style.fontSize = Math.max(11, Math.min(style.width, style.height) * 0.09);
-        this.initialsText.position.set(style.width / 2, style.height * 0.26);
-        this.initialsText.visible = initials.length > 0;
-      }
+      this.layoutCompactContent(person, position, style, lod, pad, vacant);
     }
 
     const showBadge = position.isTemporary;
@@ -343,7 +314,120 @@ export class PersonNodeView extends Container {
       this.badgeLabel.position.set(style.width - br - 4, br + 4);
     }
 
-    this.layoutPeriodChip(position, style, lod, pad);
+    this.layoutPeriodChip(position, style, lod, pad, layout);
+  }
+
+  /** Figma row: title above name, left text column. */
+  private layoutFigmaRowContent(
+    person: DiagramPerson | undefined,
+    position: DiagramPosition,
+    style: PersonNodeStyle,
+    vacant: boolean,
+    _nameFill: number,
+  ): void {
+    const avatar = figmaRowAvatar(style);
+    const textX = figmaRowTextX(avatar);
+    const pad = Math.max(6, style.width * 0.06);
+    const maxTextW = Math.max(24, style.width - textX - pad - (position.isTemporary ? 22 : 0));
+
+    this.titleText.visible = true;
+    this.titleText.text = position.title;
+    this.titleText.style.fontSize = style.titleFontSize;
+    this.titleText.style.fontWeight = '400';
+    this.titleText.style.fill = style.titleColor;
+    this.titleText.anchor.set(0, 0);
+    truncatePixiText(this.titleText, maxTextW);
+    this.titleText.position.set(textX, 14);
+
+    truncatePixiText(this.nameText, maxTextW);
+    this.nameText.position.set(textX, 34);
+
+    const initials = vacant ? '' : personInitials(person?.fullName);
+    this.initialsText.text = initials;
+    this.initialsText.style.fontSize = Math.max(11, avatar.r * 0.65);
+    this.initialsText.position.set(avatar.cx, avatar.cy);
+    this.initialsText.visible = initials.length > 0;
+  }
+
+  /** GoJS portrait: centered photo, name + title stacked below period band. */
+  private layoutGojsPortraitContent(
+    person: DiagramPerson | undefined,
+    position: DiagramPosition,
+    style: PersonNodeStyle,
+    pad: number,
+    vacant: boolean,
+  ): void {
+    const maxTextW = Math.max(24, style.width - pad * 2);
+    truncatePixiText(this.nameText, maxTextW);
+    this.nameText.position.set(pad, 92);
+
+    this.titleText.visible = true;
+    this.titleText.text = position.title;
+    this.titleText.style.fontSize = style.titleFontSize;
+    this.titleText.style.fontWeight = '400';
+    this.titleText.style.fill = style.titleColor;
+    this.titleText.anchor.set(0, 0);
+    truncatePixiText(this.titleText, maxTextW);
+    this.titleText.position.set(pad, 112);
+
+    const avatar = gojsPortraitAvatar(style);
+    const initials = vacant ? '' : personInitials(person?.fullName);
+    this.initialsText.text = initials;
+    this.initialsText.style.fontSize = Math.max(12, avatar.r * 0.7);
+    this.initialsText.position.set(avatar.cx, avatar.cy);
+    this.initialsText.visible = initials.length > 0;
+
+    if (vacant) {
+      this.titleText.visible = false;
+      this.nameText.anchor.set(0.5, 0);
+      this.nameText.position.set(style.width / 2, 96);
+    }
+  }
+
+  /** Mid/far compressed band — name (+ title for row). */
+  private layoutCompactContent(
+    person: DiagramPerson | undefined,
+    position: DiagramPosition,
+    style: PersonNodeStyle,
+    lod: LodLevel,
+    pad: number,
+    vacant: boolean,
+  ): void {
+    const maxTextW = Math.max(24, style.width - pad * 2);
+    truncatePixiText(this.nameText, maxTextW);
+    if (lod === 'mid') {
+      const h = Math.min(style.height, Math.max(56, style.height * 0.48));
+      const y0 = (style.height - h) / 2;
+      this.nameText.position.set(pad, y0 + h * 0.35);
+      this.titleText.visible = false;
+      this.initialsText.visible = false;
+    } else {
+      const layout = resolvePersonLayout(style);
+      if (layout === 'figma-row') {
+        this.titleText.visible = true;
+        this.titleText.text = position.title;
+        this.titleText.style.fontSize = style.titleFontSize;
+        this.titleText.style.fill = style.titleColor;
+        truncatePixiText(this.titleText, maxTextW);
+        this.titleText.position.set(pad, style.height * 0.22);
+        this.nameText.position.set(pad, style.height * 0.52);
+      } else {
+        this.nameText.position.set(pad, style.height * 0.48);
+        this.titleText.visible = true;
+        this.titleText.text = position.title;
+        this.titleText.style.fontSize = style.titleFontSize;
+        this.titleText.style.fill = style.titleColor;
+        truncatePixiText(this.titleText, maxTextW);
+        this.titleText.position.set(pad, style.height * 0.64);
+      }
+      const initials = vacant ? '' : personInitials(person?.fullName);
+      this.initialsText.text = initials;
+      this.initialsText.style.fontSize = Math.max(11, Math.min(style.width, style.height) * 0.09);
+      const avatar =
+        layout === 'figma-row' ? figmaRowAvatar(style) : gojsPortraitAvatar(style);
+      this.initialsText.position.set(avatar.cx, avatar.cy);
+      this.initialsText.visible = initials.length > 0;
+    }
   }
 
   /** E7: position period chip (shared formatter; not T68 org period line). */
@@ -352,6 +436,7 @@ export class PersonNodeView extends Container {
     style: PersonNodeStyle,
     lod: LodLevel,
     pad: number,
+    layout: ResolvedPersonLayout,
   ): void {
     const label = formatOrgPeriodLabel(position);
     const show = !!label;
@@ -370,18 +455,26 @@ export class PersonNodeView extends Container {
     const chipText = this.periodChipLabel.text;
     const estW = Math.min(maxChipW, Math.max(36, chipText.length * fs * 0.55 + 10));
     const estH = fs + 4;
-    const cx = style.width / 2;
+
+    let cx: number;
     let cy: number;
-    if (isRowPersonCard(style) && lod === 'near') {
-      cy = 4 + estH / 2;
+    if (layout === 'figma-row' && lod === 'near') {
+      cx = style.width - estW / 2 - (position.isTemporary ? 26 : 8);
+      cy = 6 + estH / 2;
+    } else if (layout === 'gojs-portrait' && lod === 'near') {
+      const avatar = gojsPortraitAvatar(style);
+      cx = style.width / 2;
+      cy = avatar.cy + avatar.r + 10 + estH / 2;
     } else if (lod === 'mid') {
       const h = Math.min(style.height, Math.max(56, style.height * 0.48));
       const y0 = (style.height - h) / 2;
+      cx = style.width / 2;
       cy = y0 + 10 + estH / 2;
     } else {
-      // Above name slot, below avatar disc.
-      cy = style.height * 0.4;
+      cx = style.width / 2;
+      cy = layout === 'figma-row' ? 6 + estH / 2 : style.height * 0.72;
     }
+
     const bx = cx - estW / 2;
     const by = cy - estH / 2;
     this.periodChip.clear();
@@ -419,12 +512,9 @@ export class PersonNodeView extends Container {
   }
 
   private showPhoto(texture: Texture, style: PersonNodeStyle): void {
-    const row = isRowPersonCard(style);
-    const r = row
-      ? Math.min(style.height * 0.32, 22)
-      : Math.min(style.width, style.height) * 0.155;
-    const cx = row ? padX(style) + r : style.width / 2;
-    const cy = row ? style.height / 2 : style.height * 0.26;
+    const layout = resolvePersonLayout(style);
+    const avatar = layout === 'figma-row' ? figmaRowAvatar(style) : gojsPortraitAvatar(style);
+    const { cx, cy, r } = avatar;
     const size = r * 2;
 
     this.photoSprite.texture = texture;
@@ -446,15 +536,6 @@ export class PersonNodeView extends Container {
     this.photoSprite.mask = null;
     this.photoMask.visible = false;
   }
-}
-
-/** Figma landscape seat: wide short card → photo left, text right. */
-function isRowPersonCard(style: PersonNodeStyle): boolean {
-  return style.width >= style.height * 1.4;
-}
-
-function padX(style: PersonNodeStyle): number {
-  return Math.max(8, style.height * 0.12);
 }
 
 function truncatePixiText(label: Text, maxWidth: number): void {

@@ -56,7 +56,15 @@ export interface PersonNodeStyle {
   temporaryNameColor?: number;
   /** Permanent / non-temp name color when temporaryNameColor is used. */
   permanentNameColor?: number;
+  /**
+   * Seat chrome template. `auto` = infer from aspect (legacy).
+   * `figma-row` = landscape Figma seat; `gojs-portrait` = GoJS / Variant B card.
+   */
+  personLayout?: PersonCardLayout;
 }
+
+/** Position seat visual template (T70 / mockup parity). */
+export type PersonCardLayout = 'auto' | 'figma-row' | 'gojs-portrait';
 
 export interface OrganizationNodeStyle {
   width: number;
@@ -191,6 +199,7 @@ export const defaultNodeTheme: NodeTheme = {
     periodChipTextColor: 0x15803d,
     periodChipFontSize: 9,
     vacantLabelColor: 0x64748b,
+    personLayout: 'gojs-portrait',
   },
   organization: {
     width: 200,
@@ -244,6 +253,7 @@ export const darkNodeTheme: NodeTheme = {
     periodChipTextColor: 0x4ade80,
     periodChipFontSize: 9,
     vacantLabelColor: 0x94a3b8,
+    personLayout: 'gojs-portrait',
   },
   organization: {
     width: 200,

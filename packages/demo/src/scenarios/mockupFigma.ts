@@ -375,6 +375,7 @@ export const MOCKUP_FIGMA_STYLES = {
     vacantLabelColor: 0x94a3b8,
     temporaryNameColor: 0xf97316,
     permanentNameColor: 0xf1f5f9,
+    personLayout: 'figma-row' as const,
   },
   staffZone: {
     fill: 0x1a222d,
@@ -438,6 +439,7 @@ export const MOCKUP_GOJS_STYLES = {
     vacantLabelColor: 0x64748b,
     temporaryNameColor: 0xea580c,
     permanentNameColor: 0x0f172a,
+    personLayout: 'gojs-portrait' as const,
   },
   staffZone: {
     fill: 0xf8fafc,

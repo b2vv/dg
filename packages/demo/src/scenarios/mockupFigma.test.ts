@@ -84,6 +84,7 @@ describe('mockup style tokens (approved)', () => {
     expect(p.height).toBe(72);
     expect(p.temporaryNameColor).toBe(0xf97316);
     expect(p.permanentNameColor).toBe(0xf1f5f9);
+    expect(p.personLayout).toBe('figma-row');
     expect(MOCKUP_FIGMA_STYLES.staffZone.dashed).toBe(true);
     expect(MOCKUP_FIGMA_STYLES.staffZone.stroke).toBe(0x3b82f6);
     expect(MOCKUP_FIGMA_STYLES.staffZone.labelAlign).toBe('right');
@@ -97,6 +98,7 @@ describe('mockup style tokens (approved)', () => {
     const p = MOCKUP_GOJS_STYLES.person;
     expect(p.width).toBe(136);
     expect(p.height).toBe(156);
+    expect(p.personLayout).toBe('gojs-portrait');
     expect(MOCKUP_GOJS_STYLES.staffZone.dashed).toBe(false);
     expect(MOCKUP_GOJS_STYLES.staffZone.labelAlign).toBe('left');
   });

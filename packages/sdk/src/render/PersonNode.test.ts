@@ -219,4 +219,86 @@ describe('PersonNodeView', () => {
     await view.mediaReady;
     expect(view.hasExpandButton()).toBe(true);
   });
+
+  it('figma-row: title above name, left text column', async () => {
+    const view = PersonNodeView.create(
+      { id: 'p1', fullName: 'Alex Morgan' },
+      {
+        id: 'pos1',
+        title: 'Regional Director',
+        organizationId: 'org1',
+        groupIds: [],
+        status: 'filled',
+        isTemporary: false,
+      },
+      {
+        ...defaultNodeTheme.person,
+        width: 248,
+        height: 72,
+        personLayout: 'figma-row',
+      },
+      'near',
+    );
+    await view.mediaReady;
+    const title = view.findText('Regional Director');
+    const name = view.findText('Alex Morgan');
+    expect(title).toBeTruthy();
+    expect(name).toBeTruthy();
+    expect(title!.position.y).toBe(14);
+    expect(name!.position.y).toBe(34);
+    expect(title!.position.x).toBeGreaterThan(40);
+    expect(name!.position.x).toBe(title!.position.x);
+  });
+
+  it('gojs-portrait: centered name + title below avatar band', async () => {
+    const view = PersonNodeView.create(
+      { id: 'p1', fullName: 'Alex Morgan' },
+      {
+        id: 'pos1',
+        title: 'Regional Director',
+        organizationId: 'org1',
+        groupIds: [],
+        status: 'filled',
+        isTemporary: false,
+      },
+      {
+        ...defaultNodeTheme.person,
+        width: 136,
+        height: 156,
+        personLayout: 'gojs-portrait',
+      },
+      'near',
+    );
+    await view.mediaReady;
+    const title = view.findText('Regional Director');
+    const name = view.findText('Alex Morgan');
+    expect(title).toBeTruthy();
+    expect(name).toBeTruthy();
+    expect(name!.position.y).toBe(92);
+    expect(title!.position.y).toBe(112);
+  });
+
+  it('gojs-portrait explicit wins over landscape aspect', async () => {
+    const view = PersonNodeView.create(
+      { id: 'p1', fullName: 'Alex Morgan' },
+      {
+        id: 'pos1',
+        title: 'Regional Director',
+        organizationId: 'org1',
+        groupIds: [],
+        status: 'filled',
+        isTemporary: false,
+      },
+      {
+        ...defaultNodeTheme.person,
+        width: 248,
+        height: 72,
+        personLayout: 'gojs-portrait',
+      },
+      'near',
+    );
+    await view.mediaReady;
+    const name = view.findText('Alex Morgan');
+    expect(name!.position.y).toBe(92);
+  });
 });

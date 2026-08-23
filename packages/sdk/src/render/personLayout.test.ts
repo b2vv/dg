@@ -1,0 +1,79 @@
+import { describe, expect, it } from 'vitest';
+import {
+  figmaRowAvatar,
+  figmaRowTextX,
+  gojsPortraitAvatar,
+  isExplicitLayout,
+  resolvePersonLayout,
+} from './personLayout.js';
+import type { PersonNodeStyle } from './types.js';
+
+function baseStyle(overrides: Partial<PersonNodeStyle> = {}): PersonNodeStyle {
+  return {
+    width: 136,
+    height: 156,
+    background: 0xffffff,
+    border: 0xcbd5e1,
+    borderWidth: 1,
+    borderRadius: 8,
+    nameColor: 0x0f172a,
+    titleColor: 0x475569,
+    nameFontSize: 12,
+    titleFontSize: 11,
+    badgeColor: 0xf59e0b,
+    badgeTextColor: 0xffffff,
+    avatarColor: 0x94a3b8,
+    ...overrides,
+  };
+}
+
+describe('resolvePersonLayout', () => {
+  it('honours explicit figma-row', () => {
+    expect(resolvePersonLayout(baseStyle({ personLayout: 'figma-row', width: 136, height: 156 }))).toBe(
+      'figma-row',
+    );
+  });
+
+  it('honours explicit gojs-portrait', () => {
+    expect(resolvePersonLayout(baseStyle({ personLayout: 'gojs-portrait', width: 248, height: 72 }))).toBe(
+      'gojs-portrait',
+    );
+  });
+
+  it('auto: landscape aspect → figma-row', () => {
+    expect(resolvePersonLayout(baseStyle({ width: 248, height: 72 }))).toBe('figma-row');
+  });
+
+  it('auto: portrait aspect → gojs-portrait', () => {
+    expect(resolvePersonLayout(baseStyle({ width: 136, height: 156 }))).toBe('gojs-portrait');
+  });
+});
+
+describe('avatar slots', () => {
+  it('figma row: photo left, vertically centered', () => {
+    const style = baseStyle({ width: 248, height: 72 });
+    const avatar = figmaRowAvatar(style);
+    expect(avatar.cx).toBeLessThan(style.width / 2);
+    expect(avatar.cy).toBe(style.height / 2);
+    expect(figmaRowTextX(avatar)).toBeGreaterThan(avatar.cx + avatar.r);
+  });
+
+  it('gojs portrait: photo top-center', () => {
+    const style = baseStyle({ width: 136, height: 156 });
+    const avatar = gojsPortraitAvatar(style);
+    expect(avatar.cx).toBe(style.width / 2);
+    expect(avatar.cy).toBeLessThan(style.height / 2);
+  });
+});
+
+describe('isExplicitLayout', () => {
+  it('returns true for figma-row and gojs-portrait', () => {
+    expect(isExplicitLayout('figma-row')).toBe(true);
+    expect(isExplicitLayout('gojs-portrait')).toBe(true);
+  });
+
+  it('returns false for auto or undefined', () => {
+    expect(isExplicitLayout('auto')).toBe(false);
+    expect(isExplicitLayout(undefined)).toBe(false);
+  });
+});
