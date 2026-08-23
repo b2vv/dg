@@ -23,6 +23,7 @@ import {
   resolvePersonLayout,
   type ResolvedPersonLayout,
 } from './personLayout.js';
+import { personVisualLocalRect } from './personVisualGeometry.js';
 
 export interface PersonNodeExpandChrome {
   expanded: boolean;
@@ -225,11 +226,10 @@ export class PersonNodeView extends Container {
     const layout = resolvePersonLayout(style);
     if (layout === 'gojs-row') return;
 
-    const h = lod === 'mid' ? Math.min(style.height, Math.max(56, style.height * 0.48)) : style.height;
-    const y0 = lod === 'mid' ? (style.height - h) / 2 : 0;
+    const visual = personVisualLocalRect(style.width, style.height, lod);
     let x = 4;
     if (options.onContextMenu) {
-      const menu = attachMenuButton(this.chromeControls, style.width, y0 + 4, options.onContextMenu, x);
+      const menu = attachMenuButton(this.chromeControls, style.width, visual.y + 4, options.onContextMenu, x);
       menu.label = 'person-menu';
       x += 28;
     }
@@ -237,7 +237,7 @@ export class PersonNodeView extends Container {
       const expand = attachIconButton(
         this.chromeControls,
         x,
-        y0 + 4,
+        visual.y + 4,
         options.expand.expanded ? '▲' : '▼',
         options.expand.expanded ? 'Collapse reports' : 'Expand reports',
         options.expand.onToggle,
@@ -302,9 +302,14 @@ export class PersonNodeView extends Container {
       const h = cardH + countBarH;
       this.hoverRing.roundRect(-2, cardY - 2, style.width + 4, h + 4, style.borderRadius + 2);
     } else {
-      const h = this.lod === 'mid' ? Math.min(style.height, Math.max(56, style.height * 0.48)) : style.height;
-      const y0 = this.lod === 'mid' ? (style.height - h) / 2 : 0;
-      this.hoverRing.roundRect(-2, y0 - 2, style.width + 4, h + 4, style.borderRadius + 2);
+      const visual = personVisualLocalRect(style.width, style.height, this.lod);
+      this.hoverRing.roundRect(
+        visual.x - 2,
+        visual.y - 2,
+        visual.width + 4,
+        visual.height + 4,
+        style.borderRadius + 2,
+      );
     }
     this.hoverRing.stroke({ color: 0x2563eb, width: 2 });
     this.hoverRing.visible = true;
@@ -323,15 +328,23 @@ export class PersonNodeView extends Container {
     this.avatarTile.clear();
 
     if (lod === 'far') {
-      const r = Math.max(6, Math.min(width, style.height) * 0.18);
-      this.card.circle(width / 2, style.height / 2, r);
+      const visual = personVisualLocalRect(width, style.height, 'far');
+      const r = visual.width / 2;
+      this.card.circle(visual.x + r, visual.y + r, r);
       this.card.fill({ color: this.avatarFill });
       this.card.stroke({ color: style.border, width: 1 });
-      this.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= width && y <= style.height };
+      this.hitArea = hitAreaFromRect(visual);
       return;
     }
 
     const layout = resolvePersonLayout(style);
+    const gojsRowNear = layout === 'gojs-row' && lod === 'near';
+    if (!gojsRowNear) {
+      const visual = personVisualLocalRect(width, style.height, lod);
+      cardY = visual.y;
+      cardH = visual.height;
+    }
+
     let stroke = style.border;
     const detached = layout === 'gojs-row' && position.detached === true;
     if (layout === 'gojs-row') {
@@ -362,9 +375,10 @@ export class PersonNodeView extends Container {
       this.card.fill({ color: this.avatarFill });
     }
 
-    this.hitArea = {
-      contains: (x, y) => x >= 0 && y >= 0 && x <= width && y <= style.height,
-    };
+    this.hitArea =
+      gojsRowNear
+        ? { contains: (x, y) => x >= 0 && y >= 0 && x <= width && y <= style.height }
+        : hitAreaFromRect(personVisualLocalRect(width, style.height, lod));
   }
 
   /** Detached seat — [5,3] dashed overlay on card border. */
@@ -434,11 +448,21 @@ export class PersonNodeView extends Container {
     }
 
     const vacant = position.status === 'vacant';
-    const gojsRow = layout === 'gojs-row' && lod === 'near';
-    const cardY = gojsRow ? (this.gojsLayout?.cardY ?? 0) : 0;
-    const cardH = gojsRow ? (this.gojsLayout?.cardH ?? style.height) : style.height;
+    const gojsRowNear = layout === 'gojs-row' && lod === 'near';
+    let cardY = 0;
+    let cardH = style.height;
+    if (gojsRowNear) {
+      cardY = this.gojsLayout?.cardY ?? 0;
+      cardH = this.gojsLayout?.cardH ?? style.height;
+    } else {
+      const visual = personVisualLocalRect(style.width, style.height, lod);
+      cardY = visual.y;
+      cardH = visual.height;
+    }
 
     this.drawCard(style, lod, position, cardY, cardH);
+
+    const gojsRow = gojsRowNear;
 
     const name =
       vacant && gojsRow
@@ -849,4 +873,11 @@ function truncatePixiText(label: Text, maxWidth: number): void {
   const maxChars = Math.max(1, Math.floor(maxWidth / (fontSize * 0.58)));
   if (raw.length <= maxChars) return;
   label.text = `${raw.slice(0, Math.max(1, maxChars - 1))}…`;
+}
+
+function hitAreaFromRect(rect: { x: number; y: number; width: number; height: number }) {
+  return {
+    contains: (x: number, y: number) =>
+      x >= rect.x && y >= rect.y && x <= rect.x + rect.width && y <= rect.y + rect.height,
+  };
 }

@@ -27,6 +27,13 @@ export {
   mapStaffEdgeBoxesForLod,
 } from './visualEdgeBox.js';
 export {
+  personVisualLocalRect,
+  personVisualWorldRect,
+  personMidBandHeight,
+  personFarDotRadius,
+} from './personVisualGeometry.js';
+export type { PersonVisualRect } from './personVisualGeometry.js';
+export {
   nudgeContourClearOfBoxes,
   contourCardClearanceMargin,
   CONTOUR_OWN_PADDING_PX,

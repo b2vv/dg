@@ -46,14 +46,15 @@ describe('visualPersonEdgeBox', () => {
     expect(ep.y1).toBeLessThan(156); // not full-card bottom
   });
 
-  it('failure: far ports must not use full-card bottom (layout bug)', () => {
-    const a = visualPersonEdgeBox(full, 'far');
-    const b = visualPersonEdgeBox(
-      { id: 'q', x: 10, y: 200, width: 136, height: 156 },
-      'far',
-    );
-    const ep = staffEdgeEndpoints(a, b);
-    expect(ep.y1).toBeLessThan(full.y + full.height - 1);
+  it('success: near Variant B admin ports dock to card borders (T44 A2)', () => {
+    const p2 = { id: 'P2', x: 0, y: 0, width: 136, height: 156 };
+    const p4 = { id: 'P4', x: 0, y: 200, width: 136, height: 156 };
+    const near2 = visualPersonEdgeBox(p2, 'near');
+    const near4 = visualPersonEdgeBox(p4, 'near');
+    const ep = staffEdgeEndpoints(near2, near4);
+    expect(ep.y1).toBe(near2.y + near2.height);
+    expect(ep.y2).toBe(near4.y);
+    expect(ep.x1).toBeCloseTo(near2.x + near2.width / 2);
   });
 });
 

@@ -1,7 +1,7 @@
 # T44 — Аналіз ескіза магнетизму vs звʼязки при зумі
 
 **Пріоритет:** P0 (читабельність edges при zoom/LOD)  
-**Статус:** mostly done (A1 ✅ T45; A2–A4 open)
+**Статус:** done (A1 ✅ T45; A3 ✅; A2/A4 ✅ T44 visual AABB)
 **Джерело:** ескізи користувача (far dots + near cards), Variant B  
 **Не плутати:** **магнетизм контуру** ≠ **admin report edges**
 
@@ -145,11 +145,11 @@ Hit-test / selection / edges / promote — один helper, щоб LOD знов�
 
 ## 7. Регресії
 
-- [ ] Near: P4→P2/P5/P6 і P2→P1/P3 стикуються до border карток  
-- [ ] Mid/far: порти на mid-card / dot, без «хвостів» у порожнечі  
-- [ ] Zoom across LOD bands: edges не стрибають відносно chrome  
-- [ ] Contour: IT centers in, CEO out (T34/T43)  
-- [ ] SVG parity з canvas ports  
+- [x] Near: P4→P2/P5/P6 і P2→P1/P3 стикуються до border карток  
+- [x] Mid/far: порти на mid-card / dot, без «хвостів» у порожнечі  
+- [x] Zoom across LOD bands: edges не стрибають відносно chrome (shared `personVisualGeometry`)  
+- [x] Contour: IT centers in, CEO out (T34/T43)  
+- [x] SVG parity з canvas ports  
 
 ---
 
