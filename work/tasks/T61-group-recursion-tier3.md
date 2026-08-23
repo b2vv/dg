@@ -55,3 +55,7 @@ DiagramOrganization.groupIds: string[]  // лише посилання для ca
 ## Verify
 
 N/A до старту фічі.
+
+## Mockup (deferred)
+
+Figma: [casiopeya](https://www.figma.com/design/alw0l86pqoZzpO8ofhjWjb/casiopeya) — nodes `1264-7906` (посади), `1264-8122` (організації). Implement after Figma MCP Connect or PNG export.
