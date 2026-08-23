@@ -133,9 +133,25 @@ describe('mapPositionNodesToStaffEdgeBoxes', () => {
     const boxes = mapPositionNodesToStaffEdgeBoxes(
       [{ id: 'pos-1', x: 0, y: 0, width: 200, height: 98 }],
       positionById,
-      { personLayout: 'gojs-row', cardRowHeight: 56 } as PersonNodeStyle,
+      { personLayout: 'gojs-row', cardRowHeight: 56 } satisfies Pick<
+        PersonNodeStyle,
+        'personLayout' | 'cardRowHeight'
+      > as PersonNodeStyle,
     );
     expect(boxes[0]?.personEdgeHints?.layout).toBe('gojs-row');
     expect(visualPersonEdgeBox(boxes[0]!, 'near').height).toBe(56 + 24);
+  });
+
+  it('failure: portrait theme omits gojs-row hints', () => {
+    const positionById = new Map<string, DiagramPosition>([
+      ['pos-1', { id: 'pos-1', organizationId: 'org-1', periodStart: '2024-01-01' }],
+    ]);
+    const boxes = mapPositionNodesToStaffEdgeBoxes(
+      [{ id: 'pos-1', x: 0, y: 0, width: 136, height: 156 }],
+      positionById,
+      { personLayout: 'gojs-portrait' } satisfies Pick<PersonNodeStyle, 'personLayout'> as PersonNodeStyle,
+    );
+    expect(boxes[0]?.personEdgeHints).toBeUndefined();
+    expect(visualPersonEdgeBox(boxes[0]!, 'near').height).toBe(156);
   });
 });
