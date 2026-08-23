@@ -6,7 +6,7 @@ export type {
   MediaServiceOptions,
   DiagramMediaFacade,
 } from './types.js';
-export { mediaCacheKey, resolveThemedMediaUrl } from './types.js';
+export { mediaCacheKey, mediaCacheKeyMatchesUrl, resolveThemedMediaUrl } from './types.js';
 export {
   resolveThemedMediaFromOrganization,
   resolveThemedMediaFromPerson,

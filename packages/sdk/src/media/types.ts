@@ -37,10 +37,17 @@ export interface DiagramMediaFacade {
   destroy(): Promise<void>;
 }
 
+/** Always `${url}::${revision ?? 0}` — absent revision ≡ 0 (T74 / D6 M-B). */
 export function mediaCacheKey(url: string, revision?: string | number): string {
   const trimmed = url.trim();
-  if (revision == null || revision === '') return trimmed;
-  return `${trimmed}::${revision}`;
+  const rev = revision == null || revision === '' ? 0 : revision;
+  return `${trimmed}::${rev}`;
+}
+
+/** Raw URL prefix match for cache keys (`url` or `url::…`). */
+export function mediaCacheKeyMatchesUrl(key: string, url: string): boolean {
+  const trimmed = url.trim();
+  return key === trimmed || key.startsWith(`${trimmed}::`);
 }
 
 export function resolveThemedMediaUrl(

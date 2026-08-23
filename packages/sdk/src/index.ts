@@ -185,6 +185,10 @@ export {
   loadNodeTexture,
   configureNodeTextureLoader,
   clearNodeTextureCache,
+  evictNodeTextureCache,
+  acquireNodeTextureUrl,
+  releaseNodeTextureUrl,
+  nodeTextureUrlOwnerCount,
   isAllowedNodeMediaUrl,
   worldBoxToScreen,
   resolvePromoteIds,
@@ -206,6 +210,7 @@ export {
 export {
   MediaService,
   mediaCacheKey,
+  mediaCacheKeyMatchesUrl,
   resolveThemedMediaUrl,
   resolveThemedMediaFromOrganization,
   resolveThemedMediaFromPerson,

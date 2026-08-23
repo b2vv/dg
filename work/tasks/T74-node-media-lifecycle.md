@@ -1,9 +1,12 @@
 # T74 — Node media lifecycle (lazy load + hot refresh)
 
-**Пріоритет:** P0 (M1–M3) / P1 (M4–M6)  
-**Статус:** design agreed · skeleton in progress  
+**Пріоритет:** P0 (M0–M3) / P1 (M4–M6)  
+**Статус:** design agreed · skeleton remediating D6  
 **Базис:** `dg@805efee` · еталон: `cassiopeia-admin-ui@gamma`  
-**Grilling:** 2026-08-23 (Q1–Q29 closed)
+**Grilling:** 2026-08-23 (Q1–Q29 closed)  
+**Арх. review:** [REVIEW-dg-805efee](../tech-debt/REVIEW-dg-805efee-architecture.md) D6 · [PR56 media review](./REVIEW-dg-pr56-media-and-abstraction.md)
+
+**Паралельно з [T75](./T75-rebuild-vs-repaint.md)** (D2→D1+D3). M1 **не** кличе повний `render()`.
 
 ---
 
@@ -14,7 +17,7 @@
 | **Host** | байти (HTTP, IndexedDB LRU, `blob:`, cross-tab invalidation) |
 | **SDK** | текстури (load, cache, LOD, GPU release, hot refresh, placeholders) |
 
-Персистентність у SDK **не** додаємо.
+Персистентність у SDK **не** додаємо (brief §5).
 
 ---
 
@@ -22,64 +25,62 @@
 
 | Термін | Значення в `dg` сьогодні | У T74 |
 |--------|--------------------------|-------|
-| **`NodeVisualKind`** | `organization` \| `department` \| `person` \| `position` — тип **вузла на canvas** | без змін |
-| **`entityType`** | **немає** | вільний `string` з хоста: `military`, `civilian`, **`group`**, … — **підтип org-сутності** + ключ **placeholder SVG** |
-| **`DiagramGroup`** | запис у `data.groups[]`; caption на org-картці (`groupIds[0]` → **name text**) | **caption-only** (`id`, `name`); без `media` / `emblemUrl` (Q29) |
-| **`groupIds[]` на org** | посилання на групу для **підпису**, не зона | без змін у T74 |
-| **T61 group zone** | рекурсивна **зона** tier-3 (майбутнє) | **не** T74 |
-
-**Ризик плутанини:** слово «group» = (a) `entityType: 'group'` — підтип org, (b) `DiagramGroup` — caption record, (c) T61 zone — майбутня зона. T74 закриває (a)/(b); (c) лишається T61.
+| **`NodeVisualKind`** | `organization` \| `department` \| `person` \| `position` | без змін |
+| **`entityType`** | **немає** | підтип org + ключ placeholder (`military` \| `civilian` \| **`group`** \| …) |
+| **`DiagramGroup`** | caption на org (`groupIds[0]` → name) | **caption-only**; без media (Q29) |
+| **`groupIds[]` на org** | підпис, не зона | без змін |
+| **T61 group zone** | рекурсивна зона | **не** T74 |
 
 ### 1.1 Рішення (Q27–Q29)
 
-| # | Питання | Відповідь |
-|---|---------|-----------|
-| **Q27·A** | Що таке `entityType: 'group'`? | **Підвид org-сутності** (taxonomy), не окремий `NodeVisualKind`. Org з `entityType: 'group'` — звичайний org-вузол на canvas. |
-| **Q28** | Де малюється symbol/emblem для group-org? | **Як symbol org-ноди** — `DiagramOrganization.media` + той самий `MediaService` / `applySymbol()`, що для `military` / `civilian`. Окремого paint path для `DiagramGroup` немає. |
-| **Q29** | `DiagramGroup.emblemUrl` / `DiagramGroup.media`? | **Не розширюємо.** Caption record лише `id` + `name`. Медіа — на org (`media` + `entityType: 'group'`). Legacy `emblemUrl` deprecated; новий код не використовує. |
-
-**Наслідок для M1:** group-org проходить той самий org media pipeline; placeholder key = `entityType` (`group` або host override).
+| # | Відповідь |
+|---|-----------|
+| **Q27·A** | `entityType: 'group'` = **підвид org**, не окремий visual kind |
+| **Q28** | Symbol на **org-ноді** через `org.media` + той самий `MediaService` |
+| **Q29** | `DiagramGroup` = `id`+`name`; legacy `emblemUrl` deprecated |
 
 ---
 
 ## 2. Модель даних
 
-### 2.1 `ThemedMedia` (канон)
+### 2.1 `ThemedMedia`
 
 ```ts
 interface ThemedMedia {
-  /** Fallback for any themeKey missing in byTheme. */
   fallback?: string;
   byTheme?: Record<string, string>;
-  /** Cache-bust when bytes change under same URL (M2). */
   revision?: string | number;
 }
 ```
 
-### 2.2 Поля на сутностях
+### 2.2 Поля
 
-| Сутність | Нове поле | Legacy (deprecated, `media` wins) |
-|----------|-----------|----------------------------------|
-| `DiagramOrganization` | `media?: ThemedMedia`, `entityType?: string` | `symbolUrl`, `symbolUrlLight`, `symbolUrlDark` |
-| `DiagramPerson` | `media?: ThemedMedia`, `entityType?: string` | `photoUrl` |
-| `DiagramPosition` | `media?: ThemedMedia`, `entityType?: string` | — |
-| `DiagramGroup` | id, name only (caption) | `emblemUrl` **deprecated** — use org `media` + `entityType: 'group'` (Q29) |
+| Сутність | Нове | Legacy (`media` wins) |
+|----------|------|------------------------|
+| `DiagramOrganization` | `media?`, `entityType?` | `symbolUrl*` |
+| `DiagramPerson` | `media?`, `entityType?` | `photoUrl` |
+| `DiagramPosition` | `media?`, `entityType?` | — |
+| `DiagramGroup` | id, name | `emblemUrl` deprecated |
 
 ### 2.3 Теми (Q9·A)
 
-- `themeKey: string` — довільний (`light`, `dark`, `high-contrast`, …).
-- Active key з діаграми після resolve `auto`.
-- Resolve: `byTheme[themeKey] ?? fallback ?? undefined`.
-
-### 2.4 Legacy bridge (Q19·C, **deprecated**)
-
-`resolveThemedMediaFromOrg/Person/Group/Position` — map legacy URLs → `ThemedMedia`; `@deprecated` use `media` on entity.
+`themeKey: string`; resolve: `byTheme[themeKey] ?? fallback`.
 
 ---
 
-## 3. `MediaService` (per diagram, Q11·A)
+## 3. `MediaService` (per diagram)
 
-Instance on `OrgHierarchyDiagram`; public via `diagram.media`.
+Public: `diagram.media`.
+
+### 3.0 D6 remediation (M0 — обовʼязково до/разом із M1)
+
+| ID | Дефект | Fix |
+|----|--------|-----|
+| **M-A** | Global `nodeMedia` cache не чиститься → destroyed Texture | `evictNodeTextureCache` з `invalidate`/`release` |
+| **M-B** | `revision` не в loader | `loadNodeTexture(url, revision)`; ключ завжди `url::${revision??0}` |
+| **M-C** | `ownedUrls` без exclusive ownership | refcount `acquire`/`release`; unload лише при 0 |
+
+Єдиний production load path після M1: **`diagram.media.loadTexture`**. Прямий `loadNodeTexture` у нодах — прибрати.
 
 ### 3.1 Cache key
 
@@ -87,7 +88,7 @@ Instance on `OrgHierarchyDiagram`; public via `diagram.media`.
 ${url}::${revision ?? 0}
 ```
 
-Pixi `Assets`: unload by **raw URL** on invalidate (Assets unaware of revision).
+Pixi `Assets`: unload by **raw URL** (Assets unaware of revision). Зміна revision → invalidate URL → load.
 
 ### 3.2 API (P0)
 
@@ -102,32 +103,24 @@ interface DiagramMediaFacade {
 }
 ```
 
-### 3.3 Placeholders (Q15·B, Q16 entityType, Q17·C, Q20·A)
+### 3.3 Placeholders (Q15·B, Q17·C, Q20·A)
 
-```ts
-type MediaPlaceholderKind = 'loading' | 'error' | 'far';
+`loading` \| `error` \| `far` keyed by `entityType` + `default`.  
+Person defaults → initials. Far LOD (M6): skip load, show `far`. **Не** прибирати person `near` gate (`PersonNode.ts:273`).
 
-placeholders: Record<string /* entityType | 'default' */, Partial<Record<MediaPlaceholderKind, string>>>
-```
+### 3.4 Invalidate / hot refresh (M1)
 
-- **Org/position:** SDK default SVG data-URIs; host override per `entityType`.
-- **Person:** defaults → **initials**; optional SVG override per `entityType`.
-- **Loading:** show immediately (Q20·A), swap to texture or error.
-- **Far LOD (M6/Q4·A):** skip network load; show `far` placeholder (Q14).
-
-### 3.4 Invalidate flow (M1, Q6·C)
-
-1. `cache.delete` all keys with URL prefix + `Assets.unload(url)`
-2. Find live views bound to URL → `applyMedia()` / `applySymbol()` / `applyPhoto()`
-3. Fallback: `DiagramRenderer.render()` if view not found
+1. instance cache delete + **global evict** + `Assets.unload` (через refcount release→0 або force invalidate)
+2. Live views → `applySymbol` / `applyPhoto` (**point update**)
+3. **Заборонено** як primary: `DiagramRenderer.render()` / full rebuild (D1). Emergency only.
 
 ### 3.5 Destroy (M3)
 
-Track URLs loaded by **this** instance → unload on `destroy()`; do not touch other diagrams.
+`release` усіх URL цього інстансу; unload+evict лише якщо refcount = 0 (інші діаграми живі).
 
-### 3.6 Blob / revoked URL (M5, Q7)
+### 3.6 Blob / revoked (M5, Q7)
 
-One attempt → cache failure → error placeholder; no retry/prefetch requeue.
+One attempt → failure cached → error placeholder; no retry storm.
 
 ---
 
@@ -135,27 +128,28 @@ One attempt → cache failure → error placeholder; no retry/prefetch requeue.
 
 | ID | Pri | Опис |
 |----|-----|------|
-| **M1** | P0 | Dual cache invalidate + point sprite refresh |
-| **M2** | P0 | `ThemedMedia.revision` in cache key + invalidate API |
-| **M3** | P0 | `destroy()` owned URL cleanup |
-| **M4** | P1 | Default prefetch via `prefetchMediaThemeKeys` (Q12·B) |
+| **M0** | P0 | D6 fix: evict global + revision in loader + refcount ownership |
+| **M1** | P0 | Nodes → `diagram.media`; invalidate + point sprite refresh |
+| **M2** | P0 | revision end-to-end (covered largely by M0; API polish) |
+| **M3** | P0 | `destroy()` via refcount |
+| **M4** | P1 | `prefetchMediaThemeKeys` (Q12·B) |
 | **M5** | P1 | Docs: host revoke after `destroy()` |
 | **M6** | P1 | Far LOD skip load + far placeholder |
-| **M7** | — | Out of scope (viewport prefetch) |
+| **M7** | — | Out of scope |
 
-**Не в T74:** `patchNode` general chrome → **T75** (Q1b·C).
+**Не в T74:** general chrome `patchNode` → окремо після T75; god-object → T76.
 
 ---
 
 ## 5. Acceptance
 
-- [ ] `invalidate(url)` clears SDK map + Pixi Assets; sprite updates without `setData`
+- [ ] M-A/B/C з [PR56 review](./REVIEW-dg-pr56-media-and-abstraction.md)
+- [ ] `invalidate(url)` → instance + global + Assets; sprite update **without** `setData` / full render
 - [ ] Same URL + new `revision` → new load
-- [ ] `destroy()` → instance cache empty; second diagram unaffected
-- [ ] Theme flip with `prefetchMediaThemeKeys: ['light','dark']` → no network
-- [ ] Far LOD: no `loadTexture` for org symbol
+- [ ] Two diagrams, same URL: destroy first ≠ unload while second holds
+- [ ] Far LOD: no load for org symbol (M6)
 - [ ] Revoked blob → one fail, error placeholder
-- [ ] Loading/error/far placeholders per `entityType` (+ `default`)
+- [ ] Placeholders per `entityType` (+ `default`)
 - [ ] `npm run typecheck`, `npm test`, `npm run test:verify`
 
 ---
@@ -165,9 +159,10 @@ One attempt → cache failure → error placeholder; no retry/prefetch requeue.
 - IndexedDB / persistent cache in SDK
 - Change URL allowlist (`blob:` stays)
 - Remove person photo LOD gate at `near`
-- T61 group zone paint (until mockup)
+- T61 group zone paint
 - M7 viewport prefetch
-- `DiagramGroup.emblemUrl` / `DiagramGroup.media` — **не розширювати**; org `media` only (Q29)
+- `DiagramGroup.media` / expand `emblemUrl`
+- Full-scene `render()` as media refresh path (D1)
 
 ---
 
@@ -183,6 +178,7 @@ npm run test:verify
 
 ## 8. Related
 
+- [T75](./T75-rebuild-vs-repaint.md) rebuild/repaint/queue (D1–D3)
+- [T76](./T76-diagram-facade-stores.md) facade stores (D4)
+- [T61](./T61-group-recursion-tier3.md) group zones ≠ `entityType: 'group'`
 - [T73](./T73-remaining-agreements.md) E11 prefetch
-- [T61](./T61-group-recursion-tier3.md) group zones (окремо від `entityType: 'group'`, Q27)
-- Host brief: media lazy + hot update (2026-08-23)

@@ -3,6 +3,7 @@ import { Texture } from 'pixi.js';
 import {
   clearNodeTextureCache,
   configureNodeTextureLoader,
+  evictNodeTextureCache,
   isAllowedNodeMediaUrl,
   loadNodeTexture,
 } from './nodeMedia.js';
@@ -31,17 +32,29 @@ describe('loadNodeTexture', () => {
     clearNodeTextureCache();
   });
 
-  it('success: returns texture from loader and caches by url', async () => {
+  it('success: returns texture from loader and caches by url+revision', async () => {
     const tex = Texture.WHITE;
     const loader = vi.fn(async () => tex);
     configureNodeTextureLoader(loader);
 
     const a = await loadNodeTexture('/a.png');
     const b = await loadNodeTexture('/a.png');
+    const c = await loadNodeTexture('/a.png', 1);
 
     expect(a).toBe(tex);
     expect(b).toBe(tex);
-    expect(loader).toHaveBeenCalledTimes(1);
+    expect(c).toBe(tex);
+    expect(loader).toHaveBeenCalledTimes(2);
+  });
+
+  it('success: evict clears all revisions for url', async () => {
+    const loader = vi.fn(async () => Texture.WHITE);
+    configureNodeTextureLoader(loader);
+    await loadNodeTexture('/e.png', 0);
+    await loadNodeTexture('/e.png', 1);
+    evictNodeTextureCache('/e.png');
+    await loadNodeTexture('/e.png', 0);
+    expect(loader).toHaveBeenCalledTimes(3);
   });
 
   it('failure: empty url → null without calling loader', async () => {
