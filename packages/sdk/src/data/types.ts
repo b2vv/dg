@@ -118,6 +118,14 @@ export interface DiagramPosition {
   periodStart?: string;
   periodEnd?: string | null;
   periodLabel?: string;
+  /** GoJS row 2 — direct report count badge. */
+  childrenCount?: number;
+  /** GoJS row 2 — all descendant count badge. */
+  allDescendantCount?: number;
+  /** Key position — brand stroke + name color (GoJS). */
+  isKeyPosition?: boolean;
+  /** Pending assignment — hourglass marker (GoJS, distinct from isTemporary). */
+  pending?: boolean;
   testId?: string;
 }
 

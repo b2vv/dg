@@ -13,6 +13,9 @@ export interface PersonAvatarSlot {
   cx: number;
   cy: number;
   r: number;
+  /** Square avatar side (GoJS row). */
+  size?: number;
+  borderRadius?: number;
 }
 
 /** Figma landscape seat — photo left, title + name stacked right. */
@@ -26,11 +29,12 @@ export function figmaRowTextX(avatar: PersonAvatarSlot): number {
   return avatar.cx + avatar.r + 10;
 }
 
-/** GoJS landscape row — 28×28 avatar left. */
-export function gojsRowAvatar(style: PersonNodeStyle): PersonAvatarSlot {
-  const r = 14;
-  const cx = 10 + r;
-  return { cx, cy: style.height / 2, r };
+/** GoJS landscape row — 28×28 rounded-square avatar left. */
+export function gojsRowAvatar(style: PersonNodeStyle, cardY = 0): PersonAvatarSlot {
+  const size = 28;
+  const cardH = style.cardRowHeight ?? 56;
+  const cx = 8 + size / 2;
+  return { cx, cy: cardY + cardH / 2, r: size / 2, size, borderRadius: 6 };
 }
 
 export function gojsRowTextX(avatar: PersonAvatarSlot): number {
@@ -46,9 +50,10 @@ export function gojsPortraitAvatar(style: PersonNodeStyle): PersonAvatarSlot {
 export function avatarForLayout(
   layout: ResolvedPersonLayout,
   style: PersonNodeStyle,
+  cardY = 0,
 ): PersonAvatarSlot {
   if (layout === 'figma-row') return figmaRowAvatar(style);
-  if (layout === 'gojs-row') return gojsRowAvatar(style);
+  if (layout === 'gojs-row') return gojsRowAvatar(style, cardY);
   return gojsPortraitAvatar(style);
 }
 

@@ -11,6 +11,16 @@ export function brandMarkSymbol(mark: string, fill = '#5b9bd5'): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
+/** Wide banner symbol (~400×200) for full-bleed org cards. */
+export function fullBleedOrgSymbol(label: string, fill = '#64748b'): string {
+  const safe = label.replace(/[<>&"']/g, '').slice(0, 12) || 'ORG';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200">
+    <rect width="400" height="200" fill="${fill}"/>
+    <text x="200" y="112" text-anchor="middle" font-size="42" font-family="system-ui,sans-serif" font-weight="700" fill="#0f172a">${safe}</text>
+  </svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
 /**
  * Figma-style org tree topology:
  * root → mid → five peer children (sibling dashed chrome in demo).
@@ -81,6 +91,7 @@ export function buildMockupOrgsFigmaData(): DiagramData {
  */
 export function buildMockupOrgsGojsData(): DiagramData {
   const logo = (mark: string) => brandMarkSymbol(mark, '#94a3b8');
+  const banner = fullBleedOrgSymbol('EMEA');
   return {
     organizations: [
       {
@@ -104,10 +115,20 @@ export function buildMockupOrgsGojsData(): DiagramData {
         collapsed: false,
         childrenCount: 5,
         allDescendantCount: 5,
-        symbolUrl: logo('EO'),
-        symbolUrlLight: logo('EO'),
-        symbolUrlDark: logo('EO'),
+        symbolUrl: banner,
+        symbolUrlLight: banner,
+        symbolUrlDark: banner,
         unitCode: 'EU-12',
+      },
+      {
+        id: 'org-no-symbol',
+        name: 'Nordic Desk',
+        fullName: 'Nordic Regional Operations Desk',
+        parentOrgId: 'org-hq',
+        groupIds: [],
+        collapsed: false,
+        testId: 'mockup-no-symbol',
+        unitCode: 'NO-01',
       },
       ...[
         ['org-berlin', 'Berlin Hub', 0, 0, false, true],
@@ -161,7 +182,10 @@ function staffPosition(
 }
 
 /** Shared civilian staff topology for Figma vs GoJS card chrome. */
-function buildStaffTopology(card: { width: number; height: number }): DiagramData {
+function buildStaffTopology(
+  card: { width: number; height: number },
+  gojs = false,
+): DiagramData {
   return {
     organizations: [
       { id: 'holding', name: 'Lumen Holdings', groupIds: [], collapsed: false },
@@ -207,6 +231,9 @@ function buildStaffTopology(card: { width: number; height: number }): DiagramDat
         personId: 'p-head',
         isHead: true,
         testId: 'staff-head',
+        ...(gojs
+          ? { isKeyPosition: true, childrenCount: 3, allDescendantCount: 5 }
+          : {}),
         },
         card,
       ),
@@ -217,7 +244,8 @@ function buildStaffTopology(card: { width: number; height: number }): DiagramDat
           organizationId: 'region',
           departmentId: 'exec',
           personId: 'p-1z',
-          isTemporary: true,
+          isTemporary: !gojs,
+          ...(gojs ? { pending: true } : {}),
           periodStart: '2018-06-27',
           periodEnd: null,
           testId: 'staff-temp',
@@ -251,6 +279,7 @@ function buildStaffTopology(card: { width: number; height: number }): DiagramDat
           organizationId: 'region',
           departmentId: 'ops',
           personId: 'p-sup',
+          ...(gojs ? { detached: true } : {}),
         },
         card,
       ),
@@ -325,7 +354,7 @@ export function buildMockupStaffFigmaData(): DiagramData {
 
 /** GoJS staff: landscape row seats (production card). */
 export function buildMockupStaffGojsData(): DiagramData {
-  return buildStaffTopology({ width: 200, height: 56 });
+  return buildStaffTopology({ width: 200, height: 98 }, true);
 }
 
 /** @deprecated Use buildMockupOrgsFigmaData */
@@ -408,7 +437,7 @@ export const MOCKUP_GOJS_STYLES = {
     borderRadius: 10,
     nameColor: 0xf1f5f9,
     groupColor: 0xcbd5e1,
-    nameFontSize: 13,
+    nameFontSize: 14,
     groupFontSize: 11,
     symbolSize: 80,
     symbolWidth: 80,
@@ -418,34 +447,47 @@ export const MOCKUP_GOJS_STYLES = {
     orgCardLayout: 'gojs-vertical' as const,
     hidePeriodOnCard: true,
     tempMarkerStyle: 'hourglass' as const,
+    hideMenuChrome: true,
+    gojsTreeExpander: true,
+    brandColor: 0x2563eb,
     periodColor: 0x4ade80,
     metaColor: 0x94a3b8,
-    metaFontSize: 10,
+    metaFontSize: 11,
     badgeColor: 0xf59e0b,
     badgeTextColor: 0xffffff,
     countsBadgeBackground: 0x334155,
     countsBadgeTextColor: 0xe2e8f0,
-    countsBadgeFontSize: 9,
+    countsBadgeFontSize: 13,
   },
   person: {
     width: 200,
-    height: 56,
+    height: 98,
+    cardRowHeight: 56,
     background: 0x1e293b,
     border: 0x475569,
     borderWidth: 1.5,
     borderRadius: 10,
     nameColor: 0xf1f5f9,
     titleColor: 0xcbd5e1,
-    nameFontSize: 12,
+    nameFontSize: 13,
     titleFontSize: 11,
     badgeColor: 0xf59e0b,
     badgeTextColor: 0xffffff,
     avatarColor: 0x64748b,
-    periodChipBackground: 0x14532d,
-    periodChipTextColor: 0x4ade80,
+    avatarPlaceholderColor: 0x475569,
+    periodChipBackground: 0x334155,
+    periodChipTextColor: 0xcbd5e1,
+    periodChipFontSize: 12,
+    timelineDotColor: 0x4ade80,
     vacantLabelColor: 0x94a3b8,
     temporaryNameColor: 0xea580c,
     permanentNameColor: 0xf1f5f9,
+    brandColor: 0x2563eb,
+    pendingColor: 0xf59e0b,
+    detachedBorderColor: 0x64748b,
+    countBarBackground: 0x334155,
+    countBarTextColor: 0xe2e8f0,
+    countBarFontSize: 11,
     personLayout: 'gojs-row' as const,
   },
   staffZone: {

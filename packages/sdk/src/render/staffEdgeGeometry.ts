@@ -219,7 +219,7 @@ export function staffEdgePolyline(
   // Cross-tier: head → org card — prefer straight vertical from manager bottom.
   if (kind === 'cross-tier') {
     const vert = verticalPolyline(from, to);
-    if (vert && isClean(vert, from, to) && !others.some((box) => polylineHitsBoxInterior(vert, box))) {
+    if (vert && isClean(vert, from, to)) {
       return vert;
     }
   }

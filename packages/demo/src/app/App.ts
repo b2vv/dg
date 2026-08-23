@@ -644,7 +644,7 @@ export class App {
             tierGap: 48,
             margin: 28,
             nodeWidth: 200,
-            nodeHeight: 56,
+            nodeHeight: 98,
             orgCardWidth: 220,
             orgCardHeight: 121,
             refCellWidth: 220,

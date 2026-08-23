@@ -93,13 +93,24 @@ export function attachIconButton(
 }
 
 /** Manual hit-test for chrome controls (Pixi child targeting can miss small buttons). */
+function chromeBtnSize(child: Container): { w: number; h: number } {
+  const ha = child.hitArea;
+  if (ha && typeof ha === 'object' && 'width' in ha && 'height' in ha) {
+    const w = Number((ha as { width: number }).width);
+    const h = Number((ha as { height: number }).height);
+    if (w > 0 && h > 0) return { w, h };
+  }
+  return { w: BTN, h: BTN };
+}
+
 export function hitChromePointer(chromeControls: Container, e: FederatedPointerEvent): boolean {
   if (chromeControls.children.length === 0) return false;
   const local = e.getLocalPosition(chromeControls);
   for (const child of chromeControls.children) {
+    const { w, h } = chromeBtnSize(child);
     const bx = child.x;
     const by = child.y;
-    if (local.x >= bx && local.x <= bx + BTN && local.y >= by && local.y <= by + BTN) {
+    if (local.x >= bx && local.x <= bx + w && local.y >= by && local.y <= by + h) {
       return true;
     }
   }
@@ -110,9 +121,10 @@ export function activateChromePointer(chromeControls: Container, e: FederatedPoi
   if (!hitChromePointer(chromeControls, e)) return false;
   const local = e.getLocalPosition(chromeControls);
   for (const child of chromeControls.children) {
+    const { w, h } = chromeBtnSize(child);
     const bx = child.x;
     const by = child.y;
-    if (local.x >= bx && local.x <= bx + BTN && local.y >= by && local.y <= by + BTN) {
+    if (local.x >= bx && local.x <= bx + w && local.y >= by && local.y <= by + h) {
       const handler = chromeHandlers.get(child);
       if (handler) {
         handler(e);
