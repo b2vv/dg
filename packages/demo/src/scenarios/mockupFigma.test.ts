@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { layoutStaffCanvas } from '@org-hierarchy/sdk';
 import {
   brandMarkSymbol,
   buildMockupOrgsFigmaData,
@@ -57,12 +58,12 @@ describe('mockup fixtures (GH Pages safe)', () => {
     expect(JSON.stringify(gojs)).not.toMatch(MILITARY_HINT);
   });
 
-  it('staff: temp + period + vacant + dotted cross-org edge', () => {
+  it('staff: temp + period + vacant; no cross-tier dotted edge', () => {
     const data = buildMockupStaffFigmaData();
     expect(data.positions.some((p) => p.isTemporary && p.periodStart)).toBe(true);
     expect(data.positions.some((p) => p.status === 'vacant')).toBe(true);
-    expect(data.reportLines.some((l) => l.kind === 'dotted')).toBe(true);
-    expect(data.organizations.some((o) => o.id === 'region')).toBe(true);
+    expect(data.reportLines.some((l) => l.kind === 'dotted')).toBe(false);
+    expect(data.organizations.some((o) => o.id === 'unit-current')).toBe(true);
   });
 });
 
@@ -98,5 +99,29 @@ describe('mockup style tokens (approved)', () => {
     expect(p.height).toBe(156);
     expect(MOCKUP_GOJS_STYLES.staffZone.dashed).toBe(false);
     expect(MOCKUP_GOJS_STYLES.staffZone.labelAlign).toBe('left');
+  });
+
+  it('staff layout: unit-current expand places tier-3 seats', async () => {
+    const data = buildMockupStaffFigmaData();
+    const canvas = await layoutStaffCanvas(
+      {
+        organizations: data.organizations,
+        positions: data.positions,
+        reports: data.reportLines,
+        groups: data.groups,
+        departments: data.departments,
+        persons: data.persons,
+      },
+      'region',
+      {
+        expandedOrgIds: ['unit-current'],
+        nodeWidth: 248,
+        nodeHeight: 72,
+        orgCardWidth: 220,
+        orgCardHeight: 56,
+      },
+    );
+    expect(canvas.orgCards.find((c) => c.orgId === 'unit-current')?.expanded).toBe(true);
+    expect(canvas.positionNodes.some((n) => n.tier === 3 && n.id === 'pos-u-h')).toBe(true);
   });
 });

@@ -79,6 +79,14 @@ describe('Viewport', () => {
     expect((0 + 50) * t.scale + t.y).toBeCloseTo(150); // center y
   });
 
+  it('success: fitBounds minScale floor prevents over-zoom-out', () => {
+    const world = fakeWorld();
+    const vp = new Viewport(world, { minScale: 0.1, maxScale: 4 });
+    vp.setScreenSize(2000, 1500);
+    expect(vp.fitBounds({ x: 0, y: 0, width: 200, height: 120 }, 28, { minScale: 1 })).toBe(true);
+    expect(vp.getZoom()).toBeGreaterThanOrEqual(1);
+  });
+
   it('failure: fitBounds rejects empty bounds', () => {
     const world = fakeWorld();
     const vp = new Viewport(world);

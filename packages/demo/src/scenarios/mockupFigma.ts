@@ -26,6 +26,7 @@ export function buildMockupOrgsFigmaData(): DiagramData {
         name: 'Cedar Lake Group',
         groupIds: [],
         collapsed: false,
+        testId: 'mockup-root',
         filledCount: 1,
         vacantCount: 6,
         symbolUrl: root,
@@ -39,6 +40,7 @@ export function buildMockupOrgsFigmaData(): DiagramData {
         parentOrgId: 'org-root',
         groupIds: [],
         collapsed: false,
+        testId: 'mockup-mid',
         filledCount: 5,
         vacantCount: 5,
         symbolUrl: mid,
@@ -87,6 +89,7 @@ export function buildMockupOrgsGojsData(): DiagramData {
         name: 'Brightside Holdings',
         groupIds: [],
         collapsed: false,
+        testId: 'mockup-hq',
         filledCount: 12,
         vacantCount: 3,
         symbolUrl: logo('BH'),
@@ -181,6 +184,7 @@ function buildStaffTopology(card: { width: number; height: number }): DiagramDat
         parentOrgId: 'region',
         groupIds: [],
         collapsed: false,
+        testId: 'mockup-unit',
       },
     ],
     groups: [],
@@ -191,7 +195,7 @@ function buildStaffTopology(card: { width: number; height: number }): DiagramDat
       { id: 'ops2', name: 'Unit operations', organizationId: 'unit-current' },
     ],
     persons: [
-      { id: 'p-head', fullName: 'Avery Chen', photoUrl: DEMO_AVATAR_PNG },
+      { id: 'p-head', fullName: 'Avery Chen', photoUrl: DEMO_AVATAR_PNG, testId: 'staff-head' },
       { id: 'p-1z', fullName: 'Jordan Blake', photoUrl: DEMO_AVATAR_PNG },
       { id: 'p-2z', fullName: 'Morgan Lee', photoUrl: DEMO_AVATAR_PNG },
       { id: 'p-ops', fullName: 'Riley Quinn', photoUrl: DEMO_AVATAR_PNG },
@@ -202,12 +206,13 @@ function buildStaffTopology(card: { width: number; height: number }): DiagramDat
     positions: [
       staffPosition(
         {
-          id: 'pos-head',
-          title: 'Regional director',
-          organizationId: 'region',
-          departmentId: 'exec',
-          personId: 'p-head',
-          isHead: true,
+        id: 'pos-head',
+        title: 'Regional director',
+        organizationId: 'region',
+        departmentId: 'exec',
+        personId: 'p-head',
+        isHead: true,
+        testId: 'staff-head',
         },
         card,
       ),
@@ -270,8 +275,9 @@ function buildStaffTopology(card: { width: number; height: number }): DiagramDat
           title: 'Unit manager',
           organizationId: 'unit-current',
           departmentId: 'exec2',
-          personId: 'p-u1',
-          isHead: true,
+        personId: 'p-u1',
+        isHead: true,
+        testId: 'unit-head',
         },
         card,
       ),
@@ -300,14 +306,16 @@ function buildStaffTopology(card: { width: number; height: number }): DiagramDat
       ),
     ],
     reportLines: [
+      // Executive: director → three direct reports
       { fromId: 'pos-head', toId: 'pos-1z', kind: 'admin' },
       { fromId: 'pos-head', toId: 'pos-2z', kind: 'admin' },
       { fromId: 'pos-head', toId: 'pos-ops', kind: 'admin' },
+      // Operations chain under first deputy
       { fromId: 'pos-1z', toId: 'pos-sup', kind: 'admin' },
       { fromId: 'pos-sup', toId: 'pos-vac', kind: 'admin' },
+      // Current business unit (tier-3 expand)
       { fromId: 'pos-u-h', toId: 'pos-u-2', kind: 'admin' },
       { fromId: 'pos-u-h', toId: 'pos-u-sup', kind: 'admin' },
-      { fromId: 'pos-1z', toId: 'pos-u-h', kind: 'dotted' },
     ],
   };
 }

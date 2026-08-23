@@ -76,7 +76,10 @@ export class PixiHost {
   }
 
   /** Fit content bounds into the screen. Returns false if nothing to fit. */
-  fitView(padding = 48, motion?: CameraMotionOptions): boolean {
+  fitView(
+    padding = 48,
+    motion?: CameraMotionOptions & { minScale?: number },
+  ): boolean {
     const bounds = this.renderer.getContentBounds();
     if (!bounds || !this.viewport) return false;
     return this.viewport.fitBounds(bounds, padding, motion);

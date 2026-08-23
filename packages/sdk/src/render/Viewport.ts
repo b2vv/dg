@@ -120,6 +120,7 @@ export class Viewport {
   computeFitTransform(
     bounds: { x: number; y: number; width: number; height: number },
     padding = 48,
+    minScale?: number,
   ): ViewportTransform | null {
     if (
       !Number.isFinite(bounds.x) ||
@@ -136,7 +137,7 @@ export class Viewport {
     const availH = Math.max(1, this.screenHeight - pad * 2);
     const nextScale = clamp(
       Math.min(availW / bounds.width, availH / bounds.height),
-      this.minScale,
+      minScale ?? this.minScale,
       this.maxScale,
     );
     const cx = bounds.x + bounds.width / 2;
@@ -155,9 +156,9 @@ export class Viewport {
   fitBounds(
     bounds: { x: number; y: number; width: number; height: number },
     padding = 48,
-    motion?: CameraMotionOptions,
+    motion?: CameraMotionOptions & { minScale?: number },
   ): boolean {
-    const target = this.computeFitTransform(bounds, padding);
+    const target = this.computeFitTransform(bounds, padding, motion?.minScale);
     if (!target) return false;
     this.goTo(target, motion);
     return true;

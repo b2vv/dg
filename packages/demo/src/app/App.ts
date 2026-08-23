@@ -65,10 +65,26 @@ const GOJS_MOCKUP_TABS: ReadonlySet<DemoTab> = new Set([
   'mockup-orgs-gojs',
   'mockup-staff-gojs',
 ]);
+const ALL_MOCKUP_TABS: ReadonlySet<DemoTab> = new Set([
+  ...FIGMA_MOCKUP_TABS,
+  ...GOJS_MOCKUP_TABS,
+]);
+
+/** Keep mockup cards at mid/near LOD — avoid fitView zoom-out to symbol-only far LOD (<0.45). */
+const MOCKUP_FIT_MIN_SCALE = 0.55;
 
 export interface ContourControls {
   paddingCells: number;
   smoothIterations: number;
+}
+
+/** Playwright hooks when `?e2e=1`. */
+export interface DemoE2eBridge {
+  collapseOrg(orgId: string): Promise<void> | undefined;
+  toggleStaffOrg(orgId: string): Promise<boolean> | undefined;
+  focusTestId(testId: string): Promise<boolean> | undefined;
+  getStaffExpandedOrgIds(): string[];
+  getZoom(): number;
 }
 
 export class App {
@@ -322,6 +338,13 @@ export class App {
           interactive: true,
         });
         this.mountEl.setAttribute('data-testid', 'diagram-ready');
+        (window as unknown as { __demoE2e?: DemoE2eBridge }).__demoE2e = {
+          collapseOrg: (orgId: string) => this.diagram?.collapseOrg(orgId),
+          toggleStaffOrg: (orgId: string) => this.diagram?.toggleStaffOrgExpand(orgId),
+          focusTestId: (testId: string) => this.diagram?.focusByTestId(testId),
+          getStaffExpandedOrgIds: () => this.diagram?.getStaffExpandedOrgIds() ?? [],
+          getZoom: () => this.diagram?.getZoom() ?? 0,
+        };
       }
       this.mountZoomFab();
       if (this.tab === 'staff-tree') {
@@ -343,13 +366,20 @@ export class App {
       } else {
         this.setStatus(`${this.tabLabel()} · zoom ${this.diagram.getZoom().toFixed(2)}`);
       }
-      this.diagram.fitView(28, { animate: false });
+      this.fitDiagramView();
+      this.setStatus(`${this.tabLabel()} · zoom ${this.diagram!.getZoom().toFixed(2)}`);
       this.mountSceneCaption();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       showError(this.mountEl, msg);
       this.setStatus(`Error: ${msg}`);
     }
+  }
+
+  private fitDiagramView(motion: { animate?: boolean } = { animate: false }): boolean {
+    if (!this.diagram) return false;
+    const minScale = ALL_MOCKUP_TABS.has(this.tab) ? MOCKUP_FIT_MIN_SCALE : undefined;
+    return this.diagram.fitView(28, { ...motion, minScale });
   }
 
   private zoomDiagram(factor: number): void {
@@ -371,8 +401,8 @@ export class App {
       const action = btn.dataset.zoom;
       if (action === 'in') this.zoomDiagram(1.25);
       else if (action === 'out') this.zoomDiagram(0.8);
-      else if (action === 'fit' && this.diagram?.fitView(28, { animate: true })) {
-        this.setStatus(`${this.tabLabel()} · fit · zoom ${this.diagram.getZoom().toFixed(2)}`);
+      else if (action === 'fit' && this.fitDiagramView({ animate: true })) {
+        this.setStatus(`${this.tabLabel()} · fit · zoom ${this.diagram?.getZoom().toFixed(2) ?? '—'}`);
       }
     });
     this.mountEl.appendChild(fab);
@@ -540,6 +570,7 @@ export class App {
           data: buildMockupStaffFigmaData(),
           styles: MOCKUP_FIGMA_STYLES,
           staffCurrentOrgId: 'region',
+          staffExpandedOrgIds: ['unit-current'],
           staffLayout: {
             horizontalGap: 36,
             verticalGap: 40,
@@ -568,6 +599,7 @@ export class App {
           data: buildMockupStaffGojsData(),
           styles: MOCKUP_GOJS_STYLES,
           staffCurrentOrgId: 'region',
+          staffExpandedOrgIds: ['unit-current'],
           staffLayout: {
             horizontalGap: 40,
             verticalGap: 52,

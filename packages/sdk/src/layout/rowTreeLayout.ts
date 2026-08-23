@@ -1,7 +1,8 @@
 import type { DiagramOrganization, DiagramOrgLink } from '../data/types.js';
 import { computeMatrixLayout } from './matrixLayout.js';
-import { detectOrgMode, findExpandedRootId } from './orgMode.js';
+import { detectOrgMode, findExpandedRootId, isOrgCollapsed } from './orgMode.js';
 import { validateOrgHierarchy } from './orgTree.js';
+import { OrgHierarchyError } from './orgTree.js';
 import {
   DEFAULT_ORG_LAYOUT_OPTIONS,
   type OrgLayoutOptions,
@@ -20,6 +21,25 @@ function toOrgFlatInput(organizations: DiagramOrganization[]): OrgFlatInput[] {
   }));
 }
 
+function visibleOrgsForRowTree(
+  organizations: DiagramOrganization[],
+  expandedRootId: string,
+): DiagramOrganization[] {
+  const byId = new Map(organizations.map((o) => [o.id, o]));
+  const visible = new Set<string>();
+  const walk = (id: string) => {
+    if (!byId.has(id)) return;
+    visible.add(id);
+    const org = byId.get(id)!;
+    if (isOrgCollapsed(org)) return;
+    for (const child of organizations) {
+      if (child.parentOrgId === id) walk(child.id);
+    }
+  };
+  walk(expandedRootId);
+  return organizations.filter((o) => visible.has(o.id));
+}
+
 export async function computeOrgRowTreeLayout(
   organizations: DiagramOrganization[],
   expandedRootId: string,
@@ -27,8 +47,12 @@ export async function computeOrgRowTreeLayout(
 ): Promise<OrgLayoutResult> {
   validateOrgHierarchy(organizations);
   const opts = { ...DEFAULT_ORG_LAYOUT_OPTIONS, ...options };
+  if (!organizations.some((o) => o.id === expandedRootId)) {
+    throw new OrgHierarchyError(`Unknown organization: ${expandedRootId}`);
+  }
+  const visible = visibleOrgsForRowTree(organizations, expandedRootId);
 
-  const raw = await computeOrgRowTreeLayoutWasm(toOrgFlatInput(organizations), expandedRootId, {
+  const raw = await computeOrgRowTreeLayoutWasm(toOrgFlatInput(visible), expandedRootId, {
     direction: 'vertical',
     nodeWidth: opts.nodeWidth,
     nodeHeight: opts.nodeHeight,

@@ -262,7 +262,9 @@ export class OrganizationNodeView extends Container {
 
     if (lod === 'far') {
       const size = Math.min(style.symbolSize, 36);
-      this.card.roundRect(0, (height - size) / 2, size, size, 6);
+      const x = (width - size) / 2;
+      const y = (height - size) / 2;
+      this.card.roundRect(x, y, size, size, 6);
       this.card.fill({ color: style.background });
       this.card.stroke({ color: style.border, width: style.borderWidth });
       this.hitArea = {

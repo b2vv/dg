@@ -334,6 +334,8 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
   orgLayout?: OrgLayoutOptions;
   /** Show +/− tree expand/collapse chrome on org cards (default true). Set false for 100k scale tab (T48). */
   orgTreeChrome?: boolean;
+  /** Pre-expanded staff tier-3 org cards (e.g. mockup unit drill-in). */
+  staffExpandedOrgIds?: readonly string[];
   /** Enable DOM test anchors (`data-testid="node-*"`) — use with createTestAnchorOverlay (T55). */
   testAnchors?: boolean;
 }
@@ -384,6 +386,9 @@ export class OrgHierarchyDiagram {
     instance.staffLayout = config.staffLayout ?? {};
     instance.orgLayout = config.orgLayout ?? {};
     instance.orgTreeChrome = config.orgTreeChrome ?? true;
+    if (config.staffExpandedOrgIds?.length) {
+      instance.staffExpandedOrgIds = new Set(config.staffExpandedOrgIds);
+    }
 
     const workerFactory = config.workerFactory ?? createTransformWorker;
     instance.workerFactory = workerFactory;
@@ -1194,7 +1199,10 @@ export class OrgHierarchyDiagram {
   }
 
   /** Fit all rendered nodes into the viewport. Returns false if empty. */
-  fitView(padding = 48, motion: CameraMotionOptions = { animate: true }): boolean {
+  fitView(
+    padding = 48,
+    motion: CameraMotionOptions & { minScale?: number } = { animate: true },
+  ): boolean {
     const ok = this.host?.fitView(padding, motion) ?? false;
     if (ok && motion.animate !== true) {
       this.onViewportTransform(this.host?.getZoom() ?? 1);
