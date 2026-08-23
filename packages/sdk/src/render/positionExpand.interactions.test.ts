@@ -119,4 +119,42 @@ describe('OrgHierarchyDiagram position expand (T66)', () => {
     diagram.destroy();
     document.body.removeChild(container);
   });
+
+  it('success: cap eviction emits expand callbacks for victims', async () => {
+    const onLayoutChange = vi.fn();
+    const onPositionExpandChange = vi.fn();
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: treeData(),
+      staffCurrentOrgId: 'o1',
+      useWorker: false,
+      staffLayout: {
+        staffCoordMode: 'tree',
+        collapseUnexpandedPositions: true,
+        maxExpandedPositions: 1,
+      },
+      callbacks: { onLayoutChange, onPositionExpandChange },
+    });
+    await diagram.togglePositionExpand('root');
+    onLayoutChange.mockClear();
+    onPositionExpandChange.mockClear();
+    await diagram.togglePositionExpand('mid');
+    expect(onLayoutChange).toHaveBeenCalledWith({
+      type: 'position-expand',
+      positionId: 'root',
+      expanded: false,
+    });
+    expect(onPositionExpandChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        positionId: 'mid',
+        expanded: true,
+        changedIds: expect.arrayContaining(['mid', 'root']),
+      }),
+    );
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
 });

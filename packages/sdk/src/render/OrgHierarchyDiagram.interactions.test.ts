@@ -216,4 +216,33 @@ describe('OrgHierarchyDiagram interactions', () => {
     diagram.destroy();
     document.body.removeChild(container);
   });
+
+  it('success: focusByTestId expands collapsed org then selects', async () => {
+    const onSelectionChange = vi.fn();
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: {
+        ...makeData(),
+        organizations: [
+          { id: 'root', name: 'Root', groupIds: [], collapsed: true, testId: 'root' },
+          { id: 'org1', name: 'Demo Org', groupIds: [], parentOrgId: 'root', collapsed: true },
+        ],
+      },
+      useWorker: false,
+      callbacks: { onSelectionChange },
+    });
+    expect(diagram.getData().organizations.find((o) => o.id === 'root')?.collapsed).toBe(true);
+    const ok = await diagram.focusByTestId('root');
+    expect(ok).toBe(true);
+    expect(diagram.getData().organizations.find((o) => o.id === 'root')?.collapsed).toBe(false);
+    expect(diagram.getSelection()?.id).toBe('root');
+    expect(onSelectionChange).toHaveBeenCalledWith([
+      expect.objectContaining({ kind: 'organization', id: 'root' }),
+    ]);
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
 });

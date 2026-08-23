@@ -888,15 +888,29 @@ export class OrgHierarchyDiagram {
     }
 
     const max = this.staffLayout.maxExpandedPositions ?? Number.POSITIVE_INFINITY;
+    const evicted: string[] = [];
     if (Number.isFinite(max)) {
       while (this.staffExpandedPositionIds.size >= max) {
         const victim = this.staffExpandedPositionIds.values().next().value as string | undefined;
         if (victim === undefined) break;
         this.setPositionExpandedFlag(victim, false);
+        evicted.push(victim);
       }
     }
 
     this.setPositionExpandedFlag(positionId, true);
+    for (const id of evicted) {
+      this.callbacks.onLayoutChange?.({
+        type: 'position-expand',
+        positionId: id,
+        expanded: false,
+      });
+      this.callbacks.onPositionExpandChange?.({
+        positionId: id,
+        expanded: false,
+        changedIds: [id],
+      });
+    }
     this.callbacks.onLayoutChange?.({
       type: 'position-expand',
       positionId,
@@ -905,7 +919,7 @@ export class OrgHierarchyDiagram {
     this.callbacks.onPositionExpandChange?.({
       positionId,
       expanded: true,
-      changedIds: [positionId],
+      changedIds: [positionId, ...evicted],
     });
     await this.render();
     this.panToPosition(positionId, { animate: true });
@@ -1064,7 +1078,6 @@ export class OrgHierarchyDiagram {
       const org = this.data.organizations.find((o) => o.id === ref.id);
       if (org?.collapsed) {
         await this.expandOrg(ref.id);
-        return true;
       }
     }
     return this.revealPath(ref.id);
