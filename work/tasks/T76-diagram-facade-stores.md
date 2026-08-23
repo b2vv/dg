@@ -1,7 +1,7 @@
 # T76 — Diagram facade stores (розбір god-object)
 
 **Пріоритет:** P1  
-**Статус:** SelectionStore ✅ · DataStore / ViewStateStore next  
+**Статус:** SelectionStore ✅ · ViewStateStore ✅ · DataStore next  
 **Базис:** [REVIEW-dg-805efee-architecture.md](../tech-debt/REVIEW-dg-805efee-architecture.md) **D4**
 
 ---
@@ -12,9 +12,9 @@
 
 | Store | Відповідальність | Статус |
 |-------|------------------|--------|
-| `SelectionStore` | selected ids, select/toggle/clear | ✅ `packages/sdk/src/state/SelectionStore.ts` |
+| `SelectionStore` | selected ids, select/toggle/clear | ✅ `state/SelectionStore.ts` |
+| `ViewStateStore` | theme, LOD, staff focus, expand sets | ✅ `state/ViewStateStore.ts` |
 | `DataStore` | `DiagramData`, setData / merge | planned |
-| `ViewStateStore` | theme, LOD, staff focus, expand sets | planned |
 
 Публічний API діаграми **не** ламати (методи-фасади лишаються).
 
