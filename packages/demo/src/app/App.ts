@@ -276,6 +276,17 @@ export class App {
                   return;
                 }
               }
+              if (this.tab === 'flat-orgs') {
+                const org = this.diagram
+                  ?.getData()
+                  .organizations.find((o) => o.id === node.id);
+                if (org?.collapsed !== false) {
+                  void this.diagram?.expandOrg(node.id);
+                } else {
+                  void this.diagram?.focusNode(node.id);
+                }
+                return;
+              }
               void this.diagram?.expandOrg(node.id);
             }
             if (this.tab === 'staff-tree') {
