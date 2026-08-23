@@ -20,7 +20,9 @@ import {
   gojsRowAvatar,
   gojsRowTextX,
   gojsPortraitAvatar,
+  resolveGojsRowLayoutMetrics,
   resolvePersonLayout,
+  type GojsRowLayoutMetrics,
   type ResolvedPersonLayout,
 } from './personLayout.js';
 import { personVisualLocalRect } from './personVisualGeometry.js';
@@ -37,11 +39,7 @@ export interface PersonNodeOptions {
   expand?: PersonNodeExpandChrome;
 }
 
-interface GojsRowLayout {
-  cardY: number;
-  cardH: number;
-  timelineH: number;
-  countBarH: number;
+interface GojsRowLayout extends GojsRowLayoutMetrics {
   timelineLabel?: string;
   countsLabel?: string;
 }
@@ -270,20 +268,10 @@ export class PersonNodeView extends Container {
   }
 
   private resolveGojsRowLayout(position: DiagramPosition, style: PersonNodeStyle): GojsRowLayout {
-    const cardH = style.cardRowHeight ?? 56;
+    const metrics = resolveGojsRowLayoutMetrics(position, style);
     const timelineLabel = formatOrgPeriodLabel(position) ?? undefined;
-    const hasTimeline = !!timelineLabel;
-    const timelineH = hasTimeline ? 18 : 0;
     const countsLabel = formatPositionCountsBadge(position);
-    const countBarH = countsLabel ? 24 : 0;
-    return {
-      cardY: timelineH,
-      cardH,
-      timelineH,
-      countBarH,
-      timelineLabel,
-      countsLabel,
-    };
+    return { ...metrics, timelineLabel, countsLabel };
   }
 
   private setHovered(on: boolean, style: PersonNodeStyle): void {

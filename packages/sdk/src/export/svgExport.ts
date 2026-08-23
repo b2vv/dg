@@ -14,7 +14,7 @@ import {
   PERSON_CARD_WIDTH,
 } from '../render/types.js';
 import { buildStaffEdgeSegments } from '../render/staffEdgeGeometry.js';
-import { mapStaffEdgeBoxesForLod } from '../render/visualEdgeBox.js';
+import { mapStaffEdgeBoxesForLod, staffEdgeBoxForPosition } from '../render/visualEdgeBox.js';
 import { paintMagneticGroups } from '../render/paintMagneticGroups.js';
 import type { ContourMemberBox } from '../render/contourClearance.js';
 import { filterContoursForPaint } from '../render/contourPaintFilter.js';
@@ -179,7 +179,18 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
     const segments = buildStaffEdgeSegments(
       canvas.edges,
       mapStaffEdgeBoxesForLod(
-        canvas.positionNodes,
+        canvas.positionNodes.map((n) => {
+          const position = positionById.get(n.id);
+          const personStyle = {
+            ...defaultNodeTheme.person,
+            width: n.width,
+            height: n.height,
+          };
+          if (!position) {
+            return { id: n.id, x: n.x, y: n.y, width: n.width, height: n.height };
+          }
+          return staffEdgeBoxForPosition(n, position, personStyle);
+        }),
         canvas.orgCards.map((c) => ({
           id: c.orgId,
           x: c.x,
