@@ -168,13 +168,21 @@ export class LayerManager {
   }
 
   clear(): void {
-    this.zones.removeChildren();
-    this.departments.removeChildren();
-    this.edges.removeChildren();
-    this.organizations.removeChildren();
-    this.persons.removeChildren();
-    this.departmentStrokes.removeChildren();
-    this.overlay.removeChildren();
+    this.destroyLayerChildren(this.zones);
+    this.destroyLayerChildren(this.departments);
+    this.destroyLayerChildren(this.edges);
+    this.destroyLayerChildren(this.organizations);
+    this.destroyLayerChildren(this.persons);
+    this.destroyLayerChildren(this.departmentStrokes);
+    this.destroyLayerChildren(this.overlay);
+  }
+
+  /** T75 D3: removeChildren alone leaks GPU; destroy detached views. */
+  private destroyLayerChildren(layer: Container): void {
+    const removed = layer.removeChildren();
+    for (const child of removed) {
+      child.destroy({ children: true });
+    }
   }
 }
 
@@ -302,9 +310,16 @@ export class DiagramRenderer {
     this.applyPromoteVisibility();
   }
 
-  /** True while this async render pass is still the latest (T75 D2). */
-  private isRenderCurrent(epoch: number): boolean {
-    return !this.destroyed && epoch === this.renderEpoch;
+  /**
+   * T75 D1: refresh selection chrome only — no layout / view rebuild.
+   */
+  repaintSelection(selected: NodeRef | null | readonly NodeRef[] = []): void {
+    if (this.destroyed) return;
+    const removed = this.layers.overlay.removeChildren();
+    for (const child of removed) {
+      child.destroy({ children: true });
+    }
+    this.drawSelection(selected);
   }
 
   destroy(): void {

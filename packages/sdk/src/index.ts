@@ -716,14 +716,14 @@ export class OrgHierarchyDiagram {
       onCanvasClick: () => {
         if (this.destroyed) return;
         this.applySelection(null);
-        void this.render();
+        this.repaintSelection();
       },
       onOrgClick: (orgId, mods) => {
         if (this.destroyed) return;
         const node = this.orgNodeRef(orgId);
         this.handleNodeSelect(node, mods);
         this.callbacks.onNodeClick?.(node);
-        void this.render();
+        this.repaintSelection();
       },
       onOrgDoubleClick: (orgId) => {
         this.callbacks.onNodeDoubleClick?.(this.orgNodeRef(orgId));
@@ -742,7 +742,7 @@ export class OrgHierarchyDiagram {
         const node = this.personNodeRef(personId, positionId);
         this.handleNodeSelect(node, mods);
         this.callbacks.onNodeClick?.(node);
-        void this.render();
+        this.repaintSelection();
       },
       onPersonDoubleClick: (personId, positionId) => {
         this.callbacks.onNodeDoubleClick?.(this.personNodeRef(personId, positionId));
@@ -1116,25 +1116,32 @@ export class OrgHierarchyDiagram {
   /** Replace selection with one node (or clear). */
   async select(node: NodeRef | null): Promise<void> {
     this.applySelection(node);
-    await this.render();
+    this.repaintSelection();
   }
 
   /** Replace selection with many nodes (deduped). */
   async selectMany(nodes: readonly NodeRef[]): Promise<void> {
     this.applySelections(nodes);
-    await this.render();
+    this.repaintSelection();
   }
 
   /** Toggle membership of one node in the selection set. */
   async toggleSelection(node: NodeRef): Promise<void> {
     this.applyToggleSelection(node);
-    await this.render();
+    this.repaintSelection();
   }
 
   /** Clear the selection set. */
   async clearSelection(): Promise<void> {
     this.applySelection(null);
-    await this.render();
+    this.repaintSelection();
+  }
+
+  /** T75 D1: selection chrome only — keeps nodeViews alive. */
+  private repaintSelection(): void {
+    if (!this.host || this.destroyed) return;
+    this.host.renderer.repaintSelection(this.selections);
+    this.notifyPromoteSync();
   }
 
   /**
@@ -1216,7 +1223,7 @@ export class OrgHierarchyDiagram {
     const ref = this.resolveNodeRef(nodeId);
     if (!ref) return false;
     this.applySelection(ref);
-    await this.render();
+    this.repaintSelection();
     const box =
       this.host?.renderer.getNodeBox(nodeId) ??
       (ref.positionId ? this.host?.renderer.getNodeBox(ref.positionId) : undefined);

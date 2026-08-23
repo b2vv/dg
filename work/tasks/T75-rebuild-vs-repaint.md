@@ -1,7 +1,7 @@
 # T75 — Rebuild vs repaint + render queue + view destroy
 
 **Пріоритет:** P0  
-**Статус:** D2 done · D1+D3 next  
+**Статус:** D2 ✅ · D1 selection + D3 ✅ · LOD/theme repaint — follow-up  
 **Базис:** [REVIEW-dg-805efee-architecture.md](../tech-debt/REVIEW-dg-805efee-architecture.md) **D1 · D2 · D3**  
 **Залежності:** немає (блокує масштаб і коректність; T74 M1 не повинен опиратись на full `render()`)
 
@@ -10,8 +10,8 @@
 ## Мета
 
 1. **D2** ✅ — один активний `render` / черга (`createRenderCoalesce` + `renderEpoch`).
-2. **D1** — `rebuild()` (дані/layout) vs `repaint()` (selection / LOD / theme chrome).
-3. **D3** — `LayerManager.clear` / зняття view → справжній Pixi `destroy`.
+2. **D1** ✅ partial — selection → `repaintSelection()` (без rebuild). LOD/theme ще `render()` (геометрія/медіа).
+3. **D3** ✅ — `LayerManager.clear` destroy children.
 
 Порядок імплементації всередині T75: **D2 → D1+D3**.
 
@@ -25,6 +25,27 @@
 - Tests: `renderCoalesce.test.ts`
 
 **Acceptance:** два швидкі `select` + LOD flip під час текстур → один узгоджений display-list.
+
+---
+
+## D1 — rebuild vs repaint
+
+| API | Коли | Дія |
+|-----|------|-----|
+| `render()` / rebuild | `setData`, expand/collapse, LOD, theme, layout options | clear+destroy views, layout, create views |
+| `repaintSelection()` ✅ | `select*` / `clearSelection` / click / `focusNode` | overlay only; `nodeViews` reused |
+
+- LOD threshold → still full `render()` (card chrome geometry changes) — optional later: `applyLod` on views.
+- Theme → still full `render()` (symbol URLs / palette).
+
+**Acceptance:** клік / `select` не кличе `DiagramRenderer.render`.
+
+---
+
+## D3 — destroy views ✅
+
+- `LayerManager.clear()` → `removeChildren` + `destroy({ children: true })` на кожній дитині.
+- Tests: `layerManager.clear.test.ts`
 
 ---
 

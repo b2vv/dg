@@ -217,6 +217,24 @@ describe('OrgHierarchyDiagram interactions', () => {
     document.body.removeChild(container);
   });
 
+  it('success: D1 select does not rebuild scene via DiagramRenderer.render', async () => {
+    const { container, diagram } = await mount();
+    type Host = { renderer: { render: (...a: unknown[]) => Promise<void>; repaintSelection: (...a: unknown[]) => void } };
+    const host = (diagram as unknown as { host: Host }).host;
+    const renderSpy = vi.spyOn(host.renderer, 'render');
+    const repaintSpy = vi.spyOn(host.renderer, 'repaintSelection');
+    renderSpy.mockClear();
+    repaintSpy.mockClear();
+
+    await diagram.select({ kind: 'organization', id: 'org1', organizationId: 'org1' });
+    await diagram.clearSelection();
+
+    expect(renderSpy).not.toHaveBeenCalled();
+    expect(repaintSpy).toHaveBeenCalled();
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
+
   it('success: focusByTestId expands collapsed org then selects', async () => {
     const onSelectionChange = vi.fn();
     const container = document.createElement('div');
