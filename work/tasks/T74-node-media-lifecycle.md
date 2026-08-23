@@ -3,7 +3,7 @@
 **Пріоритет:** P0 (M1–M3) / P1 (M4–M6)  
 **Статус:** design agreed · skeleton in progress  
 **Базис:** `dg@805efee` · еталон: `cassiopeia-admin-ui@gamma`  
-**Grilling:** 2026-08-23 (Q1–Q24, Q26–Q26C)
+**Grilling:** 2026-08-23 (Q1–Q29 closed)
 
 ---
 
@@ -18,26 +18,27 @@
 
 ---
 
-## 1. Термінологія (⚠️ Q25 — уточнюється)
+## 1. Термінологія (Q25 · Q27–Q29 closed)
 
 | Термін | Значення в `dg` сьогодні | У T74 |
 |--------|--------------------------|-------|
 | **`NodeVisualKind`** | `organization` \| `department` \| `person` \| `position` — тип **вузла на canvas** | без змін |
-| **`entityType`** | **немає** | вільний `string` з хоста: `military`, `civilian`, `group`, … — ключ для **placeholder SVG** |
-| **`DiagramGroup`** | запис у `data.groups[]`; caption на org-картці (`groupIds[0]` → **name text**) | `emblemUrl` → `ThemedMedia`; paint emblem — **TBD Q25** |
+| **`entityType`** | **немає** | вільний `string` з хоста: `military`, `civilian`, **`group`**, … — **підтип org-сутності** + ключ **placeholder SVG** |
+| **`DiagramGroup`** | запис у `data.groups[]`; caption на org-картці (`groupIds[0]` → **name text**) | **caption-only** (`id`, `name`); без `media` / `emblemUrl` (Q29) |
 | **`groupIds[]` на org** | посилання на групу для **підпису**, не зона | без змін у T74 |
 | **T61 group zone** | рекурсивна **зона** tier-3 (майбутнє) | **не** T74 |
 
-**Ризик плутанини:** слово «group» = (a) `entityType: 'group'`, (b) `DiagramGroup`, (c) T61 zone.  
-T74 **не** вирішує (c). Для (a)/(b) — див. §1.1 після Q25.
+**Ризик плутанини:** слово «group» = (a) `entityType: 'group'` — підтип org, (b) `DiagramGroup` — caption record, (c) T61 zone — майбутня зона. T74 закриває (a)/(b); (c) лишається T61.
 
-### 1.1 Відкрито (Q25 discussion)
+### 1.1 Рішення (Q27–Q29)
 
-- Чи `entityType: 'group'` = org, що **належить** `DiagramGroup`, чи окремий visual kind?
-- Чи `DiagramGroup.emblemUrl` малюється на org card поруч із symbol, чи лише в staff zone (T61)?
-- Чи group emblem проходить той самий `MediaService`, що org symbol / person photo?
+| # | Питання | Відповідь |
+|---|---------|-----------|
+| **Q27·A** | Що таке `entityType: 'group'`? | **Підвид org-сутності** (taxonomy), не окремий `NodeVisualKind`. Org з `entityType: 'group'` — звичайний org-вузол на canvas. |
+| **Q28** | Де малюється symbol/emblem для group-org? | **Як symbol org-ноди** — `DiagramOrganization.media` + той самий `MediaService` / `applySymbol()`, що для `military` / `civilian`. Окремого paint path для `DiagramGroup` немає. |
+| **Q29** | `DiagramGroup.emblemUrl` / `DiagramGroup.media`? | **Не розширюємо.** Caption record лише `id` + `name`. Медіа — на org (`media` + `entityType: 'group'`). Legacy `emblemUrl` deprecated; новий код не використовує. |
 
-**Interim (до Q25):** `MediaService` + `ThemedMedia` готові для group; **paint** emblem лишається out of scope P0/P1, якщо product не підтвердить.
+**Наслідок для M1:** group-org проходить той самий org media pipeline; placeholder key = `entityType` (`group` або host override).
 
 ---
 
@@ -62,7 +63,7 @@ interface ThemedMedia {
 | `DiagramOrganization` | `media?: ThemedMedia`, `entityType?: string` | `symbolUrl`, `symbolUrlLight`, `symbolUrlDark` |
 | `DiagramPerson` | `media?: ThemedMedia`, `entityType?: string` | `photoUrl` |
 | `DiagramPosition` | `media?: ThemedMedia`, `entityType?: string` | — |
-| `DiagramGroup` | `media?: ThemedMedia`, `entityType?: string` | `emblemUrl` |
+| `DiagramGroup` | id, name only (caption) | `emblemUrl` **deprecated** — use org `media` + `entityType: 'group'` (Q29) |
 
 ### 2.3 Теми (Q9·A)
 
@@ -164,8 +165,9 @@ One attempt → cache failure → error placeholder; no retry/prefetch requeue.
 - IndexedDB / persistent cache in SDK
 - Change URL allowlist (`blob:` stays)
 - Remove person photo LOD gate at `near`
-- T61 group zone paint (until Q25 + mockup)
+- T61 group zone paint (until mockup)
 - M7 viewport prefetch
+- `DiagramGroup.emblemUrl` / `DiagramGroup.media` — **не розширювати**; org `media` only (Q29)
 
 ---
 
@@ -182,5 +184,5 @@ npm run test:verify
 ## 8. Related
 
 - [T73](./T73-remaining-agreements.md) E11 prefetch
-- [T61](./T61-group-recursion-tier3.md) group zones (terminology overlap Q25)
+- [T61](./T61-group-recursion-tier3.md) group zones (окремо від `entityType: 'group'`, Q27)
 - Host brief: media lazy + hot update (2026-08-23)

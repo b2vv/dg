@@ -31,11 +31,9 @@ export function resolveThemedMediaFromPosition(position: DiagramPosition): Theme
   return position.media;
 }
 
-/** @deprecated Prefer `group.media`. */
-export function resolveThemedMediaFromGroup(group: DiagramGroup): ThemedMedia | undefined {
-  if (group.media) return group.media;
-  const fallback = group.emblemUrl?.trim();
-  return fallback ? { fallback } : undefined;
+/** @deprecated Q29 — use org.media with entityType `group`. */
+export function resolveThemedMediaFromGroup(_group: DiagramGroup): ThemedMedia | undefined {
+  return undefined;
 }
 
 /** @deprecated Use entity-specific resolver or read `media` directly. */

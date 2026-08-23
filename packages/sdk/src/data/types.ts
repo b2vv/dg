@@ -49,7 +49,7 @@ export interface DiagramOrganization {
   periodLabel?: string;
   /** Canonical themed symbol URLs (T74). Wins over legacy symbolUrl* when set. */
   media?: ThemedMedia;
-  /** Host taxonomy key for placeholder SVG (e.g. military / civilian / group). */
+  /** Host taxonomy: org subtype (e.g. military | civilian | group) — placeholder key (T74). */
   entityType?: string;
   symbolUrl?: string;
   symbolUrlLight?: string;
@@ -71,9 +71,8 @@ export interface DiagramOrganization {
 export interface DiagramGroup {
   id: string;
   name: string;
+  /** @deprecated Q29 — put media on org with entityType `group`. Caption-only record. */
   emblemUrl?: string;
-  media?: ThemedMedia;
-  entityType?: string;
 }
 
 export interface DiagramDepartment {
