@@ -26,9 +26,12 @@ import { buildVariantBData } from '../scenarios/variantB.js';
 import { buildFlatOrgsData } from '../scenarios/flatOrgs.js';
 import { buildStaffTreeData } from '../scenarios/staffTree.js';
 import {
-  buildMockupOrgsData,
-  buildMockupStaffData,
-  MOCKUP_DARK_STYLES,
+  buildMockupOrgsFigmaData,
+  buildMockupOrgsGojsData,
+  buildMockupStaffFigmaData,
+  buildMockupStaffGojsData,
+  MOCKUP_FIGMA_STYLES,
+  MOCKUP_GOJS_STYLES,
 } from '../scenarios/mockupFigma.js';
 import {
   SCALE_ORG_TOTAL,
@@ -45,12 +48,23 @@ import { requireElement, setThemeAttribute, showError } from '../utils/dom.js';
 export type DemoTab =
   | 'variant-b'
   | 'staff-tree'
-  | 'mockup-orgs'
-  | 'mockup-staff'
+  | 'mockup-orgs-figma'
+  | 'mockup-orgs-gojs'
+  | 'mockup-staff-figma'
+  | 'mockup-staff-gojs'
   | 'flat-orgs'
   | 'scale-100k'
   | 'mapper'
   | 'worker';
+
+const FIGMA_MOCKUP_TABS: ReadonlySet<DemoTab> = new Set([
+  'mockup-orgs-figma',
+  'mockup-staff-figma',
+]);
+const GOJS_MOCKUP_TABS: ReadonlySet<DemoTab> = new Set([
+  'mockup-orgs-gojs',
+  'mockup-staff-gojs',
+]);
 
 export interface ContourControls {
   paddingCells: number;
@@ -178,10 +192,14 @@ export class App {
       el.classList.toggle('active', (el as HTMLElement).dataset.tab === tab);
     });
     document.body.dataset.activeTab = tab;
-    // Figma mockups are dark screens — pin chrome + diagram theme.
-    if (tab === 'mockup-orgs' || tab === 'mockup-staff') {
+    // Style mockups pin theme: Figma = dark, GoJS = light (production screens).
+    if (FIGMA_MOCKUP_TABS.has(tab)) {
       this.theme = 'dark';
       setThemeAttribute('dark');
+      this.syncThemeToggleLabel();
+    } else if (GOJS_MOCKUP_TABS.has(tab)) {
+      this.theme = 'light';
+      setThemeAttribute('light');
       this.syncThemeToggleLabel();
     }
     const search = requireElement('search-input') as HTMLInputElement;
@@ -370,19 +388,35 @@ export class App {
       this.mountEl.appendChild(caption);
       return;
     }
-    if (this.tab === 'mockup-orgs') {
+    if (this.tab === 'mockup-orgs-figma') {
       const caption = document.createElement('p');
       caption.className = 'scene-caption';
       caption.textContent =
-        'Figma orgs · dashed blue = sibling group chrome · N [M] counts · dark card chrome';
+        'Figma orgs · dashed blue sibling group · tall cards · N [M] counts · dark chrome';
       this.mountEl.appendChild(caption);
       return;
     }
-    if (this.tab === 'mockup-staff') {
+    if (this.tab === 'mockup-orgs-gojs') {
       const caption = document.createElement('p');
       caption.className = 'scene-caption';
       caption.textContent =
-        'Figma staff · dashed zones · dept cards · row seats · orange name = temporary · green period chip';
+        'GoJS orgs · compact cards · period line · T badge / unit code · light chrome (no sibling frame)';
+      this.mountEl.appendChild(caption);
+      return;
+    }
+    if (this.tab === 'mockup-staff-figma') {
+      const caption = document.createElement('p');
+      caption.className = 'scene-caption';
+      caption.textContent =
+        'Figma staff · dashed zones · dept cards · row seats · orange name = temporary · green period';
+      this.mountEl.appendChild(caption);
+      return;
+    }
+    if (this.tab === 'mockup-staff-gojs') {
+      const caption = document.createElement('p');
+      caption.className = 'scene-caption';
+      caption.textContent =
+        'GoJS staff · solid zones · portrait seats · blob/card depts · light production chrome';
       this.mountEl.appendChild(caption);
     }
   }
@@ -461,12 +495,12 @@ export class App {
             collapseUnexpandedPositions: true,
           },
         };
-      case 'mockup-orgs':
+      case 'mockup-orgs-figma':
         return {
           ...base,
           theme: 'dark',
-          data: buildMockupOrgsData(),
-          styles: MOCKUP_DARK_STYLES,
+          data: buildMockupOrgsFigmaData(),
+          styles: MOCKUP_FIGMA_STYLES,
           orgLayout: {
             nodeWidth: 200,
             nodeHeight: 120,
@@ -480,13 +514,32 @@ export class App {
             orgSiblingGroupChrome: true,
           },
         };
-      case 'mockup-staff':
+      case 'mockup-orgs-gojs':
+        return {
+          ...base,
+          theme: 'light',
+          data: buildMockupOrgsGojsData(),
+          styles: MOCKUP_GOJS_STYLES,
+          orgLayout: {
+            nodeWidth: 200,
+            nodeHeight: 64,
+            horizontalGap: 40,
+            verticalGap: 44,
+            margin: 40,
+            orgEdgeStyle: 'spine-bus',
+          },
+          render: {
+            ...base.render,
+            orgSiblingGroupChrome: false,
+          },
+        };
+      case 'mockup-staff-figma':
         return {
           ...base,
           theme: 'dark',
-          data: buildMockupStaffData(),
-          styles: MOCKUP_DARK_STYLES,
-          staffCurrentOrgId: 'tgr',
+          data: buildMockupStaffFigmaData(),
+          styles: MOCKUP_FIGMA_STYLES,
+          staffCurrentOrgId: 'region',
           staffLayout: {
             horizontalGap: 36,
             verticalGap: 40,
@@ -506,6 +559,37 @@ export class App {
             departmentStyle: 'card',
             cellWidth: 260,
             cellHeight: 88,
+          },
+        };
+      case 'mockup-staff-gojs':
+        return {
+          ...base,
+          theme: 'light',
+          data: buildMockupStaffGojsData(),
+          styles: MOCKUP_GOJS_STYLES,
+          staffCurrentOrgId: 'region',
+          staffLayout: {
+            horizontalGap: 40,
+            verticalGap: 52,
+            tierGap: 36,
+            margin: 24,
+            nodeWidth: 136,
+            nodeHeight: 156,
+            orgCardWidth: 200,
+            orgCardHeight: 64,
+            refCellWidth: 140,
+            refCellHeight: 160,
+            collapseUnexpandedPositions: false,
+          },
+          render: {
+            ...base.render,
+            staffZoneChrome: true,
+            departmentStyle: 'blob',
+            cellWidth: 140,
+            cellHeight: 160,
+            magnetRadius: VARIANT_B_MAGNET_RADIUS,
+            minContourMembers: 2,
+            smoothIterations: this.contourControls.smoothIterations,
           },
         };
       case 'flat-orgs':
@@ -689,12 +773,12 @@ export class App {
   }
 
   private syncContourControlsEnabled(): void {
-    const enabled = this.tab === 'variant-b';
+    const enabled = this.tab === 'variant-b' || this.tab === 'mockup-staff-gojs';
     for (const id of ['padding-control', 'smooth-control']) {
       const el = document.getElementById(id);
       if (!el) continue;
       el.dataset.disabled = enabled ? 'false' : 'true';
-      el.title = enabled ? '' : 'Variant B only';
+      el.title = enabled ? '' : 'Variant B / Staff · GoJS only';
     }
     const padding = document.getElementById('padding-slider') as HTMLInputElement | null;
     const smooth = document.getElementById('smooth-slider') as HTMLInputElement | null;
@@ -720,10 +804,14 @@ export class App {
         return 'Variant B';
       case 'staff-tree':
         return 'Staff tree';
-      case 'mockup-orgs':
-        return 'Mockup orgs';
-      case 'mockup-staff':
-        return 'Mockup staff';
+      case 'mockup-orgs-figma':
+        return 'Orgs · Figma';
+      case 'mockup-orgs-gojs':
+        return 'Orgs · GoJS';
+      case 'mockup-staff-figma':
+        return 'Staff · Figma';
+      case 'mockup-staff-gojs':
+        return 'Staff · GoJS';
       case 'flat-orgs':
         return 'Flat orgs';
       case 'scale-100k':
