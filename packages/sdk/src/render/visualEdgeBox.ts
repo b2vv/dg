@@ -5,6 +5,14 @@ import type { StaffEdgeBox } from './staffEdgeGeometry.js';
 import { personVisualWorldRect } from './personVisualGeometry.js';
 import type { PersonNodeStyle } from './types.js';
 
+export interface LayoutPositionNode {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 /**
  * Edge routing AABB that matches what PersonNode actually paints at this LOD.
  * Layout boxes stay full cell cards; mid/far chrome is smaller — ports must follow.
@@ -25,7 +33,7 @@ export function visualPersonEdgeBox(box: StaffEdgeBox, lod: LodLevel): StaffEdge
 
 /** Attach gojs-row near hints when the seat template needs a shorter edge AABB. */
 export function staffEdgeBoxForPosition(
-  node: { id: string; x: number; y: number; width: number; height: number },
+  node: LayoutPositionNode,
   position: DiagramPosition,
   style: PersonNodeStyle,
 ): StaffEdgeBox {
@@ -47,6 +55,26 @@ export function staffEdgeBoxForPosition(
       countBarH: metrics.countBarH,
     },
   };
+}
+
+/** Map staff layout position nodes to edge boxes (shared by live render + SVG export). */
+export function mapPositionNodesToStaffEdgeBoxes(
+  positionNodes: readonly LayoutPositionNode[],
+  positionById: ReadonlyMap<string, DiagramPosition>,
+  personTheme: PersonNodeStyle,
+): StaffEdgeBox[] {
+  return positionNodes.map((n) => {
+    const position = positionById.get(n.id);
+    const personStyle: PersonNodeStyle = {
+      ...personTheme,
+      width: n.width,
+      height: n.height,
+    };
+    if (!position) {
+      return { id: n.id, x: n.x, y: n.y, width: n.width, height: n.height };
+    }
+    return staffEdgeBoxForPosition(n, position, personStyle);
+  });
 }
 
 /** Org card visual bounds (far = symbol chip, vertically centered). */

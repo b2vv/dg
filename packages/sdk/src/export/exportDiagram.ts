@@ -1,7 +1,7 @@
 import type { Application } from 'pixi.js';
 import type { DiagramData } from '../data/types.js';
 import type { StaffLayoutOptions } from '../layout/staff/types.js';
-import type { RenderConfig } from '../render/types.js';
+import type { RenderConfig, PersonNodeStyle } from '../render/types.js';
 import { assertExportOptions, ExportError, type ExportOptions } from './types.js';
 import { filterDiagramSubtree } from './subtree.js';
 import { buildDiagramSvg } from './svgExport.js';
@@ -16,6 +16,7 @@ export interface ExportContext {
   expandedOrgIds?: readonly string[];
   staffLayout?: StaffLayoutOptions;
   background?: string;
+  personTheme?: Partial<PersonNodeStyle>;
 }
 
 export async function exportDiagram(
@@ -42,6 +43,7 @@ export async function exportDiagram(
       currentOrgId: ctx.currentOrgId,
       expandedOrgIds: ctx.expandedOrgIds,
       staffLayout: ctx.staffLayout,
+      personTheme: ctx.personTheme,
     });
   }
 

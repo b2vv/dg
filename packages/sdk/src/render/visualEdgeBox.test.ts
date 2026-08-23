@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { staffEdgeEndpoints } from './staffEdgeGeometry.js';
 import {
+  mapPositionNodesToStaffEdgeBoxes,
   mapStaffEdgeBoxesForLod,
   staffEdgeBoxForPosition,
   visualOrgEdgeBox,
@@ -47,6 +48,17 @@ describe('visualPersonEdgeBox', () => {
     expect(ep.y2).toBe(rep.y);
     expect(mgr.y).toBeGreaterThan(0); // not top-aligned at layout y
     expect(ep.y1).toBeLessThan(156); // not full-card bottom
+  });
+
+  it('success: near Variant B admin ports dock to card borders (T44 A2)', () => {
+    const p2 = { id: 'P2', x: 0, y: 0, width: 136, height: 156 };
+    const p4 = { id: 'P4', x: 0, y: 200, width: 136, height: 156 };
+    const near2 = visualPersonEdgeBox(p2, 'near');
+    const near4 = visualPersonEdgeBox(p4, 'near');
+    const ep = staffEdgeEndpoints(near2, near4);
+    expect(ep.y1).toBe(near2.y + near2.height);
+    expect(ep.y2).toBe(near4.y);
+    expect(ep.x1).toBeCloseTo(near2.x + near2.width / 2);
   });
 
   it('success: gojs-row near docks to card stack, not full layout cell', () => {
@@ -101,5 +113,29 @@ describe('visualOrgEdgeBox / mapStaffEdgeBoxesForLod', () => {
     expect(boxes).toHaveLength(2);
     expect(boxes[0]!.height).toBeLessThan(156);
     expect(boxes[1]!.height).toBe(64);
+  });
+});
+
+describe('mapPositionNodesToStaffEdgeBoxes', () => {
+  it('success: gojs-row theme attaches personEdgeHints', () => {
+    const positionById = new Map<string, DiagramPosition>([
+      [
+        'pos-1',
+        {
+          id: 'pos-1',
+          organizationId: 'org-1',
+          periodStart: '2024-01-01',
+          childrenCount: 1,
+          allDescendantCount: 2,
+        },
+      ],
+    ]);
+    const boxes = mapPositionNodesToStaffEdgeBoxes(
+      [{ id: 'pos-1', x: 0, y: 0, width: 200, height: 98 }],
+      positionById,
+      { personLayout: 'gojs-row', cardRowHeight: 56 } as PersonNodeStyle,
+    );
+    expect(boxes[0]?.personEdgeHints?.layout).toBe('gojs-row');
+    expect(visualPersonEdgeBox(boxes[0]!, 'near').height).toBe(56 + 24);
   });
 });

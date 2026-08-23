@@ -1291,6 +1291,7 @@ export class OrgHierarchyDiagram {
           ...this.staffLayout,
           expandedPositionIds: [...this.staffExpandedPositionIds],
         },
+        personTheme: this.nodeTheme.person,
       },
       options,
     );
