@@ -3,6 +3,8 @@ import {
   figmaRowAvatar,
   figmaRowTextX,
   gojsRowAvatar,
+  GOJS_ROW_COUNT_BAR_H,
+  GOJS_ROW_TIMELINE_H,
   gojsPortraitAvatar,
   isExplicitLayout,
   resolveGojsRowLayoutMetrics,
@@ -87,7 +89,12 @@ describe('resolveGojsRowLayoutMetrics', () => {
       },
       baseStyle({ cardRowHeight: 56 }),
     );
-    expect(metrics).toEqual({ cardY: 18, cardH: 56, timelineH: 18, countBarH: 24 });
+    expect(metrics).toEqual({
+      cardY: GOJS_ROW_TIMELINE_H,
+      cardH: 56,
+      timelineH: GOJS_ROW_TIMELINE_H,
+      countBarH: GOJS_ROW_COUNT_BAR_H,
+    });
   });
 
   it('omits chrome bands when period and counts absent', () => {

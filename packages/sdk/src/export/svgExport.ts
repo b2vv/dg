@@ -6,7 +6,7 @@ import {
   DEFAULT_STAFF_LAYOUT_OPTIONS,
   type StaffLayoutOptions,
 } from '../layout/staff/types.js';
-import type { RenderConfig } from '../render/types.js';
+import type { RenderConfig, PersonNodeStyle } from '../render/types.js';
 import {
   defaultNodeTheme,
   defaultRenderConfig,
@@ -14,7 +14,7 @@ import {
   PERSON_CARD_WIDTH,
 } from '../render/types.js';
 import { buildStaffEdgeSegments } from '../render/staffEdgeGeometry.js';
-import { mapStaffEdgeBoxesForLod, staffEdgeBoxForPosition } from '../render/visualEdgeBox.js';
+import { mapStaffEdgeBoxesForLod, mapPositionNodesToStaffEdgeBoxes } from '../render/visualEdgeBox.js';
 import { paintMagneticGroups } from '../render/paintMagneticGroups.js';
 import type { ContourMemberBox } from '../render/contourClearance.js';
 import { filterContoursForPaint } from '../render/contourPaintFilter.js';
@@ -46,6 +46,8 @@ export interface SvgExportInput {
   expandedOrgIds?: readonly string[];
   /** Must match live diagram staffLayout or contours/nodes drift. */
   staffLayout?: StaffLayoutOptions;
+  /** Person seat theme for edge ports (must match live diagram `nodeTheme.person`). */
+  personTheme?: Partial<PersonNodeStyle>;
 }
 
 export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
@@ -176,21 +178,15 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
     }
     parts.push('</g>');
 
+    const personTheme: PersonNodeStyle = {
+      ...defaultNodeTheme.person,
+      ...input.personTheme,
+    };
+
     const segments = buildStaffEdgeSegments(
       canvas.edges,
       mapStaffEdgeBoxesForLod(
-        canvas.positionNodes.map((n) => {
-          const position = positionById.get(n.id);
-          const personStyle = {
-            ...defaultNodeTheme.person,
-            width: n.width,
-            height: n.height,
-          };
-          if (!position) {
-            return { id: n.id, x: n.x, y: n.y, width: n.width, height: n.height };
-          }
-          return staffEdgeBoxForPosition(n, position, personStyle);
-        }),
+        mapPositionNodesToStaffEdgeBoxes(canvas.positionNodes, positionById, personTheme),
         canvas.orgCards.map((c) => ({
           id: c.orgId,
           x: c.x,

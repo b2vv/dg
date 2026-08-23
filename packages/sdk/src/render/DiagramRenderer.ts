@@ -47,7 +47,7 @@ import type {
 import { defaultRenderConfig } from './types.js';
 import type { DiagramData, DiagramOrganization } from '../data/types.js';
 import type { LodLevel } from './lod.js';
-import { mapStaffEdgeBoxesForLod, staffEdgeBoxForPosition } from './visualEdgeBox.js';
+import { mapStaffEdgeBoxesForLod, mapPositionNodesToStaffEdgeBoxes } from './visualEdgeBox.js';
 import {
   resolveContourWorldTransform,
   type ContourWorldTransform,
@@ -774,18 +774,7 @@ export class DiagramRenderer {
 
       const lod = options.lod ?? 'near';
       const edgeBoxes = mapStaffEdgeBoxesForLod(
-        canvas.positionNodes.map((n) => {
-          const position = positionById.get(n.id);
-          const personStyle = {
-            ...theme.person,
-            width: n.width,
-            height: n.height,
-          };
-          if (!position) {
-            return { id: n.id, x: n.x, y: n.y, width: n.width, height: n.height };
-          }
-          return staffEdgeBoxForPosition(n, position, personStyle);
-        }),
+        mapPositionNodesToStaffEdgeBoxes(canvas.positionNodes, positionById, theme.person),
         canvas.orgCards.map((c) => ({
           id: c.orgId,
           x: c.x,

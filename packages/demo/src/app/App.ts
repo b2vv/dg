@@ -91,6 +91,9 @@ export interface ContourControls {
 export interface DemoE2eBridge {
   collapseOrg(orgId: string): Promise<void> | undefined;
   expandOrg(orgId: string): Promise<void> | undefined;
+  /** Same code path as demo `onNodeClick` for flat orgs / 100k org cards. */
+  clickOrg(orgId: string): void;
+  getScaleWindowStart(): number | null;
   toggleStaffOrg(orgId: string): Promise<boolean> | undefined;
   focusTestId(testId: string): Promise<boolean> | undefined;
   getStaffExpandedOrgIds(): string[];
@@ -260,35 +263,8 @@ export class App {
           onNodeClick: (node) => {
             this.contextMenu?.close();
             if (node.kind === 'organization' && (this.tab === 'flat-orgs' || this.tab === 'scale-100k')) {
-              if (this.tab === 'scale-100k') {
-                const idx = Number(String(node.id).replace(/^org-/, ''));
-                if (Number.isFinite(idx)) {
-                  const win = this.scaleWindow;
-                  const inWindow =
-                    win &&
-                    idx >= win.startIndex &&
-                    idx < win.startIndex + win.data.organizations.length;
-                  if (!inWindow) {
-                    this.ensureScaleWindow(idx);
-                    void this.reload();
-                  } else {
-                    void this.diagram?.focusNode(node.id);
-                  }
-                  return;
-                }
-              }
-              if (this.tab === 'flat-orgs') {
-                const org = this.diagram
-                  ?.getData()
-                  .organizations.find((o) => o.id === node.id);
-                if (org?.collapsed !== false) {
-                  void this.diagram?.expandOrg(node.id);
-                } else {
-                  void this.diagram?.focusNode(node.id);
-                }
-                return;
-              }
-              void this.diagram?.expandOrg(node.id);
+              this.handleOrgNodeClick(node.id);
+              return;
             }
             if (this.tab === 'staff-tree') {
               const focus = this.diagram?.getStaffFocus() ?? 'ops';
@@ -359,6 +335,8 @@ export class App {
         (window as unknown as { __demoE2e?: DemoE2eBridge }).__demoE2e = {
           collapseOrg: (orgId: string) => this.diagram?.collapseOrg(orgId),
           expandOrg: (orgId: string) => this.diagram?.expandOrg(orgId),
+          clickOrg: (orgId: string) => this.handleOrgNodeClick(orgId),
+          getScaleWindowStart: () => this.scaleWindow?.startIndex ?? null,
           toggleStaffOrg: (orgId: string) => this.diagram?.toggleStaffOrgExpand(orgId),
           focusTestId: (testId: string) => this.diagram?.focusByTestId(testId),
           getStaffExpandedOrgIds: () => this.diagram?.getStaffExpandedOrgIds() ?? [],
@@ -757,6 +735,37 @@ export class App {
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  /** Flat orgs / 100k org card click — shared by Pixi host and e2e bridge. */
+  private handleOrgNodeClick(orgId: string): void {
+    if (this.tab === 'scale-100k') {
+      const idx = Number(String(orgId).replace(/^org-/, ''));
+      if (Number.isFinite(idx)) {
+        const win = this.scaleWindow;
+        const inWindow =
+          win &&
+          idx >= win.startIndex &&
+          idx < win.startIndex + win.data.organizations.length;
+        if (!inWindow) {
+          this.ensureScaleWindow(idx);
+          void this.reload();
+        } else {
+          void this.diagram?.focusNode(orgId);
+        }
+      }
+      return;
+    }
+    if (this.tab === 'flat-orgs') {
+      const org = this.diagram?.getData().organizations.find((o) => o.id === orgId);
+      if (org?.collapsed !== false) {
+        void this.diagram?.expandOrg(orgId);
+      } else {
+        void this.diagram?.focusNode(orgId);
+      }
+      return;
+    }
+    void this.diagram?.expandOrg(orgId);
   }
 
   private async runSearch(query: string): Promise<void> {

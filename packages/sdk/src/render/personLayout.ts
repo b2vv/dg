@@ -32,6 +32,11 @@ export function figmaRowTextX(avatar: PersonAvatarSlot): number {
   return avatar.cx + avatar.r + 10;
 }
 
+/** Timeline chip band height (GoJS row). */
+export const GOJS_ROW_TIMELINE_H = 18;
+/** Count bar height under card (GoJS row). */
+export const GOJS_ROW_COUNT_BAR_H = 24;
+
 /** GoJS landscape row — 28×28 rounded-square avatar left. */
 export function gojsRowAvatar(style: PersonNodeStyle, cardY = 0): PersonAvatarSlot {
   const size = 28;
@@ -58,9 +63,9 @@ export function resolveGojsRowLayoutMetrics(
 ): GojsRowLayoutMetrics {
   const cardH = style.cardRowHeight ?? 56;
   const timelineLabel = formatOrgPeriodLabel(position) ?? undefined;
-  const timelineH = timelineLabel ? 18 : 0;
+  const timelineH = timelineLabel ? GOJS_ROW_TIMELINE_H : 0;
   const countsLabel = formatPositionCountsBadge(position);
-  const countBarH = countsLabel ? 24 : 0;
+  const countBarH = countsLabel ? GOJS_ROW_COUNT_BAR_H : 0;
   return { cardY: timelineH, cardH, timelineH, countBarH };
 }
 
