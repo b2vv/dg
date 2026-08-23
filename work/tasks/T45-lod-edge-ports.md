@@ -1,8 +1,7 @@
 # T45 — LOD-aware staff edge ports (T44 A1)
 
 **Пріоритет:** P0  
-**Статус:** done  
-**План:** [T44](./T44-magnetism-edges-zoom-analysis.md)
+**Статус:** done — `personVisualLocalRect` / `personVisualWorldRect` in `personVisualGeometry.ts`
 
 ## Problem
 

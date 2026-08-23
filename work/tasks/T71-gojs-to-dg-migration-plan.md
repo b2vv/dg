@@ -1,7 +1,7 @@
 # T71 — План міграції GoJS → Org Hierarchy SDK (`dg`)
 
 **Пріоритет:** P0 (roadmap)  
-**Статус:** planned  
+**Статус:** ✅ cutover queue complete (2026-08-23) — залишок: T61 (макет), T67 Phase 2 (marquee, optional)
 **Контекст:** прод на GoJS (`gojs-diagram` ~4.4k + ~11k тестів) → ціль заміни = цей репозиторій (`b2vv/dg`)
 
 ---
