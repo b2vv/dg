@@ -26,6 +26,7 @@ export {
   spineBusToOrgEdges,
 } from './spineBusEdges.js';
 export type { WorldBox, SpineBusOptions, SpineBusPolyline } from './spineBusEdges.js';
+export { siblingOrgGroupBounds } from './siblingOrgGroups.js';
 
 export {
   computeOrgLayout,

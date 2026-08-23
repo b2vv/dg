@@ -240,9 +240,15 @@ export class PersonNodeView extends Container {
     this.card.stroke({ color: style.border, width: style.borderWidth });
 
     if (lod === 'near') {
-      const r = Math.min(width, height) * 0.155;
-      this.card.circle(width / 2, height * 0.26, r);
-      this.card.fill({ color: this.avatarFill });
+      if (isRowPersonCard(style)) {
+        const r = Math.min(height * 0.32, 22);
+        this.card.circle(padX(style) + r, height / 2, r);
+        this.card.fill({ color: this.avatarFill });
+      } else {
+        const r = Math.min(width, height) * 0.155;
+        this.card.circle(width / 2, height * 0.26, r);
+        this.card.fill({ color: this.avatarFill });
+      }
     }
 
     this.hitArea = {
@@ -267,40 +273,61 @@ export class PersonNodeView extends Container {
       return;
     }
 
+    const row = isRowPersonCard(style) && lod === 'near';
     const pad = Math.max(6, style.width * 0.06);
-    const maxTextW = Math.max(24, style.width - pad * 2);
     const vacant = position.status === 'vacant' && !person?.fullName;
     const name = person?.fullName ?? (vacant ? VACANT_POSITION_LABEL : '—');
+    const nameFill = vacant
+      ? (style.vacantLabelColor ?? style.nameColor)
+      : position.isTemporary && style.temporaryNameColor !== undefined
+        ? style.temporaryNameColor
+        : (style.permanentNameColor ?? style.nameColor);
+
     this.nameText.visible = true;
     this.nameText.text = name;
     this.nameText.style.fontSize = style.nameFontSize;
-    this.nameText.style.fill =
-      vacant && style.vacantLabelColor !== undefined ? style.vacantLabelColor : style.nameColor;
-    truncatePixiText(this.nameText, maxTextW);
-    if (lod === 'mid') {
-      const h = Math.min(style.height, Math.max(56, style.height * 0.48));
-      const y0 = (style.height - h) / 2;
-      this.nameText.position.set(pad, y0 + h * 0.35);
-    } else {
-      this.nameText.position.set(pad, style.height * 0.48);
-    }
+    this.nameText.style.fill = nameFill;
 
-    if (lod === 'mid') {
-      this.titleText.visible = false;
-      this.initialsText.visible = false;
-    } else {
+    if (row) {
+      const avatarR = Math.min(style.height * 0.32, 22);
+      const textX = padX(style) + avatarR * 2 + 10;
+      const maxTextW = Math.max(24, style.width - textX - pad);
+      truncatePixiText(this.nameText, maxTextW);
       this.titleText.visible = true;
       this.titleText.text = position.title;
       this.titleText.style.fontSize = style.titleFontSize;
       this.titleText.style.fill = style.titleColor;
       truncatePixiText(this.titleText, maxTextW);
-      this.titleText.position.set(pad, style.height * 0.64);
-
+      this.titleText.position.set(textX, style.height * 0.22);
+      this.nameText.position.set(textX, style.height * 0.52);
       const initials = vacant ? '' : personInitials(person?.fullName);
       this.initialsText.text = initials;
-      this.initialsText.style.fontSize = Math.max(11, Math.min(style.width, style.height) * 0.09);
-      this.initialsText.position.set(style.width / 2, style.height * 0.26);
+      this.initialsText.style.fontSize = Math.max(10, avatarR * 0.7);
+      this.initialsText.position.set(padX(style) + avatarR, style.height / 2);
       this.initialsText.visible = initials.length > 0;
+    } else {
+      const maxTextW = Math.max(24, style.width - pad * 2);
+      truncatePixiText(this.nameText, maxTextW);
+      if (lod === 'mid') {
+        const h = Math.min(style.height, Math.max(56, style.height * 0.48));
+        const y0 = (style.height - h) / 2;
+        this.nameText.position.set(pad, y0 + h * 0.35);
+        this.titleText.visible = false;
+        this.initialsText.visible = false;
+      } else {
+        this.nameText.position.set(pad, style.height * 0.48);
+        this.titleText.visible = true;
+        this.titleText.text = position.title;
+        this.titleText.style.fontSize = style.titleFontSize;
+        this.titleText.style.fill = style.titleColor;
+        truncatePixiText(this.titleText, maxTextW);
+        this.titleText.position.set(pad, style.height * 0.64);
+        const initials = vacant ? '' : personInitials(person?.fullName);
+        this.initialsText.text = initials;
+        this.initialsText.style.fontSize = Math.max(11, Math.min(style.width, style.height) * 0.09);
+        this.initialsText.position.set(style.width / 2, style.height * 0.26);
+        this.initialsText.visible = initials.length > 0;
+      }
     }
 
     const showBadge = position.isTemporary;
@@ -345,7 +372,9 @@ export class PersonNodeView extends Container {
     const estH = fs + 4;
     const cx = style.width / 2;
     let cy: number;
-    if (lod === 'mid') {
+    if (isRowPersonCard(style) && lod === 'near') {
+      cy = 4 + estH / 2;
+    } else if (lod === 'mid') {
       const h = Math.min(style.height, Math.max(56, style.height * 0.48));
       const y0 = (style.height - h) / 2;
       cy = y0 + 10 + estH / 2;
@@ -390,9 +419,12 @@ export class PersonNodeView extends Container {
   }
 
   private showPhoto(texture: Texture, style: PersonNodeStyle): void {
-    const cx = style.width / 2;
-    const cy = style.height * 0.26;
-    const r = Math.min(style.width, style.height) * 0.155;
+    const row = isRowPersonCard(style);
+    const r = row
+      ? Math.min(style.height * 0.32, 22)
+      : Math.min(style.width, style.height) * 0.155;
+    const cx = row ? padX(style) + r : style.width / 2;
+    const cy = row ? style.height / 2 : style.height * 0.26;
     const size = r * 2;
 
     this.photoSprite.texture = texture;
@@ -414,6 +446,15 @@ export class PersonNodeView extends Container {
     this.photoSprite.mask = null;
     this.photoMask.visible = false;
   }
+}
+
+/** Figma landscape seat: wide short card → photo left, text right. */
+function isRowPersonCard(style: PersonNodeStyle): boolean {
+  return style.width >= style.height * 1.4;
+}
+
+function padX(style: PersonNodeStyle): number {
+  return Math.max(8, style.height * 0.12);
 }
 
 function truncatePixiText(label: Text, maxWidth: number): void {

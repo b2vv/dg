@@ -26,6 +26,11 @@ import { buildVariantBData } from '../scenarios/variantB.js';
 import { buildFlatOrgsData } from '../scenarios/flatOrgs.js';
 import { buildStaffTreeData } from '../scenarios/staffTree.js';
 import {
+  buildMockupOrgsData,
+  buildMockupStaffData,
+  MOCKUP_DARK_STYLES,
+} from '../scenarios/mockupFigma.js';
+import {
   SCALE_ORG_TOTAL,
   SCALE_ORG_WINDOW,
   buildScaleOrgsWindow,
@@ -40,6 +45,8 @@ import { requireElement, setThemeAttribute, showError } from '../utils/dom.js';
 export type DemoTab =
   | 'variant-b'
   | 'staff-tree'
+  | 'mockup-orgs'
+  | 'mockup-staff'
   | 'flat-orgs'
   | 'scale-100k'
   | 'mapper'
@@ -171,6 +178,12 @@ export class App {
       el.classList.toggle('active', (el as HTMLElement).dataset.tab === tab);
     });
     document.body.dataset.activeTab = tab;
+    // Figma mockups are dark screens — pin chrome + diagram theme.
+    if (tab === 'mockup-orgs' || tab === 'mockup-staff') {
+      this.theme = 'dark';
+      setThemeAttribute('dark');
+      this.syncThemeToggleLabel();
+    }
     const search = requireElement('search-input') as HTMLInputElement;
     search.value = '';
     this.syncContourControlsEnabled();
@@ -349,12 +362,29 @@ export class App {
 
   private mountSceneCaption(): void {
     this.mountEl.querySelectorAll('.scene-caption').forEach((el) => el.remove());
-    if (this.tab !== 'variant-b') return;
-    const caption = document.createElement('p');
-    caption.className = 'scene-caption';
-    caption.textContent =
-      'Blue wash = magnetic groups (same dept, adjacent cells) · arrows = reports · orange T = temporary';
-    this.mountEl.appendChild(caption);
+    if (this.tab === 'variant-b') {
+      const caption = document.createElement('p');
+      caption.className = 'scene-caption';
+      caption.textContent =
+        'Blue wash = magnetic groups (same dept, adjacent cells) · arrows = reports · orange T = temporary';
+      this.mountEl.appendChild(caption);
+      return;
+    }
+    if (this.tab === 'mockup-orgs') {
+      const caption = document.createElement('p');
+      caption.className = 'scene-caption';
+      caption.textContent =
+        'Figma orgs · dashed blue = sibling group chrome · N [M] counts · dark card chrome';
+      this.mountEl.appendChild(caption);
+      return;
+    }
+    if (this.tab === 'mockup-staff') {
+      const caption = document.createElement('p');
+      caption.className = 'scene-caption';
+      caption.textContent =
+        'Figma staff · dashed zones · dept cards · row seats · orange name = temporary · green period chip';
+      this.mountEl.appendChild(caption);
+    }
   }
 
   private ensureScaleWindow(focusIndex = 0): ScaleOrgsWindow {
@@ -429,6 +459,53 @@ export class App {
             refCellWidth: 140,
             refCellHeight: 160,
             collapseUnexpandedPositions: true,
+          },
+        };
+      case 'mockup-orgs':
+        return {
+          ...base,
+          theme: 'dark',
+          data: buildMockupOrgsData(),
+          styles: MOCKUP_DARK_STYLES,
+          orgLayout: {
+            nodeWidth: 200,
+            nodeHeight: 120,
+            horizontalGap: 36,
+            verticalGap: 48,
+            margin: 40,
+            orgEdgeStyle: 'spine-bus',
+          },
+          render: {
+            ...base.render,
+            orgSiblingGroupChrome: true,
+          },
+        };
+      case 'mockup-staff':
+        return {
+          ...base,
+          theme: 'dark',
+          data: buildMockupStaffData(),
+          styles: MOCKUP_DARK_STYLES,
+          staffCurrentOrgId: 'tgr',
+          staffLayout: {
+            horizontalGap: 36,
+            verticalGap: 40,
+            tierGap: 48,
+            margin: 28,
+            nodeWidth: 248,
+            nodeHeight: 72,
+            orgCardWidth: 220,
+            orgCardHeight: 56,
+            refCellWidth: 260,
+            refCellHeight: 88,
+            collapseUnexpandedPositions: false,
+          },
+          render: {
+            ...base.render,
+            staffZoneChrome: true,
+            departmentStyle: 'card',
+            cellWidth: 260,
+            cellHeight: 88,
           },
         };
       case 'flat-orgs':
@@ -643,6 +720,10 @@ export class App {
         return 'Variant B';
       case 'staff-tree':
         return 'Staff tree';
+      case 'mockup-orgs':
+        return 'Mockup orgs';
+      case 'mockup-staff':
+        return 'Mockup staff';
       case 'flat-orgs':
         return 'Flat orgs';
       case 'scale-100k':

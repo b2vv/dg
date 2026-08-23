@@ -3,6 +3,7 @@ import type { StaffTierBand } from '../layout/staff/types.js';
 import type { StaffZoneStyle } from './types.js';
 import { worldBoundsForTier, type WorldRect } from './staffZoneBounds.js';
 import type { StaffNodeBox, StaffOrgCard } from '../layout/staff/types.js';
+import { paintDashedFrame } from './DepartmentCardView.js';
 
 export interface StaffZonePaintInput {
   tiers: readonly StaffTierBand[];
@@ -43,7 +44,11 @@ export class StaffZonesView extends Container {
         const g = new Graphics();
         g.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, style.borderRadius);
         g.fill({ color: style.fill, alpha: style.fillAlpha });
-        g.stroke({ width: style.strokeWidth, color: style.stroke });
+        if (style.dashed) {
+          paintDashedFrame(view, bounds, style.stroke, style.strokeWidth);
+        } else {
+          g.stroke({ width: style.strokeWidth, color: style.stroke });
+        }
         view.addChild(g);
 
         const label = tier.label;

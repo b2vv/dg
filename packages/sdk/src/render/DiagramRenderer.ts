@@ -16,6 +16,7 @@ import {
   isPositionExpanded,
 } from '../layout/staff/positionExpand.js';
 import { computeOrgLayout } from '../layout/rowTreeLayout.js';
+import { siblingOrgGroupBounds } from '../layout/siblingOrgGroups.js';
 import type { OrgLayoutOptions } from '../layout/types.js';
 import { isOrgCollapsed, orgHasChildren } from '../layout/orgMode.js';
 import { snapToGrid } from '../interaction/positionMove.js';
@@ -991,6 +992,14 @@ export class DiagramRenderer {
       resolvedTheme === 'dark' ? 0x64748b : 0x94a3b8,
     );
     this.layers.edges.addChild(edgesView);
+
+    if (config.orgSiblingGroupChrome) {
+      const groups = siblingOrgGroupBounds(layout.nodes, 14);
+      const stroke = resolvedTheme === 'dark' ? 0x3b82f6 : 0x2563eb;
+      for (const g of groups) {
+        paintDashedFrame(this.layers.zones, g.bounds, stroke, 1.25);
+      }
+    }
 
     const orgById = new Map(data.organizations.map((o) => [o.id, o]));
     const groupById = new Map(data.groups.map((g) => [g.id, g]));

@@ -30,6 +30,8 @@ export interface StaffZoneStyle {
   labelColor: number;
   labelFontSize: number;
   labelAlign: 'left' | 'right';
+  /** Figma mockup: dashed zone outline (default solid). */
+  dashed?: boolean;
 }
 
 export interface PersonNodeStyle {
@@ -50,6 +52,10 @@ export interface PersonNodeStyle {
   periodChipTextColor?: number;
   periodChipFontSize?: number;
   vacantLabelColor?: number;
+  /** When set, temporary seats use this name color (Figma orange). */
+  temporaryNameColor?: number;
+  /** Permanent / non-temp name color when temporaryNameColor is used. */
+  permanentNameColor?: number;
 }
 
 export interface OrganizationNodeStyle {
@@ -108,6 +114,11 @@ export interface RenderConfig {
   departmentStyle?: DepartmentPaintStyle;
   /** T64 / B8a: dashed frame around grid union. */
   dashedGridFrame?: boolean;
+  /**
+   * Paint dashed AABB around sibling org cards that share a parent
+   * (Figma org mockup / B8c preview). Org-layout only.
+   */
+  orgSiblingGroupChrome?: boolean;
   /**
    * T70 E11: prefetch the inactive theme’s org symbol URL on mount.
    * Default false — avoids automatic cross-theme fetches of untrusted URLs
@@ -269,6 +280,7 @@ export const defaultRenderConfig: RenderConfig = {
   staffZoneChrome: false,
   departmentStyle: 'blob',
   dashedGridFrame: false,
+  orgSiblingGroupChrome: false,
   prefetchInactiveOrgSymbol: false,
 };
 

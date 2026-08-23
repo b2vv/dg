@@ -1,0 +1,301 @@
+import type { DiagramData } from '@org-hierarchy/sdk';
+import { DEMO_PLACEHOLDER_PNG, DEMO_AVATAR_PNG } from './demoMedia.js';
+
+/** Simple blue APP-6-ish box (X) as data-URI SVG for org mockup. */
+export function milBoxSymbol(mark = 'X'): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+    <rect x="8" y="8" width="104" height="104" fill="#5b9bd5" stroke="#1e3a5f" stroke-width="4"/>
+    <text x="60" y="78" text-anchor="middle" font-size="56" font-family="system-ui,sans-serif" font-weight="700" fill="#0f172a">${mark}</text>
+  </svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * Figma mockup #1 — org tree: тгр «Шацьк» → 111 ОБРТРО → 5 peer orgs in a dashed group.
+ */
+export function buildMockupOrgsData(): DiagramData {
+  const sym = milBoxSymbol('X');
+  const eagle = milBoxSymbol('★');
+  return {
+    organizations: [
+      {
+        id: 'org-shatsk',
+        name: 'тгр «Шацьк»',
+        groupIds: [],
+        collapsed: false,
+        filledCount: 1,
+        vacantCount: 6,
+        symbolUrl: eagle,
+        symbolUrlLight: eagle,
+        symbolUrlDark: eagle,
+        showShortName: true,
+      },
+      {
+        id: 'org-111',
+        name: '111 ОБРТРО',
+        parentOrgId: 'org-shatsk',
+        groupIds: [],
+        collapsed: false,
+        filledCount: 5,
+        vacantCount: 5,
+        symbolUrl: sym,
+        symbolUrlLight: sym,
+        symbolUrlDark: sym,
+      },
+      ...[
+        ['org-61', '61 ОБТРО', 4, 12],
+        ['org-118', '118 ОБТРО', 3, 8],
+        ['org-119', '119 ОБТРО', 2, 6],
+        ['org-198', '198 ОБТРО', 5, 10],
+        ['org-110', '110 ОБТРО', 3, 9],
+      ].map(([id, name, filled, vacant], i) => ({
+        id: id as string,
+        name: name as string,
+        parentOrgId: 'org-111',
+        groupIds: ['g-peer'],
+        collapsed: false,
+        matrixOrder: i,
+        filledCount: filled as number,
+        vacantCount: vacant as number,
+        symbolUrl: sym,
+        symbolUrlLight: sym,
+        symbolUrlDark: sym,
+      })),
+    ],
+    groups: [{ id: 'g-peer', name: 'Підлеглі ОБТРО', emblemUrl: DEMO_PLACEHOLDER_PNG }],
+    departments: [],
+    persons: [],
+    positions: [],
+    reportLines: [],
+    orgLinks: [],
+  };
+}
+
+/**
+ * Figma mockup #2 — staff: dashed org zones + dept cards + landscape-ish seats.
+ */
+export function buildMockupStaffData(): DiagramData {
+  return {
+    organizations: [
+      { id: 'holding', name: 'Holding', groupIds: [], collapsed: false },
+      {
+        id: 'tgr',
+        name: 'Тактична група «Шацьк»',
+        parentOrgId: 'holding',
+        groupIds: [],
+        collapsed: false,
+      },
+      {
+        id: 'unit-current',
+        name: 'Назва поточного підрозділу',
+        parentOrgId: 'tgr',
+        groupIds: [],
+        collapsed: false,
+      },
+    ],
+    groups: [],
+    departments: [
+      { id: 'cmd', name: 'Командирський склад', organizationId: 'tgr' },
+      { id: 'supply', name: 'Служба речового майна', organizationId: 'tgr' },
+      { id: 'cmd2', name: 'Командирський склад', organizationId: 'unit-current' },
+      { id: 'supply2', name: 'Служба речового майна', organizationId: 'unit-current' },
+    ],
+    persons: [
+      { id: 'p-cmd', fullName: 'Мамченко С. Г.', photoUrl: DEMO_AVATAR_PNG },
+      { id: 'p-1z', fullName: 'Іваненко П. І.', photoUrl: DEMO_AVATAR_PNG },
+      { id: 'p-2z', fullName: 'Петренко О. В.', photoUrl: DEMO_AVATAR_PNG },
+      { id: 'p-nch', fullName: 'Сидоренко А. М.', photoUrl: DEMO_AVATAR_PNG },
+      { id: 'p-sup', fullName: 'Коваленко І. С.', photoUrl: DEMO_AVATAR_PNG },
+      { id: 'p-u1', fullName: 'Бондар Т. К.', photoUrl: DEMO_AVATAR_PNG },
+      { id: 'p-u2', fullName: 'Мельник Р. Д.', photoUrl: DEMO_AVATAR_PNG },
+    ],
+    positions: [
+      {
+        id: 'pos-cmd',
+        title: 'Командир',
+        organizationId: 'tgr',
+        departmentId: 'cmd',
+        groupIds: [],
+        personId: 'p-cmd',
+        status: 'filled',
+        isTemporary: false,
+        isHead: true,
+        width: 248,
+        height: 72,
+      },
+      {
+        id: 'pos-1z',
+        title: 'Перший заступник командира',
+        organizationId: 'tgr',
+        departmentId: 'cmd',
+        groupIds: [],
+        personId: 'p-1z',
+        status: 'filled',
+        isTemporary: true,
+        periodStart: '2018-06-27',
+        periodEnd: null,
+        width: 248,
+        height: 72,
+      },
+      {
+        id: 'pos-2z',
+        title: 'Заступник командира',
+        organizationId: 'tgr',
+        departmentId: 'cmd',
+        groupIds: [],
+        personId: 'p-2z',
+        status: 'filled',
+        isTemporary: false,
+        width: 248,
+        height: 72,
+      },
+      {
+        id: 'pos-nch',
+        title: 'Начальник штабу',
+        organizationId: 'tgr',
+        departmentId: 'cmd',
+        groupIds: [],
+        personId: 'p-nch',
+        status: 'filled',
+        isTemporary: false,
+        width: 248,
+        height: 72,
+      },
+      {
+        id: 'pos-sup',
+        title: 'Начальник служби',
+        organizationId: 'tgr',
+        departmentId: 'supply',
+        groupIds: [],
+        personId: 'p-sup',
+        status: 'filled',
+        isTemporary: false,
+        width: 248,
+        height: 72,
+      },
+      {
+        id: 'pos-vac',
+        title: 'Офіцер служби',
+        organizationId: 'tgr',
+        departmentId: 'supply',
+        groupIds: [],
+        status: 'vacant',
+        isTemporary: false,
+        width: 248,
+        height: 72,
+      },
+      {
+        id: 'pos-u-h',
+        title: 'Командир підрозділу',
+        organizationId: 'unit-current',
+        departmentId: 'cmd2',
+        groupIds: [],
+        personId: 'p-u1',
+        status: 'filled',
+        isTemporary: false,
+        isHead: true,
+        width: 248,
+        height: 72,
+      },
+      {
+        id: 'pos-u-2',
+        title: 'Заступник командира',
+        organizationId: 'unit-current',
+        departmentId: 'cmd2',
+        groupIds: [],
+        personId: 'p-u2',
+        status: 'filled',
+        isTemporary: true,
+        periodStart: '2023-01-01',
+        periodEnd: null,
+        width: 248,
+        height: 72,
+      },
+      {
+        id: 'pos-u-sup',
+        title: 'Начальник служби',
+        organizationId: 'unit-current',
+        departmentId: 'supply2',
+        groupIds: [],
+        status: 'vacant',
+        isTemporary: false,
+        width: 248,
+        height: 72,
+      },
+    ],
+    reportLines: [
+      { fromId: 'pos-cmd', toId: 'pos-1z', kind: 'admin' },
+      { fromId: 'pos-cmd', toId: 'pos-2z', kind: 'admin' },
+      { fromId: 'pos-cmd', toId: 'pos-nch', kind: 'admin' },
+      { fromId: 'pos-1z', toId: 'pos-sup', kind: 'admin' },
+      { fromId: 'pos-sup', toId: 'pos-vac', kind: 'admin' },
+      { fromId: 'pos-u-h', toId: 'pos-u-2', kind: 'admin' },
+      { fromId: 'pos-u-h', toId: 'pos-u-sup', kind: 'admin' },
+      // Cross-org link: 1st deputy → current unit head (decorative via report if same layout)
+      { fromId: 'pos-1z', toId: 'pos-u-h', kind: 'dotted' },
+    ],
+  };
+}
+
+/** Dark Figma-like styles for mockup tabs. */
+export const MOCKUP_DARK_STYLES = {
+  organization: {
+    width: 200,
+    height: 120,
+    background: 0x2a323c,
+    border: 0x3d4a5c,
+    borderWidth: 1,
+    borderRadius: 8,
+    nameColor: 0xf1f5f9,
+    groupColor: 0x94a3b8,
+    nameFontSize: 13,
+    groupFontSize: 11,
+    symbolSize: 56,
+    periodColor: 0x4ade80,
+    metaColor: 0x94a3b8,
+    badgeColor: 0xf59e0b,
+    badgeTextColor: 0xffffff,
+    countsBadgeBackground: 0x1e293b,
+    countsBadgeTextColor: 0xe2e8f0,
+  },
+  person: {
+    width: 248,
+    height: 72,
+    background: 0x2a323c,
+    border: 0x3d4a5c,
+    borderWidth: 1,
+    borderRadius: 8,
+    nameColor: 0xf97316,
+    titleColor: 0xf1f5f9,
+    nameFontSize: 13,
+    titleFontSize: 12,
+    badgeColor: 0xf59e0b,
+    badgeTextColor: 0xffffff,
+    avatarColor: 0x64748b,
+    periodChipBackground: 0x14532d,
+    periodChipTextColor: 0x86efac,
+    vacantLabelColor: 0x94a3b8,
+    temporaryNameColor: 0xf97316,
+    permanentNameColor: 0xf1f5f9,
+  },
+  staffZone: {
+    fill: 0x1a222d,
+    fillAlpha: 0.55,
+    stroke: 0x3b82f6,
+    strokeWidth: 1.25,
+    borderRadius: 4,
+    labelColor: 0xe2e8f0,
+    labelFontSize: 13,
+    labelAlign: 'right' as const,
+    dashed: true,
+  },
+  departmentCard: {
+    fill: 0x1e3a5f,
+    fillAlpha: 0.92,
+    stroke: 0x334155,
+    strokeWidth: 1,
+    borderRadius: 6,
+    labelColor: 0xcbd5e1,
+    labelFontSize: 12,
+  },
+};
