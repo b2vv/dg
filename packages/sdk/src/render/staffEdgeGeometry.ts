@@ -1,9 +1,18 @@
+/** Near LOD edge hints when layout chrome is smaller than the layout cell. */
+export interface PersonEdgeVisualHints {
+  layout: 'gojs-row';
+  cardY: number;
+  cardH: number;
+  countBarH: number;
+}
+
 export interface StaffEdgeBox {
   id: string;
   x: number;
   y: number;
   width: number;
   height: number;
+  personEdgeHints?: PersonEdgeVisualHints;
 }
 
 export interface StaffEdgeLink {

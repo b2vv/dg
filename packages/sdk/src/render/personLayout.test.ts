@@ -5,6 +5,7 @@ import {
   gojsRowAvatar,
   gojsPortraitAvatar,
   isExplicitLayout,
+  resolveGojsRowLayoutMetrics,
   resolvePersonLayout,
 } from './personLayout.js';
 import type { PersonNodeStyle } from './types.js';
@@ -71,6 +72,28 @@ describe('avatar slots', () => {
     expect(avatar.r).toBe(14);
     expect(avatar.cx).toBeLessThan(style.width / 2);
     expect(avatar.cy).toBe(style.height / 2);
+  });
+});
+
+describe('resolveGojsRowLayoutMetrics', () => {
+  it('includes timeline and count bar offsets when data present', () => {
+    const metrics = resolveGojsRowLayoutMetrics(
+      {
+        id: 'p1',
+        organizationId: 'o1',
+        periodStart: '2024-01-01',
+        childrenCount: 1,
+        allDescendantCount: 3,
+      },
+      baseStyle({ cardRowHeight: 56 }),
+    );
+    expect(metrics).toEqual({ cardY: 18, cardH: 56, timelineH: 18, countBarH: 24 });
+  });
+
+  it('omits chrome bands when period and counts absent', () => {
+    expect(
+      resolveGojsRowLayoutMetrics({ id: 'p1', organizationId: 'o1' }, baseStyle({ cardRowHeight: 56 })),
+    ).toEqual({ cardY: 0, cardH: 56, timelineH: 0, countBarH: 0 });
   });
 });
 

@@ -1,3 +1,6 @@
+import type { DiagramPosition } from '../data/types.js';
+import { formatOrgPeriodLabel } from './formatPeriodLabel.js';
+import { formatPositionCountsBadge } from './orgCardChrome.js';
 import type { PersonCardLayout, PersonNodeStyle } from './types.js';
 
 export type ResolvedPersonLayout = 'figma-row' | 'gojs-row' | 'gojs-portrait';
@@ -39,6 +42,26 @@ export function gojsRowAvatar(style: PersonNodeStyle, cardY = 0): PersonAvatarSl
 
 export function gojsRowTextX(avatar: PersonAvatarSlot): number {
   return avatar.cx + avatar.r + 8;
+}
+
+/** GoJS row stack: timeline chip + card + optional count bar (shared paint + edges). */
+export interface GojsRowLayoutMetrics {
+  cardY: number;
+  cardH: number;
+  timelineH: number;
+  countBarH: number;
+}
+
+export function resolveGojsRowLayoutMetrics(
+  position: DiagramPosition,
+  style: Pick<PersonNodeStyle, 'cardRowHeight'>,
+): GojsRowLayoutMetrics {
+  const cardH = style.cardRowHeight ?? 56;
+  const timelineLabel = formatOrgPeriodLabel(position) ?? undefined;
+  const timelineH = timelineLabel ? 18 : 0;
+  const countsLabel = formatPositionCountsBadge(position);
+  const countBarH = countsLabel ? 24 : 0;
+  return { cardY: timelineH, cardH, timelineH, countBarH };
 }
 
 /** GoJS / Variant B portrait — photo top-center, name + title below. */

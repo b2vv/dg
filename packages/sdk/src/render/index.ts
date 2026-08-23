@@ -25,6 +25,7 @@ export {
   visualPersonEdgeBox,
   visualOrgEdgeBox,
   mapStaffEdgeBoxesForLod,
+  staffEdgeBoxForPosition,
 } from './visualEdgeBox.js';
 export {
   personVisualLocalRect,

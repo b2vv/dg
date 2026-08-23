@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { staffEdgeEndpoints } from './staffEdgeGeometry.js';
 import {
   mapStaffEdgeBoxesForLod,
+  staffEdgeBoxForPosition,
   visualOrgEdgeBox,
   visualPersonEdgeBox,
 } from './visualEdgeBox.js';
+import type { DiagramPosition } from '../data/types.js';
+import type { PersonNodeStyle } from './types.js';
 
 const full = { id: 'p', x: 10, y: 20, width: 136, height: 156 };
 
@@ -46,15 +49,37 @@ describe('visualPersonEdgeBox', () => {
     expect(ep.y1).toBeLessThan(156); // not full-card bottom
   });
 
-  it('success: near Variant B admin ports dock to card borders (T44 A2)', () => {
-    const p2 = { id: 'P2', x: 0, y: 0, width: 136, height: 156 };
-    const p4 = { id: 'P4', x: 0, y: 200, width: 136, height: 156 };
-    const near2 = visualPersonEdgeBox(p2, 'near');
-    const near4 = visualPersonEdgeBox(p4, 'near');
-    const ep = staffEdgeEndpoints(near2, near4);
-    expect(ep.y1).toBe(near2.y + near2.height);
-    expect(ep.y2).toBe(near4.y);
-    expect(ep.x1).toBeCloseTo(near2.x + near2.width / 2);
+  it('success: gojs-row near docks to card stack, not full layout cell', () => {
+    const position = {
+      id: 'pos-1',
+      organizationId: 'org-1',
+      periodStart: '2024-01-01',
+      childrenCount: 2,
+      allDescendantCount: 5,
+    } satisfies DiagramPosition;
+    const style = {
+      width: 200,
+      height: 98,
+      cardRowHeight: 56,
+      personLayout: 'gojs-row',
+    } as PersonNodeStyle;
+    const layoutBox = { id: 'pos-1', x: 40, y: 80, width: 200, height: 98 };
+    const hinted = staffEdgeBoxForPosition(layoutBox, position, style);
+    const near = visualPersonEdgeBox(hinted, 'near');
+    expect(near.y).toBe(80 + 18); // timeline chip
+    expect(near.height).toBe(56 + 24); // card + count bar
+    expect(near.y + near.height).toBe(80 + 98); // flush with layout bottom
+    const child = visualPersonEdgeBox(
+      staffEdgeBoxForPosition(
+        { id: 'pos-2', x: 40, y: 220, width: 200, height: 98 },
+        { id: 'pos-2', organizationId: 'org-1' },
+        style,
+      ),
+      'near',
+    );
+    const ep = staffEdgeEndpoints(near, child);
+    expect(ep.y1).toBe(near.y + near.height);
+    expect(ep.y2).toBe(child.y);
   });
 });
 

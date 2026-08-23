@@ -1,13 +1,52 @@
+import type { DiagramPosition } from '../data/types.js';
 import type { LodLevel } from './lod.js';
+import { resolveGojsRowLayoutMetrics, resolvePersonLayout } from './personLayout.js';
 import type { StaffEdgeBox } from './staffEdgeGeometry.js';
 import { personVisualWorldRect } from './personVisualGeometry.js';
+import type { PersonNodeStyle } from './types.js';
 
 /**
  * Edge routing AABB that matches what PersonNode actually paints at this LOD.
  * Layout boxes stay full cell cards; mid/far chrome is smaller — ports must follow.
  */
 export function visualPersonEdgeBox(box: StaffEdgeBox, lod: LodLevel): StaffEdgeBox {
+  const hints = box.personEdgeHints;
+  if (lod === 'near' && hints?.layout === 'gojs-row') {
+    return {
+      id: box.id,
+      x: box.x,
+      y: box.y + hints.cardY,
+      width: box.width,
+      height: hints.cardH + hints.countBarH,
+    };
+  }
   return personVisualWorldRect(box, lod);
+}
+
+/** Attach gojs-row near hints when the seat template needs a shorter edge AABB. */
+export function staffEdgeBoxForPosition(
+  node: { id: string; x: number; y: number; width: number; height: number },
+  position: DiagramPosition,
+  style: PersonNodeStyle,
+): StaffEdgeBox {
+  const box: StaffEdgeBox = {
+    id: node.id,
+    x: node.x,
+    y: node.y,
+    width: node.width,
+    height: node.height,
+  };
+  if (resolvePersonLayout(style) !== 'gojs-row') return box;
+  const metrics = resolveGojsRowLayoutMetrics(position, style);
+  return {
+    ...box,
+    personEdgeHints: {
+      layout: 'gojs-row',
+      cardY: metrics.cardY,
+      cardH: metrics.cardH,
+      countBarH: metrics.countBarH,
+    },
+  };
 }
 
 /** Org card visual bounds (far = symbol chip, vertically centered). */
