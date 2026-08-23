@@ -25,6 +25,7 @@ import {
 import { resolvePersonPhotoUrl } from './render/PersonNode.js';
 import { resolveLodLevel, defaultLodThresholds, type LodLevel, type LodThresholds } from './render/lod.js';
 import { createRenderCoalesce } from './render/renderCoalesce.js';
+import { SelectionStore } from './state/SelectionStore.js';
 import type { PromoteCandidate } from './render/promoteTypes.js';
 import {
   collapseAllOrgs,
@@ -51,11 +52,6 @@ import {
   resolveOrganizationIdForNode,
   movePositionToCell,
   shiftPositionBlock,
-  selectMany as dedupeSelections,
-  replaceSelection,
-  toggleInSelection,
-  sameSelectionSet,
-  isSelectionToggleModifier,
   defaultContextMenuItems,
   type SearchIndex,
   type NodeRef,
@@ -395,8 +391,11 @@ export class OrgHierarchyDiagram {
   private staffExpandedOrgIds = new Set<string>();
   private staffExpandedPositionIds = new Set<string>();
   private searchIdx: SearchIndex | null = null;
-  /** Multi-select set (T67). Primary / first element is also exposed via getSelection(). */
-  private selections: NodeRef[] = [];
+  /** Multi-select set (T67 / T76 SelectionStore). */
+  private readonly selectionStore = new SelectionStore((selections) => {
+    this.callbacks.onSelectionChange?.([...selections]);
+    this.notifyPromoteSync();
+  });
   private lodLevel: LodLevel = 'near';
   private lodThresholds: LodThresholds = defaultLodThresholds;
   private lodRenderQueued = false;
@@ -536,38 +535,22 @@ export class OrgHierarchyDiagram {
   }
 
   private applySelection(next: NodeRef | null): void {
-    const result = replaceSelection(this.selections, next);
-    if (!result.changed) return;
-    this.selections = result.selections;
-    this.callbacks.onSelectionChange?.(this.selections);
-    this.notifyPromoteSync();
+    this.selectionStore.replace(next);
   }
 
   private applyToggleSelection(node: NodeRef): void {
-    const result = toggleInSelection(this.selections, node);
-    if (!result.changed) return;
-    this.selections = result.selections;
-    this.callbacks.onSelectionChange?.(this.selections);
-    this.notifyPromoteSync();
+    this.selectionStore.toggle(node);
   }
 
   private applySelections(next: readonly NodeRef[]): void {
-    const selections = dedupeSelections(next);
-    if (sameSelectionSet(this.selections, selections)) return;
-    this.selections = selections;
-    this.callbacks.onSelectionChange?.(this.selections);
-    this.notifyPromoteSync();
+    this.selectionStore.replaceMany(next);
   }
 
   private handleNodeSelect(
     node: NodeRef,
     mods?: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean },
   ): void {
-    if (mods && isSelectionToggleModifier(mods)) {
-      this.applyToggleSelection(node);
-    } else {
-      this.applySelection(node);
-    }
+    this.selectionStore.handlePointerSelect(node, mods);
   }
 
   private personNodeRef(personId: string, positionId: string): NodeRef {
@@ -722,7 +705,7 @@ export class OrgHierarchyDiagram {
             expandedOrgIds: [...this.staffExpandedOrgIds],
           }
         : undefined,
-      selected: this.selections,
+      selected: this.selectionStore.list,
       loadTexture: (url, revision) =>
         this.mediaService
           ? this.mediaService.loadTexture(url, revision)
@@ -1156,12 +1139,12 @@ export class OrgHierarchyDiagram {
 
   /** Primary / first selected node (compat). Prefer {@link getSelections}. */
   getSelection(): NodeRef | null {
-    return this.selections[0] ?? null;
+    return this.selectionStore.primary;
   }
 
   /** Full multi-select set (T67 Phase 1). Order = selection order. */
   getSelections(): readonly NodeRef[] {
-    return this.selections;
+    return this.selectionStore.list;
   }
 
   /** Soft layout warnings from the last render (anchor overlap, skipped expands, …). */
@@ -1196,7 +1179,7 @@ export class OrgHierarchyDiagram {
   /** T75 D1: selection chrome only — keeps nodeViews alive. */
   private repaintSelection(): void {
     if (!this.host || this.destroyed) return;
-    this.host.renderer.repaintSelection(this.selections);
+    this.host.renderer.repaintSelection(this.selectionStore.list);
     this.notifyPromoteSync();
   }
 
