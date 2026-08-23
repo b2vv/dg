@@ -1,10 +1,12 @@
-# Mockup style & display rules (draft for review)
+# Mockup style & display rules
 
+**Status:** ✅ **Approved** (2026-08-23 — «Так поїхали»)  
 **Branch:** `cursor/gojs-migration-tasks-babc`  
 **Demo tabs:** Orgs · Figma / Orgs · GoJS / Staff · Figma / Staff · GoJS  
-**Data:** civilian corporate names only (GH Pages safe)
+**Data:** civilian corporate names only (GH Pages safe)  
+**Contract tests:** `packages/demo/src/scenarios/mockupFigma.test.ts`
 
-Confirm or correct each section. Tokens use hex for readability (`0x2a323c` → `#2a323c`).
+Tokens use hex for readability (`0x2a323c` → `#2a323c`).
 
 ---
 
@@ -156,11 +158,9 @@ Confirm or correct each section. Tokens use hex for readability (`0x2a323c` → 
 
 ---
 
-## Checklist for you
+## Change log
 
-Reply with corrections like:
-
-- `[Orgs·Figma] sibling stroke → #60a5fa, pad 20`
-- `[Staff·GoJS] departmentStyle → card (not blob)`
-- `[Orgs·GoJS] hide counts on hubs`
-- `OK as drafted`
+| Date | Action |
+|---|---|
+| 2026-08-23 | Draft issued for review |
+| 2026-08-23 | **Approved** — proceed with demo + contract tests |
