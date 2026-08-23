@@ -997,7 +997,7 @@ export class DiagramRenderer {
     this.layers.edges.addChild(edgesView);
 
     if (config.orgSiblingGroupChrome) {
-      const groups = siblingOrgGroupBounds(layout.nodes, 14);
+      const groups = siblingOrgGroupBounds(layout.nodes, data.organizations, 14);
       const stroke = resolvedTheme === 'dark' ? 0x3b82f6 : 0x2563eb;
       for (const g of groups) {
         paintDashedFrame(this.layers.zones, g.bounds, stroke, 1.25);

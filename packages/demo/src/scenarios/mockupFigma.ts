@@ -1,6 +1,15 @@
 import type { DiagramData } from '@org-hierarchy/sdk';
 import { DEMO_PLACEHOLDER_PNG, DEMO_AVATAR_PNG } from './demoMedia.js';
 
+/** Wide display-canvas (~400×200) for full-bleed org symbol (O4). */
+export function fullBleedOrgSymbol(fill = '#334155'): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200">
+    <rect width="400" height="200" fill="${fill}"/>
+    <text x="200" y="110" text-anchor="middle" font-size="32" font-family="system-ui,sans-serif" fill="#e2e8f0">400×200</text>
+  </svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
 /** Neutral brand mark (letter) as data-URI SVG — safe for GitHub Pages. */
 export function brandMarkSymbol(mark: string, fill = '#5b9bd5'): string {
   const safe = mark.replace(/[^A-Za-z0-9]/g, '').slice(0, 2) || 'A';
@@ -103,7 +112,7 @@ export function buildMockupOrgsGojsData(): DiagramData {
         groupIds: [],
         collapsed: false,
         childrenCount: 5,
-        allDescendantCount: 5,
+        allDescendantCount: 7,
         symbolUrl: logo('EO'),
         symbolUrlLight: logo('EO'),
         symbolUrlDark: logo('EO'),
@@ -115,6 +124,7 @@ export function buildMockupOrgsGojsData(): DiagramData {
         ['org-prague', 'Prague Hub', 0, 0, false, false],
         ['org-oslo', 'Oslo Hub', 0, 0, false, true],
         ['org-dublin', 'Dublin Hub', 0, 0, false, true],
+        ['org-nosym', 'No Sym', 0, 0, false, true],
       ].map(([id, name, _c, _d, temp, caption], i) => ({
         id: id as string,
         name: name as string,
@@ -124,9 +134,24 @@ export function buildMockupOrgsGojsData(): DiagramData {
         matrixOrder: i,
         ...(caption ? {} : { showShortName: false as const }),
         isTemporary: temp as boolean,
-        symbolUrl: logo(String(name).slice(0, 1)),
-        symbolUrlLight: logo(String(name).slice(0, 1)),
-        symbolUrlDark: logo(String(name).slice(0, 1)),
+        ...(id === 'org-nosym'
+          ? {
+              fullName: 'Organization Without Symbol Display Canvas',
+              symbolUrl: undefined,
+              symbolUrlLight: undefined,
+              symbolUrlDark: undefined,
+            }
+          : id === 'org-berlin'
+            ? {
+                symbolUrl: fullBleedOrgSymbol('#1e3a5f'),
+                symbolUrlLight: fullBleedOrgSymbol('#1e3a5f'),
+                symbolUrlDark: fullBleedOrgSymbol('#1e3a5f'),
+              }
+            : {
+                symbolUrl: logo(String(name).slice(0, 1)),
+                symbolUrlLight: logo(String(name).slice(0, 1)),
+                symbolUrlDark: logo(String(name).slice(0, 1)),
+              }),
       })),
     ],
     groups: [],
@@ -206,6 +231,9 @@ function buildStaffTopology(card: { width: number; height: number }): DiagramDat
         departmentId: 'exec',
         personId: 'p-head',
         isHead: true,
+        isKeyPosition: true,
+        childrenCount: 3,
+        allDescendantCount: 5,
         testId: 'staff-head',
         },
         card,
@@ -218,6 +246,7 @@ function buildStaffTopology(card: { width: number; height: number }): DiagramDat
           departmentId: 'exec',
           personId: 'p-1z',
           isTemporary: true,
+          pending: true,
           periodStart: '2018-06-27',
           periodEnd: null,
           testId: 'staff-temp',
@@ -251,6 +280,7 @@ function buildStaffTopology(card: { width: number; height: number }): DiagramDat
           organizationId: 'region',
           departmentId: 'ops',
           personId: 'p-sup',
+          detached: true,
         },
         card,
       ),
@@ -418,6 +448,7 @@ export const MOCKUP_GOJS_STYLES = {
     orgCardLayout: 'gojs-vertical' as const,
     hidePeriodOnCard: true,
     tempMarkerStyle: 'hourglass' as const,
+    brandColor: 0x2563eb,
     periodColor: 0x4ade80,
     metaColor: 0x94a3b8,
     metaFontSize: 10,
@@ -441,6 +472,19 @@ export const MOCKUP_GOJS_STYLES = {
     badgeColor: 0xf59e0b,
     badgeTextColor: 0xffffff,
     avatarColor: 0x64748b,
+    avatarPlaceholderFill: 0x475569,
+    brandColor: 0x2563eb,
+    keyPositionNameColor: 0x2563eb,
+    pendingColor: 0xf59e0b,
+    timelineChipFill: 0x334155,
+    timelineChipStroke: 0x475569,
+    timelineDotColor: 0x4ade80,
+    timelineTextColor: 0xcbd5e1,
+    timelineFontSize: 12,
+    countsBarFill: 0x334155,
+    countsBadgeFontSize: 11,
+    countsBadgeTextColor: 0xe2e8f0,
+    detachedBorderColor: 0x94a3b8,
     periodChipBackground: 0x14532d,
     periodChipTextColor: 0x4ade80,
     vacantLabelColor: 0x94a3b8,

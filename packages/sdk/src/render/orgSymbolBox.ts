@@ -5,7 +5,13 @@ import type { LodLevel } from './lod.js';
 /** Inset around the symbol when not full-bleed. */
 export const ORG_SYMBOL_PAD = 8;
 
-/** GoJS production symbol box (10:7). */
+/** GoJS vertical card body inset (org-hierarchy.adapter margin). */
+export const GOJS_BODY_MARGIN = { top: 10, right: 14, bottom: 10, left: 14 };
+/** Name row min height when showShortName. */
+export const GOJS_NAME_ROW_H = 20;
+/** Gap between name row and symbol row. */
+export const GOJS_SYMBOL_ROW_MARGIN_TOP = 6;
+
 export const GOJS_SYMBOL_W = 80;
 export const GOJS_SYMBOL_H = 56;
 export const GOJS_NO_CAPTION_W = 109;
@@ -103,16 +109,23 @@ export function resolveOrgSymbolLayout(
   // E3: missing symbol → text fullName/name, never a diamond placeholder.
   if (!hasSymbol) {
     const pad = ORG_SYMBOL_PAD;
-    const boxW = symbolW;
-    const boxH = symbolH;
+    const boxW = wantCaption ? symbolW : (style.noCaptionSymbolWidth ?? (vertical ? GOJS_NO_CAPTION_W : symbolW));
+    const boxH = wantCaption ? symbolH : (style.noCaptionSymbolHeight ?? (vertical ? GOJS_NO_CAPTION_H : symbolH));
     const x = vertical ? (nodeW - boxW) / 2 : pad;
-    const y = vertical ? pad + 4 : (nodeH - boxH) / 2;
+    const y = vertical
+      ? wantCaption
+        ? GOJS_BODY_MARGIN.top + GOJS_NAME_ROW_H + GOJS_SYMBOL_ROW_MARGIN_TOP
+        : GOJS_BODY_MARGIN.top
+      : (nodeH - boxH) / 2;
     return {
       mode: wantCaption ? 'caption' : 'no-caption',
       box: { x, y, width: boxW, height: boxH, padding: pad },
       showShortName: wantCaption,
-      showNameText: true,
-      displayName: org.fullName?.trim() || org.name,
+      showNameText: wantCaption || !vertical,
+      displayName:
+        vertical && wantCaption
+          ? org.name
+          : org.fullName?.trim() || org.name,
     };
   }
 
@@ -136,7 +149,7 @@ export function resolveOrgSymbolLayout(
       mode: 'no-caption',
       box: {
         x: vertical ? (nodeW - fullW) / 2 : pad,
-        y: vertical ? pad + 4 : (nodeH - fullH) / 2,
+        y: vertical ? GOJS_BODY_MARGIN.top : (nodeH - fullH) / 2,
         width: fullW,
         height: fullH,
         padding: pad,
@@ -147,9 +160,11 @@ export function resolveOrgSymbolLayout(
     };
   }
 
-  // With caption: SYMBOL_W × SYMBOL_H
+  // With caption: SYMBOL_W × SYMBOL_H — name row above symbol (GoJS vertical).
   const pad = ORG_SYMBOL_PAD;
-  const topInset = vertical ? pad + 4 : (nodeH - symbolH) / 2;
+  const topInset = vertical
+    ? GOJS_BODY_MARGIN.top + GOJS_NAME_ROW_H + GOJS_SYMBOL_ROW_MARGIN_TOP
+    : (nodeH - symbolH) / 2;
   return {
     mode: 'caption',
     box: {

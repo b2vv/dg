@@ -13,9 +13,11 @@ import {
   hitChromePointer,
   type ContextMenuPointer,
 } from './nodeCardChrome.js';
-import { mountOrgNodeChrome, type OrgNodeChrome } from './orgNodeChrome.js';
+import { mountGojsOrgTreeExpander, mountOrgNodeChrome, type OrgNodeChrome } from './orgNodeChrome.js';
 import type { FederatedPointerEvent } from 'pixi.js';
 import {
+  GOJS_BODY_MARGIN,
+  GOJS_NAME_ROW_H,
   ORG_SYMBOL_PAD,
   resolveOrgSymbolLayout,
   type OrgSymbolBox,
@@ -49,6 +51,7 @@ export class OrganizationNodeView extends Container {
   private readonly countsBadge = new Graphics();
   private readonly countsBadgeLabel: Text;
   private readonly symbolSprite = new Sprite();
+  private readonly symbolFallbackText: Text;
   private styleRef: OrganizationNodeStyle;
   private symbolLayout: OrgSymbolLayout;
 
@@ -116,8 +119,20 @@ export class OrganizationNodeView extends Container {
         fontWeight: '600',
       },
     });
+    this.symbolFallbackText = new Text({
+      text: '',
+      style: {
+        fill: style.nameColor,
+        fontSize: style.nameFontSize,
+        fontWeight: '500',
+        wordWrap: true,
+        wordWrapWidth: 192,
+        breakWords: true,
+      },
+    });
 
     this.symbolSprite.visible = false;
+    this.symbolFallbackText.visible = false;
     this.hoverRing.visible = false;
     this.tempBadge.visible = false;
     this.tempBadgeLabel.visible = false;
@@ -131,6 +146,7 @@ export class OrganizationNodeView extends Container {
       this.shadow,
       this.card,
       this.symbolSprite,
+      this.symbolFallbackText,
       this.nameText,
       this.unitCodeText,
       this.groupText,
@@ -187,10 +203,14 @@ export class OrganizationNodeView extends Container {
   }
 
   hasMenuButton(): boolean {
+    if (this.styleRef.orgCardLayout === 'gojs-vertical') return false;
     return this.chromeControls.children.length > 0;
   }
 
   hasExpandControl(): boolean {
+    if (this.styleRef.orgCardLayout === 'gojs-vertical') {
+      return this.chromeControls.children.length > 0;
+    }
     return this.chromeControls.children.length > 1;
   }
 
@@ -213,7 +233,20 @@ export class OrganizationNodeView extends Container {
     if (lod === 'far' || !options.onContextMenu) return;
 
     const vertical = style.orgCardLayout === 'gojs-vertical';
-    // Vertical: menu top-right; leave top band for counts badge.
+
+    if (vertical) {
+      if (options.chrome?.kind === 'tree') {
+        mountGojsOrgTreeExpander(
+          this.chromeControls,
+          style.width,
+          style.height,
+          style.brandColor ?? 0x2563eb,
+          options.chrome,
+        );
+      }
+      return;
+    }
+
     const chromeWidth = vertical
       ? style.width
       : this.org.isTemporary
@@ -306,16 +339,15 @@ export class OrganizationNodeView extends Container {
     if (showTemp) {
       if (hourglass && vertical) {
         const box = this.symbolLayout.box;
-        const br = Math.max(8, Math.min(box.width, box.height) * 0.14);
-        const cx = box.x + br + 2;
-        const cy = box.y + br + 2;
+        const iconSize = Math.max(12, Math.min(box.width, box.height) * 0.22);
+        const cx = box.x + 4;
+        const cy = box.y + 4;
         this.tempBadge.clear();
-        this.tempBadge.circle(cx, cy, br);
-        this.tempBadge.fill({ color: style.badgeColor ?? 0xf59e0b, alpha: 0.92 });
+        this.tempBadge.visible = false;
         this.tempBadgeLabel.text = '⏳';
-        this.tempBadgeLabel.style.fontSize = Math.max(8, br * 1.1);
-        this.tempBadgeLabel.anchor.set(0.5);
-        this.tempBadgeLabel.style.fill = style.badgeTextColor ?? 0xffffff;
+        this.tempBadgeLabel.style.fontSize = iconSize;
+        this.tempBadgeLabel.anchor.set(0, 0);
+        this.tempBadgeLabel.style.fill = style.badgeColor ?? 0xf59e0b;
         this.tempBadgeLabel.position.set(cx, cy);
       } else {
         const br = Math.max(7, style.width * 0.045);
@@ -345,13 +377,32 @@ export class OrganizationNodeView extends Container {
       const padY = 2;
       const estW = Math.max(28, counts.length * fs * 0.58 + padX * 2);
       const estH = fs + padY * 2;
-      const bx = style.width - estW - 4;
-      const by = vertical ? 4 : style.height - estH - 4;
+      const bx = vertical ? style.width - estW - 14 : style.width - estW - 4;
+      const by = vertical ? 12 : style.height - estH - 4;
       this.countsBadge.clear();
       this.countsBadge.roundRect(bx, by, estW, estH, 4);
       this.countsBadge.fill({ color: style.countsBadgeBackground ?? 0xf1f5f9 });
       this.countsBadgeLabel.position.set(bx + estW / 2, by + estH / 2);
     }
+  }
+
+  hasSymbolFallback(): boolean {
+    return this.symbolFallbackText.visible;
+  }
+
+  private syncSymbolFallback(style: OrganizationNodeStyle, layout: OrgSymbolLayout): void {
+    const full = this.org.fullName?.trim() || this.org.name;
+    const show = !this.symbolSprite.visible && style.orgCardLayout === 'gojs-vertical';
+    this.symbolFallbackText.visible = show;
+    if (!show) return;
+    this.symbolFallbackText.text = full;
+    this.symbolFallbackText.style.fill = style.nameColor;
+    this.symbolFallbackText.style.wordWrapWidth = Math.min(192, layout.box.width);
+    this.symbolFallbackText.anchor.set(0.5, 0.5);
+    this.symbolFallbackText.position.set(
+      layout.box.x + layout.box.width / 2,
+      layout.box.y + layout.box.height / 2,
+    );
   }
 
   private layoutTexts(style: OrganizationNodeStyle, lod: LodLevel): void {
@@ -379,6 +430,7 @@ export class OrganizationNodeView extends Container {
 
     if (style.orgCardLayout === 'gojs-vertical') {
       this.layoutVerticalTexts(style, layout);
+      this.syncSymbolFallback(style, layout);
       return;
     }
 
@@ -435,34 +487,32 @@ export class OrganizationNodeView extends Container {
     }
   }
 
-  /** GoJS vertical stack: symbol → name → unit code, centered. */
+  /** GoJS vertical stack: name → symbol → unit code (adapter row order). */
   private layoutVerticalTexts(style: OrganizationNodeStyle, layout: OrgSymbolLayout): void {
     const box = layout.box;
     const gap = 4;
     const metaFs = style.metaFontSize ?? 10;
-    const menuReserve = this.hasMenuButton() ? 28 : 0;
-    const countsReserve = this.countsBadge.visible ? 36 : 0;
-    const maxTextW = Math.max(24, style.width - 16 - menuReserve - countsReserve);
+    const left = GOJS_BODY_MARGIN.left;
+    const maxTextW = Math.max(24, style.width - left - GOJS_BODY_MARGIN.right);
 
-    this.nameText.anchor.set(0.5, 0);
+    this.nameText.anchor.set(0, 0);
     this.unitCodeText.anchor.set(0.5, 0);
-    this.groupText.anchor.set(0.5, 0);
-    this.periodText.anchor.set(0.5, 0);
 
     if (this.nameText.visible) truncatePixiText(this.nameText, maxTextW);
     if (this.unitCodeText.visible) truncatePixiText(this.unitCodeText, maxTextW);
 
-    const cx = style.width / 2;
-    let y = box.y + box.height + gap;
-
     if (this.nameText.visible) {
-      this.nameText.position.set(cx, y);
-      y += style.nameFontSize + gap;
+      this.nameText.position.set(left, GOJS_BODY_MARGIN.top);
     }
+
     if (this.unitCodeText.visible) {
-      this.unitCodeText.position.set(cx, y);
+      const unitY = box.y + box.height + gap;
+      this.unitCodeText.position.set(style.width / 2, unitY);
       this.unitCodeText.style.fontSize = metaFs;
     }
+
+    this.groupText.visible = false;
+    this.periodText.visible = false;
   }
 
   private setHovered(on: boolean): void {
@@ -497,6 +547,7 @@ export class OrganizationNodeView extends Container {
         hasSymbol: false,
       });
       this.layoutTexts(style, lod);
+      this.syncSymbolFallback(style, this.symbolLayout);
       return;
     }
 
@@ -508,6 +559,7 @@ export class OrganizationNodeView extends Container {
         hasSymbol: false,
       });
       this.layoutTexts(style, lod);
+      this.syncSymbolFallback(style, this.symbolLayout);
       return;
     }
     this.showSymbol(texture, style, lod);
@@ -532,6 +584,7 @@ export class OrganizationNodeView extends Container {
     this.symbolSprite.height = fitted.height;
     this.symbolSprite.position.set(box.x + fitted.offsetX, box.y + fitted.offsetY);
     this.symbolSprite.visible = true;
+    this.symbolFallbackText.visible = false;
 
     this.layoutChromeBadges(style, lod);
     this.layoutTexts(style, lod);

@@ -18,6 +18,18 @@ import {
   resolvePersonLayout,
   type ResolvedPersonLayout,
 } from './personLayout.js';
+import {
+  GOJS_ROW_PAD,
+  gojsRowAvatarRect,
+  gojsRowTextX as gojsRowTextXRect,
+  layoutGojsCountBar,
+  layoutGojsTimeline,
+  paintAvatarTile,
+  paintGojsCountBar,
+  paintGojsTimelineChip,
+  paintPendingHourglass,
+  paintGojsRowCard,
+} from './personGojsRow.js';
 
 export interface PersonNodeExpandChrome {
   expanded: boolean;
@@ -43,6 +55,14 @@ export class PersonNodeView extends Container {
   private readonly badgeLabel: Text;
   private readonly periodChip = new Graphics();
   private readonly periodChipLabel: Text;
+  private readonly avatarTile = new Graphics();
+  private readonly timelineChip = new Graphics();
+  private readonly timelineDot = new Graphics();
+  private readonly timelineLabel: Text;
+  private readonly countBar = new Graphics();
+  private readonly countBarLabel: Text;
+  private readonly countExpander = new Graphics();
+  private readonly pendingHourglass = new Graphics();
   private readonly photoSprite = new Sprite();
   private readonly photoMask = new Graphics();
   readonly lod: LodLevel;
@@ -91,9 +111,35 @@ export class PersonNodeView extends Container {
         fontWeight: '600',
       },
     });
+    this.timelineLabel = new Text({
+      text: '',
+      style: {
+        fill: style.timelineTextColor ?? style.titleColor,
+        fontSize: style.timelineFontSize ?? 12,
+        fontWeight: '500',
+        fontFamily: 'JetBrains Mono, monospace',
+      },
+    });
+    this.countBarLabel = new Text({
+      text: '',
+      style: {
+        fill: style.countsBadgeTextColor ?? style.titleColor,
+        fontSize: style.countsBadgeFontSize ?? 11,
+        fontWeight: '500',
+        fontFamily: 'JetBrains Mono, monospace',
+      },
+    });
 
     this.photoSprite.visible = false;
     this.photoMask.visible = false;
+    this.avatarTile.visible = false;
+    this.timelineChip.visible = false;
+    this.timelineDot.visible = false;
+    this.timelineLabel.visible = false;
+    this.countBar.visible = false;
+    this.countBarLabel.visible = false;
+    this.countExpander.visible = false;
+    this.pendingHourglass.visible = false;
     this.hoverRing.visible = false;
     this.periodChip.visible = false;
     this.periodChipLabel.visible = false;
@@ -104,11 +150,19 @@ export class PersonNodeView extends Container {
     this.addChild(
       this.shadow,
       this.card,
+      this.avatarTile,
       this.photoSprite,
       this.photoMask,
       this.initialsText,
       this.nameText,
       this.titleText,
+      this.timelineChip,
+      this.timelineDot,
+      this.timelineLabel,
+      this.countBar,
+      this.countBarLabel,
+      this.countExpander,
+      this.pendingHourglass,
       this.periodChip,
       this.periodChipLabel,
       this.badge,
@@ -135,7 +189,7 @@ export class PersonNodeView extends Container {
     const avatarFill = avatarColorFromName(person?.fullName);
     const view = new PersonNodeView(style, lod, mediaReady, avatarFill);
     view.drawCard(style, lod);
-    view.updateContent(person, position, style, lod);
+    view.updateContent(person, position, style, lod, options);
     view.applyChrome(style, lod, options);
     void view.applyPhoto(person?.photoUrl, style, lod).finally(resolveMedia);
     return view;
@@ -158,6 +212,18 @@ export class PersonNodeView extends Container {
     return hitChromePointer(this.chromeControls, e);
   }
 
+  hasCountBar(): boolean {
+    return this.countBar.visible;
+  }
+
+  hasTimelineChip(): boolean {
+    return this.timelineChip.visible;
+  }
+
+  hasPendingHourglass(): boolean {
+    return this.pendingHourglass.visible;
+  }
+
   private applyChrome(
     style: PersonNodeStyle,
     lod: LodLevel,
@@ -165,10 +231,14 @@ export class PersonNodeView extends Container {
   ): void {
     this.chromeControls.removeChildren();
     if (lod === 'far') return;
+    const layout = resolvePersonLayout(style);
+    if (layout === 'gojs-row') {
+      // GoJS: context menu via right-click; expand lives in count bar.
+      return;
+    }
     const h = lod === 'mid' ? Math.min(style.height, Math.max(56, style.height * 0.48)) : style.height;
     const y0 = lod === 'mid' ? (style.height - h) / 2 : 0;
     let x = 4;
-    // Top-left ⋮ — keeps top-right free for temp (T) badge.
     if (options.onContextMenu) {
       const menu = attachMenuButton(this.chromeControls, style.width, y0 + 4, options.onContextMenu, x);
       menu.label = 'person-menu';
@@ -229,8 +299,10 @@ export class PersonNodeView extends Container {
 
   private drawCard(style: PersonNodeStyle, lod: LodLevel): void {
     const { width, height, borderRadius } = style;
+    const layout = resolvePersonLayout(style);
     this.card.clear();
     this.shadow.clear();
+    this.avatarTile.visible = false;
 
     if (lod === 'far') {
       const r = Math.max(6, Math.min(width, height) * 0.18);
@@ -245,12 +317,18 @@ export class PersonNodeView extends Container {
     const y0 = lod === 'mid' ? (height - h) / 2 : 0;
     this.shadow.roundRect(2, y0 + 3, width, h, borderRadius);
     this.shadow.fill({ color: 0x0f172a, alpha: 0.1 });
-    this.card.roundRect(0, y0, width, h, borderRadius);
-    this.card.fill({ color: style.background });
-    this.card.stroke({ color: style.border, width: style.borderWidth });
 
-    if (lod === 'near') {
-      const layout = resolvePersonLayout(style);
+    if (layout === 'gojs-row' && lod === 'near') {
+      this.card.roundRect(0, y0, width, h, borderRadius);
+      this.card.fill({ color: style.background });
+      // Stroke applied in updateContent (brand / detached).
+    } else {
+      this.card.roundRect(0, y0, width, h, borderRadius);
+      this.card.fill({ color: style.background });
+      this.card.stroke({ color: style.border, width: style.borderWidth });
+    }
+
+    if (lod === 'near' && layout !== 'gojs-row') {
       const avatar = avatarForLayout(layout, style);
       this.card.circle(avatar.cx, avatar.cy, avatar.r);
       this.card.fill({ color: this.avatarFill });
@@ -266,6 +344,7 @@ export class PersonNodeView extends Container {
     position: DiagramPosition,
     style: PersonNodeStyle,
     lod: LodLevel,
+    options: PersonNodeOptions = {},
   ): void {
     if (lod === 'far') {
       this.nameText.visible = false;
@@ -293,9 +372,11 @@ export class PersonNodeView extends Container {
         ? (style.vacantLabelColor ?? style.nameColor)
         : vacant
           ? style.titleColor
-          : position.isTemporary && style.temporaryNameColor !== undefined
-            ? style.temporaryNameColor
-            : (style.permanentNameColor ?? style.nameColor);
+          : layout === 'gojs-row' && position.isKeyPosition
+            ? (style.keyPositionNameColor ?? style.brandColor ?? style.nameColor)
+            : position.isTemporary && layout !== 'gojs-row' && style.temporaryNameColor !== undefined
+              ? style.temporaryNameColor
+              : (style.permanentNameColor ?? style.nameColor);
 
     this.nameText.visible = true;
     this.nameText.text = name;
@@ -314,7 +395,7 @@ export class PersonNodeView extends Container {
       this.layoutCompactContent(person, position, style, lod, pad, vacant);
     }
 
-    const showBadge = position.isTemporary;
+    const showBadge = position.isTemporary && layout !== 'gojs-row';
     this.badge.visible = showBadge;
     this.badgeLabel.visible = showBadge;
     if (showBadge) {
@@ -328,9 +409,83 @@ export class PersonNodeView extends Container {
     }
 
     this.layoutPeriodChip(position, style, lod, pad, layout);
+    if (layout === 'gojs-row' && lod === 'near') {
+      this.layoutGojsRowChrome(position, style, options);
+    }
   }
 
-  /** GoJS row: name above title, left text column, 28px avatar. */
+  /** GoJS row: timeline chip, count bar, pending hourglass, card stroke. */
+  private layoutGojsRowChrome(
+    position: DiagramPosition,
+    style: PersonNodeStyle,
+    options: PersonNodeOptions,
+  ): void {
+    const cardY = 0;
+    const h = style.height;
+    const brand = style.brandColor ?? 0x2563eb;
+    const stroke =
+      position.isKeyPosition
+        ? brand
+        : position.detached
+          ? (style.detachedBorderColor ?? style.titleColor)
+          : style.border;
+    const dashed = !!position.detached && !position.isKeyPosition;
+    paintGojsRowCard(
+      this.card,
+      0,
+      cardY,
+      style.width,
+      h,
+      style.borderRadius,
+      style.background,
+      stroke,
+      style.borderWidth,
+      dashed,
+    );
+
+    const avatar = gojsRowAvatarRect(style, cardY);
+    const tileFill = style.avatarPlaceholderFill ?? style.avatarColor ?? 0x64748b;
+    paintAvatarTile(this.avatarTile, avatar, tileFill);
+    this.avatarTile.visible = true;
+
+    const timeline = layoutGojsTimeline(position, style, this.timelineLabel);
+    paintGojsTimelineChip(this.timelineChip, this.timelineDot, timeline, style);
+    this.timelineChip.visible = timeline.visible;
+    this.timelineDot.visible = timeline.visible;
+    this.timelineLabel.visible = timeline.visible;
+    if (timeline.visible) {
+      this.timelineLabel.position.set(timeline.chipX + 8 + 7 + 6, timeline.chipY + timeline.chipH / 2);
+    }
+
+    const count = layoutGojsCountBar(position, style);
+    paintGojsCountBar(this.countBar, this.countBarLabel, this.countExpander, count, style, style.width);
+    this.countBar.visible = count.visible;
+    this.countExpander.visible = count.visible;
+
+    const showPending = position.pending === true;
+    this.pendingHourglass.visible = showPending;
+    if (showPending) {
+      paintPendingHourglass(
+        this.pendingHourglass,
+        style.width - 15,
+        cardY + 4,
+        11,
+        style.pendingColor ?? 0xf59e0b,
+      );
+    }
+
+    if (count.visible && options.expand?.hasChildren) {
+      this.countExpander.eventMode = 'static';
+      this.countExpander.cursor = 'pointer';
+      this.countExpander.removeAllListeners();
+      this.countExpander.on('pointertap', (e) => {
+        e.stopPropagation();
+        options.expand!.onToggle();
+      });
+    }
+  }
+
+  /** GoJS row: name above title, left text column, 28px rounded-square avatar. */
   private layoutGojsRowContent(
     person: DiagramPerson | undefined,
     position: DiagramPosition,
@@ -338,10 +493,10 @@ export class PersonNodeView extends Container {
     vacant: boolean,
     _nameFill: number,
   ): void {
-    const avatar = gojsRowAvatar(style);
-    const textX = gojsRowTextX(avatar);
-    const pad = Math.max(6, style.width * 0.06);
-    const maxTextW = Math.max(24, style.width - textX - pad - (position.isTemporary ? 22 : 0));
+    const avatar = gojsRowAvatarRect(style, 0);
+    const textX = gojsRowTextXRect(avatar);
+    const pad = GOJS_ROW_PAD;
+    const maxTextW = Math.max(24, style.width - textX - pad - (position.pending ? 14 : 0));
 
     truncatePixiText(this.nameText, maxTextW);
     this.nameText.position.set(textX, 12);
@@ -359,7 +514,7 @@ export class PersonNodeView extends Container {
 
     const initials = vacant ? '' : personInitials(person?.fullName);
     this.initialsText.text = initials;
-    this.initialsText.style.fontSize = Math.max(10, avatar.r * 0.62);
+    this.initialsText.style.fontSize = Math.max(10, avatar.size * 0.38);
     this.initialsText.position.set(avatar.cx, avatar.cy);
     this.initialsText.visible = initials.length > 0;
   }
@@ -517,9 +672,10 @@ export class PersonNodeView extends Container {
       cx = style.width - estW / 2 - (position.isTemporary ? 26 : 8);
       cy = 6 + estH / 2;
     } else if (layout === 'gojs-row' && lod === 'near') {
-      const avatar = gojsPortraitAvatar(style);
-      cx = style.width / 2;
-      cy = avatar.cy + avatar.r + 10 + estH / 2;
+      // Timeline chip replaces centered period chip on GoJS row seats.
+      this.periodChip.visible = false;
+      this.periodChipLabel.visible = false;
+      return;
     } else if (lod === 'mid') {
       const h = Math.min(style.height, Math.max(56, style.height * 0.48));
       const y0 = (style.height - h) / 2;
@@ -580,7 +736,15 @@ export class PersonNodeView extends Container {
     this.photoSprite.visible = true;
 
     this.photoMask.clear();
-    this.photoMask.circle(cx, cy, r);
+    if (layout === 'gojs-row') {
+      const rect = gojsRowAvatarRect(style, 0);
+      this.photoMask.roundRect(rect.x, rect.y, rect.size, rect.size, rect.radius);
+      this.photoSprite.width = rect.size;
+      this.photoSprite.height = rect.size;
+      this.photoSprite.position.set(rect.cx, rect.cy);
+    } else {
+      this.photoMask.circle(cx, cy, r);
+    }
     this.photoMask.fill({ color: 0xffffff });
     this.photoMask.visible = true;
     this.photoSprite.mask = this.photoMask;

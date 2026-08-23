@@ -62,6 +62,26 @@ export interface PersonNodeStyle {
    * `gojs-portrait` = GoJS / Variant B card.
    */
   personLayout?: PersonCardLayout;
+  /** GoJS brand accent (key position stroke, count-bar expander). */
+  brandColor?: number;
+  /** Muted avatar tile under photo (GoJS row). */
+  avatarPlaceholderFill?: number;
+  /** GoJS timeline chip fill / stroke / dot. */
+  timelineChipFill?: number;
+  timelineChipStroke?: number;
+  timelineDotColor?: number;
+  timelineTextColor?: number;
+  timelineFontSize?: number;
+  /** GoJS count bar under card. */
+  countsBarFill?: number;
+  countsBadgeFontSize?: number;
+  countsBadgeTextColor?: number;
+  /** Pending hourglass fill. */
+  pendingColor?: number;
+  /** Key position name color (defaults to brandColor). */
+  keyPositionNameColor?: number;
+  /** Detached seat border (defaults to titleColor). */
+  detachedBorderColor?: number;
 }
 
 /** Position seat visual template (T70 / mockup parity). */
@@ -93,6 +113,8 @@ export interface OrganizationNodeStyle {
   hidePeriodOnCard?: boolean;
   /** Hourglass on symbol vs «T» pill on card corner. */
   tempMarkerStyle?: 'badge' | 'hourglass';
+  /** GoJS expander / selection accent (brand circle). */
+  brandColor?: number;
   periodColor?: number;
   periodFontSize?: number;
   /** E6 unit-code caption. */

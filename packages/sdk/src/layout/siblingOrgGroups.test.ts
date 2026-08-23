@@ -20,23 +20,41 @@ function node(
   };
 }
 
+const org = (id: string, collapsed?: boolean) => ({
+  id,
+  name: id,
+  groupIds: [] as string[],
+  collapsed,
+});
+
 describe('siblingOrgGroupBounds', () => {
-  it('success: frames 3+ siblings under one parent', () => {
+  it('success: frames 3+ collapsed siblings under one parent', () => {
     const nodes = [
       node('p', undefined, 200, 0),
       node('a', 'p', 0, 120),
       node('b', 'p', 120, 120),
       node('c', 'p', 240, 120),
     ];
-    const groups = siblingOrgGroupBounds(nodes, 10);
+    const orgs = ['p', 'a', 'b', 'c'].map((id) => org(id, true));
+    const groups = siblingOrgGroupBounds(nodes, orgs, 10);
     expect(groups).toHaveLength(1);
     expect(groups[0]!.parentId).toBe('p');
     expect(groups[0]!.bounds.x).toBe(-10);
     expect(groups[0]!.bounds.width).toBe(360);
   });
 
+  it('failure: expanded sibling → no dashed matrix frame', () => {
+    const nodes = [
+      node('p', undefined, 200, 0),
+      node('a', 'p', 0, 120),
+      node('b', 'p', 120, 120),
+    ];
+    const orgs = [org('p', true), org('a', false), org('b', true)];
+    expect(siblingOrgGroupBounds(nodes, orgs)).toEqual([]);
+  });
+
   it('failure: single child → no group frame', () => {
     const nodes = [node('p', undefined, 0, 0), node('a', 'p', 0, 100)];
-    expect(siblingOrgGroupBounds(nodes)).toEqual([]);
+    expect(siblingOrgGroupBounds(nodes, [org('p'), org('a')])).toEqual([]);
   });
 });

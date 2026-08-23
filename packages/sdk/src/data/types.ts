@@ -91,6 +91,16 @@ export interface DiagramPosition {
   isTemporary: boolean;
   /** Керівна посада org (staff root); рівно одна на org */
   isHead?: boolean;
+  /** GoJS: ключова посада — brand stroke + name color. */
+  isKeyPosition?: boolean;
+  /** GoJS: pending assignment — hourglass on card (≠ isKeyPosition). */
+  pending?: boolean;
+  /** GoJS timeline chip text (wins over period formatter when set). */
+  timeline?: string;
+  /** GoJS count bar N — direct report count. */
+  childrenCount?: number;
+  /** GoJS count bar M — all descendant count. */
+  allDescendantCount?: number;
   /**
    * Host hint: seat has no admin manager (T65 / B9).
    * Layout also **infers** detached when the seat is in-org, not `isHead`,

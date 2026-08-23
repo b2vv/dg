@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatOrgCountsBadge, VACANT_POSITION_LABEL } from './orgCardChrome.js';
+import { formatOrgCountsBadge, formatPositionCountsBadge, VACANT_POSITION_LABEL } from './orgCardChrome.js';
 
 describe('formatOrgCountsBadge', () => {
   it('omits when both counts undefined', () => {
@@ -37,5 +37,22 @@ describe('formatOrgCountsBadge', () => {
 describe('VACANT_POSITION_LABEL', () => {
   it('is uk vacancy copy', () => {
     expect(VACANT_POSITION_LABEL).toBe('(вакансія)');
+  });
+});
+
+describe('formatPositionCountsBadge', () => {
+  it('formats N [M] for position count bar', () => {
+    expect(
+      formatPositionCountsBadge({
+        id: 'p',
+        title: 'T',
+        organizationId: 'o',
+        groupIds: [],
+        status: 'filled',
+        isTemporary: false,
+        childrenCount: 3,
+        allDescendantCount: 5,
+      }),
+    ).toBe('3 [5]');
   });
 });
