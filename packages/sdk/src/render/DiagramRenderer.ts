@@ -289,7 +289,7 @@ export class DiagramRenderer {
     if (hasStaff) {
       await this.renderStaff(data, theme, resolvedTheme, config, { ...options, lod });
     } else if (data.organizations.length > 0) {
-      await this.renderOrganizations(data, theme, resolvedTheme, { ...options, lod });
+      await this.renderOrganizations(data, theme, resolvedTheme, config, { ...options, lod });
     }
 
     this.drawSelection(options.selected ?? []);
@@ -868,7 +868,7 @@ export class DiagramRenderer {
           resolvedTheme,
           orgStyle,
           lod,
-          this.orgStaffCardOptions(org, card, options),
+          this.orgStaffCardOptions(org, card, options, config),
         );
         view.position.set(card.x, card.y);
         view.eventMode = 'static';
@@ -977,6 +977,7 @@ export class DiagramRenderer {
     data: DiagramData,
     theme: NodeTheme,
     resolvedTheme: 'light' | 'dark',
+    config: RenderConfig,
     options: RenderOptions,
   ): Promise<void> {
     const layout = await computeOrgLayout(
@@ -1009,7 +1010,7 @@ export class DiagramRenderer {
           height: ln.height,
         },
         options.lod ?? 'near',
-        this.orgTreeOptions(org, data, options),
+        this.orgTreeOptions(org, data, options, config),
       );
       node.position.set(ln.x, ln.y);
       this.rememberBox({
@@ -1084,8 +1085,14 @@ export class DiagramRenderer {
     org: DiagramOrganization,
     data: DiagramData,
     options: RenderOptions,
+    config: RenderConfig = defaultRenderConfig,
   ): import('./OrganizationNode.js').OrganizationNodeOptions {
-    if (!options.onOrgContextMenu && !options.onOrgExpand && !options.onOrgCollapse) {
+    if (
+      !options.onOrgContextMenu &&
+      !options.onOrgExpand &&
+      !options.onOrgCollapse &&
+      !config.prefetchInactiveOrgSymbol
+    ) {
       return {};
     }
     const hasChildren = orgHasChildren(data.organizations, org.id);
@@ -1099,6 +1106,7 @@ export class DiagramRenderer {
     };
     return {
       onContextMenu: options.onOrgContextMenu ? openMenu : undefined,
+      prefetchInactiveSymbol: config.prefetchInactiveOrgSymbol === true,
       chrome:
         hasChildren && (options.onOrgExpand || options.onOrgCollapse)
           ? {
@@ -1116,6 +1124,7 @@ export class DiagramRenderer {
     org: DiagramOrganization,
     card: { expanded?: boolean },
     options: RenderOptions,
+    config: RenderConfig = defaultRenderConfig,
   ): import('./OrganizationNode.js').OrganizationNodeOptions {
     const openMenu = (pointer: { clientX: number; clientY: number }) => {
       options.onOrgContextMenu?.(org.id, {
@@ -1127,6 +1136,7 @@ export class DiagramRenderer {
     };
     return {
       onContextMenu: options.onOrgContextMenu ? openMenu : undefined,
+      prefetchInactiveSymbol: config.prefetchInactiveOrgSymbol === true,
       chrome:
         options.onStaffOrgExpandToggle
           ? {

@@ -323,7 +323,7 @@ describe('OrganizationNodeView', () => {
     expect(view.hasUnitCode()).toBe(false);
   });
 
-  it('Phase2 E11: prefetches inactive theme symbol URL into cache', async () => {
+  it('Phase2 E11: default does not prefetch inactive theme URL', async () => {
     const loaded: string[] = [];
     configureNodeTextureLoader(async (url) => {
       loaded.push(url);
@@ -332,6 +332,20 @@ describe('OrganizationNodeView', () => {
     const view = OrganizationNodeView.create(org, undefined, 'light', defaultNodeTheme.organization);
     await view.mediaReady;
     expect(view.resolvedSymbolUrl).toBe('/sym-light.png');
+    expect(loaded).toContain('/sym-light.png');
+    expect(loaded).not.toContain('/sym-dark.png');
+  });
+
+  it('Phase2 E11: opt-in prefetches inactive theme symbol URL', async () => {
+    const loaded: string[] = [];
+    configureNodeTextureLoader(async (url) => {
+      loaded.push(url);
+      return Texture.WHITE;
+    });
+    const view = OrganizationNodeView.create(org, undefined, 'light', defaultNodeTheme.organization, 'near', {
+      prefetchInactiveSymbol: true,
+    });
+    await view.mediaReady;
     expect(loaded).toContain('/sym-light.png');
     expect(loaded).toContain('/sym-dark.png');
   });

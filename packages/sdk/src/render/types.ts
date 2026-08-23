@@ -108,6 +108,12 @@ export interface RenderConfig {
   departmentStyle?: DepartmentPaintStyle;
   /** T64 / B8a: dashed frame around grid union. */
   dashedGridFrame?: boolean;
+  /**
+   * T70 E11: prefetch the inactive theme’s org symbol URL on mount.
+   * Default false — avoids automatic cross-theme fetches of untrusted URLs
+   * (security review). Opt in when both light/dark URLs are host-trusted.
+   */
+  prefetchInactiveOrgSymbol?: boolean;
 }
 
 /**
@@ -263,6 +269,7 @@ export const defaultRenderConfig: RenderConfig = {
   staffZoneChrome: false,
   departmentStyle: 'blob',
   dashedGridFrame: false,
+  prefetchInactiveOrgSymbol: false,
 };
 
 export function mergeTheme(

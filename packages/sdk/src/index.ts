@@ -183,6 +183,7 @@ export {
   loadNodeTexture,
   configureNodeTextureLoader,
   clearNodeTextureCache,
+  isAllowedNodeMediaUrl,
   worldBoxToScreen,
   resolvePromoteIds,
   screenRectInView,

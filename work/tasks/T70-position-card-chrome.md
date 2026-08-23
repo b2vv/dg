@@ -47,13 +47,13 @@
 | E5 | `N [M]` | поля counts + paint |
 | E6 | unit-code | поле + caption |
 | E7 | «(вакансія)», чип періоду на посаді | copy + chip (окремо від T68 org period) |
-| E11 | Prefetch light+dark | optional preload другої URL при mount |
+| E11 | Prefetch light+dark | **opt-in** `render.prefetchInactiveOrgSymbol` + URL allowlist in `loadNodeTexture` |
 
 - [x] `org.isTemporary` → top-right **T** badge (PersonNode-style; near/mid)
 - [x] `filledCount`/`vacantCount` → `N [M]` badge when either count defined
 - [x] `unitCode` caption row (truncate; omit if empty)
 - [x] Vacant position name → `(вакансія)`; period chip via `formatOrgPeriodLabel` (not T68 org line)
-- [x] E11: prefetch inactive light/dark symbol URL into texture cache when both present
+- [x] E11: prefetch inactive light/dark symbol URL — **opt-in** (`prefetchInactiveOrgSymbol`); `loadNodeTexture` blocks `http:` / private hosts
 
 Promote (E9) — лише near/selection; сітка потребує Pixi мінімум.
 
@@ -68,7 +68,7 @@ Types already additive in `packages/sdk/src/data/types.ts` (T72). Implement pain
 | E6 | `org.unitCode` | Org caption row (truncate) |
 | E7 | `position.status === 'vacant'` | Name slot → `(вакансія)` (not bare `—`) |
 | E7 | `position.periodStart/End/Label` | Position period chip (shared formatter w/ T68; **not** org period line) |
-| E11 | `symbolUrlLight` + `symbolUrlDark` | Prefetch inactive theme URL via `loadNodeTexture` cache on mount |
+| E11 | `symbolUrlLight` + `symbolUrlDark` | Prefetch inactive theme URL **only when** `render.prefetchInactiveOrgSymbol`; media URLs filtered by `isAllowedNodeMediaUrl` |
 
 **Out of Phase 2:** T65 detached placement; marquee; layout AABB changes; BE rename of E5 counts.
 

@@ -26,6 +26,8 @@ import {
 export interface OrganizationNodeOptions {
   chrome?: OrgNodeChrome;
   onContextMenu?: (pointer: ContextMenuPointer) => void;
+  /** Opt-in E11 prefetch of inactive theme symbol (default false). */
+  prefetchInactiveSymbol?: boolean;
 }
 
 export class OrganizationNodeView extends Container {
@@ -162,7 +164,9 @@ export class OrganizationNodeView extends Container {
     });
     const view = new OrganizationNodeView(org, group, theme, style, lod, mediaReady);
     view.applyChrome(style, lod, options);
-    view.prefetchInactiveSymbol();
+    if (options.prefetchInactiveSymbol) {
+      view.prefetchInactiveSymbol();
+    }
     void view.applySymbol(style, lod).finally(resolveMedia);
     return view;
   }

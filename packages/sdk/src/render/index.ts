@@ -68,6 +68,7 @@ export {
   loadNodeTexture,
   configureNodeTextureLoader,
   clearNodeTextureCache,
+  isAllowedNodeMediaUrl,
   type NodeTextureLoader,
 } from './nodeMedia.js';
 export {
