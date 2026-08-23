@@ -30,7 +30,7 @@ Layout після expand **не порожній** (`flatOrgRootExpand.test.ts` 
 - [x] **Flat orgs:** card click vs `+` — collapsed → expand; expanded → focus (chrome hit-test відрізає `+`)
 - [x] **Root expand row-tree:** `fitView` при першому matrix→row-tree transition
 - [x] Regression: `flatOrgRootViewport.test.ts` — child box intersects viewport after expand
-- [ ] Manual QA: Flat orgs org-1 `+` і click; 100k org-0 click in-window vs search `org-90000`
+- [x] Manual QA: Flat orgs org-1 `+` і click; 100k org-0 click in-window vs search `org-90000` — `e2e/flat-orgs.spec.ts`, `e2e/scale-100k.spec.ts`
 
 ## Verify
 
