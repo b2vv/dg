@@ -1,20 +1,20 @@
 # T76 — Diagram facade stores (розбір god-object)
 
 **Пріоритет:** P1  
-**Статус:** SelectionStore ✅ · ViewStateStore ✅ · DataStore next  
+**Статус:** SelectionStore ✅ · ViewStateStore ✅ · DataStore ✅  
 **Базис:** [REVIEW-dg-805efee-architecture.md](../tech-debt/REVIEW-dg-805efee-architecture.md) **D4**
 
 ---
 
 ## Мета
 
-Рознести стан `OrgHierarchyDiagram` (`index.ts` ~1.4k LOC) на stores; фасад лише делегує.
+Рознести стан `OrgHierarchyDiagram` (`index.ts`) на stores; фасад лише делегує.
 
 | Store | Відповідальність | Статус |
 |-------|------------------|--------|
 | `SelectionStore` | selected ids, select/toggle/clear | ✅ `state/SelectionStore.ts` |
 | `ViewStateStore` | theme, LOD, staff focus, expand sets | ✅ `state/ViewStateStore.ts` |
-| `DataStore` | `DiagramData`, setData / merge | planned |
+| `DataStore` | `DiagramData` (via private get/set `data`) | ✅ `state/DataStore.ts` |
 
 Публічний API діаграми **не** ламати (методи-фасади лишаються).
 

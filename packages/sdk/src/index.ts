@@ -27,6 +27,7 @@ import { resolveLodLevel, type LodLevel, type LodThresholds } from './render/lod
 import { createRenderCoalesce } from './render/renderCoalesce.js';
 import { SelectionStore } from './state/SelectionStore.js';
 import { ViewStateStore } from './state/ViewStateStore.js';
+import { DataStore } from './state/DataStore.js';
 import type { PromoteCandidate } from './render/promoteTypes.js';
 import {
   collapseAllOrgs,
@@ -375,7 +376,7 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
 
 /** Embed SDK — Pixi render + data/mappers + worker contour */
 export class OrgHierarchyDiagram {
-  private data: DiagramData = emptyDiagramData();
+  private readonly dataStore = new DataStore();
   private host: PixiHost | null = null;
   private stylesPartial: Partial<NodeTheme> | undefined;
   private nodeTheme = mergeTheme();
@@ -399,6 +400,15 @@ export class OrgHierarchyDiagram {
   private contourComputer: IncrementalContourComputer | null = null;
   private promoteSyncListeners = new Set<() => void>();
   private mediaService: MediaService | null = null;
+
+  /** Backing diagram data (T76 DataStore). */
+  private get data(): DiagramData {
+    return this.dataStore.snapshot;
+  }
+  private set data(next: DiagramData) {
+    this.dataStore.replace(next);
+  }
+
   static async create<TRaw>(
     container: HTMLElement,
     config: OrgHierarchyConfig<TRaw>,
