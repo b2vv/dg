@@ -298,4 +298,36 @@ describe('onNodeDoubleClick (T69)', () => {
     diagram.destroy();
     document.body.removeChild(container);
   });
+
+  it('success: right-click pointertap does not fire onNodeClick (context menu stays open)', async () => {
+    const onNodeClick = vi.fn();
+    const onContextMenu = vi.fn();
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: orgOnlyData(),
+      useWorker: false,
+      callbacks: { onNodeClick, onContextMenu },
+    });
+
+    const orgs = hostOf(diagram).renderer.layers.organizations;
+    const node = orgs.children.find((c) => c instanceof OrganizationNodeView);
+    expect(node).toBeTruthy();
+
+    node!.emit('rightclick', {
+      ...tapEvent(),
+      button: 2,
+      preventDefault: () => {},
+    });
+    node!.emit('pointertap', { ...tapEvent(), button: 2 });
+
+    expect(onContextMenu).toHaveBeenCalledTimes(1);
+    expect(onNodeClick).not.toHaveBeenCalled();
+
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
 });

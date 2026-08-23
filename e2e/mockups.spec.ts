@@ -55,6 +55,15 @@ test.describe('mockup tabs visual + hierarchy', () => {
     });
   }
 
+  test('Orgs · GoJS: right-click opens context menu', async ({ page }) => {
+    await openMockupTab(page, 'Orgs · GoJS');
+    const hq = page.getByTestId('node-mockup-hq');
+    await expect(hq).toBeVisible({ timeout: 15_000 });
+    await hq.click({ button: 'right' });
+    await expect(page.getByTestId('org-context-menu')).toBeVisible();
+    await expect(page.locator('#status')).toContainText('context · organization');
+  });
+
   test('Orgs · Figma: collapse mid hides peer divisions', async ({ page }) => {
     await openMockupTab(page, 'Orgs · Figma');
     await expect(page.getByTestId('node-mockup-mid')).toBeVisible();

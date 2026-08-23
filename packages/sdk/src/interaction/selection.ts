@@ -85,3 +85,8 @@ export function readSelectionPointerMods(e: {
     shiftKey: Boolean(e.shiftKey),
   };
 }
+
+/** Pixi emits `pointertap` after `rightclick`; ignore non-primary button activations. */
+export function isPrimaryPointerTap(e: { button?: number }): boolean {
+  return e.button !== 2;
+}

@@ -22,6 +22,7 @@ import { isOrgCollapsed, orgHasChildren } from '../layout/orgMode.js';
 import { snapToGrid } from '../interaction/positionMove.js';
 import { DoubleTapTracker } from '../interaction/doubleTap.js';
 import {
+  isPrimaryPointerTap,
   isSelectionToggleModifier,
   readSelectionPointerMods,
   type SelectionPointerMods,
@@ -554,6 +555,7 @@ export class DiagramRenderer {
     }
 
     node.on('pointertap', (e) => {
+      if (!isPrimaryPointerTap(e)) return;
       if (this.drag?.moved) return;
       if (node.activateChromePointer(e)) {
         this.nodeDoubleTap.reset();
@@ -580,14 +582,12 @@ export class DiagramRenderer {
     node.on('rightclick', (e) => {
       e.stopPropagation();
       e.preventDefault?.();
-      if (personId) {
-        options.onPersonContextMenu?.(personId, positionId, {
-          clientX: e.clientX,
-          clientY: e.clientY,
-          canvasX: e.global.x,
-          canvasY: e.global.y,
-        });
-      }
+      options.onPersonContextMenu?.(personId ?? '', positionId, {
+        clientX: e.clientX,
+        clientY: e.clientY,
+        canvasX: e.global.x,
+        canvasY: e.global.y,
+      });
     });
 
     node.on('pointerdown', (e) => {
@@ -817,15 +817,18 @@ export class DiagramRenderer {
         const kids = childrenFor(position.organizationId).get(position.id) ?? [];
         const showExpand = collapsePositions && kids.length > 0 && !!options.onPositionExpandToggle;
         const node = PersonNodeView.create(person, position, personStyle, lod, {
-          onContextMenu:
-            position.personId && options.onPersonContextMenu
-              ? (pointer) =>
-                  options.onPersonContextMenu!(position.personId!, position.id, {
+          onContextMenu: options.onPersonContextMenu
+            ? (pointer) =>
+                options.onPersonContextMenu!(
+                  position.personId ?? '',
+                  position.id,
+                  {
                     ...pointer,
                     canvasX: 0,
                     canvasY: 0,
-                  })
-              : undefined,
+                  },
+                )
+            : undefined,
           expand: showExpand
             ? {
                 hasChildren: true,
@@ -884,6 +887,7 @@ export class DiagramRenderer {
         });
         this.registerView(card.orgId, view);
         view.on('pointertap', (e) => {
+          if (!isPrimaryPointerTap(e)) return;
           if (view.activateChromePointer(e)) {
             this.nodeDoubleTap.reset();
             e.stopPropagation();
@@ -938,15 +942,14 @@ export class DiagramRenderer {
       if (!position.gridCell) continue;
       const person = position.personId ? personById.get(position.personId) : undefined;
       const node = PersonNodeView.create(person, position, theme.person, options.lod ?? 'near', {
-        onContextMenu:
-          position.personId && options.onPersonContextMenu
-            ? (pointer) =>
-                options.onPersonContextMenu!(position.personId!, position.id, {
-                  ...pointer,
-                  canvasX: 0,
-                  canvasY: 0,
-                })
-            : undefined,
+        onContextMenu: options.onPersonContextMenu
+          ? (pointer) =>
+              options.onPersonContextMenu!(position.personId ?? '', position.id, {
+                ...pointer,
+                canvasX: 0,
+                canvasY: 0,
+              })
+          : undefined,
       });
       const insetX = (config.cellWidth - theme.person.width) / 2;
       const insetY = (config.cellHeight - theme.person.height) / 2;
@@ -1031,6 +1034,7 @@ export class DiagramRenderer {
         height: ln.height,
       });
       node.on('pointertap', (e) => {
+        if (!isPrimaryPointerTap(e)) return;
         if (node.activateChromePointer(e)) {
           this.nodeDoubleTap.reset();
           e.stopPropagation();

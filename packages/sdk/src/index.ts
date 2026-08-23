@@ -532,6 +532,18 @@ export class OrgHierarchyDiagram {
     return { kind: 'organization', id: orgId, organizationId: orgId };
   }
 
+  private positionNodeRef(positionId: string): NodeRef {
+    const position = this.data.positions.find((p) => p.id === positionId);
+    return {
+      kind: 'position',
+      id: positionId,
+      organizationId: position?.organizationId,
+      departmentId: position?.departmentId,
+      positionId,
+      personId: position?.personId,
+    };
+  }
+
   private emitContextMenu(
     node: NodeRef,
     pointer: { clientX: number; clientY: number; canvasX?: number; canvasY?: number },
@@ -679,7 +691,10 @@ export class OrgHierarchyDiagram {
         this.callbacks.onNodeDoubleClick?.(this.personNodeRef(personId, positionId));
       },
       onPersonContextMenu: (personId, positionId, pointer) => {
-        this.emitContextMenu(this.personNodeRef(personId, positionId), pointer);
+        const ref = personId
+          ? this.personNodeRef(personId, positionId)
+          : this.positionNodeRef(positionId);
+        this.emitContextMenu(ref, pointer);
       },
       onOrgContextMenu: (orgId, pointer) => {
         this.emitContextMenu(this.orgNodeRef(orgId), pointer);
