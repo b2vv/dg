@@ -65,7 +65,22 @@ describe('OrganizationNodeView', () => {
     await view.mediaReady;
     expect(view.lod).toBe('far');
     expect(view.findText('Міністерство')).toBeUndefined();
-    expect(view.hasSymbolSprite()).toBe(true);
+    // T74 M6: far skips texture load — no symbol sprite.
+    expect(view.hasSymbolSprite()).toBe(false);
+  });
+
+  it('success: M6 far lod does not call loadTexture', async () => {
+    const loadTexture = vi.fn(async () => Texture.WHITE);
+    const view = OrganizationNodeView.create(
+      org,
+      group,
+      'light',
+      defaultNodeTheme.organization,
+      'far',
+      { loadTexture },
+    );
+    await view.mediaReady;
+    expect(loadTexture).not.toHaveBeenCalled();
   });
 
   it('success: tree chrome shows expand control and menu', () => {

@@ -183,7 +183,7 @@ export class OrganizationNodeView extends Container {
     view.loadTexture = options.loadTexture ?? loadNodeTexture;
     view.mediaRevision = org.media?.revision;
     view.applyChrome(style, lod, options);
-    if (options.prefetchInactiveSymbol) {
+    if (options.prefetchInactiveSymbol && lod !== 'far') {
       view.prefetchInactiveSymbol();
     }
     void view.applySymbol(style, lod).finally(resolveMedia);
@@ -546,7 +546,8 @@ export class OrganizationNodeView extends Container {
 
   private async applySymbol(style: OrganizationNodeStyle, lod: LodLevel): Promise<void> {
     const url = this.resolvedSymbolUrl;
-    if (!url?.trim()) {
+    // T74 M6 / Q4·A: far LOD — skip network/texture load (chrome is minimal).
+    if (lod === 'far' || !url?.trim()) {
       this.symbolSprite.visible = false;
       this.symbolLayout = resolveOrgSymbolLayout(this.org, style, {
         lod,

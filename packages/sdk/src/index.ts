@@ -8,15 +8,21 @@ import { createIncrementalContourComputer, type IncrementalContourComputer } fro
 import { PixiHost } from './render/PixiHost.js';
 import { MediaService, type DiagramMediaFacade, type MediaPlaceholderRegistry } from './media/index.js';
 import {
+  resolveThemedMediaFromOrganization,
+  resolveThemedMediaFromPerson,
+} from './media/index.js';
+import {
   defaultRenderConfig,
   mergeTheme,
   resolveTheme,
   resolveNodeTheme,
   canvasBackgroundForTheme,
+  getOrgSymbolUrl,
   type NodeTheme,
   type RenderConfig,
   type CameraMotionOptions,
 } from './render/index.js';
+import { resolvePersonPhotoUrl } from './render/PersonNode.js';
 import { resolveLodLevel, defaultLodThresholds, type LodLevel, type LodThresholds } from './render/lod.js';
 import { createRenderCoalesce } from './render/renderCoalesce.js';
 import type { PromoteCandidate } from './render/promoteTypes.js';
@@ -458,6 +464,7 @@ export class OrgHierarchyDiagram {
       onInvalidateViews: async (urls) => {
         await instance.host?.renderer.refreshMediaUrls(urls);
       },
+      resolveNodeUrls: (ref) => instance.resolveMediaUrlsForRef(ref),
     });
     await instance.render();
     return instance;
@@ -780,6 +787,48 @@ export class OrgHierarchyDiagram {
     if (this.destroyed || !this.host) return;
     this.callbacks.onLayoutDiagnostics?.(this.getLayoutDiagnostics());
     this.notifyPromoteSync();
+    this.prefetchConfiguredMedia();
+  }
+
+  /** URLs currently bound to a node (for `diagram.media.refresh`). */
+  private resolveMediaUrlsForRef(ref: NodeRef): string[] {
+    const out = new Set<string>();
+    const theme = resolveTheme(this.themeMode);
+    if (ref.kind === 'organization') {
+      const org = this.data.organizations.find((o) => o.id === ref.id);
+      if (!org) return [];
+      const media = org.media ?? resolveThemedMediaFromOrganization(org);
+      if (media?.fallback) out.add(media.fallback.trim());
+      if (media?.byTheme) {
+        for (const u of Object.values(media.byTheme)) {
+          if (u?.trim()) out.add(u.trim());
+        }
+      }
+      const active = getOrgSymbolUrl(org, theme);
+      if (active?.trim()) out.add(active.trim());
+      return [...out];
+    }
+    const personId = ref.personId ?? (ref.kind === 'person' ? ref.id : undefined);
+    const person = personId
+      ? this.data.persons.find((p) => p.id === personId)
+      : undefined;
+    const photo = resolvePersonPhotoUrl(person);
+    if (photo) out.add(photo);
+    return [...out];
+  }
+
+  /** M4: preload alternate theme keys when host opts in via prefetchMediaThemeKeys. */
+  private prefetchConfiguredMedia(): void {
+    if (!this.mediaService?.hasPrefetchThemes) return;
+    if (this.lodLevel === 'far') return;
+    for (const org of this.data.organizations) {
+      const media = org.media ?? resolveThemedMediaFromOrganization(org);
+      this.mediaService.prefetch(media, media?.revision);
+    }
+    for (const person of this.data.persons) {
+      const media = person.media ?? resolveThemedMediaFromPerson(person);
+      this.mediaService.prefetch(media, media?.revision);
+    }
   }
 
   getOrgMode(): OrgDisplayMode {

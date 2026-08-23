@@ -31,6 +31,7 @@ export class PixiHost {
   private container: HTMLElement | null = null;
   private destroyed = false;
   private lastResolution = 1;
+  private contextMenuHandler: ((e: Event) => void) | null = null;
 
   static async create(container: HTMLElement, options: PixiHostOptions = {}): Promise<PixiHost> {
     if (!container) {
@@ -119,7 +120,8 @@ export class PixiHost {
 
     this.app = app;
     container.appendChild(app.canvas);
-    app.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    this.contextMenuHandler = (e) => e.preventDefault();
+    app.canvas.addEventListener('contextmenu', this.contextMenuHandler);
     this.renderer.mount(app.stage);
 
     this.viewport = new Viewport(this.renderer.layers.root, {
@@ -189,6 +191,10 @@ export class PixiHost {
 
     if (this.app) {
       const canvas = this.app.canvas;
+      if (this.contextMenuHandler && canvas) {
+        canvas.removeEventListener('contextmenu', this.contextMenuHandler);
+      }
+      this.contextMenuHandler = null;
       this.app.destroy(true, { children: true });
       canvas?.remove();
       this.app = null;

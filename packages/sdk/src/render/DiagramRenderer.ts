@@ -336,14 +336,18 @@ export class DiagramRenderer {
     const lod = options.lod ?? 'near';
     const hasStaff = data.positions.length > 0;
     if (hasStaff) {
-      await this.renderStaff(data, theme, resolvedTheme, config, { ...options, lod });
+      await this.renderStaff(data, theme, resolvedTheme, config, { ...options, lod }, epoch);
     } else if (data.organizations.length > 0) {
-      await this.renderOrganizations(data, theme, resolvedTheme, config, { ...options, lod });
+      await this.renderOrganizations(data, theme, resolvedTheme, config, { ...options, lod }, epoch);
     }
-    if (this.destroyed || epoch !== this.renderEpoch) return;
+    if (!this.isRenderCurrent(epoch)) return;
 
     this.drawSelection(options.selected ?? []);
     this.applyPromoteVisibility();
+  }
+
+  private isRenderCurrent(epoch: number): boolean {
+    return !this.destroyed && epoch === this.renderEpoch;
   }
 
   /**
@@ -716,6 +720,7 @@ export class DiagramRenderer {
     resolvedTheme: 'light' | 'dark',
     config: RenderConfig,
     options: RenderOptions,
+    epoch: number,
   ): Promise<void> {
     const currentOrgId = options.staff?.currentOrgId ?? inferStaffCurrentOrgId(data);
 
@@ -741,6 +746,7 @@ export class DiagramRenderer {
         currentOrgId,
         staffOpts,
       );
+      if (!this.isRenderCurrent(epoch)) return;
 
       this.lastDiagnostics = [...canvas.diagnostics];
 
@@ -816,6 +822,7 @@ export class DiagramRenderer {
           ...options,
           contourMemberBoxesByDept: memberBoxesByDept,
         });
+        if (!this.isRenderCurrent(epoch)) return;
       }
 
       if (config.dashedGridFrame) {
@@ -1054,12 +1061,14 @@ export class DiagramRenderer {
     resolvedTheme: 'light' | 'dark',
     config: RenderConfig,
     options: RenderOptions,
+    epoch: number,
   ): Promise<void> {
     const layout = await computeOrgLayout(
       data.organizations,
       data.orgLinks ?? [],
       options.orgLayout,
     );
+    if (!this.isRenderCurrent(epoch)) return;
 
     const edgesView = OrgEdgesView.fromEdges(
       layout.edges,

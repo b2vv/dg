@@ -122,6 +122,8 @@ Person defaults → initials. Far LOD (M6): skip load, show `far`. **Не** пр
 
 One attempt → failure cached → error placeholder; no retry storm.
 
+**Host contract:** after `diagram.destroy()`, revoke any `blob:` URLs the host created for this diagram. SDK unloads textures (refcount) but does **not** revoke blob URLs — that remains the host’s job (IndexedDB / object URLs).
+
 ---
 
 ## 4. Milestones
@@ -130,11 +132,11 @@ One attempt → failure cached → error placeholder; no retry storm.
 |----|-----|------|
 | **M0** | P0 | D6 fix: evict global + revision in loader + refcount ownership |
 | **M1** | P0 | ✅ Nodes → `diagram.media.loadTexture`; invalidate → `reloadMedia` point update |
-| **M2** | P0 | revision end-to-end (covered largely by M0; API polish) |
-| **M3** | P0 | `destroy()` via refcount |
-| **M4** | P1 | `prefetchMediaThemeKeys` (Q12·B) |
-| **M5** | P1 | Docs: host revoke after `destroy()` |
-| **M6** | P1 | Far LOD skip load + far placeholder |
+| **M2** | P0 | ✅ revision in cache key (M0) |
+| **M3** | P0 | ✅ `destroy()` via refcount (M0) |
+| **M4** | P1 | ✅ `prefetchMediaThemeKeys` after render (skip when far) |
+| **M5** | P1 | Docs: host revoke after `destroy()` — see §3.6 |
+| **M6** | P1 | ✅ Far LOD skip org symbol load |
 | **M7** | — | Out of scope |
 
 **Не в T74:** general chrome `patchNode` → окремо після T75; god-object → T76.

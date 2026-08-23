@@ -59,7 +59,8 @@ async function layoutConnectedTree(
   }));
 
   // Defensive: any remaining orphan inside this forest re-parents under root for WASM only.
-  // Callers must not paint edges from this virtual link — edges come from reportLines.
+  // Paint: adminEdges builds lines only from reportLines — this virtual parent is NOT drawn.
+  // Product: orphan seats sit in the head's layout flow (not a separate zone). See REVIEW D5.
   const rooted = flat.map((f) => {
     if (f.id === rootId) return f;
     if (f.parentOrgId && idSet.has(f.parentOrgId)) return f;

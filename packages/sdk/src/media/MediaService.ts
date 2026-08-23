@@ -16,6 +16,7 @@ import type {
 import { mediaCacheKey, mediaCacheKeyMatchesUrl, resolveThemedMediaUrl } from './types.js';
 
 type InvalidateViewsHook = NonNullable<MediaServiceOptions['onInvalidateViews']>;
+type ResolveNodeUrls = NonNullable<MediaServiceOptions['resolveNodeUrls']>;
 
 async function tryUnloadAssets(url: string): Promise<void> {
   try {
@@ -34,8 +35,7 @@ async function tryUnloadAssets(url: string): Promise<void> {
 
 /**
  * Per-diagram media loader (T74).
- * M0: single logical cache path + refcount ownership + revision-aware keys.
- * M1: wire live sprite refresh via {@link MediaServiceOptions.onInvalidateViews}.
+ * M0–M1: cache + refcount + live sprite refresh; M4 prefetch; refresh(ref).
  */
 export class MediaService implements DiagramMediaFacade {
   private readonly instanceCache = new Map<string, Promise<Texture | null>>();
@@ -43,14 +43,19 @@ export class MediaService implements DiagramMediaFacade {
   private readonly ownedUrls = new Set<string>();
   private prefetchThemeKeys: readonly string[];
   private readonly onInvalidateViews: InvalidateViewsHook | undefined;
+  private resolveNodeUrls: ResolveNodeUrls | undefined;
 
   constructor(
     private themeKey: string,
     private placeholders: MediaPlaceholderRegistry = { default: {} },
-    options?: Pick<MediaServiceOptions, 'prefetchThemeKeys' | 'onInvalidateViews'>,
+    options?: Pick<
+      MediaServiceOptions,
+      'prefetchThemeKeys' | 'onInvalidateViews' | 'resolveNodeUrls'
+    >,
   ) {
     this.prefetchThemeKeys = options?.prefetchThemeKeys ?? [];
     this.onInvalidateViews = options?.onInvalidateViews;
+    this.resolveNodeUrls = options?.resolveNodeUrls;
   }
 
   get activeThemeKey(): string {
@@ -59,6 +64,10 @@ export class MediaService implements DiagramMediaFacade {
 
   setActiveThemeKey(themeKey: string): void {
     this.themeKey = themeKey;
+  }
+
+  setResolveNodeUrls(fn: ResolveNodeUrls | undefined): void {
+    this.resolveNodeUrls = fn;
   }
 
   resolveUrl(media: ThemedMedia | undefined, themeKey = this.themeKey): string | undefined {
@@ -73,7 +82,6 @@ export class MediaService implements DiagramMediaFacade {
     const hit = this.instanceCache.get(key);
     if (hit) return hit;
 
-    // Same URL, different revision still live → bust before reload (M-B).
     const hasStale = [...this.instanceCache.keys()].some(
       (k) => k !== key && mediaCacheKeyMatchesUrl(k, trimmed),
     );
@@ -91,7 +99,6 @@ export class MediaService implements DiagramMediaFacade {
     return pending;
   }
 
-  /** Clear instance + global texture promises and best-effort Assets.unload. */
   private async bustUrlCaches(trimmed: string): Promise<void> {
     for (const key of [...this.instanceCache.keys()]) {
       if (mediaCacheKeyMatchesUrl(key, trimmed)) {
@@ -115,9 +122,10 @@ export class MediaService implements DiagramMediaFacade {
     }
   }
 
-  async refresh(_ref: NodeRef): Promise<void> {
-    // TODO(T74 M1): resolve entity media from diagram data → invalidate → point update.
-    return Promise.resolve();
+  async refresh(ref: NodeRef): Promise<void> {
+    const urls = this.resolveNodeUrls?.(ref) ?? [];
+    if (urls.length === 0) return;
+    await this.invalidate(urls);
   }
 
   setPrefetchThemeKeys(keys: readonly string[]): void {
@@ -134,6 +142,7 @@ export class MediaService implements DiagramMediaFacade {
 
   /** Fire-and-forget prefetch for configured theme keys (M4). */
   prefetch(media: ThemedMedia | undefined, revision?: string | number): void {
+    if (this.prefetchThemeKeys.length === 0 && !media) return;
     const keys = new Set<string>([this.themeKey, ...this.prefetchThemeKeys]);
     const rev = revision ?? media?.revision;
     for (const themeKey of keys) {
@@ -142,11 +151,15 @@ export class MediaService implements DiagramMediaFacade {
     }
   }
 
+  /** True when host opted into multi-theme prefetch (Q12·B). */
+  get hasPrefetchThemes(): boolean {
+    return this.prefetchThemeKeys.length > 0;
+  }
+
   async destroy(): Promise<void> {
     const urls = [...this.ownedUrls];
     this.instanceCache.clear();
     this.ownedUrls.clear();
-    // Release ownership only — unload when last diagram drops the URL (M-C).
     await Promise.all(urls.map((u) => releaseNodeTextureUrl(u)));
   }
 }

@@ -67,6 +67,10 @@ export function subtreeToFlatNodes(
   }));
 }
 
+/**
+ * @deprecated No in-repo consumers (REVIEW D7). Prefer multi-root forest layout (T65).
+ * Kept as a public utility for hosts that still need a single WASM root.
+ */
 export function orgsToSingleRootTree(
   organizations: DiagramOrganization[],
 ): DiagramOrganization[] {

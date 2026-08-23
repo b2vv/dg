@@ -1,5 +1,6 @@
 import type { ThemedMedia } from '../data/types.js';
 import type { Texture } from 'pixi.js';
+import type { NodeRef } from '../interaction/types.js';
 export type { ThemedMedia } from '../data/types.js';
 
 export type MediaPlaceholderKind = 'loading' | 'error' | 'far';
@@ -21,6 +22,8 @@ export interface MediaServiceOptions {
   prefetchThemeKeys?: readonly string[];
   /** Optional hook for M1 live sprite refresh after invalidate. */
   onInvalidateViews?: (urls: readonly string[]) => Promise<void>;
+  /** Resolve media URLs for a node ref (T74 refresh). */
+  resolveNodeUrls?: (ref: NodeRef) => readonly string[];
 }
 
 /** Public diagram facade (Q18·C). */
@@ -33,6 +36,8 @@ export interface DiagramMediaFacade {
   /** Resolve current media URLs for node ref and invalidate. */
   refresh(ref: import('../interaction/types.js').NodeRef): Promise<void>;
   setPrefetchThemeKeys(keys: readonly string[]): void;
+  /** Fire-and-forget prefetch for configured theme keys (M4). */
+  prefetch(media: ThemedMedia | undefined, revision?: string | number): void;
   /** M3: unload URLs owned by this diagram instance. */
   destroy(): Promise<void>;
 }
