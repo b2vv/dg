@@ -56,6 +56,22 @@ export interface PersonNodeStyle {
   temporaryNameColor?: number;
   /** Permanent / non-temp name color when temporaryNameColor is used. */
   permanentNameColor?: number;
+  /** Brand accent (key position name, count-bar expander). */
+  brandColor?: number;
+  /** Muted avatar tile under photo (GoJS row). */
+  avatarPlaceholderColor?: number;
+  /** Timeline chip dot fill. */
+  timelineDotColor?: number;
+  /** Count bar under card (GoJS row). */
+  countBarBackground?: number;
+  countBarTextColor?: number;
+  countBarFontSize?: number;
+  /** Pending hourglass fill. */
+  pendingColor?: number;
+  /** Detached seat muted stroke. */
+  detachedBorderColor?: number;
+  /** Inner card height for gojs-row (excludes timeline + count bar). */
+  cardRowHeight?: number;
   /**
    * Seat chrome template. `auto` = infer from aspect (legacy).
    * `figma-row` = landscape Figma seat; `gojs-row` = GoJS landscape row;
@@ -93,6 +109,12 @@ export interface OrganizationNodeStyle {
   hidePeriodOnCard?: boolean;
   /** Hourglass on symbol vs «T» pill on card corner. */
   tempMarkerStyle?: 'badge' | 'hourglass';
+  /** Brand accent (tree expander circle). */
+  brandColor?: number;
+  /** GoJS vertical cards: context menu via RMB only (no ⋮). */
+  hideMenuChrome?: boolean;
+  /** GoJS tree expander: brand circle bottom-right vs legacy top chip. */
+  gojsTreeExpander?: boolean;
   periodColor?: number;
   periodFontSize?: number;
   /** E6 unit-code caption. */

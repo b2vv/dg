@@ -866,6 +866,11 @@ export class DiagramRenderer {
           width: card.width,
           height: card.height,
         };
+        const gojsVertical = orgStyle.orgCardLayout === 'gojs-vertical';
+        if (gojsVertical && card.expanded) {
+          // C2: expanded sub-org is a positions container — no empty org card chrome.
+          continue;
+        }
         const view = OrganizationNodeView.create(
           org,
           undefined,
@@ -997,10 +1002,15 @@ export class DiagramRenderer {
     this.layers.edges.addChild(edgesView);
 
     if (config.orgSiblingGroupChrome) {
-      const groups = siblingOrgGroupBounds(layout.nodes, 14);
-      const stroke = resolvedTheme === 'dark' ? 0x3b82f6 : 0x2563eb;
+      const orgById = new Map(data.organizations.map((o) => [o.id, o]));
+      const collapsedOnly = theme.organization.orgCardLayout === 'gojs-vertical';
+      const groups = siblingOrgGroupBounds(layout.nodes, 14, {
+        collapsedMatrixOnly: collapsedOnly,
+        orgById,
+      });
+      const stroke = resolvedTheme === 'dark' ? 0x64748b : 0x94a3b8;
       for (const g of groups) {
-        paintDashedFrame(this.layers.zones, g.bounds, stroke, 1.25);
+        paintDashedFrame(this.layers.zones, g.bounds, stroke, 1);
       }
     }
 

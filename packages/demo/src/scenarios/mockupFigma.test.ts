@@ -43,6 +43,7 @@ describe('mockup fixtures (GH Pages safe)', () => {
     expect(data.organizations.some((o) => o.unitCode)).toBe(true);
     expect(data.organizations.some((o) => o.childrenCount !== undefined)).toBe(true);
     expect(data.organizations.some((o) => o.showShortName === false)).toBe(true);
+    expect(data.organizations.some((o) => o.fullName && !o.symbolUrl)).toBe(true);
     for (const org of data.organizations) {
       expect(org.periodStart).toBeUndefined();
       expect(org.periodEnd).toBeUndefined();
@@ -56,7 +57,7 @@ describe('mockup fixtures (GH Pages safe)', () => {
     expect(figma.positions[0]!.width).toBe(248);
     expect(figma.positions[0]!.height).toBe(72);
     expect(gojs.positions[0]!.width).toBe(200);
-    expect(gojs.positions[0]!.height).toBe(56);
+    expect(gojs.positions[0]!.height).toBe(98);
     expect(JSON.stringify(figma)).not.toMatch(MILITARY_HINT);
     expect(JSON.stringify(gojs)).not.toMatch(MILITARY_HINT);
   });
@@ -107,8 +108,10 @@ describe('mockup style tokens (approved)', () => {
     expect(o.hidePeriodOnCard).toBe(true);
     const p = MOCKUP_GOJS_STYLES.person;
     expect(p.width).toBe(200);
-    expect(p.height).toBe(56);
+    expect(p.height).toBe(98);
+    expect(p.cardRowHeight).toBe(56);
     expect(p.personLayout).toBe('gojs-row');
+    expect(o.hideMenuChrome).toBe(true);
     expect(MOCKUP_GOJS_STYLES.staffZone.dashed).toBe(false);
     expect(MOCKUP_GOJS_STYLES.staffZone.labelAlign).toBe('right');
   });

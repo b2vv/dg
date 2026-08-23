@@ -1,4 +1,4 @@
-import type { DiagramOrganization } from '../data/types.js';
+import type { DiagramOrganization, DiagramPosition } from '../data/types.js';
 
 /** E5: `N [M]` — tree counts when set, else filled/vacant fallback. */
 export function formatOrgCountsBadge(org: DiagramOrganization): string | undefined {
@@ -7,6 +7,14 @@ export function formatOrgCountsBadge(org: DiagramOrganization): string | undefin
   }
   if (org.filledCount === undefined && org.vacantCount === undefined) return undefined;
   return `${org.filledCount ?? 0} [${org.vacantCount ?? 0}]`;
+}
+
+/** GoJS position row 2 — direct / all-descendant counts. */
+export function formatPositionCountsBadge(position: DiagramPosition): string | undefined {
+  if (position.childrenCount !== undefined || position.allDescendantCount !== undefined) {
+    return `${position.childrenCount ?? 0} [${position.allDescendantCount ?? 0}]`;
+  }
+  return undefined;
 }
 
 /** E7 Phase 2 default vacancy copy (uk). */

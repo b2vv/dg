@@ -16,7 +16,7 @@ import {
 import { mountOrgNodeChrome, type OrgNodeChrome } from './orgNodeChrome.js';
 import type { FederatedPointerEvent } from 'pixi.js';
 import {
-  ORG_SYMBOL_PAD,
+  GOJS_BODY_MARGIN,
   resolveOrgSymbolLayout,
   type OrgSymbolBox,
   type OrgSymbolBoxMode,
@@ -41,12 +41,12 @@ export class OrganizationNodeView extends Container {
   private readonly card = new Graphics();
   private readonly hoverRing = new Graphics();
   private readonly nameText: Text;
+  private readonly fullNameFallbackText: Text;
   private readonly unitCodeText: Text;
   private readonly groupText: Text;
   private readonly periodText: Text;
   private readonly tempBadge = new Graphics();
   private readonly tempBadgeLabel: Text;
-  private readonly countsBadge = new Graphics();
   private readonly countsBadgeLabel: Text;
   private readonly symbolSprite = new Sprite();
   private styleRef: OrganizationNodeStyle;
@@ -78,13 +78,25 @@ export class OrganizationNodeView extends Container {
 
     this.nameText = new Text({
       text: this.symbolLayout.displayName,
-      style: { fill: style.nameColor, fontSize: style.nameFontSize, fontWeight: '600' },
+      style: { fill: style.nameColor, fontSize: style.nameFontSize, fontWeight: '500' },
+    });
+    this.fullNameFallbackText = new Text({
+      text: this.symbolLayout.fullNameFallback,
+      style: {
+        fill: style.nameColor,
+        fontSize: style.nameFontSize - 1,
+        fontWeight: '400',
+        wordWrap: true,
+        wordWrapWidth: 192,
+        breakWords: true,
+      },
     });
     this.unitCodeText = new Text({
       text: org.unitCode?.trim() ?? '',
       style: {
         fill: style.metaColor ?? style.groupColor,
-        fontSize: style.metaFontSize ?? 10,
+        fontSize: style.metaFontSize ?? 11,
+        fontFamily: 'Times New Roman, serif',
       },
     });
     this.groupText = new Text({
@@ -101,10 +113,10 @@ export class OrganizationNodeView extends Container {
       },
     });
     this.tempBadgeLabel = new Text({
-      text: 'T',
+      text: '⏳',
       style: {
         fill: style.badgeTextColor ?? 0xffffff,
-        fontSize: 9,
+        fontSize: 10,
         fontWeight: '700',
       },
     });
@@ -112,8 +124,9 @@ export class OrganizationNodeView extends Container {
       text: '',
       style: {
         fill: style.countsBadgeTextColor ?? 0x334155,
-        fontSize: style.countsBadgeFontSize ?? 9,
-        fontWeight: '600',
+        fontSize: style.countsBadgeFontSize ?? 13,
+        fontWeight: '500',
+        fontFamily: 'JetBrains Mono, monospace',
       },
     });
 
@@ -121,7 +134,7 @@ export class OrganizationNodeView extends Container {
     this.hoverRing.visible = false;
     this.tempBadge.visible = false;
     this.tempBadgeLabel.visible = false;
-    this.countsBadge.visible = false;
+    this.fullNameFallbackText.visible = false;
     this.countsBadgeLabel.visible = false;
     this.chromeControls.eventMode = 'static';
     this.chromeControls.sortableChildren = true;
@@ -131,13 +144,13 @@ export class OrganizationNodeView extends Container {
       this.shadow,
       this.card,
       this.symbolSprite,
+      this.fullNameFallbackText,
       this.nameText,
       this.unitCodeText,
       this.groupText,
       this.periodText,
       this.tempBadge,
       this.tempBadgeLabel,
-      this.countsBadge,
       this.countsBadgeLabel,
       this.hoverRing,
       this.chromeControls,
@@ -187,14 +200,15 @@ export class OrganizationNodeView extends Container {
   }
 
   hasMenuButton(): boolean {
-    return this.chromeControls.children.length > 0;
+    return this.chromeControls.children.some((c) => c.label === 'org-menu');
   }
 
   hasExpandControl(): boolean {
+    if (this.chromeControls.children.some((c) => c.label === 'org-expand')) return true;
     return this.chromeControls.children.length > 1;
   }
 
-  /** Route pointer to ⋮ / expand chrome when Pixi child hit-test misses. */
+  /** Route pointer to expand chrome when Pixi child hit-test misses. */
   activateChromePointer(e: FederatedPointerEvent): boolean {
     if (this.chromeControls.children.length === 0) return false;
     return activateChromePointer(this.chromeControls, e);
@@ -204,28 +218,46 @@ export class OrganizationNodeView extends Container {
     return hitChromePointer(this.chromeControls, e);
   }
 
+  private isGojsVertical(style: OrganizationNodeStyle): boolean {
+    return style.orgCardLayout === 'gojs-vertical';
+  }
+
+  private hideMenu(style: OrganizationNodeStyle): boolean {
+    return style.hideMenuChrome === true || this.isGojsVertical(style);
+  }
+
   private applyChrome(
     style: OrganizationNodeStyle,
     lod: LodLevel,
     options: OrganizationNodeOptions,
   ): void {
     this.chromeControls.removeChildren();
-    if (lod === 'far' || !options.onContextMenu) return;
+    if (lod === 'far') return;
 
-    const vertical = style.orgCardLayout === 'gojs-vertical';
-    // Vertical: menu top-right; leave top band for counts badge.
-    const chromeWidth = vertical
-      ? style.width
-      : this.org.isTemporary
-        ? Math.max(80, style.width - 26)
-        : style.width;
+    const gojsTree = this.isGojsVertical(style) && style.gojsTreeExpander !== false;
 
     if (options.chrome) {
-      mountOrgNodeChrome(this.chromeControls, chromeWidth, options.chrome, options.onContextMenu);
+      if (options.chrome.kind === 'staff-expand' && gojsTree) {
+        return;
+      }
+      mountOrgNodeChrome(
+        this.chromeControls,
+        style.width,
+        options.chrome,
+        options.onContextMenu ?? (() => {}),
+        {
+          cardHeight: style.height,
+          brandColor: style.brandColor ?? 0x2563eb,
+          gojsTree: gojsTree && options.chrome.kind === 'tree',
+        },
+      );
       return;
     }
 
-    attachMenuButton(this.chromeControls, chromeWidth, 4, options.onContextMenu);
+    if (!this.hideMenu(style) && options.onContextMenu) {
+      const menu = attachMenuButton(this.chromeControls, style.width, 4, options.onContextMenu);
+      menu.label = 'org-menu';
+    }
   }
 
   findText(text: string): Text | undefined {
@@ -253,11 +285,15 @@ export class OrganizationNodeView extends Container {
   }
 
   hasCountsBadge(): boolean {
-    return this.countsBadge.visible;
+    return this.countsBadgeLabel.visible;
   }
 
   hasUnitCode(): boolean {
     return this.unitCodeText.visible && this.unitCodeText.text.length > 0;
+  }
+
+  hasFullNameFallback(): boolean {
+    return this.fullNameFallbackText.visible;
   }
 
   private drawCard(style: OrganizationNodeStyle, lod: LodLevel): void {
@@ -284,7 +320,6 @@ export class OrganizationNodeView extends Container {
     this.card.fill({ color: style.background });
     this.card.stroke({ color: style.border, width: style.borderWidth });
 
-    // E3: no diamond / tint placeholder — only the card chrome. Symbol is the sprite.
     this.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= width && y <= height };
   }
 
@@ -292,71 +327,66 @@ export class OrganizationNodeView extends Container {
     if (lod === 'far') {
       this.tempBadge.visible = false;
       this.tempBadgeLabel.visible = false;
-      this.countsBadge.visible = false;
       this.countsBadgeLabel.visible = false;
       return;
     }
 
-    const vertical = style.orgCardLayout === 'gojs-vertical';
+    const vertical = this.isGojsVertical(style);
     const hourglass = style.tempMarkerStyle === 'hourglass';
     const showTemp = !!this.org.isTemporary;
-    this.tempBadge.visible = showTemp;
-    this.tempBadgeLabel.visible = showTemp;
+    this.tempBadge.visible = showTemp && hourglass && vertical;
+    this.tempBadgeLabel.visible = showTemp && hourglass && vertical;
 
-    if (showTemp) {
-      if (hourglass && vertical) {
-        const box = this.symbolLayout.box;
-        const br = Math.max(8, Math.min(box.width, box.height) * 0.14);
-        const cx = box.x + br + 2;
-        const cy = box.y + br + 2;
-        this.tempBadge.clear();
-        this.tempBadge.circle(cx, cy, br);
-        this.tempBadge.fill({ color: style.badgeColor ?? 0xf59e0b, alpha: 0.92 });
-        this.tempBadgeLabel.text = '⏳';
-        this.tempBadgeLabel.style.fontSize = Math.max(8, br * 1.1);
-        this.tempBadgeLabel.anchor.set(0.5);
-        this.tempBadgeLabel.style.fill = style.badgeTextColor ?? 0xffffff;
-        this.tempBadgeLabel.position.set(cx, cy);
-      } else {
-        const br = Math.max(7, style.width * 0.045);
-        const cx = style.width - br - 4;
-        const cy = br + 4;
-        this.tempBadge.clear();
-        this.tempBadge.circle(cx, cy, br);
-        this.tempBadge.fill({ color: style.badgeColor ?? 0xf59e0b });
-        this.tempBadgeLabel.text = 'T';
-        this.tempBadgeLabel.anchor.set(0.5);
-        this.tempBadgeLabel.style.fill = style.badgeTextColor ?? 0xffffff;
-        this.tempBadgeLabel.position.set(cx, cy);
-      }
+    if (showTemp && hourglass && vertical) {
+      const box = this.symbolLayout.box;
+      const marker = Math.max(10, Math.min(box.width, box.height) * 0.18);
+      const x = box.x + 2;
+      const y = box.y + 2;
+      this.tempBadge.clear();
+      this.tempBadgeLabel.text = '⏳';
+      this.tempBadgeLabel.style.fontSize = marker;
+      this.tempBadgeLabel.anchor.set(0, 0);
+      this.tempBadgeLabel.position.set(x, y);
+    } else if (showTemp && !hourglass) {
+      const br = Math.max(7, style.width * 0.045);
+      const cx = style.width - br - 4;
+      const cy = br + 4;
+      this.tempBadge.visible = true;
+      this.tempBadgeLabel.visible = true;
+      this.tempBadge.clear();
+      this.tempBadge.circle(cx, cy, br);
+      this.tempBadge.fill({ color: style.badgeColor ?? 0xf59e0b });
+      this.tempBadgeLabel.text = 'T';
+      this.tempBadgeLabel.anchor.set(0.5);
+      this.tempBadgeLabel.style.fontSize = 9;
+      this.tempBadgeLabel.position.set(cx, cy);
     }
 
     const counts = formatOrgCountsBadge(this.org);
     const showCounts = !!counts;
-    this.countsBadge.visible = showCounts;
     this.countsBadgeLabel.visible = showCounts;
     if (showCounts && counts) {
-      const fs = style.countsBadgeFontSize ?? 9;
+      const fs = style.countsBadgeFontSize ?? 13;
       this.countsBadgeLabel.text = counts;
       this.countsBadgeLabel.style.fontSize = fs;
       this.countsBadgeLabel.style.fill = style.countsBadgeTextColor ?? 0x334155;
-      this.countsBadgeLabel.anchor.set(0.5);
-      const padX = 5;
-      const padY = 2;
-      const estW = Math.max(28, counts.length * fs * 0.58 + padX * 2);
-      const estH = fs + padY * 2;
-      const bx = style.width - estW - 4;
-      const by = vertical ? 4 : style.height - estH - 4;
-      this.countsBadge.clear();
-      this.countsBadge.roundRect(bx, by, estW, estH, 4);
-      this.countsBadge.fill({ color: style.countsBadgeBackground ?? 0xf1f5f9 });
-      this.countsBadgeLabel.position.set(bx + estW / 2, by + estH / 2);
+      if (vertical) {
+        // Spot(1,0,-14,12) — top-right, no chip background.
+        this.countsBadgeLabel.anchor.set(1, 0);
+        this.countsBadgeLabel.position.set(style.width - 14, 12);
+      } else {
+        this.countsBadgeLabel.anchor.set(0.5);
+        const padY = 2;
+        const estH = fs + padY * 2;
+        this.countsBadgeLabel.position.set(style.width - 4 - counts.length * fs * 0.3, style.height - estH - 4);
+      }
     }
   }
 
   private layoutTexts(style: OrganizationNodeStyle, lod: LodLevel): void {
     if (lod === 'far') {
       this.nameText.visible = false;
+      this.fullNameFallbackText.visible = false;
       this.unitCodeText.visible = false;
       this.groupText.visible = false;
       this.periodText.visible = false;
@@ -365,7 +395,7 @@ export class OrganizationNodeView extends Container {
 
     const layout = this.symbolLayout;
     this.nameText.text = layout.displayName;
-    this.nameText.visible = layout.showNameText;
+    this.nameText.visible = layout.showNameText && layout.mode !== 'full-bleed';
 
     const unitRaw = this.org.unitCode?.trim() ?? '';
     this.unitCodeText.text = unitRaw;
@@ -377,25 +407,71 @@ export class OrganizationNodeView extends Container {
     this.groupText.visible = hasGroup && layout.mode !== 'full-bleed';
     this.periodText.visible = hasPeriod;
 
-    if (style.orgCardLayout === 'gojs-vertical') {
+    this.fullNameFallbackText.text = layout.fullNameFallback;
+    this.fullNameFallbackText.visible =
+      layout.showFullNameFallback && !this.symbolSprite.visible && layout.mode !== 'full-bleed';
+
+    if (this.isGojsVertical(style)) {
       this.layoutVerticalTexts(style, layout);
       return;
     }
 
+    this.layoutHorizontalTexts(style, layout);
+  }
+
+  /** GoJS vertical stack: name → symbol → unit code. */
+  private layoutVerticalTexts(style: OrganizationNodeStyle, layout: OrgSymbolLayout): void {
+    const vm = layout.vertical;
+    const m = GOJS_BODY_MARGIN;
+    const maxTextW = vm?.nameMaxWidth ?? style.width - m.left - m.right;
+
+    this.nameText.anchor.set(0, 0);
+    this.unitCodeText.anchor.set(0.5, 0);
+    this.groupText.anchor.set(0.5, 0);
+    this.periodText.anchor.set(0.5, 0);
+
+    if (this.nameText.visible) {
+      truncatePixiText(this.nameText, maxTextW);
+      this.nameText.position.set(m.left, vm?.nameY ?? m.top);
+    }
+
+    if (this.fullNameFallbackText.visible) {
+      const box = layout.box;
+      truncatePixiText(this.fullNameFallbackText, Math.min(192, box.width));
+      this.fullNameFallbackText.anchor.set(0.5, 0);
+      this.fullNameFallbackText.position.set(box.x + box.width / 2, box.y + 4);
+    }
+
+    if (this.unitCodeText.visible) {
+      truncatePixiText(this.unitCodeText, maxTextW);
+      const unitY = vm?.unitY ?? layout.box.y + layout.box.height + 4;
+      this.unitCodeText.position.set(style.width / 2, unitY);
+    }
+  }
+
+  private layoutHorizontalTexts(style: OrganizationNodeStyle, layout: OrgSymbolLayout): void {
     const box = layout.box;
+    const pad = box.padding;
     const textX =
       layout.mode === 'full-bleed' || !this.symbolSprite.visible
-        ? ORG_SYMBOL_PAD
+        ? pad
         : box.x + box.width + 10;
     const menuReserve = this.hasMenuButton() ? 28 : 0;
     const rightPad =
       menuReserve + (this.tempBadge.visible && style.tempMarkerStyle !== 'hourglass' ? 22 : 10);
     const maxTextW = Math.max(24, style.width - textX - rightPad);
 
+    this.nameText.anchor.set(0, 0);
     if (this.nameText.visible) truncatePixiText(this.nameText, maxTextW);
     if (this.unitCodeText.visible) truncatePixiText(this.unitCodeText, maxTextW);
     if (this.groupText.visible) truncatePixiText(this.groupText, maxTextW);
     if (this.periodText.visible) truncatePixiText(this.periodText, maxTextW);
+
+    if (this.fullNameFallbackText.visible) {
+      this.fullNameFallbackText.anchor.set(0, 0);
+      truncatePixiText(this.fullNameFallbackText, box.width - 4);
+      this.fullNameFallbackText.position.set(box.x + 2, box.y + 4);
+    }
 
     const periodFs = style.periodFontSize ?? 10;
     const metaFs = style.metaFontSize ?? 10;
@@ -435,36 +511,6 @@ export class OrganizationNodeView extends Container {
     }
   }
 
-  /** GoJS vertical stack: symbol → name → unit code, centered. */
-  private layoutVerticalTexts(style: OrganizationNodeStyle, layout: OrgSymbolLayout): void {
-    const box = layout.box;
-    const gap = 4;
-    const metaFs = style.metaFontSize ?? 10;
-    const menuReserve = this.hasMenuButton() ? 28 : 0;
-    const countsReserve = this.countsBadge.visible ? 36 : 0;
-    const maxTextW = Math.max(24, style.width - 16 - menuReserve - countsReserve);
-
-    this.nameText.anchor.set(0.5, 0);
-    this.unitCodeText.anchor.set(0.5, 0);
-    this.groupText.anchor.set(0.5, 0);
-    this.periodText.anchor.set(0.5, 0);
-
-    if (this.nameText.visible) truncatePixiText(this.nameText, maxTextW);
-    if (this.unitCodeText.visible) truncatePixiText(this.unitCodeText, maxTextW);
-
-    const cx = style.width / 2;
-    let y = box.y + box.height + gap;
-
-    if (this.nameText.visible) {
-      this.nameText.position.set(cx, y);
-      y += style.nameFontSize + gap;
-    }
-    if (this.unitCodeText.visible) {
-      this.unitCodeText.position.set(cx, y);
-      this.unitCodeText.style.fontSize = metaFs;
-    }
-  }
-
   private setHovered(on: boolean): void {
     if (this.lod === 'far') {
       this.hoverRing.visible = false;
@@ -481,7 +527,6 @@ export class OrganizationNodeView extends Container {
     this.hoverRing.visible = true;
   }
 
-  /** E11: fill texture cache with inactive theme URL when both light+dark exist. */
   private prefetchInactiveSymbol(): void {
     const inactive = getInactiveOrgSymbolUrl(this.org, this.theme);
     if (!inactive) return;
@@ -497,6 +542,7 @@ export class OrganizationNodeView extends Container {
         hasSymbol: false,
       });
       this.layoutTexts(style, lod);
+      this.layoutChromeBadges(style, lod);
       return;
     }
 
@@ -508,6 +554,7 @@ export class OrganizationNodeView extends Container {
         hasSymbol: false,
       });
       this.layoutTexts(style, lod);
+      this.layoutChromeBadges(style, lod);
       return;
     }
     this.showSymbol(texture, style, lod);
@@ -532,6 +579,7 @@ export class OrganizationNodeView extends Container {
     this.symbolSprite.height = fitted.height;
     this.symbolSprite.position.set(box.x + fitted.offsetX, box.y + fitted.offsetY);
     this.symbolSprite.visible = true;
+    this.fullNameFallbackText.visible = false;
 
     this.layoutChromeBadges(style, lod);
     this.layoutTexts(style, lod);
