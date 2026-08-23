@@ -318,6 +318,8 @@ function buildStaffTopology(card: { width: number; height: number }): DiagramDat
       // Current business unit (tier-3 expand)
       { fromId: 'pos-u-h', toId: 'pos-u-2', kind: 'admin' },
       { fromId: 'pos-u-h', toId: 'pos-u-sup', kind: 'admin' },
+      // Decorative cross-org (SPEC: does not affect layout)
+      { fromId: 'pos-1z', toId: 'pos-u-h', kind: 'dotted' },
     ],
   };
 }

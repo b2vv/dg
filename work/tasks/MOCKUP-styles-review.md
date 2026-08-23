@@ -107,7 +107,7 @@ Tokens use hex for readability (`0x2a323c` → `#2a323c`).
 | Vacant seat | no person; vacant label |
 | Zones | dashed blue named bands per staff block |
 | Dept cards | card chrome around department clusters |
-| Edges | solid admin; dotted cross-org (deputy → unit manager) |
+| Edges | solid **admin**; **cross-tier** head → unit org card (SDK); **dotted** cross-org deputy → unit manager |
 | Topology | Lumen Holdings → Pacific Region (focus) → Current Business Unit |
 
 ---

@@ -98,9 +98,6 @@ export async function layoutStaffCanvas(
   });
   cursorY += t2height + opts.tierGap;
 
-  // Cross-tier: if current head reports to tier1 position (matrix/admin across orgs) — decorative only when from different org
-  // v1: skip auto cross edges unless report connects ids already in positionNodes
-
   // Tier 3 — subordinate org cards (+ optional expand-in-place staff)
   const children = data.organizations.filter((o) => o.parentOrgId === currentOrgId);
   const childIdSet = new Set(children.map((c) => c.id));
@@ -189,6 +186,15 @@ export async function layoutStaffCanvas(
     for (const card of orgCards) {
       edges.push({ fromId: curHead, toId: card.orgId, kind: 'cross-tier' });
     }
+  }
+
+  // Decorative matrix/dotted reportLines across org blocks (both endpoints on canvas).
+  const visiblePositionIds = new Set(positionNodes.map((n) => n.id));
+  for (const report of data.reports) {
+    if (report.kind !== 'matrix' && report.kind !== 'dotted') continue;
+    if (!visiblePositionIds.has(report.fromId) || !visiblePositionIds.has(report.toId)) continue;
+    if (edges.some((e) => e.fromId === report.fromId && e.toId === report.toId)) continue;
+    edges.push({ fromId: report.fromId, toId: report.toId, kind: report.kind });
   }
 
   const width = Math.max(

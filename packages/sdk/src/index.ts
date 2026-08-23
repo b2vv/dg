@@ -16,7 +16,7 @@ import {
   type RenderConfig,
   type CameraMotionOptions,
 } from './render/index.js';
-import { resolveLodLevel, type LodLevel } from './render/lod.js';
+import { resolveLodLevel, defaultLodThresholds, type LodLevel, type LodThresholds } from './render/lod.js';
 import type { PromoteCandidate } from './render/promoteTypes.js';
 import {
   collapseAllOrgs,
@@ -336,6 +336,8 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
   orgTreeChrome?: boolean;
   /** Pre-expanded staff tier-3 org cards (e.g. mockup unit drill-in). */
   staffExpandedOrgIds?: readonly string[];
+  /** Override LOD zoom bands (default farMax 0.45, midMax 1.2). */
+  lodThresholds?: LodThresholds;
   /** Enable DOM test anchors (`data-testid="node-*"`) — use with createTestAnchorOverlay (T55). */
   testAnchors?: boolean;
 }
@@ -362,6 +364,7 @@ export class OrgHierarchyDiagram {
   /** Multi-select set (T67). Primary / first element is also exposed via getSelection(). */
   private selections: NodeRef[] = [];
   private lodLevel: LodLevel = 'near';
+  private lodThresholds: LodThresholds = defaultLodThresholds;
   private lodRenderQueued = false;
   private contourComputer: IncrementalContourComputer | null = null;
   private promoteSyncListeners = new Set<() => void>();
@@ -389,6 +392,9 @@ export class OrgHierarchyDiagram {
     if (config.staffExpandedOrgIds?.length) {
       instance.staffExpandedOrgIds = new Set(config.staffExpandedOrgIds);
     }
+    if (config.lodThresholds) {
+      instance.lodThresholds = config.lodThresholds;
+    }
 
     const workerFactory = config.workerFactory ?? createTransformWorker;
     instance.workerFactory = workerFactory;
@@ -413,7 +419,7 @@ export class OrgHierarchyDiagram {
       instance.onViewportTransform(t.scale);
       instance.notifyPromoteSync();
     });
-    instance.lodLevel = resolveLodLevel(instance.host.getZoom());
+    instance.lodLevel = resolveLodLevel(instance.host.getZoom(), instance.lodThresholds);
     await instance.render();
     return instance;
   }
@@ -431,7 +437,7 @@ export class OrgHierarchyDiagram {
   }
 
   private onViewportTransform(scale: number): void {
-    const next = resolveLodLevel(scale);
+    const next = resolveLodLevel(scale, this.lodThresholds);
     if (next === this.lodLevel) return;
     this.lodLevel = next;
     if (this.lodRenderQueued) return;

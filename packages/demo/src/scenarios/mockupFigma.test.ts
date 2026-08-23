@@ -58,11 +58,15 @@ describe('mockup fixtures (GH Pages safe)', () => {
     expect(JSON.stringify(gojs)).not.toMatch(MILITARY_HINT);
   });
 
-  it('staff: temp + period + vacant; no cross-tier dotted edge', () => {
+  it('staff: temp + period + vacant; dotted deputy → unit manager', () => {
     const data = buildMockupStaffFigmaData();
     expect(data.positions.some((p) => p.isTemporary && p.periodStart)).toBe(true);
     expect(data.positions.some((p) => p.status === 'vacant')).toBe(true);
-    expect(data.reportLines.some((l) => l.kind === 'dotted')).toBe(false);
+    expect(data.reportLines).toContainEqual({
+      fromId: 'pos-1z',
+      toId: 'pos-u-h',
+      kind: 'dotted',
+    });
     expect(data.organizations.some((o) => o.id === 'unit-current')).toBe(true);
   });
 });
@@ -125,5 +129,10 @@ describe('mockup style tokens (approved)', () => {
     );
     expect(canvas.orgCards.find((c) => c.orgId === 'unit-current')?.expanded).toBe(true);
     expect(canvas.positionNodes.some((n) => n.tier === 3 && n.id === 'pos-u-h')).toBe(true);
+    expect(canvas.edges).toContainEqual({
+      fromId: 'pos-1z',
+      toId: 'pos-u-h',
+      kind: 'dotted',
+    });
   });
 });

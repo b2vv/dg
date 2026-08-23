@@ -1,6 +1,7 @@
 import type { OrgHierarchyConfig } from '@org-hierarchy/sdk';
 import {
   OrgHierarchyDiagram,
+  defaultLodThresholds,
   flatRowsToDiagram,
   mapFlatRowsInPool,
   mapArrayItems,
@@ -9,6 +10,7 @@ import {
   VARIANT_B_VERTICAL_GAP,
   VARIANT_B_MAGNET_RADIUS,
   type FlatDiagramRow,
+  type LodThresholds,
 } from '@org-hierarchy/sdk';
 import {
   createReactContextMenuHost,
@@ -72,6 +74,11 @@ const ALL_MOCKUP_TABS: ReadonlySet<DemoTab> = new Set([
 
 /** Keep mockup cards at mid/near LOD — avoid fitView zoom-out to symbol-only far LOD (<0.45). */
 const MOCKUP_FIT_MIN_SCALE = 0.55;
+/** fitView lands ~0.55–0.9; default midMax 1.2 kept cards in mid LOD — force near for mockup chrome. */
+const MOCKUP_LOD_THRESHOLDS: LodThresholds = {
+  farMax: defaultLodThresholds.farMax,
+  midMax: 0.5,
+};
 
 export interface ContourControls {
   paddingCells: number;
@@ -531,6 +538,7 @@ export class App {
           theme: 'dark',
           data: buildMockupOrgsFigmaData(),
           styles: MOCKUP_FIGMA_STYLES,
+          lodThresholds: MOCKUP_LOD_THRESHOLDS,
           orgLayout: {
             nodeWidth: 200,
             nodeHeight: 120,
@@ -550,6 +558,7 @@ export class App {
           theme: 'light',
           data: buildMockupOrgsGojsData(),
           styles: MOCKUP_GOJS_STYLES,
+          lodThresholds: MOCKUP_LOD_THRESHOLDS,
           orgLayout: {
             nodeWidth: 200,
             nodeHeight: 64,
@@ -569,6 +578,7 @@ export class App {
           theme: 'dark',
           data: buildMockupStaffFigmaData(),
           styles: MOCKUP_FIGMA_STYLES,
+          lodThresholds: MOCKUP_LOD_THRESHOLDS,
           staffCurrentOrgId: 'region',
           staffExpandedOrgIds: ['unit-current'],
           staffLayout: {
@@ -598,6 +608,7 @@ export class App {
           theme: 'light',
           data: buildMockupStaffGojsData(),
           styles: MOCKUP_GOJS_STYLES,
+          lodThresholds: MOCKUP_LOD_THRESHOLDS,
           staffCurrentOrgId: 'region',
           staffExpandedOrgIds: ['unit-current'],
           staffLayout: {

@@ -38,13 +38,11 @@ Open gallery: [index.html](./index.html) (local file or attach to PR).
 
 ## Findings (2026-08-23)
 
-### Staff person cards — LOD gap (main issue)
+### Staff person cards — LOD gap (fixed 2026-08-23)
 
-On **Staff · Figma / GoJS** mockup tabs, diagram crops often show **mid LOD** (compressed horizontal band: name only, no avatar/title), while isolated specimens always use **near LOD** (full Figma row / GoJS portrait).
+Mockup tabs now pass `lodThresholds: { midMax: 0.5 }` so fitView zoom ~0.55 renders **near LOD** (full row/portrait chrome).
 
-Examples: `person-figma-temp-*`, `person-gojs-head-*`.
-
-**Implication:** full-diagram screenshots can look “wrong” even when near-LOD template code is correct. Compare at zoom ≥ 0.55 and near LOD, or fix fitView / LOD thresholds on mockup tabs.
+**Before fix:** diagram crops showed mid LOD (compressed band). Regenerate compare after pull.
 
 ### Org Figma root — counts badge position
 
