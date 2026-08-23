@@ -1,4 +1,5 @@
 import type { DiagramOrganization } from '../data/types.js';
+import { resolveThemedMediaUrl } from '../media/types.js';
 import {
   darkNodeTheme,
   defaultNodeTheme,
@@ -40,6 +41,8 @@ export function getOrgSymbolUrl(
   org: DiagramOrganization,
   theme: 'light' | 'dark',
 ): string | undefined {
+  const fromMedia = resolveThemedMediaUrl(org.media, theme);
+  if (fromMedia) return fromMedia;
   if (theme === 'dark') {
     return org.symbolUrlDark ?? org.symbolUrl ?? org.symbolUrlLight;
   }
@@ -54,6 +57,14 @@ export function getInactiveOrgSymbolUrl(
   org: DiagramOrganization,
   theme: 'light' | 'dark',
 ): string | undefined {
+  const fromMediaInactive =
+    theme === 'dark'
+      ? org.media?.byTheme?.light?.trim()
+      : org.media?.byTheme?.dark?.trim();
+  if (fromMediaInactive) {
+    const active = getOrgSymbolUrl(org, theme)?.trim();
+    if (fromMediaInactive !== active) return fromMediaInactive;
+  }
   const light = org.symbolUrlLight?.trim();
   const dark = org.symbolUrlDark?.trim();
   if (!light || !dark) return undefined;

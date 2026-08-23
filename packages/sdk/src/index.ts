@@ -455,6 +455,9 @@ export class OrgHierarchyDiagram {
     const resolvedTheme = resolveTheme(instance.themeMode);
     instance.mediaService = new MediaService(resolvedTheme, config.mediaPlaceholders ?? { default: {} }, {
       prefetchThemeKeys: config.prefetchMediaThemeKeys,
+      onInvalidateViews: async (urls) => {
+        await instance.host?.renderer.refreshMediaUrls(urls);
+      },
     });
     await instance.render();
     return instance;
@@ -713,6 +716,10 @@ export class OrgHierarchyDiagram {
           }
         : undefined,
       selected: this.selections,
+      loadTexture: (url, revision) =>
+        this.mediaService
+          ? this.mediaService.loadTexture(url, revision)
+          : Promise.resolve(null),
       onCanvasClick: () => {
         if (this.destroyed) return;
         this.applySelection(null);

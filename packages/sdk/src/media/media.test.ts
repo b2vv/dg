@@ -130,14 +130,22 @@ describe('MediaService D6 M0', () => {
     expect(nodeTextureUrlOwnerCount('/shared.png')).toBe(0);
   });
 
-  it('success: acquire/release refcount helpers', async () => {
-    acquireNodeTextureUrl('/x.png');
-    acquireNodeTextureUrl('/x.png');
-    expect(nodeTextureUrlOwnerCount('/x.png')).toBe(2);
-    await releaseNodeTextureUrl('/x.png');
-    expect(nodeTextureUrlOwnerCount('/x.png')).toBe(1);
-    await releaseNodeTextureUrl('/x.png');
-    expect(nodeTextureUrlOwnerCount('/x.png')).toBe(0);
-    evictNodeTextureCache('/x.png');
+  it('success: invalidate triggers reloadMedia on bound views (M-A path)', async () => {
+    configureNodeTextureLoader(async () => Texture.WHITE);
+    const media = new MediaService('light');
+    const reload = vi.fn(async () => undefined);
+    const views = new Set([{ reloadMedia: reload }]);
+    // Simulate DiagramRenderer.mediaUrlViews + onInvalidateViews wiring.
+    const onInvalidate = async (urls: readonly string[]) => {
+      for (const url of urls) {
+        if (url === '/hot.png') await Promise.all([...views].map((v) => v.reloadMedia()));
+      }
+    };
+    const wired = new MediaService('light', { default: {} }, { onInvalidateViews: onInvalidate });
+    await wired.loadTexture('/hot.png', 0);
+    await wired.invalidate('/hot.png');
+    expect(reload).toHaveBeenCalledTimes(1);
+    await media.destroy();
+    await wired.destroy();
   });
 });

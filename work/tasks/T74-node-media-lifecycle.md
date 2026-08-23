@@ -129,7 +129,7 @@ One attempt → failure cached → error placeholder; no retry storm.
 | ID | Pri | Опис |
 |----|-----|------|
 | **M0** | P0 | D6 fix: evict global + revision in loader + refcount ownership |
-| **M1** | P0 | Nodes → `diagram.media`; invalidate + point sprite refresh |
+| **M1** | P0 | ✅ Nodes → `diagram.media.loadTexture`; invalidate → `reloadMedia` point update |
 | **M2** | P0 | revision end-to-end (covered largely by M0; API polish) |
 | **M3** | P0 | `destroy()` via refcount |
 | **M4** | P1 | `prefetchMediaThemeKeys` (Q12·B) |

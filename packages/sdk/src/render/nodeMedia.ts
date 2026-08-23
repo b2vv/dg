@@ -1,7 +1,10 @@
 import { Texture } from 'pixi.js';
 import { mediaCacheKey, mediaCacheKeyMatchesUrl } from '../media/types.js';
 
-export type NodeTextureLoader = (url: string) => Promise<Texture | null>;
+export type NodeTextureLoader = (
+  url: string,
+  revision?: string | number,
+) => Promise<Texture | null>;
 
 const cache = new Map<string, Promise<Texture | null>>();
 /** Live diagram instances that still need this URL in Pixi Assets (T74 D6 M-C). */

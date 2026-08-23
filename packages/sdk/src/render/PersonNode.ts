@@ -1,7 +1,7 @@
 import { Container, Graphics, Sprite, Text, type FederatedPointerEvent, type Texture } from 'pixi.js';
 import type { DiagramPerson, DiagramPosition } from '../data/types.js';
 import type { LodLevel } from './lod.js';
-import { loadNodeTexture } from './nodeMedia.js';
+import { loadNodeTexture, type NodeTextureLoader } from './nodeMedia.js';
 import { avatarColorFromName, personInitials } from './personInitials.js';
 import { formatOrgPeriodLabel } from './formatPeriodLabel.js';
 import { formatPositionCountsBadge, VACANT_POSITION_LABEL } from './orgCardChrome.js';
@@ -27,6 +27,18 @@ import {
 } from './personLayout.js';
 import { personVisualLocalRect } from './personVisualGeometry.js';
 
+/** Prefer ThemedMedia, then legacy photoUrl (T74). */
+export function resolvePersonPhotoUrl(person: DiagramPerson | undefined): string | undefined {
+  if (!person) return undefined;
+  return (
+    person.media?.fallback?.trim() ||
+    person.media?.byTheme?.light?.trim() ||
+    person.media?.byTheme?.dark?.trim() ||
+    person.photoUrl?.trim() ||
+    undefined
+  );
+}
+
 export interface PersonNodeExpandChrome {
   expanded: boolean;
   hasChildren: boolean;
@@ -37,6 +49,8 @@ export interface PersonNodeOptions {
   onContextMenu?: (pointer: ContextMenuPointer) => void;
   /** Position subtree expand (T66) — shown when hasChildren. */
   expand?: PersonNodeExpandChrome;
+  /** T74: diagram media loader; falls back to module `loadNodeTexture`. */
+  loadTexture?: NodeTextureLoader;
 }
 
 interface GojsRowLayout extends GojsRowLayoutMetrics {
@@ -71,6 +85,10 @@ export class PersonNodeView extends Container {
 
   private gojsLayout: GojsRowLayout | null = null;
   private expandToggle: (() => void) | undefined;
+  private loadTexture: NodeTextureLoader = loadNodeTexture;
+  private mediaRevision: string | number | undefined;
+  private photoUrl: string | undefined;
+  private styleRef: PersonNodeStyle | null = null;
 
   private constructor(
     style: PersonNodeStyle,
@@ -179,11 +197,26 @@ export class PersonNodeView extends Container {
     });
     const avatarFill = avatarColorFromName(person?.fullName);
     const view = new PersonNodeView(style, lod, mediaReady, avatarFill);
+    view.loadTexture = options.loadTexture ?? loadNodeTexture;
+    view.mediaRevision = person?.media?.revision;
+    view.photoUrl = resolvePersonPhotoUrl(person);
+    view.styleRef = style;
     view.expandToggle = options.expand?.hasChildren ? options.expand.onToggle : undefined;
     view.updateContent(person, position, style, lod, options);
     view.applyChrome(style, lod, options);
-    void view.applyPhoto(person?.photoUrl, style, lod).finally(resolveMedia);
+    void view.applyPhoto(view.photoUrl, style, lod).finally(resolveMedia);
     return view;
+  }
+
+  /** Bound photo URL for MediaService invalidate matching (T74). */
+  get resolvedPhotoUrl(): string | undefined {
+    return this.photoUrl;
+  }
+
+  /** T74 M1: re-fetch photo after invalidate (point update). */
+  reloadMedia(): Promise<void> {
+    if (!this.styleRef) return Promise.resolve();
+    return this.applyPhoto(this.photoUrl, this.styleRef, this.lod);
   }
 
   hasMenuButton(): boolean {
@@ -809,7 +842,7 @@ export class PersonNodeView extends Container {
       return;
     }
 
-    const texture = await loadNodeTexture(photoUrl);
+    const texture = await this.loadTexture(photoUrl, this.mediaRevision);
     if (!texture || this.destroyed) {
       this.hidePhoto();
       return;

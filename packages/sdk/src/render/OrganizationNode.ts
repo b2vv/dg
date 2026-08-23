@@ -1,6 +1,6 @@
 import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js';
 import type { DiagramGroup, DiagramOrganization } from '../data/types.js';
-import { loadNodeTexture } from './nodeMedia.js';
+import { loadNodeTexture, type NodeTextureLoader } from './nodeMedia.js';
 import { getInactiveOrgSymbolUrl, getOrgSymbolUrl } from './theme.js';
 import { fitContain } from './fitContain.js';
 import { formatOrgPeriodLabel } from './formatPeriodLabel.js';
@@ -28,6 +28,8 @@ export interface OrganizationNodeOptions {
   onContextMenu?: (pointer: ContextMenuPointer) => void;
   /** Opt-in E11 prefetch of inactive theme symbol (default false). */
   prefetchInactiveSymbol?: boolean;
+  /** T74: diagram media loader; falls back to module `loadNodeTexture`. */
+  loadTexture?: NodeTextureLoader;
 }
 
 export class OrganizationNodeView extends Container {
@@ -51,6 +53,8 @@ export class OrganizationNodeView extends Container {
   private readonly symbolSprite = new Sprite();
   private styleRef: OrganizationNodeStyle;
   private symbolLayout: OrgSymbolLayout;
+  private loadTexture: NodeTextureLoader = loadNodeTexture;
+  private mediaRevision: string | number | undefined;
 
   private readonly chromeControls = new Container();
 
@@ -176,12 +180,19 @@ export class OrganizationNodeView extends Container {
       resolveMedia = resolve;
     });
     const view = new OrganizationNodeView(org, group, theme, style, lod, mediaReady);
+    view.loadTexture = options.loadTexture ?? loadNodeTexture;
+    view.mediaRevision = org.media?.revision;
     view.applyChrome(style, lod, options);
     if (options.prefetchInactiveSymbol) {
       view.prefetchInactiveSymbol();
     }
     void view.applySymbol(style, lod).finally(resolveMedia);
     return view;
+  }
+
+  /** T74 M1: re-fetch symbol texture after invalidate (point update). */
+  reloadMedia(): Promise<void> {
+    return this.applySymbol(this.styleRef, this.lod);
   }
 
   /** Current symbol box mode (caption / no-caption / full-bleed). */
@@ -530,7 +541,7 @@ export class OrganizationNodeView extends Container {
   private prefetchInactiveSymbol(): void {
     const inactive = getInactiveOrgSymbolUrl(this.org, this.theme);
     if (!inactive) return;
-    void loadNodeTexture(inactive);
+    void this.loadTexture(inactive, this.mediaRevision);
   }
 
   private async applySymbol(style: OrganizationNodeStyle, lod: LodLevel): Promise<void> {
@@ -546,7 +557,7 @@ export class OrganizationNodeView extends Container {
       return;
     }
 
-    const texture = await loadNodeTexture(url);
+    const texture = await this.loadTexture(url, this.mediaRevision);
     if (!texture || this.destroyed) {
       this.symbolSprite.visible = false;
       this.symbolLayout = resolveOrgSymbolLayout(this.org, style, {

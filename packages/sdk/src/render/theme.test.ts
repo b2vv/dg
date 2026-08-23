@@ -73,6 +73,15 @@ describe('getOrgSymbolUrl', () => {
     };
     expect(getOrgSymbolUrl(minimal, 'dark')).toBe('/only.svg');
   });
+
+  it('success: ThemedMedia wins over legacy symbolUrl*', () => {
+    const withMedia: DiagramOrganization = {
+      ...org,
+      media: { byTheme: { light: '/m-light.svg', dark: '/m-dark.svg' } },
+    };
+    expect(getOrgSymbolUrl(withMedia, 'light')).toBe('/m-light.svg');
+    expect(getOrgSymbolUrl(withMedia, 'dark')).toBe('/m-dark.svg');
+  });
 });
 
 describe('getInactiveOrgSymbolUrl', () => {
