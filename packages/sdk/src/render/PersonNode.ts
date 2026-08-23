@@ -364,8 +364,13 @@ export class PersonNodeView extends Container {
     }
 
     this.hitArea =
-      gojsRowNear
-        ? { contains: (x, y) => x >= 0 && y >= 0 && x <= width && y <= style.height }
+      gojsRowNear && this.gojsLayout
+        ? hitAreaFromRect({
+            x: 0,
+            y: 0,
+            width,
+            height: this.gojsLayout.cardY + this.gojsLayout.cardH + this.gojsLayout.countBarH,
+          })
         : hitAreaFromRect(personVisualLocalRect(width, style.height, lod));
   }
 
