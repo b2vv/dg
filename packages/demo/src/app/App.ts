@@ -90,6 +90,7 @@ export interface ContourControls {
 /** Playwright hooks when `?e2e=1`. */
 export interface DemoE2eBridge {
   collapseOrg(orgId: string): Promise<void> | undefined;
+  expandOrg(orgId: string): Promise<void> | undefined;
   toggleStaffOrg(orgId: string): Promise<boolean> | undefined;
   focusTestId(testId: string): Promise<boolean> | undefined;
   getStaffExpandedOrgIds(): string[];
@@ -357,6 +358,7 @@ export class App {
         this.mountEl.setAttribute('data-testid', 'diagram-ready');
         (window as unknown as { __demoE2e?: DemoE2eBridge }).__demoE2e = {
           collapseOrg: (orgId: string) => this.diagram?.collapseOrg(orgId),
+          expandOrg: (orgId: string) => this.diagram?.expandOrg(orgId),
           toggleStaffOrg: (orgId: string) => this.diagram?.toggleStaffOrgExpand(orgId),
           focusTestId: (testId: string) => this.diagram?.focusByTestId(testId),
           getStaffExpandedOrgIds: () => this.diagram?.getStaffExpandedOrgIds() ?? [],
