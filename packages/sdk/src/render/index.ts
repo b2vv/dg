@@ -117,9 +117,15 @@ export {
   isFullBleedIntrinsic,
   orgCardAabb,
   ORG_SYMBOL_PAD,
-  ORG_SYMBOL_W,
-  ORG_SYMBOL_H,
+  GOJS_SYMBOL_W,
+  GOJS_SYMBOL_H,
+  GOJS_NO_CAPTION_W,
+  GOJS_NO_CAPTION_H,
 } from './orgSymbolBox.js';
+/** @deprecated Use GOJS_SYMBOL_W */
+export { GOJS_SYMBOL_W as ORG_SYMBOL_W } from './orgSymbolBox.js';
+/** @deprecated Use GOJS_SYMBOL_H */
+export { GOJS_SYMBOL_H as ORG_SYMBOL_H } from './orgSymbolBox.js';
 export type {
   OrgSymbolBox,
   OrgSymbolBoxMode,

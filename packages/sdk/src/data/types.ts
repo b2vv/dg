@@ -30,6 +30,10 @@ export interface DiagramOrganization {
   filledCount?: number;
   /** Badge M in `N [M]` (E5) — vacant seats. */
   vacantCount?: number;
+  /** GoJS tree badge N — direct child org count. */
+  childrenCount?: number;
+  /** GoJS tree badge M — all descendant org count. */
+  allDescendantCount?: number;
   /** Org validity / subordination window start (ISO date). */
   periodStart?: string;
   /** End date; `null` = open-ended («по т.ч.»). */

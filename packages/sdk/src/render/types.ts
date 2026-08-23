@@ -58,13 +58,14 @@ export interface PersonNodeStyle {
   permanentNameColor?: number;
   /**
    * Seat chrome template. `auto` = infer from aspect (legacy).
-   * `figma-row` = landscape Figma seat; `gojs-portrait` = GoJS / Variant B card.
+   * `figma-row` = landscape Figma seat; `gojs-row` = GoJS landscape row;
+   * `gojs-portrait` = GoJS / Variant B card.
    */
   personLayout?: PersonCardLayout;
 }
 
 /** Position seat visual template (T70 / mockup parity). */
-export type PersonCardLayout = 'auto' | 'figma-row' | 'gojs-portrait';
+export type PersonCardLayout = 'auto' | 'figma-row' | 'gojs-row' | 'gojs-portrait';
 
 export interface OrganizationNodeStyle {
   width: number;
@@ -78,6 +79,20 @@ export interface OrganizationNodeStyle {
   nameFontSize: number;
   groupFontSize: number;
   symbolSize: number;
+  /** Rectangular symbol width (10:7 GoJS); defaults to symbolSize. */
+  symbolWidth?: number;
+  /** Rectangular symbol height; defaults to symbolSize. */
+  symbolHeight?: number;
+  /** No-caption enlarged symbol width (GoJS FULL_W). */
+  noCaptionSymbolWidth?: number;
+  /** No-caption enlarged symbol height (GoJS FULL_H). */
+  noCaptionSymbolHeight?: number;
+  /** Vertical stack (symbol → name → unit code) vs legacy horizontal row. */
+  orgCardLayout?: 'horizontal' | 'gojs-vertical';
+  /** Suppress period line on the card (GoJS shows it on edges). */
+  hidePeriodOnCard?: boolean;
+  /** Hourglass on symbol vs «T» pill on card corner. */
+  tempMarkerStyle?: 'badge' | 'hourglass';
   periodColor?: number;
   periodFontSize?: number;
   /** E6 unit-code caption. */

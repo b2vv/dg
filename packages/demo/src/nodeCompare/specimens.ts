@@ -65,14 +65,14 @@ export const NODE_COMPARE_SPECIMENS: NodeCompareSpecimen[] = [
   },
   {
     id: 'org-gojs-hq',
-    label: 'Org · GoJS — Brightside HQ (200×64, period)',
+    label: 'Org · GoJS — Brightside HQ (220×121, vertical)',
     diagramTab: 'mockup-orgs-gojs',
     diagramTestId: 'mockup-hq',
     kind: 'organization',
-    theme: 'light',
+    theme: 'dark',
     width: MOCKUP_GOJS_STYLES.organization.width,
     height: MOCKUP_GOJS_STYLES.organization.height,
-    stageBackground: 0xf1f5f9,
+    stageBackground: 0x222222,
   },
   {
     id: 'person-figma-head',
@@ -109,25 +109,25 @@ export const NODE_COMPARE_SPECIMENS: NodeCompareSpecimen[] = [
   },
   {
     id: 'person-gojs-head',
-    label: 'Staff · GoJS portrait — Regional director (filled)',
+    label: 'Staff · GoJS row — Regional director (filled)',
     diagramTab: 'mockup-staff-gojs',
     diagramTestId: 'staff-head',
     kind: 'person',
-    theme: 'light',
+    theme: 'dark',
     width: MOCKUP_GOJS_STYLES.person.width,
     height: MOCKUP_GOJS_STYLES.person.height,
-    stageBackground: 0xf1f5f9,
+    stageBackground: 0x222222,
   },
   {
     id: 'person-gojs-temp',
-    label: 'Staff · GoJS portrait — First deputy (temp + period)',
+    label: 'Staff · GoJS row — First deputy (temp + period)',
     diagramTab: 'mockup-staff-gojs',
     diagramTestId: 'staff-temp',
     kind: 'person',
-    theme: 'light',
+    theme: 'dark',
     width: MOCKUP_GOJS_STYLES.person.width,
     height: MOCKUP_GOJS_STYLES.person.height,
-    stageBackground: 0xf1f5f9,
+    stageBackground: 0x222222,
   },
 ];
 
@@ -163,7 +163,7 @@ export function isolatedPayloadFor(specimenId: string): IsolatedNodePayload {
     case 'org-gojs-hq':
       return {
         kind: 'organization',
-        theme: 'light',
+        theme: 'dark',
         org: orgById(orgGojs, 'org-hq'),
         style: MOCKUP_GOJS_STYLES.organization,
       };
@@ -200,7 +200,7 @@ export function isolatedPayloadFor(specimenId: string): IsolatedNodePayload {
       const position = posById(staffFigma, 'pos-head');
       return {
         kind: 'person',
-        theme: 'light',
+        theme: 'dark',
         person: personFor(staffFigma, position),
         position,
         style: MOCKUP_GOJS_STYLES.person,
@@ -210,7 +210,7 @@ export function isolatedPayloadFor(specimenId: string): IsolatedNodePayload {
       const position = posById(staffFigma, 'pos-1z');
       return {
         kind: 'person',
-        theme: 'light',
+        theme: 'dark',
         person: personFor(staffFigma, position),
         position,
         style: MOCKUP_GOJS_STYLES.person,

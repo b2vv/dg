@@ -9,8 +9,11 @@ import type { PersonNodeStyle } from './types.js';
 import { attachMenuButton, attachIconButton, activateChromePointer, hitChromePointer, type ContextMenuPointer } from './nodeCardChrome.js';
 import type { FederatedPointerEvent } from 'pixi.js';
 import {
+  avatarForLayout,
   figmaRowAvatar,
   figmaRowTextX,
+  gojsRowAvatar,
+  gojsRowTextX,
   gojsPortraitAvatar,
   resolvePersonLayout,
   type ResolvedPersonLayout,
@@ -248,7 +251,7 @@ export class PersonNodeView extends Container {
 
     if (lod === 'near') {
       const layout = resolvePersonLayout(style);
-      const avatar = layout === 'figma-row' ? figmaRowAvatar(style) : gojsPortraitAvatar(style);
+      const avatar = avatarForLayout(layout, style);
       this.card.circle(avatar.cx, avatar.cy, avatar.r);
       this.card.fill({ color: this.avatarFill });
     }
@@ -276,15 +279,23 @@ export class PersonNodeView extends Container {
     }
 
     const layout = resolvePersonLayout(style);
-    const row = layout === 'figma-row' && lod === 'near';
+    const row = (layout === 'figma-row' || layout === 'gojs-row') && lod === 'near';
     const pad = Math.max(6, style.width * 0.06);
-    const vacant = position.status === 'vacant' && !person?.fullName;
-    const name = person?.fullName ?? (vacant ? VACANT_POSITION_LABEL : '—');
-    const nameFill = vacant
-      ? (style.vacantLabelColor ?? style.nameColor)
-      : position.isTemporary && style.temporaryNameColor !== undefined
-        ? style.temporaryNameColor
-        : (style.permanentNameColor ?? style.nameColor);
+    const vacant = position.status === 'vacant';
+    const name =
+      vacant && layout === 'gojs-row'
+        ? position.title
+        : vacant
+          ? VACANT_POSITION_LABEL
+          : (person?.fullName ?? '—');
+    const nameFill =
+      vacant && layout !== 'gojs-row'
+        ? (style.vacantLabelColor ?? style.nameColor)
+        : vacant
+          ? style.titleColor
+          : position.isTemporary && style.temporaryNameColor !== undefined
+            ? style.temporaryNameColor
+            : (style.permanentNameColor ?? style.nameColor);
 
     this.nameText.visible = true;
     this.nameText.text = name;
@@ -293,8 +304,10 @@ export class PersonNodeView extends Container {
     this.nameText.style.fill = nameFill;
     this.nameText.anchor.set(0, 0);
 
-    if (row) {
+    if (row && layout === 'figma-row') {
       this.layoutFigmaRowContent(person, position, style, vacant, nameFill);
+    } else if (row && layout === 'gojs-row') {
+      this.layoutGojsRowContent(person, position, style, vacant, nameFill);
     } else if (layout === 'gojs-portrait' && lod === 'near') {
       this.layoutGojsPortraitContent(person, position, style, pad, vacant);
     } else {
@@ -315,6 +328,40 @@ export class PersonNodeView extends Container {
     }
 
     this.layoutPeriodChip(position, style, lod, pad, layout);
+  }
+
+  /** GoJS row: name above title, left text column, 28px avatar. */
+  private layoutGojsRowContent(
+    person: DiagramPerson | undefined,
+    position: DiagramPosition,
+    style: PersonNodeStyle,
+    vacant: boolean,
+    _nameFill: number,
+  ): void {
+    const avatar = gojsRowAvatar(style);
+    const textX = gojsRowTextX(avatar);
+    const pad = Math.max(6, style.width * 0.06);
+    const maxTextW = Math.max(24, style.width - textX - pad - (position.isTemporary ? 22 : 0));
+
+    truncatePixiText(this.nameText, maxTextW);
+    this.nameText.position.set(textX, 12);
+
+    this.titleText.visible = true;
+    this.titleText.text = vacant ? VACANT_POSITION_LABEL : position.title;
+    this.titleText.style.fontSize = style.titleFontSize;
+    this.titleText.style.fontWeight = '400';
+    this.titleText.style.fill = vacant
+      ? (style.vacantLabelColor ?? style.titleColor)
+      : style.titleColor;
+    this.titleText.anchor.set(0, 0);
+    truncatePixiText(this.titleText, maxTextW);
+    this.titleText.position.set(textX, 32);
+
+    const initials = vacant ? '' : personInitials(person?.fullName);
+    this.initialsText.text = initials;
+    this.initialsText.style.fontSize = Math.max(10, avatar.r * 0.62);
+    this.initialsText.position.set(avatar.cx, avatar.cy);
+    this.initialsText.visible = initials.length > 0;
   }
 
   /** Figma row: title above name, left text column. */
@@ -378,9 +425,13 @@ export class PersonNodeView extends Container {
     this.initialsText.visible = initials.length > 0;
 
     if (vacant) {
-      this.titleText.visible = false;
+      this.titleText.visible = true;
+      this.titleText.text = VACANT_POSITION_LABEL;
+      this.titleText.style.fill = style.vacantLabelColor ?? style.titleColor;
+      truncatePixiText(this.titleText, maxTextW);
+      this.titleText.position.set(pad, 112);
       this.nameText.anchor.set(0.5, 0);
-      this.nameText.position.set(style.width / 2, 96);
+      this.nameText.position.set(style.width / 2, 92);
     }
   }
 
@@ -403,14 +454,19 @@ export class PersonNodeView extends Container {
       this.initialsText.visible = false;
     } else {
       const layout = resolvePersonLayout(style);
-      if (layout === 'figma-row') {
+      if (layout === 'figma-row' || layout === 'gojs-row') {
         this.titleText.visible = true;
-        this.titleText.text = position.title;
+        this.titleText.text = vacant ? VACANT_POSITION_LABEL : position.title;
         this.titleText.style.fontSize = style.titleFontSize;
         this.titleText.style.fill = style.titleColor;
         truncatePixiText(this.titleText, maxTextW);
-        this.titleText.position.set(pad, style.height * 0.22);
-        this.nameText.position.set(pad, style.height * 0.52);
+        if (layout === 'figma-row') {
+          this.titleText.position.set(pad, style.height * 0.22);
+          this.nameText.position.set(pad, style.height * 0.52);
+        } else {
+          this.nameText.position.set(pad, style.height * 0.22);
+          this.titleText.position.set(pad, style.height * 0.52);
+        }
       } else {
         this.nameText.position.set(pad, style.height * 0.48);
         this.titleText.visible = true;
@@ -423,8 +479,7 @@ export class PersonNodeView extends Container {
       const initials = vacant ? '' : personInitials(person?.fullName);
       this.initialsText.text = initials;
       this.initialsText.style.fontSize = Math.max(11, Math.min(style.width, style.height) * 0.09);
-      const avatar =
-        layout === 'figma-row' ? figmaRowAvatar(style) : gojsPortraitAvatar(style);
+      const avatar = avatarForLayout(layout, style);
       this.initialsText.position.set(avatar.cx, avatar.cy);
       this.initialsText.visible = initials.length > 0;
     }
@@ -461,7 +516,7 @@ export class PersonNodeView extends Container {
     if (layout === 'figma-row' && lod === 'near') {
       cx = style.width - estW / 2 - (position.isTemporary ? 26 : 8);
       cy = 6 + estH / 2;
-    } else if (layout === 'gojs-portrait' && lod === 'near') {
+    } else if (layout === 'gojs-row' && lod === 'near') {
       const avatar = gojsPortraitAvatar(style);
       cx = style.width / 2;
       cy = avatar.cy + avatar.r + 10 + estH / 2;
@@ -513,7 +568,7 @@ export class PersonNodeView extends Container {
 
   private showPhoto(texture: Texture, style: PersonNodeStyle): void {
     const layout = resolvePersonLayout(style);
-    const avatar = layout === 'figma-row' ? figmaRowAvatar(style) : gojsPortraitAvatar(style);
+    const avatar = avatarForLayout(layout, style);
     const { cx, cy, r } = avatar;
     const size = r * 2;
 

@@ -218,14 +218,10 @@ export class App {
       el.classList.toggle('active', (el as HTMLElement).dataset.tab === tab);
     });
     document.body.dataset.activeTab = tab;
-    // Style mockups pin theme: Figma = dark, GoJS = light (production screens).
-    if (FIGMA_MOCKUP_TABS.has(tab)) {
+    // Style mockups pin theme: Figma = dark, GoJS = dark (production default).
+    if (FIGMA_MOCKUP_TABS.has(tab) || GOJS_MOCKUP_TABS.has(tab)) {
       this.theme = 'dark';
       setThemeAttribute('dark');
-      this.syncThemeToggleLabel();
-    } else if (GOJS_MOCKUP_TABS.has(tab)) {
-      this.theme = 'light';
-      setThemeAttribute('light');
       this.syncThemeToggleLabel();
     }
     const search = requireElement('search-input') as HTMLInputElement;
@@ -460,7 +456,7 @@ export class App {
       const caption = document.createElement('p');
       caption.className = 'scene-caption';
       caption.textContent =
-        'Figma orgs · dashed blue sibling group · tall cards · N [M] counts · dark chrome';
+        'Figma orgs · tall cards · N [M] counts · dark chrome (no sibling frame)';
       this.mountEl.appendChild(caption);
       return;
     }
@@ -468,7 +464,7 @@ export class App {
       const caption = document.createElement('p');
       caption.className = 'scene-caption';
       caption.textContent =
-        'GoJS orgs · compact cards · period line · T badge / unit code · light chrome (no sibling frame)';
+        'GoJS orgs · 220×121 vertical cards · tree counts · dashed sibling frame · dark chrome';
       this.mountEl.appendChild(caption);
       return;
     }
@@ -484,7 +480,7 @@ export class App {
       const caption = document.createElement('p');
       caption.className = 'scene-caption';
       caption.textContent =
-        'GoJS staff · solid zones · portrait seats · blob/card depts · light production chrome';
+        'GoJS staff · solid zones · row seats 200×56 · dept cards · dark production chrome';
       this.mountEl.appendChild(caption);
     }
   }
@@ -580,27 +576,27 @@ export class App {
           },
           render: {
             ...base.render,
-            orgSiblingGroupChrome: true,
+            orgSiblingGroupChrome: false,
           },
         };
       case 'mockup-orgs-gojs':
         return {
           ...base,
-          theme: 'light',
+          theme: 'dark',
           data: buildMockupOrgsGojsData(),
           styles: MOCKUP_GOJS_STYLES,
           lodThresholds: MOCKUP_LOD_THRESHOLDS,
           orgLayout: {
-            nodeWidth: 200,
-            nodeHeight: 64,
+            nodeWidth: 220,
+            nodeHeight: 121,
             horizontalGap: 40,
-            verticalGap: 44,
+            verticalGap: 48,
             margin: 40,
             orgEdgeStyle: 'spine-bus',
           },
           render: {
             ...base.render,
-            orgSiblingGroupChrome: false,
+            orgSiblingGroupChrome: true,
           },
         };
       case 'mockup-staff-figma':
@@ -636,34 +632,31 @@ export class App {
       case 'mockup-staff-gojs':
         return {
           ...base,
-          theme: 'light',
+          theme: 'dark',
           data: buildMockupStaffGojsData(),
           styles: MOCKUP_GOJS_STYLES,
           lodThresholds: MOCKUP_LOD_THRESHOLDS,
           staffCurrentOrgId: 'region',
           staffExpandedOrgIds: ['unit-current'],
           staffLayout: {
-            horizontalGap: 40,
-            verticalGap: 52,
-            tierGap: 36,
-            margin: 24,
-            nodeWidth: 136,
-            nodeHeight: 156,
-            orgCardWidth: 200,
-            orgCardHeight: 64,
-            refCellWidth: 140,
-            refCellHeight: 160,
+            horizontalGap: 36,
+            verticalGap: 40,
+            tierGap: 48,
+            margin: 28,
+            nodeWidth: 200,
+            nodeHeight: 56,
+            orgCardWidth: 220,
+            orgCardHeight: 121,
+            refCellWidth: 220,
+            refCellHeight: 72,
             collapseUnexpandedPositions: false,
           },
           render: {
             ...base.render,
             staffZoneChrome: true,
-            departmentStyle: 'blob',
-            cellWidth: 140,
-            cellHeight: 160,
-            magnetRadius: VARIANT_B_MAGNET_RADIUS,
-            minContourMembers: 2,
-            smoothIterations: this.contourControls.smoothIterations,
+            departmentStyle: 'card',
+            cellWidth: 220,
+            cellHeight: 72,
           },
         };
       case 'flat-orgs':

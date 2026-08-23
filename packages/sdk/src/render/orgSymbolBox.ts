@@ -5,12 +5,11 @@ import type { LodLevel } from './lod.js';
 /** Inset around the symbol when not full-bleed. */
 export const ORG_SYMBOL_PAD = 8;
 
-/**
- * Caption-mode symbol box (SYMBOL_W × SYMBOL_H).
- * Matches `OrganizationNodeStyle.symbolSize` (default 36).
- */
-export const ORG_SYMBOL_W = 36;
-export const ORG_SYMBOL_H = 36;
+/** GoJS production symbol box (10:7). */
+export const GOJS_SYMBOL_W = 80;
+export const GOJS_SYMBOL_H = 56;
+export const GOJS_NO_CAPTION_W = 109;
+export const GOJS_NO_CAPTION_H = 76;
 
 export type OrgSymbolBoxMode = 'caption' | 'no-caption' | 'full-bleed';
 
@@ -40,6 +39,17 @@ export interface OrgSymbolLayout {
    * short `name` when caption mode with symbol.
    */
   displayName: string;
+}
+
+function symbolDims(style: OrganizationNodeStyle): { w: number; h: number } {
+  return {
+    w: style.symbolWidth ?? style.symbolSize,
+    h: style.symbolHeight ?? style.symbolSize,
+  };
+}
+
+function isGojsVertical(style: OrganizationNodeStyle): boolean {
+  return style.orgCardLayout === 'gojs-vertical';
 }
 
 /**
@@ -74,8 +84,8 @@ export function resolveOrgSymbolLayout(
   const lod = options.lod ?? 'near';
   const nodeW = style.width;
   const nodeH = style.height;
-  const symbolW = style.symbolSize;
-  const symbolH = style.symbolSize;
+  const { w: symbolW, h: symbolH } = symbolDims(style);
+  const vertical = isGojsVertical(style);
   const hasSymbol = options.hasSymbol === true;
   const wantCaption = org.showShortName !== false;
 
@@ -93,15 +103,13 @@ export function resolveOrgSymbolLayout(
   // E3: missing symbol → text fullName/name, never a diamond placeholder.
   if (!hasSymbol) {
     const pad = ORG_SYMBOL_PAD;
+    const boxW = symbolW;
+    const boxH = symbolH;
+    const x = vertical ? (nodeW - boxW) / 2 : pad;
+    const y = vertical ? pad + 4 : (nodeH - boxH) / 2;
     return {
       mode: wantCaption ? 'caption' : 'no-caption',
-      box: {
-        x: pad,
-        y: (nodeH - symbolH) / 2,
-        width: symbolW,
-        height: symbolH,
-        padding: pad,
-      },
+      box: { x, y, width: boxW, height: boxH, padding: pad },
       showShortName: wantCaption,
       showNameText: true,
       displayName: org.fullName?.trim() || org.name,
@@ -121,15 +129,14 @@ export function resolveOrgSymbolLayout(
   }
 
   if (!wantCaption) {
-    // No caption: symbol takes the name-row area (FULL_W × FULL_H).
     const pad = ORG_SYMBOL_PAD;
-    const fullH = Math.max(symbolH, nodeH - pad * 2);
-    const fullW = Math.max(symbolW, Math.min(nodeW - pad * 2, Math.round(fullH * 1.5)));
+    const fullW = style.noCaptionSymbolWidth ?? (vertical ? GOJS_NO_CAPTION_W : Math.max(symbolW, Math.min(nodeW - pad * 2, Math.round(symbolH * 1.5))));
+    const fullH = style.noCaptionSymbolHeight ?? (vertical ? GOJS_NO_CAPTION_H : Math.max(symbolH, nodeH - pad * 2));
     return {
       mode: 'no-caption',
       box: {
-        x: pad,
-        y: (nodeH - fullH) / 2,
+        x: vertical ? (nodeW - fullW) / 2 : pad,
+        y: vertical ? pad + 4 : (nodeH - fullH) / 2,
         width: fullW,
         height: fullH,
         padding: pad,
@@ -142,11 +149,12 @@ export function resolveOrgSymbolLayout(
 
   // With caption: SYMBOL_W × SYMBOL_H
   const pad = ORG_SYMBOL_PAD;
+  const topInset = vertical ? pad + 4 : (nodeH - symbolH) / 2;
   return {
     mode: 'caption',
     box: {
-      x: pad,
-      y: (nodeH - symbolH) / 2,
+      x: vertical ? (nodeW - symbolW) / 2 : pad,
+      y: topInset,
       width: symbolW,
       height: symbolH,
       padding: pad,

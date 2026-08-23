@@ -212,8 +212,13 @@ export class OrganizationNodeView extends Container {
     this.chromeControls.removeChildren();
     if (lod === 'far' || !options.onContextMenu) return;
 
-    // Leave top-right free for E4 temp badge (PersonNode convention).
-    const chromeWidth = this.org.isTemporary ? Math.max(80, style.width - 26) : style.width;
+    const vertical = style.orgCardLayout === 'gojs-vertical';
+    // Vertical: menu top-right; leave top band for counts badge.
+    const chromeWidth = vertical
+      ? style.width
+      : this.org.isTemporary
+        ? Math.max(80, style.width - 26)
+        : style.width;
 
     if (options.chrome) {
       mountOrgNodeChrome(this.chromeControls, chromeWidth, options.chrome, options.onContextMenu);
@@ -292,20 +297,38 @@ export class OrganizationNodeView extends Container {
       return;
     }
 
+    const vertical = style.orgCardLayout === 'gojs-vertical';
+    const hourglass = style.tempMarkerStyle === 'hourglass';
     const showTemp = !!this.org.isTemporary;
     this.tempBadge.visible = showTemp;
     this.tempBadgeLabel.visible = showTemp;
+
     if (showTemp) {
-      const br = Math.max(7, style.width * 0.045);
-      const cx = style.width - br - 4;
-      const cy = br + 4;
-      this.tempBadge.clear();
-      this.tempBadge.circle(cx, cy, br);
-      this.tempBadge.fill({ color: style.badgeColor ?? 0xf59e0b });
-      this.tempBadgeLabel.text = 'T';
-      this.tempBadgeLabel.anchor.set(0.5);
-      this.tempBadgeLabel.style.fill = style.badgeTextColor ?? 0xffffff;
-      this.tempBadgeLabel.position.set(cx, cy);
+      if (hourglass && vertical) {
+        const box = this.symbolLayout.box;
+        const br = Math.max(8, Math.min(box.width, box.height) * 0.14);
+        const cx = box.x + br + 2;
+        const cy = box.y + br + 2;
+        this.tempBadge.clear();
+        this.tempBadge.circle(cx, cy, br);
+        this.tempBadge.fill({ color: style.badgeColor ?? 0xf59e0b, alpha: 0.92 });
+        this.tempBadgeLabel.text = '⏳';
+        this.tempBadgeLabel.style.fontSize = Math.max(8, br * 1.1);
+        this.tempBadgeLabel.anchor.set(0.5);
+        this.tempBadgeLabel.style.fill = style.badgeTextColor ?? 0xffffff;
+        this.tempBadgeLabel.position.set(cx, cy);
+      } else {
+        const br = Math.max(7, style.width * 0.045);
+        const cx = style.width - br - 4;
+        const cy = br + 4;
+        this.tempBadge.clear();
+        this.tempBadge.circle(cx, cy, br);
+        this.tempBadge.fill({ color: style.badgeColor ?? 0xf59e0b });
+        this.tempBadgeLabel.text = 'T';
+        this.tempBadgeLabel.anchor.set(0.5);
+        this.tempBadgeLabel.style.fill = style.badgeTextColor ?? 0xffffff;
+        this.tempBadgeLabel.position.set(cx, cy);
+      }
     }
 
     const counts = formatOrgCountsBadge(this.org);
@@ -323,7 +346,7 @@ export class OrganizationNodeView extends Container {
       const estW = Math.max(28, counts.length * fs * 0.58 + padX * 2);
       const estH = fs + padY * 2;
       const bx = style.width - estW - 4;
-      const by = style.height - estH - 4;
+      const by = vertical ? 4 : style.height - estH - 4;
       this.countsBadge.clear();
       this.countsBadge.roundRect(bx, by, estW, estH, 4);
       this.countsBadge.fill({ color: style.countsBadgeBackground ?? 0xf1f5f9 });
@@ -349,19 +372,24 @@ export class OrganizationNodeView extends Container {
     this.unitCodeText.visible = unitRaw.length > 0 && layout.mode !== 'full-bleed';
 
     const hasGroup = lod === 'near' && this.groupText.text.length > 0;
-    const hasPeriod = this.periodText.text.length > 0;
-    // Full-bleed: keep period as an overlay when present (compose with T68).
+    const hidePeriod = style.hidePeriodOnCard === true;
+    const hasPeriod = !hidePeriod && this.periodText.text.length > 0;
     this.groupText.visible = hasGroup && layout.mode !== 'full-bleed';
     this.periodText.visible = hasPeriod;
+
+    if (style.orgCardLayout === 'gojs-vertical') {
+      this.layoutVerticalTexts(style, layout);
+      return;
+    }
 
     const box = layout.box;
     const textX =
       layout.mode === 'full-bleed' || !this.symbolSprite.visible
         ? ORG_SYMBOL_PAD
         : box.x + box.width + 10;
-    // Leave room for top-right T and bottom-right counts when present.
+    const menuReserve = this.hasMenuButton() ? 28 : 0;
     const rightPad =
-      (this.tempBadge.visible ? 22 : 10) + (this.countsBadge.visible ? 8 : 0);
+      menuReserve + (this.tempBadge.visible && style.tempMarkerStyle !== 'hourglass' ? 22 : 10);
     const maxTextW = Math.max(24, style.width - textX - rightPad);
 
     if (this.nameText.visible) truncatePixiText(this.nameText, maxTextW);
@@ -392,7 +420,6 @@ export class OrganizationNodeView extends Container {
       lines.reduce((sum, l) => sum + l.fontSize, 0) + gap * Math.max(0, lines.length - 1);
 
     if (layout.mode === 'full-bleed') {
-      // Bottom-left overlay so the banner symbol stays readable.
       let y = style.height - blockH - 4;
       for (const line of lines) {
         line.text.position.set(textX, y);
@@ -405,6 +432,36 @@ export class OrganizationNodeView extends Container {
     for (const line of lines) {
       line.text.position.set(textX, y);
       y += line.fontSize + gap;
+    }
+  }
+
+  /** GoJS vertical stack: symbol → name → unit code, centered. */
+  private layoutVerticalTexts(style: OrganizationNodeStyle, layout: OrgSymbolLayout): void {
+    const box = layout.box;
+    const gap = 4;
+    const metaFs = style.metaFontSize ?? 10;
+    const menuReserve = this.hasMenuButton() ? 28 : 0;
+    const countsReserve = this.countsBadge.visible ? 36 : 0;
+    const maxTextW = Math.max(24, style.width - 16 - menuReserve - countsReserve);
+
+    this.nameText.anchor.set(0.5, 0);
+    this.unitCodeText.anchor.set(0.5, 0);
+    this.groupText.anchor.set(0.5, 0);
+    this.periodText.anchor.set(0.5, 0);
+
+    if (this.nameText.visible) truncatePixiText(this.nameText, maxTextW);
+    if (this.unitCodeText.visible) truncatePixiText(this.unitCodeText, maxTextW);
+
+    const cx = style.width / 2;
+    let y = box.y + box.height + gap;
+
+    if (this.nameText.visible) {
+      this.nameText.position.set(cx, y);
+      y += style.nameFontSize + gap;
+    }
+    if (this.unitCodeText.visible) {
+      this.unitCodeText.position.set(cx, y);
+      this.unitCodeText.style.fontSize = metaFs;
     }
   }
 
@@ -476,6 +533,7 @@ export class OrganizationNodeView extends Container {
     this.symbolSprite.position.set(box.x + fitted.offsetX, box.y + fitted.offsetY);
     this.symbolSprite.visible = true;
 
+    this.layoutChromeBadges(style, lod);
     this.layoutTexts(style, lod);
   }
 }

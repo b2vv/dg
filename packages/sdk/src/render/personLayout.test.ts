@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   figmaRowAvatar,
   figmaRowTextX,
+  gojsRowAvatar,
   gojsPortraitAvatar,
   isExplicitLayout,
   resolvePersonLayout,
@@ -34,6 +35,12 @@ describe('resolvePersonLayout', () => {
     );
   });
 
+  it('honours explicit gojs-row', () => {
+    expect(resolvePersonLayout(baseStyle({ personLayout: 'gojs-row', width: 136, height: 156 }))).toBe(
+      'gojs-row',
+    );
+  });
+
   it('honours explicit gojs-portrait', () => {
     expect(resolvePersonLayout(baseStyle({ personLayout: 'gojs-portrait', width: 248, height: 72 }))).toBe(
       'gojs-portrait',
@@ -58,17 +65,19 @@ describe('avatar slots', () => {
     expect(figmaRowTextX(avatar)).toBeGreaterThan(avatar.cx + avatar.r);
   });
 
-  it('gojs portrait: photo top-center', () => {
-    const style = baseStyle({ width: 136, height: 156 });
-    const avatar = gojsPortraitAvatar(style);
-    expect(avatar.cx).toBe(style.width / 2);
-    expect(avatar.cy).toBeLessThan(style.height / 2);
+  it('gojs row: 28px avatar left', () => {
+    const style = baseStyle({ width: 200, height: 56, personLayout: 'gojs-row' });
+    const avatar = gojsRowAvatar(style);
+    expect(avatar.r).toBe(14);
+    expect(avatar.cx).toBeLessThan(style.width / 2);
+    expect(avatar.cy).toBe(style.height / 2);
   });
 });
 
 describe('isExplicitLayout', () => {
-  it('returns true for figma-row and gojs-portrait', () => {
+  it('returns true for figma-row, gojs-row, and gojs-portrait', () => {
     expect(isExplicitLayout('figma-row')).toBe(true);
+    expect(isExplicitLayout('gojs-row')).toBe(true);
     expect(isExplicitLayout('gojs-portrait')).toBe(true);
   });
 

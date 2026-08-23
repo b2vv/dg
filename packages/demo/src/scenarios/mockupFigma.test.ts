@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { layoutStaffCanvas } from '@org-hierarchy/sdk';
 import {
   brandMarkSymbol,
   buildMockupOrgsFigmaData,
@@ -38,22 +37,26 @@ describe('mockup fixtures (GH Pages safe)', () => {
     expect(data.organizations.every((o) => o.symbolUrl?.startsWith('data:image/svg'))).toBe(true);
   });
 
-  it('org GoJS: period / temp / unitCode cues present', () => {
+  it('org GoJS: tree counts, temp, unitCode; no period on card', () => {
     const data = buildMockupOrgsGojsData();
-    expect(data.organizations.some((o) => o.periodStart)).toBe(true);
     expect(data.organizations.some((o) => o.isTemporary)).toBe(true);
     expect(data.organizations.some((o) => o.unitCode)).toBe(true);
-    expect(data.organizations.every((o) => o.filledCount !== undefined)).toBe(true);
+    expect(data.organizations.some((o) => o.childrenCount !== undefined)).toBe(true);
+    expect(data.organizations.some((o) => o.showShortName === false)).toBe(true);
+    for (const org of data.organizations) {
+      expect(org.periodStart).toBeUndefined();
+      expect(org.periodEnd).toBeUndefined();
+    }
     expect(JSON.stringify(data)).not.toMatch(MILITARY_HINT);
   });
 
-  it('staff Figma uses landscape seats; GoJS portrait', () => {
+  it('staff Figma uses landscape seats; GoJS row seats', () => {
     const figma = buildMockupStaffFigmaData();
     const gojs = buildMockupStaffGojsData();
     expect(figma.positions[0]!.width).toBe(248);
     expect(figma.positions[0]!.height).toBe(72);
-    expect(gojs.positions[0]!.width).toBe(136);
-    expect(gojs.positions[0]!.height).toBe(156);
+    expect(gojs.positions[0]!.width).toBe(200);
+    expect(gojs.positions[0]!.height).toBe(56);
     expect(JSON.stringify(figma)).not.toMatch(MILITARY_HINT);
     expect(JSON.stringify(gojs)).not.toMatch(MILITARY_HINT);
   });
@@ -94,20 +97,24 @@ describe('mockup style tokens (approved)', () => {
     expect(MOCKUP_FIGMA_STYLES.staffZone.labelAlign).toBe('right');
   });
 
-  it('GoJS org + staff tokens', () => {
+  it('GoJS org + staff tokens (production gamma)', () => {
     const o = MOCKUP_GOJS_STYLES.organization;
-    expect(o.height).toBe(64);
-    expect(o.symbolSize).toBe(36);
-    expect(o.background).toBe(0xffffff);
+    expect(o.width).toBe(220);
+    expect(o.height).toBe(121);
+    expect(o.symbolWidth).toBe(80);
+    expect(o.symbolHeight).toBe(56);
+    expect(o.orgCardLayout).toBe('gojs-vertical');
+    expect(o.hidePeriodOnCard).toBe(true);
     const p = MOCKUP_GOJS_STYLES.person;
-    expect(p.width).toBe(136);
-    expect(p.height).toBe(156);
-    expect(p.personLayout).toBe('gojs-portrait');
+    expect(p.width).toBe(200);
+    expect(p.height).toBe(56);
+    expect(p.personLayout).toBe('gojs-row');
     expect(MOCKUP_GOJS_STYLES.staffZone.dashed).toBe(false);
-    expect(MOCKUP_GOJS_STYLES.staffZone.labelAlign).toBe('left');
+    expect(MOCKUP_GOJS_STYLES.staffZone.labelAlign).toBe('right');
   });
 
   it('staff layout: unit-current expand places tier-3 seats', async () => {
+    const { layoutStaffCanvas } = await import('@org-hierarchy/sdk');
     const data = buildMockupStaffFigmaData();
     const canvas = await layoutStaffCanvas(
       {

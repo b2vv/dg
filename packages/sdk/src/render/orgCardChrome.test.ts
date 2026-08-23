@@ -12,6 +12,18 @@ describe('formatOrgCountsBadge', () => {
     ).toBe('5 [2]');
   });
 
+  it('formats tree children [descendants] when set', () => {
+    expect(
+      formatOrgCountsBadge({
+        id: '1',
+        name: 'O',
+        groupIds: [],
+        childrenCount: 5,
+        allDescendantCount: 12,
+      }),
+    ).toBe('5 [12]');
+  });
+
   it('uses 0 for missing side when either present', () => {
     expect(formatOrgCountsBadge({ id: '1', name: 'O', groupIds: [], filledCount: 4 })).toBe(
       '4 [0]',

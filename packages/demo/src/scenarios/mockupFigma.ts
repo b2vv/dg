@@ -77,8 +77,7 @@ export function buildMockupOrgsFigmaData(): DiagramData {
 }
 
 /**
- * GoJS-style org tree — same depth, production-like chrome cues
- * (period line, temp badge, unit code, counts) without Figma sibling frame.
+ * GoJS-style org tree — production vertical cards, tree counts, no period on card.
  */
 export function buildMockupOrgsGojsData(): DiagramData {
   const logo = (mark: string) => brandMarkSymbol(mark, '#94a3b8');
@@ -90,13 +89,11 @@ export function buildMockupOrgsGojsData(): DiagramData {
         groupIds: [],
         collapsed: false,
         testId: 'mockup-hq',
-        filledCount: 12,
-        vacantCount: 3,
+        childrenCount: 1,
+        allDescendantCount: 6,
         symbolUrl: logo('BH'),
         symbolUrlLight: logo('BH'),
         symbolUrlDark: logo('BH'),
-        periodStart: '2020-03-01',
-        periodEnd: null,
         showShortName: true,
       },
       {
@@ -105,30 +102,27 @@ export function buildMockupOrgsGojsData(): DiagramData {
         parentOrgId: 'org-hq',
         groupIds: [],
         collapsed: false,
-        filledCount: 8,
-        vacantCount: 4,
+        childrenCount: 5,
+        allDescendantCount: 5,
         symbolUrl: logo('EO'),
         symbolUrlLight: logo('EO'),
         symbolUrlDark: logo('EO'),
         unitCode: 'EU-12',
-        periodStart: '2021-06-15',
-        periodEnd: '2026-12-31',
       },
       ...[
-        ['org-berlin', 'Berlin Hub', 6, 2, false],
-        ['org-lisbon', 'Lisbon Hub', 4, 5, true],
-        ['org-prague', 'Prague Hub', 5, 1, false],
-        ['org-oslo', 'Oslo Hub', 3, 3, false],
-        ['org-dublin', 'Dublin Hub', 7, 2, false],
-      ].map(([id, name, filled, vacant, temp], i) => ({
+        ['org-berlin', 'Berlin Hub', 0, 0, false, true],
+        ['org-lisbon', 'Lisbon Hub', 0, 0, true, true],
+        ['org-prague', 'Prague Hub', 0, 0, false, false],
+        ['org-oslo', 'Oslo Hub', 0, 0, false, true],
+        ['org-dublin', 'Dublin Hub', 0, 0, false, true],
+      ].map(([id, name, _c, _d, temp, caption], i) => ({
         id: id as string,
         name: name as string,
         parentOrgId: 'org-emea',
         groupIds: [],
         collapsed: false,
         matrixOrder: i,
-        filledCount: filled as number,
-        vacantCount: vacant as number,
+        ...(caption ? {} : { showShortName: false as const }),
         isTemporary: temp as boolean,
         symbolUrl: logo(String(name).slice(0, 1)),
         symbolUrlLight: logo(String(name).slice(0, 1)),
@@ -329,9 +323,9 @@ export function buildMockupStaffFigmaData(): DiagramData {
   return buildStaffTopology({ width: 248, height: 72 });
 }
 
-/** GoJS staff: portrait seats (legacy card proportions). */
+/** GoJS staff: landscape row seats (production card). */
 export function buildMockupStaffGojsData(): DiagramData {
-  return buildStaffTopology({ width: 136, height: 156 });
+  return buildStaffTopology({ width: 200, height: 56 });
 }
 
 /** @deprecated Use buildMockupOrgsFigmaData */
@@ -403,66 +397,75 @@ export const MOCKUP_FIGMA_STYLES = {
   },
 };
 
-/** Light GoJS-production-like styles. */
+/** Dark GoJS-production styles (cassiopeia-admin-ui gamma). */
 export const MOCKUP_GOJS_STYLES = {
   organization: {
-    width: 200,
-    height: 64,
-    background: 0xffffff,
-    border: 0xcbd5e1,
+    width: 220,
+    height: 121,
+    background: 0x1e293b,
+    border: 0x475569,
     borderWidth: 1.5,
     borderRadius: 10,
-    nameColor: 0x0f172a,
-    groupColor: 0x475569,
+    nameColor: 0xf1f5f9,
+    groupColor: 0xcbd5e1,
     nameFontSize: 13,
     groupFontSize: 11,
-    symbolSize: 36,
-    periodColor: 0x15803d,
-    metaColor: 0x64748b,
+    symbolSize: 80,
+    symbolWidth: 80,
+    symbolHeight: 56,
+    noCaptionSymbolWidth: 109,
+    noCaptionSymbolHeight: 76,
+    orgCardLayout: 'gojs-vertical' as const,
+    hidePeriodOnCard: true,
+    tempMarkerStyle: 'hourglass' as const,
+    periodColor: 0x4ade80,
+    metaColor: 0x94a3b8,
+    metaFontSize: 10,
     badgeColor: 0xf59e0b,
     badgeTextColor: 0xffffff,
-    countsBadgeBackground: 0xf1f5f9,
-    countsBadgeTextColor: 0x334155,
+    countsBadgeBackground: 0x334155,
+    countsBadgeTextColor: 0xe2e8f0,
+    countsBadgeFontSize: 9,
   },
   person: {
-    width: 136,
-    height: 156,
-    background: 0xffffff,
-    border: 0xcbd5e1,
+    width: 200,
+    height: 56,
+    background: 0x1e293b,
+    border: 0x475569,
     borderWidth: 1.5,
     borderRadius: 10,
-    nameColor: 0x0f172a,
-    titleColor: 0x475569,
+    nameColor: 0xf1f5f9,
+    titleColor: 0xcbd5e1,
     nameFontSize: 12,
     titleFontSize: 11,
     badgeColor: 0xf59e0b,
     badgeTextColor: 0xffffff,
-    avatarColor: 0x94a3b8,
-    periodChipBackground: 0xdcfce7,
-    periodChipTextColor: 0x15803d,
-    vacantLabelColor: 0x64748b,
+    avatarColor: 0x64748b,
+    periodChipBackground: 0x14532d,
+    periodChipTextColor: 0x4ade80,
+    vacantLabelColor: 0x94a3b8,
     temporaryNameColor: 0xea580c,
-    permanentNameColor: 0x0f172a,
-    personLayout: 'gojs-portrait' as const,
+    permanentNameColor: 0xf1f5f9,
+    personLayout: 'gojs-row' as const,
   },
   staffZone: {
-    fill: 0xf8fafc,
-    fillAlpha: 0.85,
-    stroke: 0x94a3b8,
+    fill: 0x191f26,
+    fillAlpha: 0.92,
+    stroke: 0x475569,
     strokeWidth: 1,
     borderRadius: 6,
-    labelColor: 0x334155,
+    labelColor: 0xe2e8f0,
     labelFontSize: 12,
-    labelAlign: 'left' as const,
+    labelAlign: 'right' as const,
     dashed: false,
   },
   departmentCard: {
-    fill: 0xe2e8f0,
+    fill: 0x242f3d,
     fillAlpha: 0.95,
-    stroke: 0xcbd5e1,
+    stroke: 0x3d5067,
     strokeWidth: 1,
     borderRadius: 8,
-    labelColor: 0x334155,
+    labelColor: 0xcbd5e1,
     labelFontSize: 12,
   },
 };
