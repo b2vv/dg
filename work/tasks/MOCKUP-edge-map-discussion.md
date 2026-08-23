@@ -1,6 +1,6 @@
 # Mockup edge map — discussion draft
 
-**Status:** ✅ decisions locked — see [MOCKUP-parity-remaining.md](./MOCKUP-parity-remaining.md)  
+**Status:** ✅ **Closed** (2026-08-23) — see [MOCKUP-parity-remaining.md](./MOCKUP-parity-remaining.md)  
 **Date:** 2026-08-23  
 **Screenshots:** `e2e/mockups.spec.ts-snapshots/*.png` (Playwright baselines)  
 **Related:** [MOCKUP-styles-review.md](./MOCKUP-styles-review.md)

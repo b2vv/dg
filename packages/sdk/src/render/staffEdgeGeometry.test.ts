@@ -115,6 +115,14 @@ describe('staffEdgeGeometry', () => {
     expect(pointOnBorder(pts[pts.length - 1]!, to)).toBe(true);
   });
 
+  it('cross-tier: head above org card uses vertical bottom→top route', () => {
+    const head = { id: 'pos-head', x: 200, y: 0, width: 248, height: 72 };
+    const orgCard = { id: 'unit-current', x: 180, y: 320, width: 220, height: 56 };
+    const pts = staffEdgePolyline(head, orgCard, 'cross-tier');
+    expect(pts[0]).toEqual({ x: 324, y: 72 });
+    expect(pts[pts.length - 1]).toEqual({ x: 290, y: 320 });
+  });
+
   it('success: builds segments for known endpoints', () => {
     const segs = buildStaffEdgeSegments(
       [

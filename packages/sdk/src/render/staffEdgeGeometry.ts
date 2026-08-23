@@ -214,6 +214,16 @@ export function staffEdgePolyline(
   const sameBand = Math.abs(toCy - fromCy) < Math.min(from.height, to.height) * 0.35;
   const preferHorizontal = kind === 'matrix' || kind === 'dotted' || sameBand;
 
+  const others = obstacles.filter((b) => b.id !== from.id && b.id !== to.id);
+
+  // Cross-tier: head → org card — prefer straight vertical from manager bottom.
+  if (kind === 'cross-tier') {
+    const vert = verticalPolyline(from, to);
+    if (vert && isClean(vert, from, to) && !others.some((box) => polylineHitsBoxInterior(vert, box))) {
+      return vert;
+    }
+  }
+
   const candidates: StaffEdgePoint[][] = [];
   if (preferHorizontal) {
     const side = horizontalPolyline(from, to);
@@ -226,8 +236,6 @@ export function staffEdgePolyline(
     const side = horizontalPolyline(from, to);
     if (side) candidates.push(side);
   }
-
-  const others = obstacles.filter((b) => b.id !== from.id && b.id !== to.id);
 
   for (const c of candidates) {
     if (!isClean(c, from, to)) continue;

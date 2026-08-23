@@ -3,12 +3,14 @@ import {
   OrgHierarchyDiagram,
   defaultLodThresholds,
   flatRowsToDiagram,
+  layoutStaffCanvas,
   mapFlatRowsInPool,
   mapArrayItems,
   recommendWorkerPoolSize,
   VARIANT_B_HORIZONTAL_GAP,
   VARIANT_B_VERTICAL_GAP,
   VARIANT_B_MAGNET_RADIUS,
+  type DiagramData,
   type FlatDiagramRow,
   type LodThresholds,
 } from '@org-hierarchy/sdk';
@@ -92,6 +94,7 @@ export interface DemoE2eBridge {
   focusTestId(testId: string): Promise<boolean> | undefined;
   getStaffExpandedOrgIds(): string[];
   getZoom(): number;
+  getStaffLayoutEdges(): Promise<Array<{ fromId: string; toId: string; kind: string }>>;
 }
 
 export class App {
@@ -351,6 +354,7 @@ export class App {
           focusTestId: (testId: string) => this.diagram?.focusByTestId(testId),
           getStaffExpandedOrgIds: () => this.diagram?.getStaffExpandedOrgIds() ?? [],
           getZoom: () => this.diagram?.getZoom() ?? 0,
+          getStaffLayoutEdges: () => this.getStaffLayoutEdgesForE2e(),
         };
       }
       this.mountZoomFab();
@@ -387,6 +391,33 @@ export class App {
     if (!this.diagram) return false;
     const minScale = ALL_MOCKUP_TABS.has(this.tab) ? MOCKUP_FIT_MIN_SCALE : undefined;
     return this.diagram.fitView(28, { ...motion, minScale });
+  }
+
+  /** E2e: layout staff canvas edges for current tab config (mockup staff tabs). */
+  private async getStaffLayoutEdgesForE2e(): Promise<
+    Array<{ fromId: string; toId: string; kind: string }>
+  > {
+    const cfg = this.buildConfig();
+    const orgId = cfg.staffCurrentOrgId;
+    const data = cfg.data;
+    if (!orgId || !data || typeof data !== 'object' || !('positions' in data)) return [];
+    const diagram = data as DiagramData;
+    const canvas = await layoutStaffCanvas(
+      {
+        organizations: diagram.organizations,
+        positions: diagram.positions,
+        reports: diagram.reportLines,
+        groups: diagram.groups,
+        departments: diagram.departments,
+        persons: diagram.persons,
+      },
+      orgId,
+      {
+        ...cfg.staffLayout,
+        expandedOrgIds: cfg.staffExpandedOrgIds ?? cfg.staffLayout?.expandedOrgIds,
+      },
+    );
+    return canvas.edges.map((e) => ({ fromId: e.fromId, toId: e.toId, kind: e.kind }));
   }
 
   private zoomDiagram(factor: number): void {

@@ -31,6 +31,7 @@ async function renderSpecimen(spec: NodeCompareSpecimen, host: HTMLElement): Pro
       payload.theme,
       payload.style,
       'near',
+      { onContextMenu: () => {} },
     );
   } else {
     view = PersonNodeView.create(payload.person, payload.position, payload.style, 'near');

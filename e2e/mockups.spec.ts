@@ -4,6 +4,7 @@ interface DemoE2eBridge {
   collapseOrg(orgId: string): Promise<void> | undefined;
   getStaffExpandedOrgIds(): string[];
   focusTestId(testId: string): Promise<boolean> | undefined;
+  getStaffLayoutEdges(): Promise<Array<{ fromId: string; toId: string; kind: string }>>;
 }
 
 const MOCKUP_TABS = [
@@ -80,5 +81,29 @@ test.describe('mockup tabs visual + hierarchy', () => {
       return bridge?.getStaffExpandedOrgIds() ?? [];
     });
     expect(expanded).toContain('unit-current');
+  });
+
+  test('Staff · Figma: edge inventory matches fixture', async ({ page }) => {
+    await openMockupTab(page, 'Staff · Figma');
+    const edges = await page.evaluate(async () => {
+      const bridge = (window as unknown as { __demoE2e?: DemoE2eBridge }).__demoE2e;
+      return bridge?.getStaffLayoutEdges() ?? [];
+    });
+    const sorted = edges
+      .map((e) => ({ kind: e.kind, fromId: e.fromId, toId: e.toId }))
+      .sort((a, b) =>
+        `${a.kind}:${a.fromId}:${a.toId}`.localeCompare(`${b.kind}:${b.fromId}:${b.toId}`),
+      );
+    expect(sorted).toEqual([
+      { kind: 'admin', fromId: 'pos-1z', toId: 'pos-sup' },
+      { kind: 'admin', fromId: 'pos-head', toId: 'pos-1z' },
+      { kind: 'admin', fromId: 'pos-head', toId: 'pos-2z' },
+      { kind: 'admin', fromId: 'pos-head', toId: 'pos-ops' },
+      { kind: 'admin', fromId: 'pos-sup', toId: 'pos-vac' },
+      { kind: 'admin', fromId: 'pos-u-h', toId: 'pos-u-2' },
+      { kind: 'admin', fromId: 'pos-u-h', toId: 'pos-u-sup' },
+      { kind: 'cross-tier', fromId: 'pos-head', toId: 'unit-current' },
+      { kind: 'dotted', fromId: 'pos-1z', toId: 'pos-u-h' },
+    ]);
   });
 });

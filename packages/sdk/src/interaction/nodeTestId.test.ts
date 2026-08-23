@@ -56,6 +56,20 @@ describe('nodeTestId', () => {
         { id: 'p1', fullName: 'Alice', testId: 'alice' },
       ),
     ).toBe('alice');
+    expect(
+      positionTestId(
+        {
+          id: 'pos1',
+          title: 'T',
+          organizationId: 'org-1',
+          groupIds: [],
+          status: 'filled',
+          isTemporary: false,
+          testId: 'seat-1',
+        },
+        { id: 'p1', fullName: 'Alice', testId: 'alice' },
+      ),
+    ).toBe('seat-1');
   });
 
   it('resolveTestIdInData resolves org, person, and position', () => {

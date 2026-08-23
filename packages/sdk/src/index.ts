@@ -1312,8 +1312,17 @@ export class OrgHierarchyDiagram {
       return org ? orgTestId(org) : null;
     }
     if (ref.kind === 'person') {
-      const person = this.data.persons.find((p) => p.id === (ref.personId ?? ref.id));
-      return person ? personTestId(person) : null;
+      const position = ref.positionId
+        ? this.data.positions.find((p) => p.id === ref.positionId)
+        : this.data.positions.find((p) => p.personId === (ref.personId ?? ref.id));
+      const person = ref.personId
+        ? this.data.persons.find((p) => p.id === ref.personId)
+        : position?.personId
+          ? this.data.persons.find((p) => p.id === position.personId)
+          : undefined;
+      if (position) return positionTestId(position, person);
+      if (person) return personTestId(person);
+      return null;
     }
     const position = this.data.positions.find((p) => p.id === (ref.positionId ?? ref.id));
     if (!position) return null;
