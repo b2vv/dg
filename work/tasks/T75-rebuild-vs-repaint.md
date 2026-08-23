@@ -1,91 +1,40 @@
 # T75 — Rebuild vs repaint + render queue + view destroy
 
 **Пріоритет:** P0  
-**Статус:** D2 ✅ · D1 selection ✅ · D3 ✅ · epoch-after-await ✅ · LOD/theme full rebuild — remaining  
-**Базис:** [REVIEW-dg-805efee-architecture.md](../tech-debt/REVIEW-dg-805efee-architecture.md) **D1 · D2 · D3**  
-**Залежності:** немає (блокує масштаб і коректність; T74 M1 не повинен опиратись на full `render()`)
+**Статус:** ✅ done  
+**Базис:** [REVIEW-dg-805efee-architecture.md](../tech-debt/REVIEW-dg-805efee-architecture.md) **D1 · D2 · D3**
 
 ---
 
-## Мета
+## Результат
 
-1. **D2** ✅ — один активний `render` / черга (`createRenderCoalesce` + `renderEpoch`).
-2. **D1** ✅ partial — selection → `repaintSelection()` (без rebuild). LOD/theme ще `render()` (геометрія/медіа).
-3. **D3** ✅ — `LayerManager.clear` destroy children.
+| ID | Статус | Що зроблено |
+|----|--------|-------------|
+| **D2** | ✅ | `createRenderCoalesce` + `renderEpoch` bail після `await` |
+| **D3** | ✅ | `LayerManager.clear` → `destroy({ children: true })` |
+| **D1 selection** | ✅ | `repaintSelection()` — клік/select без `DiagramRenderer.render` |
+| **D1 LOD/theme** | ✅ intentional | повний `render()` **лише** для LOD/theme (змінюються edge ports / палітра). Hot path (selection) — repaint. |
 
-Порядок імплементації всередині T75: **D2 → D1+D3**.
-
----
-
-## D2 — черга рендера ✅
-
-- `packages/sdk/src/render/renderCoalesce.ts` — `schedule` / `stop`
-- `OrgHierarchyDiagram.render()` → `renderCoalesce.schedule()` → `renderNow()`
-- `DiagramRenderer.renderEpoch` — stale async pass bails after `await`
-- Tests: `renderCoalesce.test.ts`
-
-**Acceptance:** два швидкі `select` + LOD flip під час текстур → один узгоджений display-list.
+**Чому LOD/theme лишають rebuild:** mid/far змінюють visual AABBs для edge ports (T45); theme міняє всі fills + symbol URLs. Point-`applyLod` без перерахунку ребер дав би розсинхрон hit-test/edges. Окремий follow-up лише якщо профайлер покаже LOD-zoom як bottleneck після selection fix.
 
 ---
 
-## D1 — rebuild vs repaint
+## Файли
 
-| API | Коли | Дія |
-|-----|------|-----|
-| `render()` / rebuild | `setData`, expand/collapse, LOD, theme, layout options | clear+destroy views, layout, create views |
-| `repaintSelection()` ✅ | `select*` / `clearSelection` / click / `focusNode` | overlay only; `nodeViews` reused |
-
-- LOD threshold → still full `render()` (card chrome geometry changes) — optional later: `applyLod` on views.
-- Theme → still full `render()` (symbol URLs / palette).
-
-**Acceptance:** клік / `select` не кличе `DiagramRenderer.render`.
-
----
-
-## D3 — destroy views ✅
-
-- `LayerManager.clear()` → `removeChildren` + `destroy({ children: true })` на кожній дитині.
-- Tests: `layerManager.clear.test.ts`
-
----
-
-## D1 — rebuild vs repaint
-
-| API | Коли | Дія |
-|-----|------|-----|
-| `rebuild()` | `setData`, expand/collapse, layout-affecting options | clear+destroy views, layout, create views |
-| `repaint()` | selection, LOD band, theme chrome (без зміни URL media) | reuse `nodeViews`; `applySelection` / `applyLod` / `applyTheme` |
-
-- `select*` / `clearSelection` → **лише** `repaint` (або point update selection chrome).
-- LOD threshold → `repaint` (media far/near — координація з T74 M6).
-- Мапи `nodeViews` / `nodeBoxes` **не** очищати на `repaint`.
-
-**Acceptance:** клік по вузлу при N≫1 не створює N нових `OrganizationNodeView`; selection chrome оновлюється.
-
----
-
-## D3 — destroy views
-
-- `LayerManager.clear({ destroy: true })` або еквівалент: `removeChildren` + `view.destroy({ children: true })`.
-- Усі node views (org / person / position / dept blob) мають явний lifecycle.
-- Після D1 `clear` рідкісний — але коректний уже в тому ж PR.
-
-**Acceptance:** після N циклів rebuild GPU/текстові ресурси не ростуть лінійно з N (smoke / ручний профайлер ok).
+- `packages/sdk/src/render/renderCoalesce.ts`
+- `packages/sdk/src/render/DiagramRenderer.ts` (`repaintSelection`, epoch, clear destroy)
+- `packages/sdk/src/index.ts` (`render` coalesce, `repaintSelection` на select*)
+- Tests: `renderCoalesce.test.ts`, `layerManager.clear.test.ts`, interaction D1 test
 
 ---
 
 ## Не в T75
 
-- Розбір god-object → [T76](./T76-diagram-facade-stores.md)
-- Media invalidate / textures → [T74](./T74-node-media-lifecycle.md)
-- Не чіпати `Viewport`, `spine-bus`, person LOD gate (brief §5)
-
----
+- God-object → [T76](./T76-diagram-facade-stores.md) ✅
+- Media → [T74](./T74-node-media-lifecycle.md)
 
 ## Verify
 
 ```bash
-npm run typecheck
-npm test
-npm run test:verify
+npm run typecheck && npm test && npm run test:verify
 ```

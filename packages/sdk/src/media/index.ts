@@ -12,6 +12,6 @@ export {
   resolveThemedMediaFromPerson,
   resolveThemedMediaFromPosition,
   resolveThemedMediaFromGroup,
-  resolveThemedMediaFromLegacy,
 } from './legacyBridge.js';
 export { MediaService } from './MediaService.js';
+export { DEFAULT_MEDIA_PLACEHOLDERS } from './placeholders.js';

@@ -10,6 +10,7 @@ import { MediaService, type DiagramMediaFacade, type MediaPlaceholderRegistry } 
 import {
   resolveThemedMediaFromOrganization,
   resolveThemedMediaFromPerson,
+  DEFAULT_MEDIA_PLACEHOLDERS,
 } from './media/index.js';
 import {
   defaultRenderConfig,
@@ -221,6 +222,7 @@ export {
   resolveThemedMediaFromPerson,
   resolveThemedMediaFromPosition,
   resolveThemedMediaFromGroup,
+  DEFAULT_MEDIA_PLACEHOLDERS,
 } from './media/index.js';
 export type {
   DiagramMediaFacade,
@@ -468,13 +470,25 @@ export class OrgHierarchyDiagram {
       instance.viewState.lodThresholds,
     );
     const resolvedTheme = resolveTheme(instance.viewState.themeMode);
-    instance.mediaService = new MediaService(resolvedTheme, config.mediaPlaceholders ?? { default: {} }, {
-      prefetchThemeKeys: config.prefetchMediaThemeKeys,
-      onInvalidateViews: async (urls) => {
-        await instance.host?.renderer.refreshMediaUrls(urls);
+    const hostPlaceholders = config.mediaPlaceholders;
+    instance.mediaService = new MediaService(
+      resolvedTheme,
+      {
+        ...DEFAULT_MEDIA_PLACEHOLDERS,
+        ...hostPlaceholders,
+        default: {
+          ...DEFAULT_MEDIA_PLACEHOLDERS.default,
+          ...hostPlaceholders?.default,
+        },
       },
-      resolveNodeUrls: (ref) => instance.resolveMediaUrlsForRef(ref),
-    });
+      {
+        prefetchThemeKeys: config.prefetchMediaThemeKeys,
+        onInvalidateViews: async (urls) => {
+          await instance.host?.renderer.refreshMediaUrls(urls);
+        },
+        resolveNodeUrls: (ref) => instance.resolveMediaUrlsForRef(ref),
+      },
+    );
     await instance.render();
     return instance;
   }

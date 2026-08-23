@@ -113,15 +113,16 @@ npm run dev          # http://localhost:3000
 66. [T71-gojs-to-dg-migration-plan.md](./tasks/T71-gojs-to-dg-migration-plan.md) — ✅ **план міграції GoJS→dg** (cutover queue complete)
 67. [PARITY-gojs-to-dg.md](./tasks/PARITY-gojs-to-dg.md) — ✅ parity ред. 2.2 (вимога→можливість)
 68. [T72-types-algorithms-agreement.md](./tasks/T72-types-algorithms-agreement.md) — ✅ узгоджені типи + алгоритми P0 (+ fitContain)
-69. [T74-node-media-lifecycle.md](./tasks/T74-node-media-lifecycle.md) — ✅ P0 M0–M4/M6 (+ M5 host blob docs); far skip + refresh + prefetch
-70. [T75-rebuild-vs-repaint.md](./tasks/T75-rebuild-vs-repaint.md) — 🚧 D2+D3+selection+epoch ✅; LOD/theme full rebuild remaining
-71. [T76-diagram-facade-stores.md](./tasks/T76-diagram-facade-stores.md) — ✅ D4 SelectionStore + ViewStateStore + DataStore
-72. [REVIEW-dg-pr56-media-and-abstraction.md](./tasks/REVIEW-dg-pr56-media-and-abstraction.md) — ✅ D6 M-A/B/C remediated in T74 M0
+69. [T74-node-media-lifecycle.md](./tasks/T74-node-media-lifecycle.md) — ✅ media lifecycle M0–M6
+70. [T75-rebuild-vs-repaint.md](./tasks/T75-rebuild-vs-repaint.md) — ✅ D1–D3 (selection repaint; LOD/theme rebuild by design)
+71. [T76-diagram-facade-stores.md](./tasks/T76-diagram-facade-stores.md) — ✅ D4 stores
+72. [REVIEW-dg-pr56-media-and-abstraction.md](./tasks/REVIEW-dg-pr56-media-and-abstraction.md) — ✅ D6 remediated
+73. [REVIEW-t74-t76-pocock-gof.md](./tasks/REVIEW-t74-t76-pocock-gof.md) — ✅ Pocock + GoF pass
 
 ## Технічний борг
 
-- [REVIEW-dg-805efee-architecture.md](./tech-debt/REVIEW-dg-805efee-architecture.md) — 📋 code review D1–D7 (не чіпати Viewport / spine-bus / photo LOD)
-- [D5-orphan-position-layout.md](./tech-debt/D5-orphan-position-layout.md) — 📋 orphan seat under head for WASM only
+- [REVIEW-dg-805efee-architecture.md](./tech-debt/REVIEW-dg-805efee-architecture.md) — ✅ D1–D7 closed
+- [D5-orphan-position-layout.md](./tech-debt/D5-orphan-position-layout.md) — ✅ documented (not a bug)
 - [TD01-git-remote-and-ci.md](./tech-debt/TD01-git-remote-and-ci.md) — ✅ closed (`b2vv/dg`)
 - [TD02-legacy-web-rspack.md](./tech-debt/TD02-legacy-web-rspack.md) — ✅
 - [TD03-contour-config-drift.md](./tech-debt/TD03-contour-config-drift.md) — ✅ closed (T07)

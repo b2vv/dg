@@ -35,19 +35,3 @@ export function resolveThemedMediaFromPosition(position: DiagramPosition): Theme
 export function resolveThemedMediaFromGroup(_group: DiagramGroup): ThemedMedia | undefined {
   return undefined;
 }
-
-/** @deprecated Use entity-specific resolver or read `media` directly. */
-export function resolveThemedMediaFromLegacy(
-  source: DiagramOrganization | DiagramPerson | DiagramPosition | DiagramGroup,
-): ThemedMedia | undefined {
-  if ('symbolUrl' in source || 'symbolUrlLight' in source) {
-    return resolveThemedMediaFromOrganization(source as DiagramOrganization);
-  }
-  if ('photoUrl' in source && !('title' in source)) {
-    return resolveThemedMediaFromPerson(source as DiagramPerson);
-  }
-  if ('title' in source && 'organizationId' in source) {
-    return resolveThemedMediaFromPosition(source as DiagramPosition);
-  }
-  return resolveThemedMediaFromGroup(source as DiagramGroup);
-}
