@@ -1,7 +1,7 @@
 # T75 — Rebuild vs repaint + render queue + view destroy
 
 **Пріоритет:** P0  
-**Статус:** D2 ✅ · D1 selection + D3 ✅ · LOD/theme repaint — follow-up  
+**Статус:** D2 ✅ · D1 selection ✅ · D3 ✅ · epoch-after-await ✅ · LOD/theme full rebuild — remaining  
 **Базис:** [REVIEW-dg-805efee-architecture.md](../tech-debt/REVIEW-dg-805efee-architecture.md) **D1 · D2 · D3**  
 **Залежності:** немає (блокує масштаб і коректність; T74 M1 не повинен опиратись на full `render()`)
 

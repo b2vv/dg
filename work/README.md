@@ -121,6 +121,7 @@ npm run dev          # http://localhost:3000
 ## Технічний борг
 
 - [REVIEW-dg-805efee-architecture.md](./tech-debt/REVIEW-dg-805efee-architecture.md) — 📋 code review D1–D7 (не чіпати Viewport / spine-bus / photo LOD)
+- [D5-orphan-position-layout.md](./tech-debt/D5-orphan-position-layout.md) — 📋 orphan seat under head for WASM only
 - [TD01-git-remote-and-ci.md](./tech-debt/TD01-git-remote-and-ci.md) — ✅ closed (`b2vv/dg`)
 - [TD02-legacy-web-rspack.md](./tech-debt/TD02-legacy-web-rspack.md) — ✅
 - [TD03-contour-config-drift.md](./tech-debt/TD03-contour-config-drift.md) — ✅ closed (T07)
