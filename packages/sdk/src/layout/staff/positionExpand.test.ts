@@ -185,9 +185,10 @@ describe('expandIdsForDepth — A7 Infinity + cycle guard', () => {
       { fromId: 'root', toId: 'a', kind: 'admin' },
       { fromId: 'a', toId: 'root', kind: 'admin' }, // self-cycle back
     ];
-    // Must not hang or throw stack overflow.
+    // Must not hang or throw stack overflow. Both nodes have children (the cycle),
+    // so both are expanded; seen-set stops the walk. Empty / ['root']-only would hide a.
     const ids = expandIdsForDepth(positions, reports, 'o1', Infinity);
-    expect(Array.isArray(ids)).toBe(true);
+    expect([...ids].sort()).toEqual(['a', 'root']);
   });
 
   it('failure: self reportLine is not an admin child (A5)', () => {

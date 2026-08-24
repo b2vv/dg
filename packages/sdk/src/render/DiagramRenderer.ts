@@ -65,6 +65,7 @@ import { polishContourRing } from './contourPolish.js';
 import { shouldPaintDeptContour } from './contourPaintFilter.js';
 import { resolveMagnetRadius } from './magnetRadius.js';
 import { inferStaffCurrentOrgId } from './inferStaffCurrentOrgId.js';
+import { offsetMemberBoxesForGridMove, cloneMemberBoxes } from './offsetMemberBoxes.js';
 
 export type ContourComputer = (
   positions: ContourPositionInput[],
@@ -72,11 +73,6 @@ export type ContourComputer = (
 ) => Promise<DeptContourResult[]>;
 
 export interface RenderOptions {
-  /**
-   * @deprecated T77-M01 Option B — canvas paints TS button-group rings only.
-   * Rust/worker contour compute is no longer invoked from DiagramRenderer.
-   */
-  computeContours?: ContourComputer;
   orgLayout?: OrgLayoutOptions;
   lod?: LodLevel;
   /** Contour morph duration during drag (ms). `0` = snap. Default 160. */
@@ -90,7 +86,11 @@ export interface RenderOptions {
   onStaffOrgDrill?: (orgId: string) => void;
   /** Position admin-subtree expand (T66). */
   onPositionExpandToggle?: (positionId: string) => void;
-  onPersonClick?: (personId: string, positionId: string, mods?: SelectionPointerMods) => void;
+  onPersonClick?: (
+    personId: string | undefined,
+    positionId: string,
+    mods?: SelectionPointerMods,
+  ) => void;
   /** Double-tap / dblclick on person card body (T69). Not fired for chrome. */
   onPersonDoubleClick?: (personId: string, positionId: string) => void;
   onPersonContextMenu?: (
@@ -145,6 +145,7 @@ interface ContourSession {
   /** Paint-only: demo Smooth slider → corner arc segments. */
   paintSmoothIterations: number;
   memberBoxesByDept: Map<string, ContourMemberBox[]>;
+  baseMemberBoxesByDept: Map<string, ContourMemberBox[]>;
   blobsByDept: Map<string, DepartmentBlobView[]>;
   morphHandles: Map<DepartmentBlobView, PointMorphHandle>;
   previewGen: number;
@@ -470,9 +471,11 @@ export class DiagramRenderer {
   }): ContourSession {
     this.cancelContourMorphs();
     const cloned = args.inputs.map((p) => ({ ...p }));
+    const boxes = cloneMemberBoxes(args.memberBoxesByDept);
     this.contourSession = {
       ...args,
-      memberBoxesByDept: args.memberBoxesByDept ?? new Map(),
+      memberBoxesByDept: boxes,
+      baseMemberBoxesByDept: cloneMemberBoxes(boxes),
       baseInputs: cloned.map((p) => ({ ...p })),
       inputs: cloned,
       blobsByDept: new Map(),
@@ -604,7 +607,6 @@ export class DiagramRenderer {
     options: RenderOptions,
   ): Promise<void> {
     // T77-M01 Option B: paint TS button-group rings only — do not await Rust/worker.
-    void options.computeContours;
     const magnet: ContourMagnetConfig = {
       paddingCells: 0,
       cellWidth: config.cellWidth,
@@ -636,6 +638,7 @@ export class DiagramRenderer {
     const session = this.contourSession;
     if (!session) return;
     session.inputs = session.baseInputs.map((p) => ({ ...p }));
+    session.memberBoxesByDept = cloneMemberBoxes(session.baseMemberBoxesByDept);
     session.previewGen += 1;
     this.refreshContourPaint(true);
   }
@@ -643,7 +646,18 @@ export class DiagramRenderer {
   private async previewDragContours(positionId: string, col: number, row: number): Promise<void> {
     const session = this.contourSession;
     if (!session || col < 0 || row < 0) return;
+    const prev = session.inputs.find((p) => p.id === positionId);
+    const dCol = col - (prev?.col ?? col);
+    const dRow = row - (prev?.row ?? row);
     session.inputs = session.inputs.map((p) => (p.id === positionId ? { ...p, col, row } : p));
+    session.memberBoxesByDept = offsetMemberBoxesForGridMove(
+      session.memberBoxesByDept,
+      positionId,
+      dCol,
+      dRow,
+      session.magnet.cellWidth ?? 0,
+      session.magnet.cellHeight ?? 0,
+    );
     session.previewGen += 1;
     this.refreshContourPaint(true);
   }
@@ -668,7 +682,6 @@ export class DiagramRenderer {
         return;
       }
       e.stopPropagation();
-      if (!personId) return;
       const mods = readSelectionPointerMods(e);
       // Modifier+click toggles set membership — do not feed double-tap expand (T69).
       if (isSelectionToggleModifier(mods)) {
@@ -676,9 +689,9 @@ export class DiagramRenderer {
         options.onPersonClick?.(personId, positionId, mods);
         return;
       }
-      const kind = this.nodeDoubleTap.tap(`person:${personId}:${positionId}`);
+      const kind = this.nodeDoubleTap.tap(`person:${personId ?? ''}:${positionId}`);
       if (kind === 'double') {
-        options.onPersonDoubleClick?.(personId, positionId);
+        if (personId) options.onPersonDoubleClick?.(personId, positionId);
         return;
       }
       options.onPersonClick?.(personId, positionId, mods);

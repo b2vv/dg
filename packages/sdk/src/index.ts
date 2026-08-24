@@ -2,9 +2,6 @@ import { emptyDiagramData, computeStats } from './data/types.js';
 import type { DiagramData } from './data/types.js';
 import type { DiagramMappers } from './mappers/types.js';
 import { configureContourWorker } from './contour/worker-bridge.js';
-import { computeAllContoursInWorker, computeDeptContourInWorker } from './contour/worker-bridge.js';
-import { computeAllContours as computeAllContoursMain, computeDeptContour as computeDeptContourMain } from './contour/bridge.js';
-import { createIncrementalContourComputer, type IncrementalContourComputer } from './contour/incremental.js';
 import { PixiHost } from './render/PixiHost.js';
 import { MediaService, type DiagramMediaFacade, type MediaPlaceholderRegistry } from './media/index.js';
 import {
@@ -402,7 +399,6 @@ export class OrgHierarchyDiagram {
   /** T75 D2: coalesce overlapping render() so layers.clear never races. */
   private readonly renderCoalesce = createRenderCoalesce(() => this.renderNow());
   private destroyed = false;
-  private contourComputer: IncrementalContourComputer | null = null;
   private promoteSyncListeners = new Set<() => void>();
   private mediaService: MediaService | null = null;
 
@@ -550,15 +546,6 @@ export class OrgHierarchyDiagram {
       pool: this.workerPool,
       workerFactory: this.workerFactory,
     });
-  }
-
-  private getContourComputer(): IncrementalContourComputer {
-    if (!this.contourComputer) {
-      const computeAll = this.useWorker ? computeAllContoursInWorker : computeAllContoursMain;
-      const computeDept = this.useWorker ? computeDeptContourInWorker : computeDeptContourMain;
-      this.contourComputer = createIncrementalContourComputer(computeAll, computeDept);
-    }
-    return this.contourComputer;
   }
 
   private applySelection(next: NodeRef | null): void {
@@ -717,9 +704,7 @@ export class OrgHierarchyDiagram {
     const resolved = resolveTheme(this.viewState.themeMode);
     this.nodeTheme = resolveNodeTheme(resolved, this.stylesPartial);
     host.setBackground(canvasBackgroundForTheme(resolved));
-    const computeContours = this.getContourComputer();
     await host.renderer.render(this.data, this.nodeTheme, resolved, this.renderConfig, {
-      computeContours,
       lod: this.viewState.lodLevel,
       orgLayout: this.viewState.orgLayout,
       staff: this.viewState.staffCurrentOrgId
@@ -763,12 +748,15 @@ export class OrgHierarchyDiagram {
       },
       onPersonClick: (personId, positionId, mods) => {
         if (this.destroyed) return;
-        const node = this.personNodeRef(personId, positionId);
+        const node = personId
+          ? this.personNodeRef(personId, positionId)
+          : this.positionNodeRef(positionId);
         this.handleNodeSelect(node, mods);
         this.callbacks.onNodeClick?.(node);
         this.repaintSelection();
       },
       onPersonDoubleClick: (personId, positionId) => {
+        if (!personId) return;
         this.callbacks.onNodeDoubleClick?.(this.personNodeRef(personId, positionId));
       },
       onPersonContextMenu: (personId, positionId, pointer) => {
@@ -910,19 +898,24 @@ export class OrgHierarchyDiagram {
     const n = this.data.organizations.length;
     const side = Math.max(1, Math.ceil(Math.sqrt(n)));
     const dims = grid ?? { rows: side, cols: side };
+    const targetRow = Math.floor(row);
+    const targetCol = Math.floor(col);
+    const nextOrgs = placeOrgAtMatrixCell(this.data.organizations, orgId, row, col, dims);
+    if (nextOrgs === this.data.organizations) return;
+
     const before = assignMatrixCells(this.data.organizations, { ...dims, bounded: true });
     let ejectedOrgId: string | undefined;
     for (const [id, cell] of before) {
-      if (id !== orgId && cell.row === row && cell.col === col) {
+      if (id !== orgId && cell.row === targetRow && cell.col === targetCol) {
         ejectedOrgId = id;
         break;
       }
     }
     this.data = {
       ...this.data,
-      organizations: placeOrgAtMatrixCell(this.data.organizations, orgId, row, col, dims),
+      organizations: nextOrgs,
     };
-    const patch: LayoutPatch = { type: 'matrix-cell', orgId, row, col, ejectedOrgId };
+    const patch: LayoutPatch = { type: 'matrix-cell', orgId, row: targetRow, col: targetCol, ejectedOrgId };
     this.callbacks.onLayoutChange?.(patch);
     await this.render();
   }
@@ -942,7 +935,6 @@ export class OrgHierarchyDiagram {
     const t0 =
       typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
     await this.applyConfig({ data, mappers } as OrgHierarchyConfig<TRaw>);
-    this.contourComputer?.invalidate();
     await this.rebuildSearchIndexForScale();
     this.applySelection(null);
     const ms =
@@ -1508,8 +1500,6 @@ export class OrgHierarchyDiagram {
     this.promoteSyncListeners.clear();
     void this.mediaService?.destroy();
     this.mediaService = null;
-    this.contourComputer?.invalidate();
-    this.contourComputer = null;
     this.workerPool?.dispose();
     this.workerPool = null;
     this.host?.destroy();

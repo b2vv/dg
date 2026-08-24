@@ -334,4 +334,45 @@ describe('OrgHierarchyDiagram interactions', () => {
     diagram.destroy();
     document.body.removeChild(container);
   });
+
+  it('success: placeOrgAtMatrixCell emits matrix-cell patch (T78-L7)', async () => {
+    const onLayoutChange = vi.fn();
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: makeData(),
+      useWorker: false,
+      callbacks: { onLayoutChange },
+    });
+    await diagram.placeOrgAtMatrixCell('org1', 0, 1);
+    expect(onLayoutChange).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'matrix-cell', orgId: 'org1', row: 0, col: 1 }),
+    );
+    expect(diagram.getData().organizations.find((o) => o.id === 'org1')?.inMatrix).not.toBe(
+      false,
+    );
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
+
+  it('failure: placeOrgAtMatrixCell out-of-bounds is a no-op without onLayoutChange (T78-L7)', async () => {
+    const onLayoutChange = vi.fn();
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: makeData(),
+      useWorker: false,
+      callbacks: { onLayoutChange },
+    });
+    const before = diagram.getData().organizations;
+    await diagram.placeOrgAtMatrixCell('org1', 99, 99);
+    expect(onLayoutChange).not.toHaveBeenCalled();
+    expect(diagram.getData().organizations).toBe(before);
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
 });

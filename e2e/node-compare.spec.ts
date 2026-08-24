@@ -4,7 +4,7 @@
  *
  * Run: npm run compare:nodes
  */
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -153,16 +153,18 @@ test.describe('node compare generator', () => {
       }, spec.testId);
       await page.waitForTimeout(700);
       const node = page.getByTestId(`node-${spec.testId}`);
-      await node.waitFor({ state: 'visible', timeout: 30_000 });
+      await expect(node).toBeVisible({ timeout: 30_000 });
       const diagramPath = path.join(OUT_DIR, `${spec.id}-diagram.png`);
       await node.screenshot({ path: diagramPath });
+      expect(fs.statSync(diagramPath).size).toBeGreaterThan(100);
 
       await page.goto('/?node-compare=1');
       await page.waitForSelector('[data-testid="node-compare-ready"]', { timeout: 60_000 });
       const specimen = page.getByTestId(`specimen-${spec.id}`);
-      await specimen.waitFor({ state: 'visible' });
+      await expect(specimen).toBeVisible();
       const isolatedPath = path.join(OUT_DIR, `${spec.id}-isolated.png`);
       await specimen.screenshot({ path: isolatedPath });
+      expect(fs.statSync(isolatedPath).size).toBeGreaterThan(100);
 
       const diagramB64 = fs.readFileSync(diagramPath).toString('base64');
       const isolatedB64 = fs.readFileSync(isolatedPath).toString('base64');
