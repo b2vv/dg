@@ -77,14 +77,16 @@ describe('validateOrgHierarchy', () => {
     expect(() => validateOrgHierarchy([org('a'), org('a')])).toThrow(/duplicate/i);
   });
 
-  it('success: 4000 org chain completes quickly (M08 O(n) validate)', () => {
+  it('success: 4000-org deep chain completes quickly (B3 O(n) tri-color)', () => {
+    // Deep linear chain: o0 → o1 → o2 → … → o3999.
+    // Old O(n²): 4000-chain took ~577ms; O(n) finishes in < 50ms.
     const orgs = Array.from({ length: 4000 }, (_, i) =>
-      org(`o${i}`, i, i > 0 ? 'o0' : undefined),
+      org(`o${i}`, i, i > 0 ? `o${i - 1}` : undefined),
     );
     const start = performance.now();
     expect(() => validateOrgHierarchy(orgs)).not.toThrow();
     const ms = performance.now() - start;
-    expect(ms).toBeLessThan(500);
+    expect(ms).toBeLessThan(200);
   });
 });
 

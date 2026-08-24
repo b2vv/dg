@@ -185,7 +185,8 @@ export function searchIndex(
   const q = query.trim().normalize('NFC').toLowerCase();
   if (!q) return [];
 
-  const seed = q[0]!;
+  // B5: use first code point (not code unit) so non-BMP queries work.
+  const seed = String.fromCodePoint(q.codePointAt(0)!);
   // Early exit: if the first character has no entries, nothing can match.
   if (!index.byChar.has(seed)) return [];
 
@@ -202,17 +203,12 @@ export function searchIndex(
     } else {
       partial.push({ node: entry.node, label: entry.label, score: 1 });
     }
-    // Stop collecting once we have enough; sort only within each bucket.
-    if (exact.length >= limit) break;
   }
 
-  const take = limit - exact.length;
-  if (take <= 0) {
-    exact.sort((a, b) => a.label.localeCompare(b.label));
-    return exact.slice(0, limit);
-  }
-
+  // B4: sort both buckets fully so top-k is stable (order is by label asc within bucket).
   exact.sort((a, b) => a.label.localeCompare(b.label));
   partial.sort((a, b) => a.label.localeCompare(b.label));
-  return [...exact, ...partial.slice(0, take)];
+
+  const take = Math.max(0, limit - exact.length);
+  return [...exact.slice(0, limit), ...partial.slice(0, take)];
 }

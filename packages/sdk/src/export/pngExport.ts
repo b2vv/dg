@@ -1,5 +1,6 @@
 import type { Application } from 'pixi.js';
 import { rgbImageToPdf, solidRgb } from './pdfExport.js';
+import { ExportError } from './types.js';
 
 const PNG_SIG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -54,6 +55,15 @@ export async function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> 
     }
   }
 
+  // All rasterization paths failed — throw rather than return unrenderable 8-byte stub.
+  throw new ExportError(
+    'PNG export failed: canvas.toBlob and toDataURL both unavailable. ' +
+      'Inject a canvasToBlobImpl via setCanvasToBlobImpl() or use SVG export.',
+  );
+}
+
+/** @internal Only for unit tests and environments where canvas.toBlob is broken. */
+export function pngFallbackBlob(): Blob {
   return new Blob([PNG_SIG], { type: 'image/png' });
 }
 

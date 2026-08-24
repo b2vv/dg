@@ -89,21 +89,20 @@ describe('exportDiagram', () => {
     expect(blob.size).toBe(100);
   });
 
-  it('failure: png without seam falls back to 8-byte sig blob (jsdom cannot toBlob)', async () => {
-    const result = await exportDiagram(
-      {
-        data: variantB(),
-        mounted: true,
-        app: null,
-        renderConfig: defaultRenderConfig,
-        currentOrgId: 'org1',
-      },
-      { format: 'png', scope: 'full' },
-    );
-    // In jsdom, toBlob callback never fires and toDataURL returns placeholder → 8-byte fallback.
-    expect(result).toBeInstanceOf(Blob);
-    expect((result as Blob).type).toBe('image/png');
-    expect((result as Blob).size).toBe(8); // PNG_SIG
+  it('failure: png without seam throws ExportError in jsdom (B6 — no silent 8-byte stub)', async () => {
+    // In jsdom, toBlob never fires and toDataURL is not implemented → ExportError.
+    await expect(
+      exportDiagram(
+        {
+          data: variantB(),
+          mounted: true,
+          app: null,
+          renderConfig: defaultRenderConfig,
+          currentOrgId: 'org1',
+        },
+        { format: 'png', scope: 'full' },
+      ),
+    ).rejects.toThrow(/PNG export failed/i);
   });
 
   it('success: svg contains path d=', async () => {

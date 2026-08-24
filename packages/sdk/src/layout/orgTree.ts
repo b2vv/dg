@@ -16,25 +16,48 @@ export function validateOrgHierarchy(organizations: DiagramOrganization[]): void
     ids.add(org.id);
   }
 
-  // Build once, walk once per org — O(n) total instead of O(n²).
+  // Tri-color DFS: each node is proven acyclic at most once — true O(n) total.
   const byId = new Map(organizations.map((o) => [o.id, o]));
+  // 'done' = proven acyclic; 'in-stack' = cycle detected.
+  const done = new Set<string>();
+  const inStack = new Set<string>();
+
   for (const org of organizations) {
-    if (org.parentOrgId && hasCycle(org.id, byId)) {
-      throw new OrgHierarchyError(`Cycle detected in parentOrgId at ${org.id}`);
+    if (done.has(org.id)) continue;
+    const cycleId = walkParentChain(org.id, byId, done, inStack);
+    if (cycleId) {
+      throw new OrgHierarchyError(`Cycle detected in parentOrgId at ${cycleId}`);
     }
   }
 }
 
-function hasCycle(startId: string, byId: ReadonlyMap<string, DiagramOrganization>): boolean {
-  const visited = new Set<string>();
+/**
+ * Walk the parent chain from `startId`, returning the id where the cycle
+ * was detected, or `null` if acyclic. Marks every node along the clean
+ * path as `done` so future walks skip it.
+ */
+function walkParentChain(
+  startId: string,
+  byId: ReadonlyMap<string, DiagramOrganization>,
+  done: Set<string>,
+  inStack: Set<string>,
+): string | null {
+  const path: string[] = [];
   let cur: string | undefined = startId;
 
-  while (cur) {
-    if (visited.has(cur)) return true;
-    visited.add(cur);
+  while (cur && !done.has(cur)) {
+    if (inStack.has(cur)) return cur;
+    inStack.add(cur);
+    path.push(cur);
     cur = byId.get(cur)?.parentOrgId;
   }
-  return false;
+
+  // Clean path — mark everything on it as done.
+  for (const id of path) {
+    inStack.delete(id);
+    done.add(id);
+  }
+  return null;
 }
 
 export function extractSubtree(

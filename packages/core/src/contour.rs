@@ -1147,38 +1147,38 @@ mod tests {
         assert_eq!(d.smooth_iterations, 2);
     }
 
-    /// G6: foreign blocks flood — no IT perimeter through CEO cell center (implicit).
+    /// G6: CEO (1,1) flanked by IT cells — contour has notch (≥ 8 corners).
+    /// A box spanning all IT (no notch) would have corner_count == 4.
+    /// This is the same 2D topology as variant_b but minimal: two IT above + one CEO between.
     #[test]
     fn g6_implicit_foreign_blocks_flood() {
+        // CEO at (1,1) between IT above-left (0,0) and above-right (2,0)
+        // and IT below-left (0,2) and below-right (2,2).
+        // Matches variant_b topology but with only 4 IT cells.
         let positions = vec![
             pos("P1", "IT", 0, 0),
             pos("P2", "IT", 2, 0),
-            pos("P4", "CEO", 1, 0),
+            pos("P4", "CEO", 1, 1),
+            pos("P5", "IT", 0, 2),
+            pos("P6", "IT", 2, 2),
         ];
         let mut cfg = ContourMagnetConfig::default();
         cfg.magnet_radius = 2.0;
         cfg.smooth_iterations = 0;
         let rs = compute_dept_contour("IT", &positions, &cfg).unwrap();
-        // Two IT cells magnetised with radius 2 → join as one component.
-        // The resulting contour must NOT enclose the foreign CEO cell (1,0).
-        // If flood treated CEO as inside, the path would span cols 0–2 with
-        // CEO captured: we verify the path does NOT include a point at col=1.
-        // Specifically: the path should have ≤ one component whose convex hull
-        // does not fully enclose (1,0) — approximated by checking the path
-        // points do not all surround col 1 exclusively (notch kept open).
-        assert!(!rs.is_empty(), "expected at least one contour component");
-        for r in &rs {
-            assert!(r.path.starts_with('M'), "path must start with M");
-            assert!(r.path.ends_with('Z'), "path must end with Z");
-        }
-        // CEO cell (1,0) must be treated as foreign: the flood should NOT produce
-        // a single bounding box that fully includes col 1.
-        // We check this by counting components — if G6 works, both IT cells may
-        // merge (radius covers gap), but the notch/G6 rule prevents enclosing CEO.
-        // The assertion that the path is non-empty is necessary but not sufficient;
-        // the key contract is that flood_inside excludes foreign cells.
-        let total_points: usize = rs.iter().map(|r| r.points.len()).sum();
-        assert!(total_points > 0, "contour must have at least one traced cell");
+        assert_eq!(rs.len(), 1, "expected exactly one merged IT component");
+        let r = &rs[0];
+        // A rectangle spanning cols 0–2, rows 0–2 (CEO captured) has corner_count == 4.
+        // A notched contour preserving G6 (no far-side fill by CEO) has corner_count >= 8.
+        assert!(
+            r.corner_count >= 8,
+            "notched IT contour needs ≥ 8 corners (got {}); G6 may not be respecting CEO",
+            r.corner_count
+        );
+        // CEO center must NOT be inside IT fill.
+        let ceo_cx = 1.5 * cfg.cell_width;
+        let ceo_cy = 1.5 * cfg.cell_height;
+        assert!(!point_in_poly(ceo_cx, ceo_cy, &r.points), "CEO must be outside IT fill");
     }
 }
 

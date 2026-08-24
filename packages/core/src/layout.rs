@@ -39,7 +39,8 @@ fn compute_tree_layout_impl(root: &HierarchyNode, opts: &LayoutOptions) -> Layou
     let mut nodes: Vec<InternalNode> = Vec::new();
     let root_idx = build_index_tree(root, None, 0, &mut sources, &mut nodes);
 
-    first_walk(root_idx, &mut nodes, opts);
+    let horizontal = opts.direction == "horizontal";
+    first_walk(root_idx, &mut nodes, opts, horizontal);
     second_walk(root_idx, &mut nodes, 0.0, 0.0);
 
     let horizontal = opts.direction == "horizontal";
@@ -118,14 +119,21 @@ fn build_index_tree<'a>(
     idx
 }
 
-fn sep(opts: &LayoutOptions) -> f32 {
-    opts.node_width + opts.horizontal_gap
+/// Sibling separation in the primary (non-depth) axis.
+/// Vertical mode  → siblings spread along X → node_width + h_gap.
+/// Horizontal mode → siblings spread along Y → node_height + v_gap.
+fn sep(opts: &LayoutOptions, horizontal: bool) -> f32 {
+    if horizontal {
+        opts.node_height + opts.vertical_gap
+    } else {
+        opts.node_width + opts.horizontal_gap
+    }
 }
 
-fn first_walk(root: usize, nodes: &mut [InternalNode], opts: &LayoutOptions) {
+fn first_walk(root: usize, nodes: &mut [InternalNode], opts: &LayoutOptions, horizontal: bool) {
     if nodes[root].children.is_empty() {
         let prelim = left_sibling(root, nodes)
-            .map(|s| nodes[s].prelim + sep(opts))
+            .map(|s| nodes[s].prelim + sep(opts, horizontal))
             .unwrap_or(0.0);
         nodes[root].prelim = prelim;
         return;
@@ -133,8 +141,8 @@ fn first_walk(root: usize, nodes: &mut [InternalNode], opts: &LayoutOptions) {
 
     let mut default_ancestor = nodes[root].children[0];
     for &child in &nodes[root].children.clone() {
-        first_walk(child, nodes, opts);
-        default_ancestor = apportion(child, default_ancestor, nodes, opts);
+        first_walk(child, nodes, opts, horizontal);
+        default_ancestor = apportion(child, default_ancestor, nodes, opts, horizontal);
     }
 
     execute_shifts(root, nodes);
@@ -144,7 +152,7 @@ fn first_walk(root: usize, nodes: &mut [InternalNode], opts: &LayoutOptions) {
     let mid = (nodes[first].prelim + nodes[last].prelim) / 2.0;
 
     if let Some(ls) = left_sibling(root, nodes) {
-        nodes[root].prelim = nodes[ls].prelim + sep(opts);
+        nodes[root].prelim = nodes[ls].prelim + sep(opts, horizontal);
         nodes[root].mod_ = nodes[root].prelim - mid;
     } else {
         nodes[root].prelim = mid;
@@ -174,6 +182,7 @@ fn apportion(
     mut default_ancestor: usize,
     nodes: &mut [InternalNode],
     opts: &LayoutOptions,
+    horizontal: bool,
 ) -> usize {
     let Some(left) = left_sibling(v, nodes) else {
         return default_ancestor;
@@ -200,7 +209,7 @@ fn apportion(
         vor = next_right(vor, nodes).unwrap();
 
         nodes[vor].ancestor = v;
-        let shift = nodes[vil].prelim + sil - (nodes[vir].prelim + sir) + sep(opts);
+        let shift = nodes[vil].prelim + sil - (nodes[vir].prelim + sir) + sep(opts, horizontal);
         if shift > 0.0 {
             move_subtree(ancestor(vil, v, default_ancestor, nodes), v, shift, nodes);
             sir += shift;
@@ -285,16 +294,18 @@ fn collect_nodes(
 ) {
     let internal = &nodes[idx];
     let source = sources[internal.source];
-    let sep_y = opts.node_height + opts.vertical_gap;
-
-    // first_walk stores prelim in pixel units (sep = node_width + gap).
-    // second_walk copies prelim → x unchanged.  Do NOT multiply by sep again.
-    let x = if horizontal { internal.y * sep_y } else { internal.x };
-    let y = if horizontal {
-        internal.x
+    // internal.x = sibling-axis position (pixels from first_walk/second_walk).
+    // internal.y = depth (integer, 0-based).
+    // Depth axis step depends on direction:
+    //   vertical   → depth maps to Y, step = node_height + v_gap
+    //   horizontal → depth maps to X, step = node_width  + h_gap
+    let depth_step = if horizontal {
+        opts.node_width + opts.horizontal_gap
     } else {
-        internal.y * sep_y
+        opts.node_height + opts.vertical_gap
     };
+    let x = if horizontal { internal.y * depth_step } else { internal.x };
+    let y = if horizontal { internal.x } else { internal.y * depth_step };
 
     let parent_id = internal
         .parent
@@ -406,6 +417,40 @@ mod tests {
         let c = by_id["c"];
         let expected = (center_x(a) + center_x(c)) / 2.0;
         assert!((center_x(r) - expected).abs() < 0.01);
+    }
+
+    #[test]
+    #[test]
+    fn tidy_tree_horizontal_no_overlap() {
+        let root = org_node(
+            "root",
+            vec![
+                org_node("a", vec![org_node("a1", vec![]), org_node("a2", vec![])]),
+                org_node("b", vec![]),
+            ],
+        );
+        let mut opts = default_opts(); // node_width=100, node_height=40, h_gap=20, v_gap=30
+        opts.direction = "horizontal".into();
+
+        let layout = compute_tidy_tree_layout(&root, &opts);
+        let sep_x = opts.node_width + opts.horizontal_gap; // depth step = 120
+        let sep_y = opts.node_height + opts.vertical_gap;  // sibling step = 70
+
+        // Depth increases along X
+        let root_node = layout.nodes.iter().find(|n| n.id == "root").unwrap();
+        let a_node = layout.nodes.iter().find(|n| n.id == "a").unwrap();
+        assert!(a_node.x > root_node.x, "a must be to the right of root");
+        // Depth difference = 1 → x gap = sep_x = 120; include margin
+        let dx = a_node.x - root_node.x;
+        assert!((dx - sep_x).abs() < 1.0, "horizontal depth step mismatch (got {})", dx);
+
+        // Siblings a and b must not overlap along Y
+        let b_node = layout.nodes.iter().find(|n| n.id == "b").unwrap();
+        let (top, bot) = if a_node.y < b_node.y { (a_node, b_node) } else { (b_node, a_node) };
+        let y_gap = bot.y - (top.y + top.height);
+        assert!(y_gap + 0.01 >= opts.vertical_gap, "sibling y-gap {} < v_gap {}", y_gap, opts.vertical_gap);
+        // Siblings too far is also wrong — max 4× sibling step
+        assert!(y_gap <= sep_y * 4.0 + opts.node_height * 4.0, "siblings too far apart (gap={})", y_gap);
     }
 
     #[test]
