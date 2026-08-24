@@ -172,6 +172,10 @@ export {
   defaultNodeTheme,
   darkNodeTheme,
   defaultRenderConfig,
+  classifyStaffEdgeRoute,
+  polylineHitsBoxInterior,
+  mapPositionNodesToStaffEdgeBoxes,
+  mapStaffEdgeBoxesForLod,
   PERSON_CARD_WIDTH,
   PERSON_CARD_HEIGHT,
   GRID_CELL_WIDTH,
@@ -251,6 +255,10 @@ export type {
   OrgSymbolBox,
   OrgSymbolBoxMode,
   OrgSymbolLayout,
+  PersonNodeStyle,
+  StaffEdgeBox,
+  StaffEdgeLink,
+  StaffEdgeRouteVia,
 } from './render/index.js';
 export type { LayoutPatch, OrgHierarchyCallbacks } from './callbacks.js';
 
