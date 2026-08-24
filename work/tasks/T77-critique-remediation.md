@@ -1,7 +1,7 @@
 # T77 — Critique remediation (`CRITIQUE-dg_907f`)
 
 **Пріоритет:** P0 → P2 (див. мікрозадачі)  
-**Статус:** ✅ M10 remaining silent lies  
+**Статус:** ✅ M01–M11 + hanging `parentOrgId` (#57–#61)  
 **Базис:** `dg@1fdb608` (`main` після #56) · critique на `805efee`  
 **Джерело:** [CRITIQUE-dg_907f.md](../tech-debt/CRITIQUE-dg_907f.md)
 
