@@ -220,6 +220,11 @@ export function placeOrgAtMatrixCell(
     return organizations;
   }
 
+  // Already persisted at this cell — no-op (do not rewrite inMatrix / eject).
+  if (target.matrixRow === targetRow && target.matrixCol === targetCol) {
+    return organizations;
+  }
+
   const current = assignMatrixCells(organizations, boundedDims);
   let occupantId: string | undefined;
   for (const [id, cell] of current) {
@@ -231,11 +236,11 @@ export function placeOrgAtMatrixCell(
 
   return organizations.map((org) => {
     if (org.id === orgId) {
+      // Keep inMatrix as authored. `?? false` would mark default members foreign (T78-L7).
       return {
         ...org,
         matrixRow: targetRow,
         matrixCol: targetCol,
-        inMatrix: org.inMatrix ?? false,
       };
     }
     if (occupantId && org.id === occupantId) {

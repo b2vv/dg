@@ -12,24 +12,24 @@ fillet invert, typed promote keys, NaN layout metrics). Цей прохід пи
 
 Усі чотири лінзи зійшлися на одному патерні: **M01 Option B не дочищена** — canvas малює TS button-group, а Rust flood, worker, SVG-grid і Variant B тести лишились другим продуктом.
 
-## Scorecard (2026-08-24, post-T78 P0)
+## Scorecard (2026-08-24, post-T78 P1)
 
 | ID | Статус | Де |
 |----|--------|-----|
-| C1 computeContours then ignore | 🆕 P1 (M01 B не вичистив wiring) | `DiagramRenderer.ts` void computeContours |
+| C1 computeContours then ignore | ✅ T78 P1 | canvas hot path no longer builds IncrementalContourComputer |
 | C2 flat/grid paint без member boxes | ✅ T78 | grid path будує `contourMemberBoxesByDept` |
 | C3 SVG grid ≠ canvas contour | ✅ T78 | SVG grid → `paintMagneticGroups` |
 | L1 staff drag origin з першого gridCell | ✅ T78 | per-card `snapGrid` на pointerdown |
 | L2 hybrid floating siblings в одну точку | ✅ T78 | sibling index + floater-vs-floater eject |
 | L3 row-tree ліс: другий корінь зникає | ✅ T78 | `findExpandedRootIds` + side-by-side forest |
 | L4 export SVG без infer ≠ canvas | ✅ T78 | `inferStaffCurrentOrgId` у export + svg |
-| L5 vacant seat click no-op | 🆕 P1 | `DiagramRenderer` vacant return |
-| L6 drag preview AABB не їде з карткою | 🆕 P1 | preview session boxes |
-| L7 `placeOrgAtMatrixCell` eject / `inMatrix ?? false` | 🆕 P1 | matrixGrid |
-| L8 AABB blob ковтає чужі картки | 🆕 P1 (G5–G7 не на canvas) | contourButtonGroup |
+| L5 vacant seat click no-op | ✅ T78 P1 | vacant tap → `positionNodeRef` |
+| L6 drag preview AABB не їде з карткою | ✅ T78 P1 | `offsetMemberBoxesForGridMove` |
+| L7 `placeOrgAtMatrixCell` eject / `inMatrix ?? false` | ✅ T78 P1 | preserve inMatrix; OOB/same-cell no-op |
+| L8 AABB blob ковтає чужі картки | ✅ T78 P1 documented skip | union AABB; G5–G7 notch not on canvas |
 | L9 PNG без Pixi = порожній «успіх» | ✅ T78 | `ExportError` як PDF |
-| T1 `node-compare` e2e без `expect` | 🆕 P1 | e2e/node-compare |
-| T2 `expandIdsForDepth` cycle = `Array.isArray` | 🆕 P1 | positionExpand.test |
+| T1 `node-compare` e2e без `expect` | ✅ T78 P1 | `expect(node).toBeVisible` + file size |
+| T2 `expandIdsForDepth` cycle = `Array.isArray` | ✅ T78 P1 | cycle expects `['a','root']` |
 | T3 Variant B тести охороняють мертвий Rust path | ✅ T78 | `variantBMagnetRadius` → cluster/paint |
 | T4 `magnetRadius: NaN` → JS splinter / Rust `f32::MAX` | ✅ T78 | `resolveMagnetRadius` + Rust reject |
 

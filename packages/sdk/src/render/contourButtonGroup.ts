@@ -1,6 +1,11 @@
 /**
  * Paint magnetic groups as button-group chrome: one rounded rect around
  * member cards (no cell-flood L/C geometry).
+ *
+ * T78-L8 / G5–G7: canvas wash is the padded union AABB of the cluster, not a
+ * notched flood hull. Cards sitting in the missing corner of an L-shape are
+ * visually inside the blob. That is an intentional Option B skip — rust G5–G7
+ * notch is not on the paint path. Revisit only if product wants the notch.
  */
 import type { ContourClearBox, ContourMemberBox } from './contourClearance.js';
 import { CONTOUR_CORNER_RADIUS, filletClosedRing, type ContourPoint } from './contourFillet.js';
@@ -41,7 +46,8 @@ export function memberBoxesForCluster(
   return members.filter((m) => set.has(m.positionId));
 }
 
-/** Closed ring: expanded AABB of member cards with card-matching corner radius. */
+/** Closed ring: expanded AABB of member cards with card-matching corner radius.
+ * Union AABB on purpose (T78-L8) — no G5–G7 notch on canvas. */
 export function buttonGroupRingFromBoxes(
   boxes: readonly ContourClearBox[],
   margin: number,

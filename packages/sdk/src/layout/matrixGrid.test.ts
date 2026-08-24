@@ -111,4 +111,22 @@ describe('placeOrgAtMatrixCell', () => {
     expect(next.find((o) => o.id === 'b')?.inMatrix).toBe(false);
     expect(next.find((o) => o.id === 'b')?.matrixRow).toBeUndefined();
   });
+
+  it('success: default member (undefined inMatrix) is not coerced to foreign (T78-L7)', () => {
+    const orgs = [org('a', 0), org('b', 1)];
+    const next = placeOrgAtMatrixCell(orgs, 'a', 0, 1, { rows: 2, cols: 2 });
+    expect(next.find((o) => o.id === 'a')?.inMatrix).not.toBe(false);
+    expect(next.find((o) => o.id === 'a')).toMatchObject({ matrixRow: 0, matrixCol: 1 });
+  });
+
+  it('failure: already at target cell is a same-reference no-op (T78-L7)', () => {
+    const orgs = [org('a', 0, { matrixRow: 0, matrixCol: 1 }), org('b', 1)];
+    const next = placeOrgAtMatrixCell(orgs, 'a', 0, 1, { rows: 2, cols: 2 });
+    expect(next).toBe(orgs);
+  });
+
+  it('failure: out-of-bounds cell is a same-reference no-op (T78-L7)', () => {
+    const orgs = [org('a', 0)];
+    expect(placeOrgAtMatrixCell(orgs, 'a', 9, 9, { rows: 2, cols: 2 })).toBe(orgs);
+  });
 });

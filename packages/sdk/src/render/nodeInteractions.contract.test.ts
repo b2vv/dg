@@ -294,6 +294,31 @@ describe('NODE interactions contract', () => {
     });
   });
 
+  describe('SEL-4 vacant seat click selects position (T78-L5)', () => {
+    it('success: vacant pointertap selects by positionId', async () => {
+      const onNodeClick = vi.fn();
+      const { container, diagram } = await mountDiagram(
+        staffWithVacantData(),
+        { onNodeClick },
+        { staffCurrentOrgId: 'o1' },
+      );
+
+      const vacant = findPersonNode(diagram, '(вакансія)');
+      vacant.emit('pointertap', pointerEvent());
+
+      expect(onNodeClick).toHaveBeenCalledTimes(1);
+      expect(onNodeClick.mock.calls[0]![0]).toMatchObject({
+        kind: 'position',
+        id: 'pos-vac',
+      });
+      expect(diagram.getSelection()?.kind).toBe('position');
+      expect(diagram.getSelection()?.id).toBe('pos-vac');
+
+      diagram.destroy();
+      document.body.removeChild(container);
+    });
+  });
+
   describe('SEL-3 modifier click toggles without replacing right-click semantics', () => {
     it('ctrl+tap toggles selection; right-click still skips onNodeClick', async () => {
       const onNodeClick = vi.fn();

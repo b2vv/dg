@@ -26,7 +26,17 @@ export function collapseOrg(
   organizations: DiagramOrganization[],
   orgId: string,
 ): DiagramOrganization[] {
-  return organizations.map((o) => (o.id === orgId ? { ...o, collapsed: true } : o));
+  if (!organizations.some((o) => o.id === orgId)) return organizations;
+  const hide = new Set<string>();
+  const walk = (id: string) => {
+    if (hide.has(id)) return;
+    hide.add(id);
+    for (const o of organizations) {
+      if (o.parentOrgId === id) walk(o.id);
+    }
+  };
+  walk(orgId);
+  return organizations.map((o) => (hide.has(o.id) ? { ...o, collapsed: true } : o));
 }
 
 export function orgHasChildren(
@@ -43,20 +53,21 @@ export function findExpandedRootId(organizations: DiagramOrganization[]): string
 
 /**
  * All expanded roots of a forest (T65 / T78-L3).
- * An expanded org is a root only when it has no parent, or the parent is omitted
- * from this payload. A collapsed parent must not promote children into extra trees:
- * collapse hides the whole subtree (mockup: collapse mid hides peer divisions).
+ * An expanded org is a root when its parent is missing, omitted from this
+ * payload, or collapsed. Collapse of a parent must collapse the subtree
+ * (`collapseOrg`) so leftover expanded flags do not spawn extra trees
+ * (mockup: collapse mid hides peer divisions). Explicitly expanding a nested
+ * org while ancestors stay collapsed is a forest root (A12).
  */
 export function findExpandedRootIds(organizations: DiagramOrganization[]): string[] {
   const expanded = organizations.filter((o) => !isOrgCollapsed(o));
   if (expanded.length === 0) return [];
 
   const byId = new Map(organizations.map((o) => [o.id, o]));
-  // Forest roots: no parent, or parent omitted from this payload.
-  // A collapsed parent must NOT promote children into extra trees (collapse hides the subtree).
   const roots = expanded.filter((o) => {
     if (!o.parentOrgId) return true;
-    return !byId.has(o.parentOrgId);
+    const parent = byId.get(o.parentOrgId);
+    return !parent || isOrgCollapsed(parent);
   });
 
   const depth = (id: string, seen = new Set<string>()): number => {

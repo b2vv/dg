@@ -3,6 +3,7 @@ import {
   detectOrgMode,
   collapseAllOrgs,
   expandOrg,
+  collapseOrg,
   findExpandedRootIds,
   isOrgCollapsed,
 } from './orgMode.js';
@@ -42,9 +43,9 @@ describe('findExpandedRootIds (T78-L3)', () => {
     expect(findExpandedRootIds(orgs)).toEqual(['a', 'b']);
   });
 
-  it('success: expanded child under collapsed parent is hidden, not a second root', () => {
+  it('success: expanded child under collapsed parent is its own forest root (A12)', () => {
     const orgs = [org('a', true), org('b', false, 'a')];
-    expect(findExpandedRootIds(orgs)).toEqual([]);
+    expect(findExpandedRootIds(orgs)).toEqual(['b']);
   });
 
   it('failure: expanded child under expanded parent is not a second root', () => {
@@ -65,5 +66,21 @@ describe('org state helpers', () => {
     const next = expandOrg(orgs, 'b');
     expect(next.find((o) => o.id === 'b')?.collapsed).toBe(false);
     expect(next.find((o) => o.id === 'a')?.collapsed).toBe(true);
+  });
+
+  it('success: collapseOrg collapses the subtree so children are not promoted as forest roots', () => {
+    const orgs = [org('a', false), org('b', false, 'a'), org('c', false)];
+    const next = collapseOrg(orgs, 'a');
+    expect(next.find((o) => o.id === 'a')?.collapsed).toBe(true);
+    expect(next.find((o) => o.id === 'b')?.collapsed).toBe(true);
+    expect(next.find((o) => o.id === 'c')?.collapsed).toBe(false);
+    expect(findExpandedRootIds(next)).toEqual(['c']);
+  });
+
+  it('failure: collapseOrg unknown id is a no-op', () => {
+    const orgs = [org('a', false)];
+    const next = collapseOrg(orgs, 'missing');
+    expect(next).toEqual(orgs);
+    expect(next.find((o) => o.id === 'a')?.collapsed).toBe(false);
   });
 });
