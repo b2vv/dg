@@ -118,9 +118,12 @@ npm run dev          # http://localhost:3000
 71. [T76-diagram-facade-stores.md](./tasks/T76-diagram-facade-stores.md) — ✅ D4 stores
 72. [REVIEW-dg-pr56-media-and-abstraction.md](./tasks/REVIEW-dg-pr56-media-and-abstraction.md) — ✅ D6 remediated
 73. [REVIEW-t74-t76-pocock-gof.md](./tasks/REVIEW-t74-t76-pocock-gof.md) — ✅ Pocock + GoF pass
+74. [T77-critique-remediation.md](./tasks/T77-critique-remediation.md) — 🚧 critique P0–P2 (M01–M11)
+    - [M01](./tasks/T77-M01-contour-wire-or-delete.md) · [M02](./tasks/T77-M02-worker-error-listeners.md) · [M03](./tasks/T77-M03-pixihost-destroy-during-create.md) · [M04](./tasks/T77-M04-appenddata-dedupe.md) · [M05](./tasks/T77-M05-drag-grab-offset-grid-pitch.md) · [M06](./tasks/T77-M06-expand-nonroot-forest.md) · [M07](./tasks/T77-M07-lying-tests.md) · [M08](./tasks/T77-M08-validate-search-perf.md) · [M09](./tasks/T77-M09-dead-code-purge.md) · [M10](./tasks/T77-M10-silent-lies.md) · [M11](./tasks/T77-M11-crash-hardening.md)
 
 ## Технічний борг
 
+- [CRITIQUE-dg_907f.md](./tech-debt/CRITIQUE-dg_907f.md) — зведення 4 оглядів → [T77](./tasks/T77-critique-remediation.md)
 - [REVIEW-dg-805efee-architecture.md](./tech-debt/REVIEW-dg-805efee-architecture.md) — ✅ D1–D7 closed
 - [D5-orphan-position-layout.md](./tech-debt/D5-orphan-position-layout.md) — ✅ documented (not a bug)
 - [TD01-git-remote-and-ci.md](./tech-debt/TD01-git-remote-and-ci.md) — ✅ closed (`b2vv/dg`)

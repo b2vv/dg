@@ -69,7 +69,7 @@ export function buildOrgSearchIndex(organizations: DiagramOrganization[]): Searc
     pushEntry(index, {
       node: { kind: 'organization', id: org.id, organizationId: org.id },
       label: org.name,
-      haystack: `${org.name} ${orgTestId(org)} ${org.id}`.toLowerCase(),
+      haystack: `${org.name} ${orgTestId(org)} ${org.id}`.normalize('NFC').toLowerCase(),
     });
   }
   return index;
@@ -108,7 +108,7 @@ export function buildSearchIndexFromPositionRows(rows: PositionSearchRow[]): Sea
         personId: row.personId,
       },
       label: row.label,
-      haystack: `${row.label} ${row.title} ${row.personTestId ?? ''} ${row.positionTestId ?? ''} ${row.positionId}`.toLowerCase(),
+      haystack: `${row.label} ${row.title} ${row.personTestId ?? ''} ${row.positionTestId ?? ''} ${row.positionId}`.normalize('NFC').toLowerCase(),
     });
     pushEntry(index, {
       node: {
@@ -120,7 +120,7 @@ export function buildSearchIndexFromPositionRows(rows: PositionSearchRow[]): Sea
         personId: row.personId,
       },
       label: row.title,
-      haystack: `${row.title} ${row.label} ${row.positionTestId ?? ''} ${row.positionId}`.toLowerCase(),
+      haystack: `${row.title} ${row.label} ${row.positionTestId ?? ''} ${row.positionId}`.normalize('NFC').toLowerCase(),
     });
   }
   return index;
@@ -182,23 +182,33 @@ export function searchIndex(
   limit = 50,
 ): SearchResult[] {
   if (!index) return [];
-  const q = query.trim().toLowerCase();
+  const q = query.trim().normalize('NFC').toLowerCase();
   if (!q) return [];
 
-  const scored: SearchResult[] = [];
-  const seed = q[0]!;
-  const candidateIdx = index.byChar.get(seed);
-  const candidates = candidateIdx
-    ? candidateIdx.map((i) => index.entries[i]!)
-    : index.entries;
+  // B5: use first code point (not code unit) so non-BMP queries work.
+  const seed = String.fromCodePoint(q.codePointAt(0)!);
+  // Early exit: if the first character has no entries, nothing can match.
+  if (!index.byChar.has(seed)) return [];
 
-  for (const entry of candidates) {
-    const idx = entry.haystack.indexOf(q);
-    if (idx < 0) continue;
-    const score = idx === 0 ? 2 : 1;
-    scored.push({ node: entry.node, label: entry.label, score });
+  const candidateIdx = index.byChar.get(seed)!;
+  const exact: SearchResult[] = [];
+  const partial: SearchResult[] = [];
+
+  for (const i of candidateIdx) {
+    const entry = index.entries[i]!;
+    const pos = entry.haystack.indexOf(q);
+    if (pos < 0) continue;
+    if (pos === 0) {
+      exact.push({ node: entry.node, label: entry.label, score: 2 });
+    } else {
+      partial.push({ node: entry.node, label: entry.label, score: 1 });
+    }
   }
 
-  scored.sort((a, b) => b.score - a.score || a.label.localeCompare(b.label));
-  return scored.slice(0, limit);
+  // B4: sort both buckets fully so top-k is stable (order is by label asc within bucket).
+  exact.sort((a, b) => a.label.localeCompare(b.label));
+  partial.sort((a, b) => a.label.localeCompare(b.label));
+
+  const take = Math.max(0, limit - exact.length);
+  return [...exact.slice(0, limit), ...partial.slice(0, take)];
 }

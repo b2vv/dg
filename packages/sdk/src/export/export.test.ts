@@ -1,12 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { VARIANT_B_POSITIONS } from '../contour/bridge.js';
 import { assertExportOptions, ExportError } from './types.js';
 import { filterDiagramSubtree } from './subtree.js';
 import { buildDiagramSvg } from './svgExport.js';
 import { exportDiagram } from './exportDiagram.js';
 import { rgbImageToPdf, solidRgb } from './pdfExport.js';
+import { setCanvasToBlobImpl } from './pngExport.js';
 import type { DiagramData } from '../data/types.js';
 import { defaultRenderConfig } from '../render/types.js';
+
+afterEach(() => setCanvasToBlobImpl(null));
 
 function variantB(): DiagramData {
   return {
@@ -64,7 +67,11 @@ describe('exportDiagram', () => {
     ).rejects.toThrow(/mounted/i);
   });
 
-  it('success: png → image/png blob', async () => {
+  it('success: png → image/png blob with real pixel data (not 8-byte sig)', async () => {
+    // Inject a seam that returns a non-trivial PNG-like blob (simulates real canvas export).
+    const fakePixels = new Uint8Array(100).fill(0xff);
+    setCanvasToBlobImpl(async () => new Blob([fakePixels], { type: 'image/png' }));
+
     const result = await exportDiagram(
       {
         data: variantB(),
@@ -76,7 +83,26 @@ describe('exportDiagram', () => {
       { format: 'png', scope: 'full' },
     );
     expect(result).toBeInstanceOf(Blob);
-    expect((result as Blob).type).toBe('image/png');
+    const blob = result as Blob;
+    expect(blob.type).toBe('image/png');
+    // Must be the injected blob (100 bytes), not the 8-byte PNG signature fallback.
+    expect(blob.size).toBe(100);
+  });
+
+  it('failure: png without seam throws ExportError in jsdom (B6 — no silent 8-byte stub)', async () => {
+    // In jsdom, toBlob never fires and toDataURL is not implemented → ExportError.
+    await expect(
+      exportDiagram(
+        {
+          data: variantB(),
+          mounted: true,
+          app: null,
+          renderConfig: defaultRenderConfig,
+          currentOrgId: 'org1',
+        },
+        { format: 'png', scope: 'full' },
+      ),
+    ).rejects.toThrow(/PNG export failed/i);
   });
 
   it('success: svg contains path d=', async () => {

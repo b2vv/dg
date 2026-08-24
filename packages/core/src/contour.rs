@@ -657,8 +657,10 @@ pub fn compute_dept_contour(
         apply_g7_peel_vacant_exterior(&mut inside, &own_set, pad);
         let raw_corners = trace_orthogonal_contour(&inside, &work_bbox);
 
-        let smooth_pts = if config.smooth_iterations > 0 {
-            chaikin(&raw_corners, config.smooth_iterations)
+        // A9: clamp smooth_iterations to prevent OOM (18+ iterations ≈ 1.5M pts).
+        let smooth_iters = config.smooth_iterations.min(8);
+        let smooth_pts = if smooth_iters > 0 {
+            chaikin(&raw_corners, smooth_iters)
         } else {
             raw_corners
                 .iter()
@@ -1145,24 +1147,38 @@ mod tests {
         assert_eq!(d.smooth_iterations, 2);
     }
 
-    /// G6: foreign blocks flood — no IT perimeter through CEO cell center (implicit).
+    /// G6: CEO (1,1) flanked by IT cells — contour has notch (≥ 8 corners).
+    /// A box spanning all IT (no notch) would have corner_count == 4.
+    /// This is the same 2D topology as variant_b but minimal: two IT above + one CEO between.
     #[test]
     fn g6_implicit_foreign_blocks_flood() {
+        // CEO at (1,1) between IT above-left (0,0) and above-right (2,0)
+        // and IT below-left (0,2) and below-right (2,2).
+        // Matches variant_b topology but with only 4 IT cells.
         let positions = vec![
             pos("P1", "IT", 0, 0),
             pos("P2", "IT", 2, 0),
-            pos("P4", "CEO", 1, 0),
+            pos("P4", "CEO", 1, 1),
+            pos("P5", "IT", 0, 2),
+            pos("P6", "IT", 2, 2),
         ];
         let mut cfg = ContourMagnetConfig::default();
         cfg.magnet_radius = 2.0;
         cfg.smooth_iterations = 0;
         let rs = compute_dept_contour("IT", &positions, &cfg).unwrap();
-        // Two IT cells with foreign between → one component when radius covers gap 2;
-        // flood must not treat CEO cell as inside.
-        assert!(!rs.is_empty());
-        for r in rs {
-            assert!(r.path.contains('M'));
-        }
+        assert_eq!(rs.len(), 1, "expected exactly one merged IT component");
+        let r = &rs[0];
+        // A rectangle spanning cols 0–2, rows 0–2 (CEO captured) has corner_count == 4.
+        // A notched contour preserving G6 (no far-side fill by CEO) has corner_count >= 8.
+        assert!(
+            r.corner_count >= 8,
+            "notched IT contour needs ≥ 8 corners (got {}); G6 may not be respecting CEO",
+            r.corner_count
+        );
+        // CEO center must NOT be inside IT fill.
+        let ceo_cx = 1.5 * cfg.cell_width;
+        let ceo_cy = 1.5 * cfg.cell_height;
+        assert!(!point_in_poly(ceo_cx, ceo_cy, &r.points), "CEO must be outside IT fill");
     }
 }
 

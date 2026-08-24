@@ -78,6 +78,17 @@ describe('OrgHierarchyDiagram interactions', () => {
     document.body.removeChild(container);
   });
 
+  it('success: expandOrg on child keeps root visible (A12)', async () => {
+    const { container, diagram } = await mount();
+    await diagram.expandOrg('org1');
+    const orgs = diagram.getData().organizations;
+    expect(orgs.find((o) => o.id === 'org1')?.collapsed).toBe(false);
+    expect(orgs.find((o) => o.id === 'root')?.collapsed).toBe(false);
+    expect(diagram.getOrgMode()).toBe('row-tree');
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
+
   it('failure: focusNode unknown → false no-op', async () => {
     const { container, diagram } = await mount();
     expect(await diagram.focusNode('nope')).toBe(false);
@@ -116,6 +127,42 @@ describe('OrgHierarchyDiagram interactions', () => {
   it('failure: appendData without mapper throws', async () => {
     const { container, diagram } = await mount();
     await expect(diagram.appendData({ x: 1 })).rejects.toThrow(InteractionError);
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
+
+  it('success: appendData dedupes by id on repeat chunk (A6)', async () => {
+    const { container, diagram } = await mount();
+    const before = diagram.getData().organizations.length;
+    await diagram.appendData(
+      {
+        organizations: [{ id: 'org1', name: 'Demo Org Renamed', groupIds: [], parentOrgId: 'root' }],
+        groups: [],
+        departments: [],
+        persons: [],
+        positions: [],
+        reportLines: [],
+      },
+      { toDiagram: async (chunk) => chunk as ReturnType<typeof makeData> },
+    );
+    expect(diagram.getData().organizations).toHaveLength(before);
+    expect(diagram.getData().organizations.find((o) => o.id === 'org1')?.name).toBe(
+      'Demo Org Renamed',
+    );
+    await expect(
+      diagram.appendData(
+        {
+          organizations: [{ id: 'org1', name: 'Again', groupIds: [], parentOrgId: 'root' }],
+          groups: [],
+          departments: [],
+          persons: [],
+          positions: [],
+          reportLines: [],
+        },
+        { toDiagram: async (chunk) => chunk as ReturnType<typeof makeData> },
+      ),
+    ).resolves.toBeUndefined();
+    expect(diagram.getData().organizations).toHaveLength(before);
     diagram.destroy();
     document.body.removeChild(container);
   });

@@ -25,23 +25,43 @@ export function mapInWorker<TIn, TOut>(
   const id = `map-${++nextId}`;
 
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
+    let settled = false;
+
+    const settle = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
       worker.removeEventListener('message', onMessage);
-      reject(new Error(`Worker timeout: ${mapperKey}`));
+      worker.removeEventListener('error', onError);
+      worker.removeEventListener('messageerror', onMessageError);
+      fn();
+    };
+
+    const timeout = setTimeout(() => {
+      settle(() => reject(new Error(`Worker timeout: ${mapperKey}`)));
     }, timeoutMs);
 
     const onMessage = (ev: MessageEvent<WorkerResponse<TOut>>) => {
-      if (ev.data.id !== id) return;
-      clearTimeout(timeout);
-      worker.removeEventListener('message', onMessage);
+      if (ev.data?.id !== id) return;
       if (ev.data.ok) {
-        resolve(ev.data.result as TOut);
+        settle(() => resolve(ev.data.result as TOut));
       } else {
-        reject(new Error(ev.data.error ?? 'Worker error'));
+        settle(() => reject(new Error(ev.data.error ?? 'Worker error')));
       }
     };
 
+    const onError = (ev: ErrorEvent) => {
+      const detail = ev.message || 'Worker error event';
+      settle(() => reject(new Error(detail)));
+    };
+
+    const onMessageError = () => {
+      settle(() => reject(new Error(`Worker messageerror: ${mapperKey}`)));
+    };
+
     worker.addEventListener('message', onMessage);
+    worker.addEventListener('error', onError);
+    worker.addEventListener('messageerror', onMessageError);
 
     const req: WorkerRequest<TIn> = { id, type: 'run-step', mapperKey, payload: input };
     if (transfer?.length) {

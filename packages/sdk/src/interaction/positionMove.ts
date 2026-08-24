@@ -17,6 +17,31 @@ export function snapToGrid(
   return { col, row };
 }
 
+/** Snap card top-left in world space to grid cell (staff pitch + origin + inset). */
+export function snapWorldToCell(
+  x: number,
+  y: number,
+  opts: {
+    pitchX: number;
+    pitchY: number;
+    originX?: number;
+    originY?: number;
+    insetX?: number;
+    insetY?: number;
+  },
+): GridSnap {
+  const originX = opts.originX ?? 0;
+  const originY = opts.originY ?? 0;
+  const insetX = opts.insetX ?? 0;
+  const insetY = opts.insetY ?? 0;
+  const pitchX = opts.pitchX > 0 ? opts.pitchX : 1;
+  const pitchY = opts.pitchY > 0 ? opts.pitchY : 1;
+  return {
+    col: Math.round((x - originX - insetX) / pitchX),
+    row: Math.round((y - originY - insetY) / pitchY),
+  };
+}
+
 export function isValidGridCell(col: number, row: number): boolean {
   return Number.isInteger(col) && Number.isInteger(row) && col >= 0 && row >= 0;
 }

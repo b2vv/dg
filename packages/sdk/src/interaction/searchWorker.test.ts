@@ -71,8 +71,8 @@ function mockWorker(handlerFn: (payload: unknown, key: string) => unknown): Work
         }
       });
     }),
-    addEventListener: vi.fn((_e: string, fn: (ev: MessageEvent) => void) => {
-      onMessage = fn;
+    addEventListener: vi.fn((event: string, fn: (ev: MessageEvent) => void) => {
+      if (event === 'message') onMessage = fn;
     }),
     removeEventListener: vi.fn(),
     terminate: vi.fn(),

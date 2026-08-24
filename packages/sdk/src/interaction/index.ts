@@ -23,6 +23,7 @@ export {
 export { revealOrgPath, resolveOrganizationIdForNode } from './revealPath.js';
 export {
   snapToGrid,
+  snapWorldToCell,
   isValidGridCell,
   movePositionToCell,
   shiftPositionBlock,

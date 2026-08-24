@@ -8,6 +8,8 @@ export interface PixiHostOptions {
   maxScale?: number;
   /** Override device pixel ratio (tests). Default: `window.devicePixelRatio`. */
   resolution?: number;
+  /** Abort in-flight `create` / `init` (React StrictMode, route change). */
+  signal?: AbortSignal;
 }
 
 /** Crisp canvas text/sprites under browser zoom / retina (capped at 3×). */
@@ -38,8 +40,21 @@ export class PixiHost {
       throw new Error('OrgHierarchyDiagram: container is required');
     }
     const host = new PixiHost();
-    await host.init(container, options);
-    return host;
+    const onAbort = () => host.destroy();
+    if (options.signal?.aborted) {
+      host.destroy();
+      throw new Error('PixiHost destroyed during create');
+    }
+    options.signal?.addEventListener('abort', onAbort);
+    try {
+      await host.init(container, options);
+      if (host.destroyed) {
+        throw new Error('PixiHost destroyed during create');
+      }
+      return host;
+    } finally {
+      options.signal?.removeEventListener('abort', onAbort);
+    }
   }
 
   getCanvas(): HTMLCanvasElement | null {
@@ -117,6 +132,12 @@ export class PixiHost {
       // Do not use resizeTo: a 0-height mount (CSS not loaded / mobile layout)
       // would shrink the canvas to empty; we drive size via ResizeObserver mins.
     });
+
+    // StrictMode / route change may call destroy() while Application.init awaits.
+    if (this.destroyed) {
+      app.destroy(true, { children: true });
+      return;
+    }
 
     this.app = app;
     container.appendChild(app.canvas);

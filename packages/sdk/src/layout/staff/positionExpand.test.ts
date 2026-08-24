@@ -158,3 +158,34 @@ describe('layoutStaffOrgBlock + collapseUnexpandedPositions', () => {
     expect(orphan.x).toBeGreaterThan(head.x + head.width);
   });
 });
+
+describe('expandIdsForDepth — A7 Infinity + cycle guard', () => {
+  it('success: expandToDepth(Infinity) terminates on acyclic tree', () => {
+    const positions = [
+      pos('root', 'o1', { isHead: true }),
+      pos('a', 'o1'),
+      pos('b', 'o1'),
+    ];
+    const reports: DiagramReportLine[] = [
+      { fromId: 'root', toId: 'a', kind: 'admin' },
+      { fromId: 'root', toId: 'b', kind: 'admin' },
+    ];
+    const ids = expandIdsForDepth(positions, reports, 'o1', Infinity);
+    expect(ids).toContain('root');
+    expect(ids).not.toContain('a');
+  });
+
+  it('failure: cyclic reportLines do not hang expandIdsForDepth (A7)', () => {
+    const positions = [
+      pos('root', 'o1', { isHead: true }),
+      pos('a', 'o1'),
+    ];
+    const reports: DiagramReportLine[] = [
+      { fromId: 'root', toId: 'a', kind: 'admin' },
+      { fromId: 'a', toId: 'root', kind: 'admin' }, // self-cycle back
+    ];
+    // Must not hang or throw stack overflow.
+    const ids = expandIdsForDepth(positions, reports, 'o1', Infinity);
+    expect(Array.isArray(ids)).toBe(true);
+  });
+});

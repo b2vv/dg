@@ -33,23 +33,59 @@ pub fn validate_org_hierarchy(organizations: &[OrgFlatInput]) -> Result<(), OrgT
         }
     }
 
+    // Tri-color DFS: each node proven acyclic at most once → O(n) total.
+    let by_id: HashMap<&str, &'_ OrgFlatInput> =
+        organizations.iter().map(|o| (o.id.as_str(), o)).collect();
+
+    let mut done: HashSet<&str> = HashSet::new();
+    let mut in_stack: HashSet<&str> = HashSet::new();
+
     for org in organizations {
-        if has_cycle(&org.id, organizations) {
-            return Err(OrgTreeError::Cycle(org.id.clone()));
+        if done.contains(org.id.as_str()) {
+            continue;
+        }
+        if let Some(cycle_id) =
+            walk_parent_chain(org.id.as_str(), &by_id, &mut done, &mut in_stack)
+        {
+            return Err(OrgTreeError::Cycle(cycle_id.to_string()));
         }
     }
 
     Ok(())
 }
 
-fn has_cycle(start_id: &str, organizations: &[OrgFlatInput]) -> bool {
-    let by_id: HashMap<&str, &OrgFlatInput> = organizations
-        .iter()
-        .map(|o| (o.id.as_str(), o))
-        .collect();
-    let mut visited = HashSet::new();
+fn walk_parent_chain<'a>(
+    start_id: &'a str,
+    by_id: &HashMap<&str, &'a OrgFlatInput>,
+    done: &mut HashSet<&'a str>,
+    in_stack: &mut HashSet<&'a str>,
+) -> Option<&'a str> {
+    let mut path: Vec<&'a str> = Vec::new();
     let mut cur = Some(start_id);
 
+    while let Some(id) = cur {
+        if done.contains(id) {
+            break;
+        }
+        if in_stack.contains(id) {
+            return Some(id);
+        }
+        in_stack.insert(id);
+        path.push(id);
+        cur = by_id.get(id).and_then(|o| o.parent_org_id.as_deref());
+    }
+
+    for id in &path {
+        in_stack.remove(id);
+        done.insert(id);
+    }
+    None
+}
+
+#[allow(dead_code)]
+fn has_cycle(start_id: &str, by_id: &HashMap<&str, &OrgFlatInput>) -> bool {
+    let mut visited = HashSet::new();
+    let mut cur = Some(start_id);
     while let Some(id) = cur {
         if !visited.insert(id) {
             return true;

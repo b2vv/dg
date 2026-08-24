@@ -5,7 +5,7 @@ import type { RenderConfig, PersonNodeStyle } from '../render/types.js';
 import { assertExportOptions, ExportError, type ExportOptions } from './types.js';
 import { filterDiagramSubtree } from './subtree.js';
 import { buildDiagramSvg } from './svgExport.js';
-import { extractPngFromPixi, pngBlobToPdfBlob } from './pngExport.js';
+import { extractPngFromPixi, pngBlobToPdfBlob, pngFallbackBlob } from './pngExport.js';
 
 export interface ExportContext {
   data: DiagramData;
@@ -51,7 +51,8 @@ export async function exportDiagram(
     if (ctx.app) {
       return extractPngFromPixi(ctx.app);
     }
-    // No Pixi — rasterize via empty canvas placeholder (still image/png)
+    // No Pixi — rasterize via canvas fill, then canvasToPngBlob.
+    // Throws ExportError if toBlob/toDataURL are unavailable (e.g. jsdom without canvas pkg).
     const canvas = document.createElement('canvas');
     canvas.width = options.width ?? 800;
     canvas.height = 600;
