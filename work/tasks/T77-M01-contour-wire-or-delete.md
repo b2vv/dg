@@ -1,21 +1,23 @@
 # T77-M01 — Contour: wire `_results` або delete pipeline
 
 **Епік:** [T77](./T77-critique-remediation.md) · **Critique:** §1.1, §1.4, §6  
-**Пріоритет:** P0 (decision) · **Статус:** 📋
+**Пріоритет:** P0 (decision) · **Статус:** ✅ (рішення B)  
+**Дата:** 2026-08-24
 
-## Проблема
+## Рішення: **B — Delete from paint path**
 
-`applyContourResults(_results, …)` ігнорує WASM-результат; фарбує `buildPaintRingsByDept()` (AABB button-group). G5–G7 на канвасі немає; worker round-trip даремний.
+Canvas лишає TS button-group / `buildPaintRingsByDept` (AABB + polish).  
+`DiagramRenderer` **більше не** `await compute*` і не ігнорує `_results`.
 
-## Рішення (обрати одне)
+| Залишається | Видаляється з hot path |
+|-------------|------------------------|
+| `contourCluster` + `contourPolish` + paint | Worker/WASM round-trip у `paintContours` / drag preview |
+| Public `computeAllContours*` API (export/tests) | Споживання compute у renderer |
 
-| Опція | Дія |
-|-------|-----|
-| **A — Wire** | Малювати з `DeptContourResult` (path → world via `contourWorld`); AABB лише fallback |
-| **B — Delete** | Прибрати compute await + `contour.rs` pipeline споживачів; лишити TS paint (~200 LOC) |
+Повний purge `contour.rs` / pipeline → [M09](./T77-M09-dead-code-purge.md).
 
 ## Acceptance
 
-- [ ] Зафіксоване рішення A або B у цьому файлі.
-- [ ] Немає «compute then ignore».
-- [ ] SPEC/status узгоджені з тим, що реально на екрані.
+- [x] Зафіксоване рішення B у цьому файлі.
+- [x] Немає «compute then ignore» у `DiagramRenderer`.
+- [ ] SPEC/status узгоджені з тим, що реально на екрані (follow-up docs).

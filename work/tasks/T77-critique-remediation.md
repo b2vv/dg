@@ -13,7 +13,7 @@
 
 | ID | Файл | Пріоритет | Статус |
 |----|------|-----------|--------|
-| **M01** | [T77-M01-contour-wire-or-delete.md](./T77-M01-contour-wire-or-delete.md) | P0 decision | 📋 |
+| **M01** | [T77-M01-contour-wire-or-delete.md](./T77-M01-contour-wire-or-delete.md) | P0 decision | ✅ B |
 | **M02** | [T77-M02-worker-error-listeners.md](./T77-M02-worker-error-listeners.md) | P0 | ✅ |
 | **M03** | [T77-M03-pixihost-destroy-during-create.md](./T77-M03-pixihost-destroy-during-create.md) | P0 | ✅ |
 | **M04** | [T77-M04-appenddata-dedupe.md](./T77-M04-appenddata-dedupe.md) | P0 | ✅ |

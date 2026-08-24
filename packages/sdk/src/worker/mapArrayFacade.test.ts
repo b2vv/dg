@@ -64,8 +64,8 @@ describe('mapArrayInPool facade', () => {
             } as MessageEvent);
           });
         }),
-        addEventListener: vi.fn((_e: string, fn: (ev: MessageEvent) => void) => {
-          onMessage = fn;
+        addEventListener: vi.fn((event: string, fn: (ev: MessageEvent) => void) => {
+          if (event === 'message') onMessage = fn;
         }),
         removeEventListener: vi.fn(),
         terminate: vi.fn(),
@@ -146,8 +146,8 @@ describe('mapFlatRowsInPool', () => {
             } as MessageEvent);
           });
         }),
-        addEventListener: vi.fn((_e: string, fn: (ev: MessageEvent) => void) => {
-          onMessage = fn;
+        addEventListener: vi.fn((event: string, fn: (ev: MessageEvent) => void) => {
+          if (event === 'message') onMessage = fn;
         }),
         removeEventListener: vi.fn(),
         terminate: vi.fn(),

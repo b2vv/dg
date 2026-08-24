@@ -1,6 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
 import {
-  computeAllContours,
   type ContourMagnetConfig,
   type ContourPositionInput,
   type DeptContourResult,
@@ -66,6 +65,10 @@ export type ContourComputer = (
 ) => Promise<DeptContourResult[]>;
 
 export interface RenderOptions {
+  /**
+   * @deprecated T77-M01 Option B — canvas paints TS button-group rings only.
+   * Rust/worker contour compute is no longer invoked from DiagramRenderer.
+   */
   computeContours?: ContourComputer;
   orgLayout?: OrgLayoutOptions;
   lod?: LodLevel;
@@ -122,7 +125,6 @@ export interface NodeWorldBox {
 interface ContourSession {
   baseInputs: ContourPositionInput[];
   inputs: ContourPositionInput[];
-  compute: ContourComputer;
   magnet: ContourMagnetConfig;
   style: DepartmentBlobStyle;
   lod: LodLevel;
@@ -419,7 +421,6 @@ export class DiagramRenderer {
 
   private beginContourSession(args: {
     inputs: ContourPositionInput[];
-    compute: ContourComputer;
     magnet: ContourMagnetConfig;
     style: DepartmentBlobStyle;
     lod: LodLevel;
@@ -487,7 +488,7 @@ export class DiagramRenderer {
     blob.destroy();
   }
 
-  private applyContourResults(_results: DeptContourResult[], morph: boolean): void {
+  private refreshContourPaint(morph: boolean): void {
     const session = this.contourSession;
     if (!session) return;
 
@@ -566,8 +567,8 @@ export class DiagramRenderer {
     config: RenderConfig,
     options: RenderOptions,
   ): Promise<void> {
-    const compute = options.computeContours ?? computeAllContours;
-    // Rust: membership/cluster count only — pad/smooth do not affect paint (button-group).
+    // T77-M01 Option B: paint TS button-group rings only — do not await Rust/worker.
+    void options.computeContours;
     const magnet: ContourMagnetConfig = {
       paddingCells: 0,
       cellWidth: config.cellWidth,
@@ -580,7 +581,6 @@ export class DiagramRenderer {
     const personCounts = countPositionsByDept(data.positions);
     this.beginContourSession({
       inputs,
-      compute,
       magnet,
       style: theme.department,
       lod,
@@ -592,30 +592,24 @@ export class DiagramRenderer {
       paintSmoothIterations: config.smoothIterations,
       memberBoxesByDept: options.contourMemberBoxesByDept,
     });
-    const contours = await compute(inputs, magnet);
     if (this.destroyed || !this.contourSession) return;
-    this.applyContourResults(contours, false);
+    this.refreshContourPaint(false);
   }
 
   private async restoreContoursAfterFailedDrag(): Promise<void> {
     const session = this.contourSession;
     if (!session) return;
     session.inputs = session.baseInputs.map((p) => ({ ...p }));
-    const gen = ++session.previewGen;
-    const results = await session.compute(session.inputs, session.magnet);
-    if (this.destroyed || !this.contourSession || gen !== this.contourSession.previewGen) return;
-    this.applyContourResults(results, true);
+    session.previewGen += 1;
+    this.refreshContourPaint(true);
   }
 
   private async previewDragContours(positionId: string, col: number, row: number): Promise<void> {
     const session = this.contourSession;
     if (!session || col < 0 || row < 0) return;
-    const inputs = session.inputs.map((p) => (p.id === positionId ? { ...p, col, row } : p));
-    const gen = ++session.previewGen;
-    const results = await session.compute(inputs, session.magnet);
-    if (this.destroyed || !this.contourSession || gen !== this.contourSession.previewGen) return;
-    this.contourSession.inputs = inputs;
-    this.applyContourResults(results, true);
+    session.inputs = session.inputs.map((p) => (p.id === positionId ? { ...p, col, row } : p));
+    session.previewGen += 1;
+    this.refreshContourPaint(true);
   }
 
   private bindPersonInteractions(

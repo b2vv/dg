@@ -17,8 +17,8 @@ describe('createContourPipeline', () => {
           });
         });
       }),
-      addEventListener: vi.fn((_e: string, fn: (ev: MessageEvent) => void) => {
-        handler = fn;
+      addEventListener: vi.fn((event: string, fn: (ev: MessageEvent) => void) => {
+        if (event === 'message') handler = fn;
       }),
       removeEventListener: vi.fn(),
       terminate: vi.fn(),
@@ -52,8 +52,8 @@ describe('mapInWorker flatRowsToDiagram', () => {
           handler({ data: { id: req.id, ok: true, result: data } });
         });
       }),
-      addEventListener: vi.fn((_e: string, fn: (ev: MessageEvent) => void) => {
-        handler = fn;
+      addEventListener: vi.fn((event: string, fn: (ev: MessageEvent) => void) => {
+        if (event === 'message') handler = fn;
       }),
       removeEventListener: vi.fn(),
       terminate: vi.fn(),
