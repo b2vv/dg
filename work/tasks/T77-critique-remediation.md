@@ -22,7 +22,7 @@
 | **M07** | [T77-M07-lying-tests.md](./T77-M07-lying-tests.md) | P1 | ✅ |
 | **M08** | [T77-M08-validate-search-perf.md](./T77-M08-validate-search-perf.md) | P1 | ✅ |
 | **M09** | [T77-M09-dead-code-purge.md](./T77-M09-dead-code-purge.md) | P1 | ✅ (часткове) |
-| **M10** | [T77-M10-silent-lies.md](./T77-M10-silent-lies.md) | P2 | 📋 |
+| **M10** | [T77-M10-silent-lies.md](./T77-M10-silent-lies.md) | P2 | ✅ (часткове) |
 | **M11** | [T77-M11-crash-hardening.md](./T77-M11-crash-hardening.md) | P1 | ✅ |
 
 ---

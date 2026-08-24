@@ -6,6 +6,37 @@
 **Статус:** усі чотири огляди завершені.
 **Remediation:** [T77](../tasks/T77-critique-remediation.md) (M01–M11) · гілка `cursor/t77-critique-remediation-babc`
 
+## Scorecard (2026-08-24)
+
+| ID | Статус | Коміт |
+|----|--------|-------|
+| §1.1 C1 compute-then-ignore | ✅ M01 Option B | `d1db4a2` |
+| §1.2 layout.rs dead | 📋 M09 deferred | — |
+| §1.3 pipeline no consumers | ✅ M09 `@deprecated` | `8241d12` |
+| A1 dup-id wasm trap | won't-fix (wasm boundary) | — |
+| A2 recursive walks | won't-fix (node count bounded) | — |
+| A3 worker error/messageerror | ✅ M02 | `97c502d` |
+| A4 PixiHost destroy-during-create | ✅ M03 | `97c502d` |
+| A5 self-parent reportLine | documented/open | — |
+| A6 appendData duplicate | ✅ M04 merge-by-id | `97c502d` |
+| A7 expandToDepth BFS seen | ✅ M11 | `8788908` |
+| A8 fractional matrix index | ✅ M11 | `8788908` |
+| A9 smooth_iterations OOM | ✅ M11 clamp 8 | `8788908` |
+| A10 drag grab-offset | ✅ M05 | `97c502d` |
+| A11 snap wrong pitch | ✅ M05 snapWorldToCell | `97c502d` |
+| A12 expand-nonroot wipes forest | ✅ M06 revealOrgPath | `97c502d` |
+| A13 print() fail | documented/open | — |
+| A14 placeOrgAtMatrixCell no-op | won't-fix (returns patched array) | — |
+| §3 collapsed definition split | ✅ M10 isOrgCollapsed unified | `8241d12` |
+| §3 search NFC | ✅ M10 | `8241d12` |
+| §3 export 8-byte PNG | ✅ M07 seam + test | `8788908` |
+| §4 layout.rs siblings >= | ✅ M07 upper-bound + layout fix | `8788908` |
+| §4 G6 flood assertion | ✅ M07 strengthened | `8788908` |
+| §4 pngExport jsdom-sniff | ✅ M07 DI seam | `8788908` |
+| §5 validateOrgHierarchy O(n²) | ✅ M08 TS+Rust byId once | `8788908` |
+| §5 search sort-all hits | ✅ M08 early-exit + top-k | `8788908` |
+| §6 dead code | ✅ M09 partial; full purge deferred | `8241d12` |
+
 **Що я перевірив особисто** (не з чужих слів): відкинутий результат контуру, подвійне
 масштабування в `layout.rs`, викидання регіонів у `contour.rs:544`, мертвий гард у
 `subtree.ts:22`, `scale` без жодного читача, 8-байтовий PNG і його зелений тест, дві
