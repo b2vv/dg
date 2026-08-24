@@ -15,9 +15,12 @@ import {
 } from '../wasm/layoutBridge.js';
 
 function toOrgFlatInput(organizations: DiagramOrganization[]): OrgFlatInput[] {
+  const ids = new Set(organizations.map((o) => o.id));
   return organizations.map((o) => ({
     id: o.id,
-    parentOrgId: o.parentOrgId ?? null,
+    // Visible subtree may omit ancestors; that is not a hanging parent in the
+    // host data. Null them so WASM validate sees a forest, not UnknownParent.
+    parentOrgId: o.parentOrgId && ids.has(o.parentOrgId) ? o.parentOrgId : null,
     name: o.name,
   }));
 }
