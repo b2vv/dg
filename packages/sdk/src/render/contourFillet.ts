@@ -83,9 +83,13 @@ export function filletClosedRing(
     }
 
     const maxTrim = Math.min(len0, len1) * 0.45;
-    let trim = radius / tanHalf;
-    const r = trim > maxTrim ? maxTrim * tanHalf : radius;
-    trim = Math.min(trim, maxTrim);
+    // `turn` is the exterior turning angle φ. Offset along each edge is r·tan(φ/2).
+    let trim = radius * tanHalf;
+    let r = radius;
+    if (trim > maxTrim) {
+      trim = maxTrim;
+      r = maxTrim / tanHalf;
+    }
 
     const p1 = { x: curr.x - d0x * trim, y: curr.y - d0y * trim };
     const p2 = { x: curr.x + d1x * trim, y: curr.y + d1y * trim };

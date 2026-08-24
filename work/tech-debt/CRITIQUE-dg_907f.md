@@ -30,6 +30,13 @@
 | §3 collapsed definition split | ✅ M10 isOrgCollapsed + tests | `8241d12` |
 | §3 search NFC | ✅ M10 fold + tests | `8241d12` |
 | §3 export 8-byte PNG | ✅ M07 seam + test | `8788908` |
+| §3 export placeholder / blank PDF | ✅ M10 throw ExportError | — |
+| §3 SVG org-only / multi-org | ✅ M10 org layout branch | — |
+| §3 NaN layout metrics | ✅ M10 is_finite guards | — |
+| §3 shiftPositionBlock false positives | ✅ M10 report shifted ids only | — |
+| §3 promote multi-id | ✅ M10 typed `kind:id` | — |
+| §3 fillet invert | ✅ M10 `r·tan(φ/2)` + octagon test | — |
+| §3 hanging parentOrgId | ✅ throw Unknown parentOrgId | — |
 | §4 layout.rs siblings >= | ✅ M07 upper-bound + layout fix | `8788908` |
 | §4 G6 flood assertion | ✅ M07 strengthened | `8788908` |
 | §4 pngExport jsdom-sniff | ✅ M07 DI seam | `8788908` |

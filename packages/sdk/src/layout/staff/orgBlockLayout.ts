@@ -58,9 +58,9 @@ async function layoutConnectedTree(
     name: p.title,
   }));
 
-  // Defensive: any remaining orphan inside this forest re-parents under root for WASM only.
-  // Paint: adminEdges builds lines only from reportLines — this virtual parent is NOT drawn.
-  // Product: orphan seats sit in the head's layout flow (not a separate zone). See REVIEW D5.
+  // Staff *positions*, not organizations. Hanging organization parentOrgId is
+  // rejected in validateOrgHierarchy. This only gives WASM a unique tree root
+  // for orphan seats (D5); edges stay reportLines-only.
   const rooted = flat.map((f) => {
     if (f.id === rootId) return f;
     if (f.parentOrgId && idSet.has(f.parentOrgId)) return f;

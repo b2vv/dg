@@ -5,6 +5,7 @@ import { validateOrgHierarchy } from './orgTree.js';
 import { OrgHierarchyError } from './orgTree.js';
 import {
   DEFAULT_ORG_LAYOUT_OPTIONS,
+  assertOrgLayoutMetrics,
   type OrgLayoutOptions,
   type OrgLayoutResult,
 } from './types.js';
@@ -14,9 +15,12 @@ import {
 } from '../wasm/layoutBridge.js';
 
 function toOrgFlatInput(organizations: DiagramOrganization[]): OrgFlatInput[] {
+  const ids = new Set(organizations.map((o) => o.id));
   return organizations.map((o) => ({
     id: o.id,
-    parentOrgId: o.parentOrgId ?? null,
+    // Visible subtree may omit ancestors; that is not a hanging parent in the
+    // host data. Null them so WASM validate sees a forest, not UnknownParent.
+    parentOrgId: o.parentOrgId && ids.has(o.parentOrgId) ? o.parentOrgId : null,
     name: o.name,
   }));
 }
@@ -47,6 +51,7 @@ export async function computeOrgRowTreeLayout(
 ): Promise<OrgLayoutResult> {
   validateOrgHierarchy(organizations);
   const opts = { ...DEFAULT_ORG_LAYOUT_OPTIONS, ...options };
+  assertOrgLayoutMetrics(opts);
   if (!organizations.some((o) => o.id === expandedRootId)) {
     throw new OrgHierarchyError(`Unknown organization: ${expandedRootId}`);
   }

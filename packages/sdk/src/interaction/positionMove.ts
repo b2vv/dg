@@ -73,8 +73,8 @@ export function movePositionToCell(
 }
 
 /**
- * Shift all positions in the same department sharing `hierarchyLevel` by `delta` rows.
- * v1: uses gridCell.row when present; otherwise no-op for that position.
+ * Shift positions in the same department sharing `hierarchyLevel` by `delta` rows.
+ * Only positions with `gridCell` move; `positionIds` lists those actually shifted.
  */
 export function shiftPositionBlock(
   positions: DiagramPosition[],
@@ -87,21 +87,19 @@ export function shiftPositionBlock(
   }
   const level = seed.hierarchyLevel;
   const dept = seed.departmentId;
-  const ids = positions
-    .filter(
-      (p) =>
-        p.departmentId === dept &&
-        (level == null ? p.hierarchyLevel == null : p.hierarchyLevel === level) &&
-        p.organizationId === seed.organizationId,
-    )
-    .map((p) => p.id);
-  const idSet = new Set(ids);
+  const sameBlock = (p: DiagramPosition): boolean =>
+    p.departmentId === dept &&
+    (level == null ? p.hierarchyLevel == null : p.hierarchyLevel === level) &&
+    p.organizationId === seed.organizationId;
+
+  const positionIds: string[] = [];
   const next = positions.map((p) => {
-    if (!idSet.has(p.id) || !p.gridCell) return p;
+    if (!sameBlock(p) || !p.gridCell) return p;
     const row = p.gridCell.row + deltaLevel;
     if (row < 0) {
       throw new InteractionError(`Block shift would produce negative row for ${p.id}`);
     }
+    positionIds.push(p.id);
     return {
       ...p,
       hierarchyLevel:
@@ -109,5 +107,5 @@ export function shiftPositionBlock(
       gridCell: { ...p.gridCell, row },
     };
   });
-  return { positions: next, positionIds: ids };
+  return { positions: next, positionIds };
 }

@@ -31,11 +31,16 @@ pub fn wasm_compute_org_row_tree_layout(
 
     let opts = LayoutOptions {
         direction: direction.unwrap_or_else(|| "vertical".into()),
-        node_width: node_width.unwrap_or(200.0) as f32,
-        node_height: node_height.unwrap_or(72.0) as f32,
-        horizontal_gap: h_gap.unwrap_or(40.0) as f32,
-        vertical_gap: v_gap.unwrap_or(60.0) as f32,
-        margin: margin.unwrap_or(24.0) as f32,
+        node_width: resolve_layout_metric("node_width", node_width, 200.0, false)
+            .map_err(|e| JsValue::from_str(&e))?,
+        node_height: resolve_layout_metric("node_height", node_height, 72.0, false)
+            .map_err(|e| JsValue::from_str(&e))?,
+        horizontal_gap: resolve_layout_metric("horizontal_gap", h_gap, 40.0, true)
+            .map_err(|e| JsValue::from_str(&e))?,
+        vertical_gap: resolve_layout_metric("vertical_gap", v_gap, 60.0, true)
+            .map_err(|e| JsValue::from_str(&e))?,
+        margin: resolve_layout_metric("margin", margin, 24.0, true)
+            .map_err(|e| JsValue::from_str(&e))?,
     };
 
     let result = compute_org_row_tree_layout(orgs, &expanded_root_id, &opts)
@@ -112,5 +117,26 @@ mod tests {
         ];
         let root = build_from_flat(items).unwrap();
         assert_eq!(root.children.len(), 1);
+    }
+
+    #[test]
+    fn resolve_layout_metric_rejects_nan_instead_of_default() {
+        let err = resolve_layout_metric("node_width", Some(f64::NAN), 200.0, false).unwrap_err();
+        assert!(err.contains("finite"), "{err}");
+    }
+
+    #[test]
+    fn resolve_layout_metric_none_uses_default() {
+        assert_eq!(
+            resolve_layout_metric("node_width", None, 200.0, false).unwrap(),
+            200.0
+        );
+    }
+
+    #[test]
+    fn resolve_layout_metric_rejects_infinity() {
+        let err =
+            resolve_layout_metric("node_height", Some(f64::INFINITY), 72.0, false).unwrap_err();
+        assert!(err.contains("finite"), "{err}");
     }
 }

@@ -1,7 +1,7 @@
 # T77 — Critique remediation (`CRITIQUE-dg_907f`)
 
 **Пріоритет:** P0 → P2 (див. мікрозадачі)  
-**Статус:** ✅ nits follow-up (N1–N4, incremental foreign, A5, A13)  
+**Статус:** ✅ M10 remaining silent lies  
 **Базис:** `dg@1fdb608` (`main` після #56) · critique на `805efee`  
 **Джерело:** [CRITIQUE-dg_907f.md](../tech-debt/CRITIQUE-dg_907f.md)
 
@@ -22,7 +22,7 @@
 | **M07** | [T77-M07-lying-tests.md](./T77-M07-lying-tests.md) | P1 | ✅ |
 | **M08** | [T77-M08-validate-search-perf.md](./T77-M08-validate-search-perf.md) | P1 | ✅ |
 | **M09** | [T77-M09-dead-code-purge.md](./T77-M09-dead-code-purge.md) | P1 | ✅ |
-| **M10** | [T77-M10-silent-lies.md](./T77-M10-silent-lies.md) | P2 | ✅ (часткове) |
+| **M10** | [T77-M10-silent-lies.md](./T77-M10-silent-lies.md) | P2 | ✅ |
 | **M11** | [T77-M11-crash-hardening.md](./T77-M11-crash-hardening.md) | P1 | ✅ |
 
 ---

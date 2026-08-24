@@ -1,6 +1,7 @@
 import type { DiagramData } from '../data/types.js';
 import { computeAllContours } from '../contour/bridge.js';
 import { diagramPositionsToContourInputs } from '../contour/config.js';
+import { computeOrgLayout } from '../layout/rowTreeLayout.js';
 import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
 import {
   DEFAULT_STAFF_LAYOUT_OPTIONS,
@@ -50,6 +51,54 @@ export interface SvgExportInput {
   personTheme?: Partial<PersonNodeStyle>;
 }
 
+function resolveFocusedStaffOrgId(
+  data: DiagramData,
+  currentOrgId?: string,
+): string | undefined {
+  if (currentOrgId && data.organizations.some((o) => o.id === currentOrgId)) {
+    return currentOrgId;
+  }
+  if (data.organizations.length === 1) return data.organizations[0]!.id;
+  return undefined;
+}
+
+async function paintOrgHierarchySvg(
+  data: DiagramData,
+  includeLabels: boolean,
+): Promise<{ parts: string[]; width: number; height: number }> {
+  const layout = await computeOrgLayout(data.organizations, data.orgLinks ?? []);
+  const orgById = new Map(data.organizations.map((o) => [o.id, o]));
+  const parts: string[] = [];
+  parts.push('<g id="edges">');
+  for (const e of layout.edges) {
+    if (!e.path) continue;
+    parts.push(
+      `<path d="${esc(e.path)}" fill="none" stroke="${EDGE_STROKE}" stroke-width="${EDGE_W}" stroke-linecap="round" stroke-linejoin="round"/>`,
+    );
+  }
+  parts.push('</g>');
+  parts.push('<g id="org-cards">');
+  for (const n of layout.nodes) {
+    const org = orgById.get(n.orgId);
+    parts.push(
+      `<g data-org="${esc(n.orgId)}" transform="translate(${n.x},${n.y})">`,
+      `<rect width="${n.width}" height="${n.height}" rx="8" fill="#f1f5f9" stroke="#64748b"/>`,
+    );
+    if (includeLabels) {
+      parts.push(
+        `<text x="12" y="28" font-size="13" fill="#0f172a">${esc(org?.name ?? n.orgId)}</text>`,
+      );
+    }
+    parts.push('</g>');
+  }
+  parts.push('</g>');
+  return {
+    parts,
+    width: Math.max(1, Math.ceil(layout.width) || 800),
+    height: Math.max(1, Math.ceil(layout.height) || 600),
+  };
+}
+
 export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
   const config = { ...defaultRenderConfig, ...input.config };
   const bg = input.background ?? '#f8fafc';
@@ -60,13 +109,21 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
   let width = 800;
   let height = 600;
 
-  const orgId =
-    input.currentOrgId ??
-    (data.organizations.length === 1
-      ? data.organizations[0]!.id
-      : data.positions[0]?.organizationId);
+  const focusedStaffOrgId = resolveFocusedStaffOrgId(data, input.currentOrgId);
+  const orgOnly = data.organizations.length > 0 && data.positions.length === 0;
+  const multiOrgUnfocused = data.organizations.length > 1 && input.currentOrgId == null;
 
-  if (orgId && data.organizations.some((o) => o.id === orgId) && data.positions.length > 0) {
+  if ((orgOnly || multiOrgUnfocused) && data.organizations.length > 0) {
+    const painted = await paintOrgHierarchySvg(data, includeLabels);
+    width = Math.max(width, painted.width);
+    height = Math.max(height, painted.height);
+    parts.push(...painted.parts);
+  } else if (
+    focusedStaffOrgId &&
+    data.organizations.some((o) => o.id === focusedStaffOrgId) &&
+    data.positions.length > 0
+  ) {
+    const orgId = focusedStaffOrgId;
     const staffOpts: StaffLayoutOptions = {
       refCellWidth: config.cellWidth,
       refCellHeight: config.cellHeight,

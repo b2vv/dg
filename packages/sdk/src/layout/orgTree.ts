@@ -16,6 +16,14 @@ export function validateOrgHierarchy(organizations: DiagramOrganization[]): void
     ids.add(org.id);
   }
 
+  for (const org of organizations) {
+    if (org.parentOrgId && !ids.has(org.parentOrgId)) {
+      throw new OrgHierarchyError(
+        `Unknown parentOrgId: ${org.parentOrgId} (referenced by ${org.id})`,
+      );
+    }
+  }
+
   // Tri-color DFS: each node is proven acyclic at most once — true O(n) total.
   const byId = new Map(organizations.map((o) => [o.id, o]));
   // 'done' = proven acyclic; 'in-stack' = cycle detected.

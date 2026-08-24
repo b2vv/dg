@@ -10,6 +10,8 @@ pub fn compute_org_row_tree_layout(
     expanded_root_id: &str,
     opts: &LayoutOptions,
 ) -> Result<OrgRowTreeLayoutResult, OrgTreeError> {
+    opts.validate()
+        .map_err(OrgTreeError::InvalidMetrics)?;
     validate_org_hierarchy(&organizations)?;
     let subtree = extract_subtree(&organizations, expanded_root_id)?;
 
@@ -91,5 +93,33 @@ mod tests {
         let orgs = vec![org("a", None, "A")];
         let err = compute_org_row_tree_layout(orgs, "missing", &default_opts()).unwrap_err();
         assert!(matches!(err, OrgTreeError::UnknownOrg(_)));
+    }
+
+    #[test]
+    fn layout_failure_unknown_parent() {
+        let orgs = vec![org("a", None, "A"), org("b", Some("missing"), "B")];
+        let err = compute_org_row_tree_layout(orgs, "a", &default_opts()).unwrap_err();
+        assert!(matches!(err, OrgTreeError::UnknownParent { .. }));
+    }
+
+    #[test]
+    fn layout_failure_nan_node_width() {
+        let orgs = vec![org("a", None, "A")];
+        let mut opts = default_opts();
+        opts.node_width = f32::NAN;
+        let err = compute_org_row_tree_layout(orgs, "a", &opts).unwrap_err();
+        match err {
+            OrgTreeError::InvalidMetrics(msg) => assert!(msg.contains("finite")),
+            other => panic!("expected InvalidMetrics, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn layout_failure_negative_height() {
+        let orgs = vec![org("a", None, "A")];
+        let mut opts = default_opts();
+        opts.node_height = -10.0;
+        let err = compute_org_row_tree_layout(orgs, "a", &opts).unwrap_err();
+        assert!(matches!(err, OrgTreeError::InvalidMetrics(_)));
     }
 }

@@ -8,6 +8,8 @@ pub enum OrgTreeError {
     Cycle(String),
     UnknownOrg(String),
     Empty,
+    InvalidMetrics(String),
+    UnknownParent { child: String, parent: String },
 }
 
 impl OrgTreeError {
@@ -17,6 +19,10 @@ impl OrgTreeError {
             OrgTreeError::Cycle(id) => format!("Cycle detected in parentOrgId at {id}"),
             OrgTreeError::UnknownOrg(id) => format!("Unknown organization: {id}"),
             OrgTreeError::Empty => "Empty organizations".into(),
+            OrgTreeError::InvalidMetrics(msg) => msg.clone(),
+            OrgTreeError::UnknownParent { child, parent } => {
+                format!("Unknown parentOrgId: {parent} (referenced by {child})")
+            }
         }
     }
 }
@@ -30,6 +36,17 @@ pub fn validate_org_hierarchy(organizations: &[OrgFlatInput]) -> Result<(), OrgT
     for org in organizations {
         if !ids.insert(org.id.clone()) {
             return Err(OrgTreeError::DuplicateId(org.id.clone()));
+        }
+    }
+
+    for org in organizations {
+        if let Some(parent) = org.parent_org_id.as_deref() {
+            if !ids.contains(parent) {
+                return Err(OrgTreeError::UnknownParent {
+                    child: org.id.clone(),
+                    parent: parent.to_string(),
+                });
+            }
         }
     }
 
@@ -143,6 +160,19 @@ mod tests {
         let orgs = vec![org("a", None, "A"), org("a", None, "A2")];
         let err = validate_org_hierarchy(&orgs).unwrap_err();
         assert!(matches!(err, OrgTreeError::DuplicateId(_)));
+    }
+
+    #[test]
+    fn validate_failure_unknown_parent() {
+        let orgs = vec![org("a", None, "A"), org("b", Some("missing"), "B")];
+        let err = validate_org_hierarchy(&orgs).unwrap_err();
+        match err {
+            OrgTreeError::UnknownParent { child, parent } => {
+                assert_eq!(child, "b");
+                assert_eq!(parent, "missing");
+            }
+            other => panic!("expected UnknownParent, got {other:?}"),
+        }
     }
 
     #[test]

@@ -66,6 +66,47 @@ pub struct LayoutOptions {
     pub margin: f32,
 }
 
+/// Reject NaN/Inf so Ploeg cannot return `Ok` with `M NaN` paths.
+pub fn validate_layout_metric(name: &str, value: f64, allow_zero: bool) -> Result<(), String> {
+    if !value.is_finite() {
+        return Err(format!("{name} must be a finite number"));
+    }
+    if allow_zero {
+        if value < 0.0 {
+            return Err(format!("{name} must be ≥ 0"));
+        }
+    } else if value <= 0.0 {
+        return Err(format!("{name} must be greater than 0"));
+    }
+    Ok(())
+}
+
+/// `Some(NaN)` must not fall back to `default` — `unwrap_or` would skip NaN.
+pub fn resolve_layout_metric(
+    name: &str,
+    value: Option<f64>,
+    default: f64,
+    allow_zero: bool,
+) -> Result<f32, String> {
+    let v = match value {
+        Some(x) => x,
+        None => default,
+    };
+    validate_layout_metric(name, v, allow_zero)?;
+    Ok(v as f32)
+}
+
+impl LayoutOptions {
+    pub fn validate(&self) -> Result<(), String> {
+        validate_layout_metric("node_width", self.node_width as f64, false)?;
+        validate_layout_metric("node_height", self.node_height as f64, false)?;
+        validate_layout_metric("horizontal_gap", self.horizontal_gap as f64, true)?;
+        validate_layout_metric("vertical_gap", self.vertical_gap as f64, true)?;
+        validate_layout_metric("margin", self.margin as f64, true)?;
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-export", derive(TS))]
 #[cfg_attr(feature = "ts-export", ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts"))]
@@ -226,5 +267,29 @@ mod ts_export {
         LayoutResult::export().expect("LayoutResult");
         OrgRowTreeLayoutResult::export().expect("OrgRowTreeLayoutResult");
         LayoutOptions::export().expect("LayoutOptions");
+    }
+}
+
+#[cfg(test)]
+mod layout_metric_tests {
+    use super::*;
+
+    #[test]
+    fn some_nan_does_not_fall_back_to_default() {
+        let err = resolve_layout_metric("node_width", Some(f64::NAN), 200.0, false).unwrap_err();
+        assert!(err.contains("finite"));
+    }
+
+    #[test]
+    fn layout_options_validate_rejects_nan() {
+        let opts = LayoutOptions {
+            direction: "vertical".into(),
+            node_width: f32::NAN,
+            node_height: 72.0,
+            horizontal_gap: 40.0,
+            vertical_gap: 60.0,
+            margin: 24.0,
+        };
+        assert!(opts.validate().is_err());
     }
 }

@@ -1,5 +1,5 @@
 import type { Application } from 'pixi.js';
-import { rgbImageToPdf, solidRgb } from './pdfExport.js';
+import { rgbImageToPdf } from './pdfExport.js';
 import { ExportError } from './types.js';
 
 const PNG_SIG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -71,19 +71,11 @@ export async function extractPngFromPixi(app: Application): Promise<Blob> {
   try {
     const canvas = app.renderer.extract.canvas(app.stage) as HTMLCanvasElement;
     return await canvasToPngBlob(canvas);
-  } catch {
-    const fallback = document.createElement('canvas');
-    fallback.width = Math.max(1, Math.floor(app.screen.width) || 800);
-    fallback.height = Math.max(1, Math.floor(app.screen.height) || 600);
-    const ctx = fallback.getContext('2d');
-    if (ctx) {
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, fallback.width, fallback.height);
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '14px sans-serif';
-      ctx.fillText('Export placeholder', 16, 32);
-    }
-    return canvasToPngBlob(fallback);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new ExportError(
+      `PNG export failed: Pixi extract.canvas did not produce a canvas (${message})`,
+    );
   }
 }
 
@@ -109,11 +101,11 @@ export async function pngBlobToPdfBlob(png: Blob, width = 800, height = 600): Pr
       new Uint8Array(copy).set(pdf);
       return new Blob([copy], { type: 'application/pdf' });
     }
-  } catch {
-    /* fall through */
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new ExportError(`PDF export failed: ${message}`);
   }
-  const pdf = rgbImageToPdf(width, height, solidRgb(width, height, 248, 250, 252));
-  const copy = new ArrayBuffer(pdf.byteLength);
-  new Uint8Array(copy).set(pdf);
-  return new Blob([copy], { type: 'application/pdf' });
+  throw new ExportError(
+    'PDF export failed: createImageBitmap is unavailable; refusing to emit a blank page',
+  );
 }

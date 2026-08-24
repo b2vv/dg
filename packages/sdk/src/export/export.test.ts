@@ -5,7 +5,8 @@ import { filterDiagramSubtree } from './subtree.js';
 import { buildDiagramSvg } from './svgExport.js';
 import { exportDiagram, printDiagram } from './exportDiagram.js';
 import { rgbImageToPdf, solidRgb } from './pdfExport.js';
-import { setCanvasToBlobImpl } from './pngExport.js';
+import { extractPngFromPixi, setCanvasToBlobImpl } from './pngExport.js';
+import type { Application } from 'pixi.js';
 import type { DiagramData } from '../data/types.js';
 import { defaultRenderConfig } from '../render/types.js';
 
@@ -120,28 +121,32 @@ describe('exportDiagram', () => {
     expect(svg).toContain('data-dept="IT"');
   });
 
-  it('success: pdf has %PDF header', async () => {
-    const pdf = await exportDiagram(
-      {
-        data: variantB(),
-        mounted: true,
-        app: null,
-        renderConfig: defaultRenderConfig,
+  it('failure: pdf without Pixi app throws ExportError (no blank gray page)', async () => {
+    await expect(
+      exportDiagram(
+        {
+          data: variantB(),
+          mounted: true,
+          app: null,
+          renderConfig: defaultRenderConfig,
+        },
+        { format: 'pdf' },
+      ),
+    ).rejects.toThrow(/PDF export requires a mounted Pixi application/i);
+  });
+
+  it('failure: extractPngFromPixi throws instead of drawing Export placeholder', async () => {
+    const app = {
+      renderer: {
+        extract: {
+          canvas: () => {
+            throw new Error('no webgl');
+          },
+        },
       },
-      { format: 'pdf' },
-    );
-    expect(pdf).toBeInstanceOf(Blob);
-    const blob = pdf as Blob;
-    expect(blob.type).toBe('application/pdf');
-    expect(blob.size).toBeGreaterThan(100);
-    const bytes = await new Promise<Uint8Array>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
-      reader.onerror = () => reject(reader.error);
-      reader.readAsArrayBuffer(blob);
-    });
-    const header = String.fromCharCode(bytes[0]!, bytes[1]!, bytes[2]!, bytes[3]!, bytes[4]!);
-    expect(header).toBe('%PDF-');
+      screen: { width: 800, height: 600 },
+    } as unknown as Application;
+    await expect(extractPngFromPixi(app)).rejects.toThrow(/PNG export failed/i);
   });
 });
 
@@ -226,6 +231,61 @@ describe('buildDiagramSvg', () => {
     // inset = 2; default margin 32 would place y≥32 — this catches export/layout drift.
     expect(Number(m![1])).toBeLessThan(8);
     expect(Number(m![2])).toBeLessThan(8);
+  });
+
+  it('success: org-only diagram exports org cards, not an empty svg', async () => {
+    const data: DiagramData = {
+      organizations: [
+        { id: 'root', name: 'Root Co', groupIds: [], collapsed: true },
+        { id: 'child', name: 'Child Org', groupIds: [], parentOrgId: 'root', collapsed: true },
+      ],
+      groups: [],
+      departments: [],
+      persons: [],
+      positions: [],
+      reportLines: [],
+    };
+    const svg = await buildDiagramSvg({ data });
+    expect(svg).toContain('data-org="root"');
+    expect(svg).toContain('data-org="child"');
+    expect(svg).toContain('Root Co');
+  });
+
+  it('success: multi-org without currentOrgId exports all orgs, not one staff tree', async () => {
+    const data: DiagramData = {
+      organizations: [
+        { id: 'a', name: 'Org A', groupIds: [], collapsed: true },
+        { id: 'b', name: 'Org B', groupIds: [], collapsed: true },
+      ],
+      groups: [],
+      departments: [],
+      persons: [],
+      positions: [
+        {
+          id: 'p-a',
+          title: 'Head A',
+          organizationId: 'a',
+          groupIds: [],
+          status: 'vacant',
+          isTemporary: false,
+          gridCell: { col: 0, row: 0 },
+        },
+        {
+          id: 'p-b',
+          title: 'Head B',
+          organizationId: 'b',
+          groupIds: [],
+          status: 'vacant',
+          isTemporary: false,
+          gridCell: { col: 0, row: 0 },
+        },
+      ],
+      reportLines: [],
+    };
+    const svg = await buildDiagramSvg({ data });
+    expect(svg).toContain('data-org="a"');
+    expect(svg).toContain('data-org="b"');
+    expect(svg).not.toContain('data-position=');
   });
 });
 

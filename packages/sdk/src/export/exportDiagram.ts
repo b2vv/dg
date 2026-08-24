@@ -5,7 +5,7 @@ import type { RenderConfig, PersonNodeStyle } from '../render/types.js';
 import { assertExportOptions, ExportError, type ExportOptions } from './types.js';
 import { filterDiagramSubtree } from './subtree.js';
 import { buildDiagramSvg } from './svgExport.js';
-import { extractPngFromPixi, pngBlobToPdfBlob, pngFallbackBlob } from './pngExport.js';
+import { extractPngFromPixi, pngBlobToPdfBlob } from './pngExport.js';
 
 export interface ExportContext {
   data: DiagramData;
@@ -66,18 +66,13 @@ export async function exportDiagram(
   }
 
   // pdf
-  if (ctx.app) {
-    const png = await extractPngFromPixi(ctx.app);
-    return pngBlobToPdfBlob(png, options.width ?? 800, 600);
+  if (!ctx.app) {
+    throw new ExportError(
+      'PDF export requires a mounted Pixi application; refusing to emit a blank page',
+    );
   }
-  // Headless / no Pixi: emit a solid-page PDF directly (avoids jsdom canvas Blob quirks)
-  const w = options.width ?? 800;
-  const h = 600;
-  const { rgbImageToPdf, solidRgb } = await import('./pdfExport.js');
-  const bytes = rgbImageToPdf(w, h, solidRgb(w, h, 248, 250, 252));
-  const copy = new ArrayBuffer(bytes.byteLength);
-  new Uint8Array(copy).set(bytes);
-  return new Blob([copy], { type: 'application/pdf' });
+  const png = await extractPngFromPixi(ctx.app);
+  return pngBlobToPdfBlob(png, options.width ?? 800, 600);
 }
 
 export function printDiagram(svg: string): void {

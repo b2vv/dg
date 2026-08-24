@@ -181,6 +181,27 @@ describe('positionMove', () => {
     expect(positions.find((p) => p.id === 'pos1')?.gridCell?.row).toBe(3);
     expect(positions.find((p) => p.id === 'pos3')?.gridCell?.row).toBe(5);
   });
+
+  it('failure: peer without gridCell is not reported as shifted', () => {
+    const positions = [
+      ...sampleData().positions,
+      {
+        id: 'pos-nogrids',
+        title: 'Ghost',
+        organizationId: 'child',
+        departmentId: 'IT',
+        groupIds: [],
+        status: 'vacant' as const,
+        isTemporary: false,
+        hierarchyLevel: 1,
+      },
+    ];
+    const shifted = shiftPositionBlock(positions, 'pos1', 1);
+    expect(shifted.positionIds.sort()).toEqual(['pos1', 'pos2']);
+    expect(shifted.positions.find((p) => p.id === 'pos-nogrids')).toEqual(
+      positions.find((p) => p.id === 'pos-nogrids'),
+    );
+  });
 });
 
 describe('selectNode', () => {

@@ -54,6 +54,12 @@ describe('computeMatrixLayout', () => {
     expect(layout.nodes).toHaveLength(0);
     expect(layout.edges).toHaveLength(0);
   });
+
+  it('failure: NaN nodeWidth throws instead of placing at NaN', () => {
+    expect(() => computeMatrixLayout([org('a', 0)], [], { nodeWidth: Number.NaN })).toThrow(
+      /finite/i,
+    );
+  });
 });
 
 describe('swapMatrixOrder', () => {
@@ -75,6 +81,12 @@ describe('validateOrgHierarchy', () => {
 
   it('failure: duplicate ids throw', () => {
     expect(() => validateOrgHierarchy([org('a'), org('a')])).toThrow(/duplicate/i);
+  });
+
+  it('failure: hanging parentOrgId throws instead of treating the org as a root', () => {
+    const orgs = [org('root'), org('ghost', 1, 'missing')];
+    expect(() => validateOrgHierarchy(orgs)).toThrow(/unknown parentOrgId/i);
+    expect(() => validateOrgHierarchy(orgs)).toThrow(/ghost/);
   });
 
   it('success: 4000-org deep chain completes quickly (B3 O(n) tri-color)', () => {

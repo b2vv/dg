@@ -5,7 +5,7 @@ export type {
   OrgLayoutEdge,
   OrgLayoutResult,
 } from './types.js';
-export { DEFAULT_ORG_LAYOUT_OPTIONS } from './types.js';
+export { DEFAULT_ORG_LAYOUT_OPTIONS, assertOrgLayoutMetrics } from './types.js';
 
 export {
   detectOrgMode,

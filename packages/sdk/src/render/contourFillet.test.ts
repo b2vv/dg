@@ -54,4 +54,33 @@ describe('filletClosedRing', () => {
     ];
     expect(filletClosedRing(sq, 0)).toEqual(sq);
   });
+
+  it('success: octagon 45° corners trim r·tan(φ/2), not r/tan(φ/2)', () => {
+    const R = 80;
+    const oct = Array.from({ length: 8 }, (_, i) => {
+      const a = Math.PI / 8 + (i * Math.PI) / 4;
+      return { x: Math.cos(a) * R, y: Math.sin(a) * R };
+    });
+    const radius = 10;
+    const phi = Math.PI / 4;
+    const expectedTrim = radius * Math.tan(phi / 2);
+    const invertedTrim = radius / Math.tan(phi / 2);
+    const out = filletClosedRing(oct, radius, 4);
+    expect(invertedTrim).toBeGreaterThan(expectedTrim + 10);
+    const n = oct.length;
+    for (let i = 0; i < n; i += 1) {
+      const curr = oct[i]!;
+      const next = oct[(i + 1) % n]!;
+      const len = Math.hypot(next.x - curr.x, next.y - curr.y);
+      const ux = (next.x - curr.x) / len;
+      const uy = (next.y - curr.y) / len;
+      const onEdge = (dist: number) => ({ x: curr.x + ux * dist, y: curr.y + uy * dist });
+      const expected = onEdge(expectedTrim);
+      const inverted = onEdge(invertedTrim);
+      const near = (target: { x: number; y: number }) =>
+        out.some((p) => Math.hypot(p.x - target.x, p.y - target.y) < 1.5);
+      expect(near(expected)).toBe(true);
+      expect(near(inverted)).toBe(false);
+    }
+  });
 });

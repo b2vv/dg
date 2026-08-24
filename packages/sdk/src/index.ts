@@ -30,6 +30,7 @@ import { SelectionStore } from './state/SelectionStore.js';
 import { ViewStateStore } from './state/ViewStateStore.js';
 import { DataStore } from './state/DataStore.js';
 import type { PromoteCandidate } from './render/promoteTypes.js';
+import { parseNodeEntityKey, promoteIdMatches } from './render/promoteMath.js';
 import {
   collapseAllOrgs,
   collapseOrg,
@@ -195,6 +196,10 @@ export {
   worldBoxToScreen,
   resolvePromoteIds,
   screenRectInView,
+  nodeEntityKey,
+  parseNodeEntityKey,
+  promoteIdMatches,
+  promoteVisualForSelection,
   fitContain,
   resolveOrgSymbolLayout,
   isFullBleedIntrinsic,
@@ -325,6 +330,7 @@ export {
   expandIdsForDepth,
   buildSpineBusPaths,
   buildSpineBusEdgesForForest,
+  assertOrgLayoutMetrics,
 } from './layout/index.js';
 export type {
   OrgDisplayMode,
@@ -1319,7 +1325,7 @@ export class OrgHierarchyDiagram {
     const out: PromoteCandidate[] = [];
     const seen = new Set<string>();
     for (const box of boxes) {
-      if (wanted && !wanted.has(box.id)) continue;
+      if (wanted && !promoteIdMatches(wanted, box.id, box.kind)) continue;
       if (seen.has(box.id)) continue;
       const ref = this.resolveNodeRef(box.id);
       if (!ref) continue;
@@ -1437,21 +1443,33 @@ export class OrgHierarchyDiagram {
   }
 
   private resolveNodeRef(nodeId: string): NodeRef | null {
-    const org = this.data.organizations.find((o) => o.id === nodeId);
-    if (org) return this.orgNodeRef(org.id);
-    const position = this.data.positions.find((p) => p.id === nodeId);
-    if (position?.personId) return this.personNodeRef(position.personId, position.id);
-    if (position) {
-      return {
-        kind: 'position',
-        id: position.id,
-        organizationId: position.organizationId,
-        departmentId: position.departmentId,
-        positionId: position.id,
-      };
+    const parsed = parseNodeEntityKey(nodeId);
+    const raw = parsed?.id ?? nodeId;
+    const kindHint = parsed?.kind;
+
+    if (kindHint === 'organization' || !kindHint) {
+      const org = this.data.organizations.find((o) => o.id === raw);
+      if (org) return this.orgNodeRef(org.id);
+      if (kindHint === 'organization') return null;
     }
-    const byPerson = this.data.positions.find((p) => p.personId === nodeId);
-    if (byPerson?.personId) return this.personNodeRef(byPerson.personId, byPerson.id);
+    if (kindHint === 'position' || !kindHint) {
+      const position = this.data.positions.find((p) => p.id === raw);
+      if (position?.personId) return this.personNodeRef(position.personId, position.id);
+      if (position) {
+        return {
+          kind: 'position',
+          id: position.id,
+          organizationId: position.organizationId,
+          departmentId: position.departmentId,
+          positionId: position.id,
+        };
+      }
+      if (kindHint === 'position') return null;
+    }
+    if (kindHint === 'person' || !kindHint) {
+      const byPerson = this.data.positions.find((p) => p.personId === raw);
+      if (byPerson?.personId) return this.personNodeRef(byPerson.personId, byPerson.id);
+    }
     return null;
   }
 
