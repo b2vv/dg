@@ -19,10 +19,6 @@ const defaultRegistry: MapperRegistry = {
     dispatchComputeHandler(computeHandlerKeys.computeDeptContour, input),
   [computeHandlerKeys.computeAllContours]: (input) =>
     dispatchComputeHandler(computeHandlerKeys.computeAllContours, input),
-  [computeHandlerKeys.computeLayout]: (input) =>
-    dispatchComputeHandler(computeHandlerKeys.computeLayout, input),
-  [computeHandlerKeys.buildFromFlat]: (input) =>
-    dispatchComputeHandler(computeHandlerKeys.buildFromFlat, input),
   [computeHandlerKeys.computeOrgRowTreeLayout]: (input) =>
     dispatchComputeHandler(computeHandlerKeys.computeOrgRowTreeLayout, input),
   [searchHandlerKeys.buildSearchIndex]: (input) =>

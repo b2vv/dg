@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   contourCardClearanceMargin,
-  inflateClosedRing,
   nudgeContourClearOfBoxes,
 } from './contourClearance.js';
 
@@ -57,21 +56,5 @@ describe('nudgeContourClearOfBoxes', () => {
   it('success: margin includes stroke half + own AABB padding', () => {
     expect(contourCardClearanceMargin(1.25)).toBeCloseTo(1.25 / 2 + 6);
     expect(contourCardClearanceMargin(0.9)).toBeCloseTo(0.9 / 2 + 6);
-  });
-
-  it('success: clockwise square inflates outward', () => {
-    const sq = [
-      { x: 0, y: 0 },
-      { x: 100, y: 0 },
-      { x: 100, y: 100 },
-      { x: 0, y: 100 },
-    ];
-    const out = inflateClosedRing(sq, 10);
-    const xs = out.map((p) => p.x);
-    const ys = out.map((p) => p.y);
-    expect(Math.min(...xs)).toBeLessThan(0);
-    expect(Math.max(...xs)).toBeGreaterThan(100);
-    expect(Math.min(...ys)).toBeLessThan(0);
-    expect(Math.max(...ys)).toBeGreaterThan(100);
   });
 });

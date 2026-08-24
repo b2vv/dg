@@ -43,13 +43,12 @@ stateDiagram-v2
 | **Matrix** | Усі org `collapsed: true` | Sparse adjacency між org; порядок змінюється D&D |
 | **Row-tree** | ≥1 org expanded | Рядки за depth: row 1, 2, 3… |
 
-**Алгоритм row-tree** (WASM `layout.rs` — Reingold-Tilford variant):
+**Алгоритм row-tree** (WASM `ploeg_layout.rs` / `org_layout.rs`):
 
-1. Побудувати `HierarchyNode` з flat/parent links
-2. `first_walk` — prelim coords, resolve subtree overlap
-3. `second_walk` — final x,y з mod accumulators
-4. Зібрати `LayoutNode[]` + `LayoutEdge[]` (orthogonal edge paths)
-5. Normalize bounds + margin offset
+1. `validate_org_hierarchy` + `extract_subtree`
+2. Ploeg layered tidy (`compute_ploeg_layered_layout`)
+3. Зібрати `LayoutNode[]` + `LayoutEdge[]` (orthogonal edge paths)
+4. Normalize bounds + margin offset
 
 **Matrix layout** (planned, не в WASM):
 
@@ -443,12 +442,12 @@ Host raw data
 │  • Theme (light/dark org symbols)                        │
 ├──────────────────────────────────────────────────────────┤
 │ Web Worker(s)                                            │
-│  • mapInWorker / WorkerPool / createWorkerPipeline       │
-│  • WASM: layout, contour                                  │
+│  • mapInWorker / WorkerPool / mapFlatRowsInPool          │
+│  • WASM: org row-tree, contour                            │
 │  • search index build (T18)                               │
 ├──────────────────────────────────────────────────────────┤
 │ WASM (org-hierarchy-core)                                │
-│  • buildFromFlat, computeLayout, treeStats               │
+│  • computeOrgRowTreeLayout                               │
 │  • computeDeptContour, computeAllContours                │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -527,9 +526,9 @@ z-order bottom → top:
 | Компонент | Шлях | Примітки |
 |-----------|------|----------|
 | Contour WASM | `packages/core/src/contour.rs` | G1–G8, M4 |
-| Layout WASM | `packages/core/src/layout.rs` | tidy tree; SDK via `wasm/layoutBridge` |
-| Hierarchy build | `packages/core/src/hierarchy.rs` | flat → tree |
-| WASM bindings | `packages/core/src/lib.rs` | buildFromFlat, computeLayout, contour |
+| Layout WASM | `packages/core/src/ploeg_layout.rs` + `org_layout.rs` | row-tree; SDK via `wasm/layoutBridge` |
+| Hierarchy build | `packages/core/src/hierarchy.rs` | flat → tree (internal) |
+| WASM bindings | `packages/core/src/lib.rs` | org row-tree, contour |
 | SDK types / mappers | `packages/sdk/src/data`, `mappers/` | DiagramData, flatRowsToDiagram |
 | Worker pool + facade | `packages/sdk/src/worker/` | T21 mapArrayItems / mapFlatRowsInPool |
 | Contour bridge + incremental | `packages/sdk/src/contour/` | T16 |

@@ -14,25 +14,3 @@ export type WorkerResponse<T = unknown> = {
   error?: string;
   durationMs?: number;
 };
-
-/** Опис кроку pipeline (функція серіалізується через ім'я, не closure) */
-export interface PipelineStepDef<TIn = unknown, TOut = unknown> {
-  name: string;
-  /** Ключ з реєстру mapper functions (worker-safe) */
-  mapperKey: string;
-}
-
-export interface PipelineRunOptions {
-  /** Transferable buffers для zero-copy */
-  transfer?: Transferable[];
-  /** Chunk size для великих масивів */
-  chunkSize?: number;
-  /** Worker call timeout ms */
-  timeoutMs?: number;
-}
-
-export interface PipelineResult<T> {
-  data: T;
-  totalDurationMs: number;
-  stepDurationsMs: number[];
-}

@@ -11,8 +11,8 @@
 | ID | Статус | Коміт |
 |----|--------|-------|
 | §1.1 C1 compute-then-ignore | ✅ M01 Option B | `d1db4a2` |
-| §1.2 layout.rs dead | 📋 M09 deferred | — |
-| §1.3 pipeline no consumers | ✅ M09 `@deprecated` | `8241d12` |
+| §1.2 layout.rs dead | ✅ M09 deleted | — |
+| §1.3 pipeline no consumers | ✅ M09 deleted | — |
 | A1 dup-id wasm trap | won't-fix (wasm boundary) | — |
 | A2 recursive walks | won't-fix (node count bounded) | — |
 | A3 worker error/messageerror | ✅ M02 | `97c502d` |
@@ -35,7 +35,7 @@
 | §4 pngExport jsdom-sniff | ✅ M07 DI seam | `8788908` |
 | §5 validateOrgHierarchy O(n²) | ✅ M08 TS+Rust byId once | `8788908` |
 | §5 search sort-all hits | ✅ M08 early-exit + top-k | `8788908` |
-| §6 dead code | ✅ M09 partial; full purge deferred | `8241d12` |
+| §6 dead code | ✅ M09 purge (`layout.rs`, pipeline, wasm extras) | — |
 
 **Що я перевірив особисто** (не з чужих слів): відкинутий результат контуру, подвійне
 масштабування в `layout.rs`, викидання регіонів у `contour.rs:544`, мертвий гард у
