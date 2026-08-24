@@ -846,7 +846,8 @@ export class OrgHierarchyDiagram {
     const modeBefore = this.getOrgMode();
     this.data = {
       ...this.data,
-      organizations: expandOrg(this.data.organizations, orgId),
+      // Expand ancestors too — otherwise row-tree roots at the leaf and drops the forest (A12).
+      organizations: revealOrgPath(this.data.organizations, orgId),
     };
     this.callbacks.onOrgModeChange?.(this.getOrgMode());
     await this.render();
@@ -1511,12 +1512,56 @@ function isDiagramData(v: unknown): v is DiagramData {
 
 function mergePartial(base: DiagramData, patch: Partial<DiagramData>): DiagramData {
   return {
-    organizations: [...base.organizations, ...(patch.organizations ?? [])],
-    groups: [...base.groups, ...(patch.groups ?? [])],
-    departments: [...base.departments, ...(patch.departments ?? [])],
-    persons: [...base.persons, ...(patch.persons ?? [])],
-    positions: [...base.positions, ...(patch.positions ?? [])],
-    reportLines: [...base.reportLines, ...(patch.reportLines ?? [])],
-    orgLinks: [...(base.orgLinks ?? []), ...(patch.orgLinks ?? [])],
+    organizations: mergeById(base.organizations, patch.organizations),
+    groups: mergeById(base.groups, patch.groups),
+    departments: mergeById(base.departments, patch.departments),
+    persons: mergeById(base.persons, patch.persons),
+    positions: mergeById(base.positions, patch.positions),
+    reportLines: mergeReportLines(base.reportLines, patch.reportLines),
+    orgLinks: mergeOrgLinks(base.orgLinks ?? [], patch.orgLinks),
   };
+}
+
+function mergeById<T extends { id: string }>(
+  base: readonly T[],
+  patch: readonly T[] | undefined,
+): T[] {
+  if (!patch?.length) return [...base];
+  const map = new Map(base.map((item) => [item.id, item]));
+  for (const item of patch) {
+    map.set(item.id, item);
+  }
+  return [...map.values()];
+}
+
+function reportLineKey(line: { fromId: string; toId: string; kind: string }): string {
+  return `${line.fromId}\0${line.toId}\0${line.kind}`;
+}
+
+function mergeReportLines(
+  base: DiagramData['reportLines'],
+  patch: DiagramData['reportLines'] | undefined,
+): DiagramData['reportLines'] {
+  if (!patch?.length) return [...base];
+  const map = new Map(base.map((line) => [reportLineKey(line), line]));
+  for (const line of patch) {
+    map.set(reportLineKey(line), line);
+  }
+  return [...map.values()];
+}
+
+function orgLinkKey(link: { fromOrgId: string; toOrgId: string; kind: string }): string {
+  return `${link.fromOrgId}\0${link.toOrgId}\0${link.kind}`;
+}
+
+function mergeOrgLinks(
+  base: NonNullable<DiagramData['orgLinks']>,
+  patch: DiagramData['orgLinks'] | undefined,
+): DiagramData['orgLinks'] {
+  if (!patch?.length) return [...base];
+  const map = new Map(base.map((link) => [orgLinkKey(link), link]));
+  for (const link of patch) {
+    map.set(orgLinkKey(link), link);
+  }
+  return [...map.values()];
 }

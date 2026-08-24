@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { DiagramData } from '../data/types.js';
 import { buildSearchIndex, buildSearchIndexAsync, searchIndex } from './searchIndex.js';
 import { revealOrgPath, resolveOrganizationIdForNode } from './revealPath.js';
-import { movePositionToCell, shiftPositionBlock, snapToGrid } from './positionMove.js';
+import { movePositionToCell, shiftPositionBlock, snapToGrid, snapWorldToCell } from './positionMove.js';
 import { InteractionError } from './types.js';
 import {
   selectNode,
@@ -120,6 +120,30 @@ describe('resolveOrganizationIdForNode', () => {
 describe('positionMove', () => {
   it('success: snapToGrid', () => {
     expect(snapToGrid(150, 90, 100, 80)).toEqual({ col: 2, row: 1 });
+  });
+
+  it('success: snapWorldToCell uses pitch+origin+inset (A11)', () => {
+    // col=2,row=1 → x = 0 + 2*160 + 2 = 322
+    expect(
+      snapWorldToCell(322, 190, {
+        pitchX: 160,
+        pitchY: 188,
+        originX: 0,
+        originY: 0,
+        insetX: 2,
+        insetY: 2,
+      }),
+    ).toEqual({ col: 2, row: 1 });
+  });
+
+  it('failure: bare cellWidth snap mis-bins staff pitch (documents A11)', () => {
+    // Same world x=322: pitch snap → col 2; cellWidth 140 → col 2 still, but row≥2 drifts
+    const x = 2 * 160 + 2;
+    const y = 3 * 188 + 2; // row 3
+    expect(snapToGrid(x, y, 140, 160)).not.toEqual({ col: 2, row: 3 });
+    expect(
+      snapWorldToCell(x, y, { pitchX: 160, pitchY: 188, insetX: 2, insetY: 2 }),
+    ).toEqual({ col: 2, row: 3 });
   });
 
   it('success: movePositionToCell updates grid', () => {

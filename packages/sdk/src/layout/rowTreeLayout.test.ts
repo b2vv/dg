@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { computeOrgRowTreeLayout } from './rowTreeLayout.js';
+import { computeOrgLayout, computeOrgRowTreeLayout } from './rowTreeLayout.js';
+import { revealOrgPath } from '../interaction/revealPath.js';
 import type { DiagramOrganization } from '../data/types.js';
 
-function org(id: string, parent?: string): DiagramOrganization {
-  return { id, name: id, groupIds: [], parentOrgId: parent, collapsed: false };
+function org(id: string, parent?: string, collapsed = false): DiagramOrganization {
+  return { id, name: id, groupIds: [], parentOrgId: parent, collapsed };
 }
 
 describe('computeOrgRowTreeLayout', () => {
@@ -30,5 +31,21 @@ describe('computeOrgRowTreeLayout', () => {
   it('failure: unknown expandedRootId throws', async () => {
     const orgs = [org('a')];
     await expect(computeOrgRowTreeLayout(orgs, 'missing')).rejects.toThrow(/unknown/i);
+  });
+
+  it('success: expand non-root via revealOrgPath keeps sibling orgs (A12)', async () => {
+    const matrix = [
+      org('root', undefined, true),
+      org('a', 'root', true),
+      org('b', 'root', true),
+      org('a1', 'a', true),
+    ];
+    // Bug path: expand only mid-node → layout roots there and drops root/siblings.
+    const leafOnly = matrix.map((o) => (o.id === 'a' ? { ...o, collapsed: false } : o));
+    const broken = await computeOrgLayout(leafOnly, []);
+    expect(broken.nodes.map((n) => n.orgId).sort()).toEqual(['a', 'a1']);
+
+    const fixed = await computeOrgLayout(revealOrgPath(matrix, 'a'), []);
+    expect(fixed.nodes.map((n) => n.orgId).sort()).toEqual(['a', 'a1', 'b', 'root']);
   });
 });

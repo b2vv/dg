@@ -19,7 +19,7 @@ import { computeOrgLayout } from '../layout/rowTreeLayout.js';
 import { siblingOrgGroupBounds } from '../layout/siblingOrgGroups.js';
 import type { OrgLayoutOptions } from '../layout/types.js';
 import { isOrgCollapsed, orgHasChildren } from '../layout/orgMode.js';
-import { snapToGrid } from '../interaction/positionMove.js';
+import { snapToGrid, snapWorldToCell } from '../interaction/positionMove.js';
 import { DoubleTapTracker } from '../interaction/doubleTap.js';
 import {
   isPrimaryPointerTap,
@@ -205,11 +205,22 @@ export class DiagramRenderer {
   private lastDiagnostics: string[] = [];
   /** Contour cell-space → staff world (pitch + origin). */
   private contourWorld: ContourWorldTransform | null = null;
+  /** Active grid for person drag snap (staff pitch or bare cell). */
+  private dragGrid: {
+    pitchX: number;
+    pitchY: number;
+    originX: number;
+    originY: number;
+    insetX: number;
+    insetY: number;
+  } | null = null;
   private drag: {
     positionId: string;
     node: PersonNodeView;
     originX: number;
     originY: number;
+    grabOffsetX: number;
+    grabOffsetY: number;
     pointerId: number;
     moved: boolean;
     previewCol: number | null;
@@ -319,6 +330,7 @@ export class DiagramRenderer {
     this.cancelContourMorphs();
     this.contourSession = null;
     this.contourWorld = null;
+    this.dragGrid = null;
     this.layers.clear();
     this.nodeBoxes.clear();
     this.nodeViews.clear();
@@ -660,11 +672,14 @@ export class DiagramRenderer {
         e.stopPropagation();
         return;
       }
+      const local = this.layers.persons.toLocal(e.global);
       this.drag = {
         positionId,
         node,
         originX: node.x,
         originY: node.y,
+        grabOffsetX: local.x - node.x,
+        grabOffsetY: local.y - node.y,
         pointerId: e.pointerId,
         moved: false,
         previewCol: null,
@@ -677,14 +692,14 @@ export class DiagramRenderer {
       if (!this.drag || this.drag.positionId !== positionId) return;
       if (e.pointerId !== this.drag.pointerId) return;
       const local = this.layers.persons.toLocal(e.global);
-      const nx = local.x - box.width / 2;
-      const ny = local.y - box.height / 2;
+      const nx = local.x - this.drag.grabOffsetX;
+      const ny = local.y - this.drag.grabOffsetY;
       if (Math.hypot(nx - this.drag.originX, ny - this.drag.originY) > 4) {
         this.drag.moved = true;
       }
       node.position.set(nx, ny);
       if (!this.drag.moved) return;
-      const snap = snapToGrid(nx, ny, config.cellWidth, config.cellHeight);
+      const snap = this.snapPersonDrag(nx, ny, config);
       if (snap.col < 0 || snap.row < 0) return;
       if (snap.col === this.drag.previewCol && snap.row === this.drag.previewRow) return;
       this.drag.previewCol = snap.col;
@@ -701,7 +716,7 @@ export class DiagramRenderer {
         node.position.set(originX, originY);
         return;
       }
-      const snap = snapToGrid(node.x, node.y, config.cellWidth, config.cellHeight);
+      const snap = this.snapPersonDrag(node.x, node.y, config);
       if (snap.col < 0 || snap.row < 0) {
         node.position.set(originX, originY);
         void this.restoreContoursAfterFailedDrag();
@@ -712,6 +727,18 @@ export class DiagramRenderer {
 
     node.on('pointerup', endDrag);
     node.on('pointerupoutside', endDrag);
+  }
+
+  private snapPersonDrag(
+    x: number,
+    y: number,
+    config: RenderConfig,
+  ): { col: number; row: number } {
+    const grid = this.dragGrid;
+    if (grid) {
+      return snapWorldToCell(x, y, grid);
+    }
+    return snapToGrid(x, y, config.cellWidth, config.cellHeight);
   }
 
   private async renderStaff(
@@ -753,6 +780,18 @@ export class DiagramRenderer {
       const personById = new Map(data.persons.map((p) => [p.id, p]));
       const positionById = new Map(data.positions.map((p) => [p.id, p]));
       const staffMerged = { ...DEFAULT_STAFF_LAYOUT_OPTIONS, ...staffOpts };
+      const pitchX = staffMerged.refCellWidth + staffMerged.horizontalGap;
+      const pitchY = staffMerged.refCellHeight + staffMerged.verticalGap;
+      const insetX = (staffMerged.refCellWidth - theme.person.width) / 2;
+      const insetY = (staffMerged.refCellHeight - theme.person.height) / 2;
+      this.dragGrid = {
+        pitchX,
+        pitchY,
+        originX: 0,
+        originY: 0,
+        insetX,
+        insetY,
+      };
 
       if (config.staffZoneChrome) {
         const tiers = enrichStaffTierBands(
@@ -808,8 +847,6 @@ export class DiagramRenderer {
       if (deptStyle === 'card') {
         this.paintDepartmentCards(data, theme, config, memberBoxesByDept);
       } else if (contourInputs.length > 0) {
-        const pitchX = staffMerged.refCellWidth + staffMerged.horizontalGap;
-        const pitchY = staffMerged.refCellHeight + staffMerged.verticalGap;
         this.contourWorld = resolveContourWorldTransform(
           canvas.positionNodes,
           positionById,
@@ -818,6 +855,14 @@ export class DiagramRenderer {
           pitchX,
           pitchY,
         );
+        this.dragGrid = {
+          pitchX: this.contourWorld.pitchX,
+          pitchY: this.contourWorld.pitchY,
+          originX: this.contourWorld.originX,
+          originY: this.contourWorld.originY,
+          insetX,
+          insetY,
+        };
         await this.paintContours(contourInputs, data, theme, config, {
           ...options,
           contourMemberBoxesByDept: memberBoxesByDept,
@@ -1013,6 +1058,17 @@ export class DiagramRenderer {
     const contourInputs = diagramPositionsToContourInputs(data.positions);
     await this.paintContours(contourInputs, data, theme, config, options);
 
+    const insetX = (config.cellWidth - theme.person.width) / 2;
+    const insetY = (config.cellHeight - theme.person.height) / 2;
+    this.dragGrid = {
+      pitchX: config.cellWidth,
+      pitchY: config.cellHeight,
+      originX: 0,
+      originY: 0,
+      insetX,
+      insetY,
+    };
+
     const personById = new Map(data.persons.map((p) => [p.id, p]));
     for (const position of data.positions) {
       if (!position.gridCell) continue;
@@ -1028,8 +1084,6 @@ export class DiagramRenderer {
               })
           : undefined,
       });
-      const insetX = (config.cellWidth - theme.person.width) / 2;
-      const insetY = (config.cellHeight - theme.person.height) / 2;
       const x = position.gridCell.col * config.cellWidth + insetX;
       const y = position.gridCell.row * config.cellHeight + insetY;
       node.position.set(x, y);
