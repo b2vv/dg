@@ -24,6 +24,7 @@ import {
   type CameraMotionOptions,
 } from './render/index.js';
 import { resolvePersonPhotoUrl } from './render/PersonNode.js';
+import { inferStaffCurrentOrgId } from './render/inferStaffCurrentOrgId.js';
 import { resolveLodLevel, type LodLevel, type LodThresholds } from './render/lod.js';
 import { createRenderCoalesce } from './render/renderCoalesce.js';
 import { SelectionStore } from './state/SelectionStore.js';
@@ -1417,7 +1418,9 @@ export class OrgHierarchyDiagram {
         mounted: true,
         app: this.host.getApplication(),
         renderConfig: this.renderConfig,
-        currentOrgId: this.viewState.staffCurrentOrgId,
+        // T78-L4: same focus as canvas when staffCurrentOrgId unset
+        currentOrgId:
+          this.viewState.staffCurrentOrgId ?? inferStaffCurrentOrgId(this.data),
         expandedOrgIds: [...this.viewState.staffExpandedOrgIds],
         staffLayout: {
           ...this.viewState.staffLayout,

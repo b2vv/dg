@@ -14,6 +14,7 @@ export {
   expandOrg,
   collapseOrg,
   findExpandedRootId,
+  findExpandedRootIds,
 } from './orgMode.js';
 
 export { computeMatrixLayout, swapMatrixOrder, placeOrgAtMatrixCell } from './matrixLayout.js';

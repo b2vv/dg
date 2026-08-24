@@ -12,26 +12,26 @@ fillet invert, typed promote keys, NaN layout metrics). Цей прохід пи
 
 Усі чотири лінзи зійшлися на одному патерні: **M01 Option B не дочищена** — canvas малює TS button-group, а Rust flood, worker, SVG-grid і Variant B тести лишились другим продуктом.
 
-## Scorecard (2026-08-24, post-T77)
+## Scorecard (2026-08-24, post-T78 P0)
 
 | ID | Статус | Де |
 |----|--------|-----|
-| C1 computeContours then ignore | 🆕 P1 (M01 B не вичистив wiring) | `DiagramRenderer.ts:595-596`, `index.ts:719-721` |
-| C2 flat/grid paint без member boxes | 🆕 P0 wrong pixels | `DiagramRenderer.ts:1073-1074` |
-| C3 SVG grid ≠ canvas contour | 🆕 P0 dual algorithm | `svgExport.ts:327-353` vs `paintMagneticGroups` |
-| L1 staff drag origin з першого gridCell | 🆕 P0 | `contourWorldTransform.ts:31-39` |
-| L2 hybrid floating siblings в одну точку | 🆕 P0 | `orgBlockLayout.ts:347-355` |
-| L3 row-tree ліс: другий корінь зникає | 🆕 P0 | `orgMode.ts:39-54`, `rowTreeLayout.ts:104-109` |
-| L4 export SVG без infer ≠ canvas | 🆕 P0 | `index.ts:1420` vs `inferStaffCurrentOrgId:1323-1329` |
-| L5 vacant seat click no-op | 🆕 P1 | `DiagramRenderer.ts:650-659` |
-| L6 drag preview AABB не їде з карткою | 🆕 P1 | `DiagramRenderer.ts:632-637` |
-| L7 `placeOrgAtMatrixCell` eject / `inMatrix ?? false` | 🆕 P1 | `index.ts:903-926`, `matrixGrid.ts:232-239` |
-| L8 AABB blob ковтає чужі картки | 🆕 P1 (G5–G7 не на canvas) | `contourButtonGroup.ts:44-66` |
-| L9 PNG без Pixi = порожній «успіх» | 🆕 P0 | `exportDiagram.ts:50-65` |
-| T1 `node-compare` e2e без `expect` | 🆕 P1 | `e2e/node-compare.spec.ts:137` |
-| T2 `expandIdsForDepth` cycle = `Array.isArray` | 🆕 P1 | `positionExpand.test.ts:189-190` |
-| T3 Variant B тести охороняють мертвий Rust path | 🆕 P0 | `variantBMagnetRadius.test.ts` et al. |
-| T4 `magnetRadius: NaN` → JS splinter / Rust `f32::MAX` | 🆕 P0 | `contour.rs:599-603`; paint `?? 1.5` не ловить NaN |
+| C1 computeContours then ignore | 🆕 P1 (M01 B не вичистив wiring) | `DiagramRenderer.ts` void computeContours |
+| C2 flat/grid paint без member boxes | ✅ T78 | grid path будує `contourMemberBoxesByDept` |
+| C3 SVG grid ≠ canvas contour | ✅ T78 | SVG grid → `paintMagneticGroups` |
+| L1 staff drag origin з першого gridCell | ✅ T78 | per-card `snapGrid` на pointerdown |
+| L2 hybrid floating siblings в одну точку | ✅ T78 | sibling index + floater-vs-floater eject |
+| L3 row-tree ліс: другий корінь зникає | ✅ T78 | `findExpandedRootIds` + side-by-side forest |
+| L4 export SVG без infer ≠ canvas | ✅ T78 | `inferStaffCurrentOrgId` у export + svg |
+| L5 vacant seat click no-op | 🆕 P1 | `DiagramRenderer` vacant return |
+| L6 drag preview AABB не їде з карткою | 🆕 P1 | preview session boxes |
+| L7 `placeOrgAtMatrixCell` eject / `inMatrix ?? false` | 🆕 P1 | matrixGrid |
+| L8 AABB blob ковтає чужі картки | 🆕 P1 (G5–G7 не на canvas) | contourButtonGroup |
+| L9 PNG без Pixi = порожній «успіх» | ✅ T78 | `ExportError` як PDF |
+| T1 `node-compare` e2e без `expect` | 🆕 P1 | e2e/node-compare |
+| T2 `expandIdsForDepth` cycle = `Array.isArray` | 🆕 P1 | positionExpand.test |
+| T3 Variant B тести охороняють мертвий Rust path | ✅ T78 | `variantBMagnetRadius` → cluster/paint |
+| T4 `magnetRadius: NaN` → JS splinter / Rust `f32::MAX` | ✅ T78 | `resolveMagnetRadius` + Rust reject |
 
 T77 P0 (A3–A13, fillet, NFC, hanging parent, NaN **layout** metrics, typed promote) — **перевірені як закриті**, не повторюються.
 

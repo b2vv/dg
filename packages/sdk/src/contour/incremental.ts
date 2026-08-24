@@ -1,5 +1,6 @@
 import type { ContourMagnetConfig, ContourPositionInput, DeptContourResult } from './bridge.js';
 import { toRustConfig } from './config.js';
+import { resolveMagnetRadius } from '../render/magnetRadius.js';
 
 export type ContourComputerFn = (
   positions: ContourPositionInput[],
@@ -31,8 +32,7 @@ function chebyshev(
 
 /** Chebyshev ring of own cells that can change G6/G7 / magnet fill. */
 function influenceRadius(config?: ContourMagnetConfig): number {
-  const raw = config?.magnetRadius ?? 1.5;
-  const magnet = Number.isFinite(raw) ? Math.max(0, Math.ceil(raw)) : Number.MAX_SAFE_INTEGER;
+  const magnet = Math.max(0, Math.ceil(resolveMagnetRadius(config?.magnetRadius)));
   const pad = Math.max(0, config?.paddingCells ?? 0);
   const corridor = Math.max(0, config?.corridorCells ?? 0);
   return magnet + pad + corridor + 1;

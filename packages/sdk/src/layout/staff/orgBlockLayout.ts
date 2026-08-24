@@ -344,13 +344,18 @@ export async function layoutStaffOrgBlock(
   // If floating reports to an anchor, place below that anchor instead of side pack when single child forest
   const parents = adminParentMap(inOrg, reports, orgId);
   const anchorById = new Map(anchors.map((a) => [a.id, a]));
+  // T78-L2: siblings under the same parent must not share one (x,y).
+  const siblingIndexByParent = new Map<string, number>();
   floatingNodes = floatingNodes.map((f) => {
     const parentId = parents.get(f.id);
     const parentAnchor = parentId ? anchorById.get(parentId) : undefined;
-    if (parentAnchor) {
+    if (parentAnchor && parentId) {
+      const idx = siblingIndexByParent.get(parentId) ?? 0;
+      siblingIndexByParent.set(parentId, idx + 1);
+      const step = f.width + geom.horizontalGap;
       return {
         ...f,
-        x: parentAnchor.x + (parentAnchor.width - f.width) / 2,
+        x: parentAnchor.x + (parentAnchor.width - f.width) / 2 + idx * step,
         y: parentAnchor.y + parentAnchor.height + geom.verticalGap,
       };
     }
@@ -373,17 +378,21 @@ export async function layoutStaffOrgBlock(
     floatingNodes = [...attached, ...packFloatingAwayFromAnchors(free, anchors, geom)];
   }
 
-  // final eject pass
+  // final eject pass — against anchors AND previously placed floaters (T78-L2)
+  const placedFloaters: typeof floatingNodes = [];
   floatingNodes = floatingNodes.map((f) => {
     const box = { ...f };
     let guard = 0;
     while (
-      anchors.some((a) => aabbOverlap(box, a, geom.horizontalGap, geom.verticalGap)) &&
+      [...anchors, ...placedFloaters].some((a) =>
+        aabbOverlap(box, a, geom.horizontalGap, geom.verticalGap),
+      ) &&
       guard < 50
     ) {
       box.y += geom.nodeHeight + geom.verticalGap;
       guard += 1;
     }
+    placedFloaters.push(box);
     return box;
   });
 

@@ -1,5 +1,4 @@
 import type { DiagramData } from '../data/types.js';
-import { computeAllContours } from '../contour/bridge.js';
 import { diagramPositionsToContourInputs } from '../contour/config.js';
 import { computeOrgLayout } from '../layout/rowTreeLayout.js';
 import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
@@ -18,7 +17,8 @@ import { buildStaffEdgeSegments } from '../render/staffEdgeGeometry.js';
 import { mapStaffEdgeBoxesForLod, mapPositionNodesToStaffEdgeBoxes } from '../render/visualEdgeBox.js';
 import { paintMagneticGroups } from '../render/paintMagneticGroups.js';
 import type { ContourMemberBox } from '../render/contourClearance.js';
-import { filterContoursForPaint } from '../render/contourPaintFilter.js';
+import { resolveMagnetRadius } from '../render/magnetRadius.js';
+import { inferStaffCurrentOrgId } from '../render/inferStaffCurrentOrgId.js';
 import { arrowHeadTriangle, shortenPolylineForArrow } from '../render/staffEdgeArrows.js';
 import { enrichStaffTierBands } from '../render/staffZoneBounds.js';
 
@@ -58,8 +58,8 @@ function resolveFocusedStaffOrgId(
   if (currentOrgId && data.organizations.some((o) => o.id === currentOrgId)) {
     return currentOrgId;
   }
-  if (data.organizations.length === 1) return data.organizations[0]!.id;
-  return undefined;
+  // Match canvas: infer when host omitted focus (T78-L4).
+  return inferStaffCurrentOrgId(data);
 }
 
 async function paintOrgHierarchySvg(
@@ -111,9 +111,8 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
 
   const focusedStaffOrgId = resolveFocusedStaffOrgId(data, input.currentOrgId);
   const orgOnly = data.organizations.length > 0 && data.positions.length === 0;
-  const multiOrgUnfocused = data.organizations.length > 1 && input.currentOrgId == null;
-
-  if ((orgOnly || multiOrgUnfocused) && data.organizations.length > 0) {
+  // Only force org-hierarchy when there are no seats; with seats, canvas infers staff focus.
+  if (orgOnly && data.organizations.length > 0) {
     const painted = await paintOrgHierarchySvg(data, includeLabels);
     width = Math.max(width, painted.width);
     height = Math.max(height, painted.height);
@@ -214,7 +213,7 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
       inputs: contourInputs,
       memberBoxesByDept,
       departmentIds: deptIds,
-      magnetRadius: config.magnetRadius ?? 1.5,
+      magnetRadius: resolveMagnetRadius(config.magnetRadius),
       strokeWidth: DEPT_STROKE_W,
       paddingCells: config.paddingCells ?? 0,
       smoothIterations: config.smoothIterations ?? 0,
@@ -325,40 +324,53 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
     }
     parts.push('</g>');
   } else if (data.positions.some((p) => p.gridCell)) {
+    // T78-C3: same TS button-group as canvas (not Rust flood).
     const inputs = diagramPositionsToContourInputs(data.positions);
-    const contours = await computeAllContours(inputs, {
-      paddingCells: config.paddingCells,
-      cellWidth: config.cellWidth,
-      cellHeight: config.cellHeight,
-      smoothIterations: config.smoothIterations,
-      magnetRadius: config.magnetRadius ?? 1.5,
-      preferNotch: true,
-    });
+    const cardW = PERSON_CARD_WIDTH;
+    const cardH = PERSON_CARD_HEIGHT;
+    const insetX = (config.cellWidth - cardW) / 2;
+    const insetY = (config.cellHeight - cardH) / 2;
+    const memberBoxesByDept = new Map<string, ContourMemberBox[]>();
+    for (const position of data.positions) {
+      if (!position.gridCell || !position.departmentId) continue;
+      const list = memberBoxesByDept.get(position.departmentId) ?? [];
+      list.push({
+        positionId: position.id,
+        x: position.gridCell.col * config.cellWidth + insetX,
+        y: position.gridCell.row * config.cellHeight + insetY,
+        width: cardW,
+        height: cardH,
+      });
+      memberBoxesByDept.set(position.departmentId, list);
+    }
     const personCounts = new Map<string, number>();
     for (const p of data.positions) {
       if (!p.departmentId) continue;
       personCounts.set(p.departmentId, (personCounts.get(p.departmentId) ?? 0) + 1);
     }
-    const painted = filterContoursForPaint(
-      contours,
+    const deptIds = [...new Set(inputs.map((p) => p.departmentId))].sort();
+    const paintedRings = paintMagneticGroups({
+      inputs,
+      memberBoxesByDept,
+      departmentIds: deptIds,
+      magnetRadius: resolveMagnetRadius(config.magnetRadius),
+      strokeWidth: DEPT_STROKE_W,
+      paddingCells: config.paddingCells ?? 0,
+      smoothIterations: config.smoothIterations ?? 0,
       personCounts,
-      config.minContourMembers ?? 1,
-    );
+      minContourMembers: config.minContourMembers ?? 1,
+    });
     parts.push('<g id="departments">');
-    for (const c of painted) {
-      if (!c.path) continue;
+    for (const g of paintedRings) {
+      const d = g.ring.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x} ${p.y}`).join(' ');
       parts.push(
-        `<path d="${esc(c.path)}" fill="${DEPT_FILL}" fill-opacity="${DEPT_FILL_ALPHA}" stroke="${DEPT_STROKE}" stroke-width="${DEPT_STROKE_W}" data-dept="${esc(c.departmentId)}"/>`,
+        `<path d="${d} Z" fill="${DEPT_FILL}" fill-opacity="${DEPT_FILL_ALPHA}" stroke="${DEPT_STROKE}" stroke-width="${DEPT_STROKE_W}" stroke-linejoin="round" stroke-linecap="round" data-dept="${esc(g.departmentId)}"/>`,
       );
     }
     parts.push('</g>');
 
     const personById = new Map(data.persons.map((p) => [p.id, p]));
     parts.push('<g id="persons">');
-    const cardW = PERSON_CARD_WIDTH;
-    const cardH = PERSON_CARD_HEIGHT;
-    const insetX = (config.cellWidth - cardW) / 2;
-    const insetY = (config.cellHeight - cardH) / 2;
     for (const position of data.positions) {
       if (!position.gridCell) continue;
       const x = position.gridCell.col * config.cellWidth + insetX;

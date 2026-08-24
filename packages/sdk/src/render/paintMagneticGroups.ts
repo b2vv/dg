@@ -4,6 +4,7 @@ import { clusterPositionsByDepartment } from './contourCluster.js';
 import { memberBoxesForCluster } from './contourButtonGroup.js';
 import { polishContourRing } from './contourPolish.js';
 import { shouldPaintDeptContour } from './contourPaintFilter.js';
+import { resolveMagnetRadius } from './magnetRadius.js';
 
 export interface PaintMagneticGroupsArgs {
   inputs: readonly ContourPositionInput[];
@@ -24,13 +25,14 @@ export interface PaintedMagneticGroup {
 
 /** One rounded button-group ring per magnetic cluster (paint only). */
 export function paintMagneticGroups(args: PaintMagneticGroupsArgs): PaintedMagneticGroup[] {
+  const magnetRadius = resolveMagnetRadius(args.magnetRadius);
   const out: PaintedMagneticGroup[] = [];
   for (const deptId of args.departmentIds) {
     if (!shouldPaintDeptContour(args.personCounts.get(deptId), args.minContourMembers)) {
       continue;
     }
     const members = args.memberBoxesByDept.get(deptId) ?? [];
-    const clusters = clusterPositionsByDepartment(args.inputs, deptId, args.magnetRadius);
+    const clusters = clusterPositionsByDepartment(args.inputs, deptId, magnetRadius);
     for (const clusterIds of clusters) {
       const boxes = memberBoxesForCluster(clusterIds, members);
       const ring = polishContourRing(

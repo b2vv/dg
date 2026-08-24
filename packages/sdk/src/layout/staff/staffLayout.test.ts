@@ -170,6 +170,24 @@ describe('layoutStaffOrgBlock', () => {
     expect(fl.y).toBeGreaterThan(root.y);
   });
 
+  it('success: hybrid floating siblings under one anchor do not stack (T78-L2)', async () => {
+    const positions = [
+      pos('root', 'o1', { isHead: true, layoutX: 0, layoutY: 0, width: 100, height: 40 }),
+      pos('f1', 'o1', { width: 100, height: 40 }),
+      pos('f2', 'o1', { width: 100, height: 40 }),
+    ];
+    const reports: DiagramReportLine[] = [
+      { fromId: 'root', toId: 'f1', kind: 'admin' },
+      { fromId: 'root', toId: 'f2', kind: 'admin' },
+    ];
+    const result = await layoutStaffOrgBlock(positions, reports, 'o1', {
+      staffCoordMode: 'hybrid',
+    });
+    const a = result.nodes.find((n) => n.id === 'f1')!;
+    const b = result.nodes.find((n) => n.id === 'f2')!;
+    expect(a.x !== b.x || a.y !== b.y).toBe(true);
+  });
+
   it('failure: strict mode rejects mix', async () => {
     const positions = [
       pos('a', 'o1', { isHead: true, gridCell: { col: 0, row: 0 } }),

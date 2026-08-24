@@ -1,4 +1,5 @@
 import type { ContourMagnetConfig } from './bridge.js';
+import { resolveMagnetRadius } from '../render/magnetRadius.js';
 
 /** Chaikin cap (A9). Values above this are clamped; 18+ iterations OOM. */
 export const MAX_SMOOTH_ITERATIONS = 8;
@@ -6,7 +7,7 @@ export const MAX_SMOOTH_ITERATIONS = 8;
 /** Map TS config → Rust snake_case (shared main + worker) */
 export function toRustConfig(cfg: ContourMagnetConfig = {}) {
   return {
-    magnet_radius: cfg.magnetRadius ?? 1.5,
+    magnet_radius: resolveMagnetRadius(cfg.magnetRadius),
     padding_cells: cfg.paddingCells ?? 0,
     corridor_cells: cfg.corridorCells ?? 0,
     cell_width: cfg.cellWidth ?? 100,

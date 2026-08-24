@@ -37,11 +37,24 @@ export function orgHasChildren(
 }
 
 export function findExpandedRootId(organizations: DiagramOrganization[]): string | null {
-  const expanded = organizations.filter((o) => !isOrgCollapsed(o));
-  if (expanded.length === 0) return null;
+  const roots = findExpandedRootIds(organizations);
+  return roots[0] ?? null;
+}
 
-  const expandedIds = new Set(expanded.map((o) => o.id));
+/**
+ * All expanded roots of a forest (T65 / T78-L3).
+ * An expanded org is a root when its parent is missing or collapsed.
+ */
+export function findExpandedRootIds(organizations: DiagramOrganization[]): string[] {
+  const expanded = organizations.filter((o) => !isOrgCollapsed(o));
+  if (expanded.length === 0) return [];
+
   const byId = new Map(organizations.map((o) => [o.id, o]));
+  const roots = expanded.filter((o) => {
+    if (!o.parentOrgId) return true;
+    const parent = byId.get(o.parentOrgId);
+    return !parent || isOrgCollapsed(parent);
+  });
 
   const depth = (id: string, seen = new Set<string>()): number => {
     if (seen.has(id)) return Infinity;
@@ -51,5 +64,7 @@ export function findExpandedRootId(organizations: DiagramOrganization[]): string
     return 1 + depth(org.parentOrgId, seen);
   };
 
-  return expanded.sort((a, b) => depth(a.id) - depth(b.id))[0].id;
+  return roots
+    .sort((a, b) => depth(a.id) - depth(b.id) || a.id.localeCompare(b.id))
+    .map((o) => o.id);
 }
