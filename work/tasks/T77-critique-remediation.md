@@ -1,7 +1,7 @@
 # T77 — Critique remediation (`CRITIQUE-dg_907f`)
 
 **Пріоритет:** P0 → P2 (див. мікрозадачі)  
-**Статус:** 🚧 in progress  
+**Статус:** ✅ nits follow-up (N1–N4, incremental foreign, A5, A13)  
 **Базис:** `dg@1fdb608` (`main` після #56) · critique на `805efee`  
 **Джерело:** [CRITIQUE-dg_907f.md](../tech-debt/CRITIQUE-dg_907f.md)
 
@@ -40,7 +40,7 @@
 
 ## Acceptance (епік)
 
-- [ ] M01 закрито рішенням + кодом (wire **або** delete).
-- [ ] M02–M06 зелені (unit + failure-кейси).
-- [ ] M07: PNG/layout/incremental/worker тести здатні падати.
-- [ ] Critique scorecard у [CRITIQUE-dg_907f.md](../tech-debt/CRITIQUE-dg_907f.md) оновлено статусами.
+- [x] M01 закрито рішенням + кодом (wire **або** delete).
+- [x] M02–M06 зелені (unit + failure-кейси).
+- [x] M07: PNG/layout/incremental/worker тести здатні падати.
+- [x] Critique scorecard у [CRITIQUE-dg_907f.md](../tech-debt/CRITIQUE-dg_907f.md) оновлено статусами.

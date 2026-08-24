@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { DiagramPosition, DiagramReportLine } from '../../data/types.js';
 import { layoutStaffOrgBlock } from './orgBlockLayout.js';
 import {
+  adminChildrenMap,
   adminDescendantIds,
   assignExpandToDepth,
   expandIdsForDepth,
@@ -187,5 +188,15 @@ describe('expandIdsForDepth — A7 Infinity + cycle guard', () => {
     // Must not hang or throw stack overflow.
     const ids = expandIdsForDepth(positions, reports, 'o1', Infinity);
     expect(Array.isArray(ids)).toBe(true);
+  });
+
+  it('failure: self reportLine is not an admin child (A5)', () => {
+    const positions = [pos('root', 'o1', { isHead: true }), pos('a', 'o1')];
+    const reports: DiagramReportLine[] = [
+      { fromId: 'a', toId: 'a', kind: 'admin' },
+      { fromId: 'root', toId: 'a', kind: 'admin' },
+    ];
+    expect(adminChildrenMap(positions, reports, 'o1').get('a')).toBeUndefined();
+    expect(adminChildrenMap(positions, reports, 'o1').get('root')).toEqual(['a']);
   });
 });

@@ -27,6 +27,14 @@ describe('detectOrgMode', () => {
   });
 });
 
+describe('isOrgCollapsed', () => {
+  it('success: undefined and true are collapsed; false is expanded', () => {
+    expect(isOrgCollapsed(org('a'))).toBe(true);
+    expect(isOrgCollapsed(org('a', true))).toBe(true);
+    expect(isOrgCollapsed(org('a', false))).toBe(false);
+  });
+});
+
 describe('org state helpers', () => {
   it('success: collapseAllOrgs sets collapsed true', () => {
     const orgs = [org('a', false), org('b', false)];

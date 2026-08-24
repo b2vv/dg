@@ -95,6 +95,24 @@ describe('searchIndex', () => {
     expect(searchIndex(null, 'Alice')).toEqual([]);
     expect(searchIndex(undefined, 'Alice')).toEqual([]);
   });
+
+  it('success: NFC query matches composed and decomposed haystack', () => {
+    const nfc = '\u0439'; // й
+    const nfd = '\u0438\u0306'; // и + combining breve
+    expect(nfc.normalize('NFC')).toBe(nfd.normalize('NFC'));
+
+    const withNfc = sampleData();
+    withNfc.organizations = [{ id: 'ua-nfc', name: nfc, groupIds: [], collapsed: true }];
+    expect(searchIndex(buildSearchIndex(withNfc), nfd).some((h) => h.node.id === 'ua-nfc')).toBe(
+      true,
+    );
+
+    const withNfd = sampleData();
+    withNfd.organizations = [{ id: 'ua-nfd', name: nfd, groupIds: [], collapsed: true }];
+    expect(searchIndex(buildSearchIndex(withNfd), nfc).some((h) => h.node.id === 'ua-nfd')).toBe(
+      true,
+    );
+  });
 });
 
 describe('revealOrgPath', () => {

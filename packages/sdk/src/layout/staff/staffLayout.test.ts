@@ -57,6 +57,17 @@ describe('resolveStaffHead', () => {
     expect(() => resolveStaffHead(positions, 'o1', [])).toThrow(StaffLayoutError);
   });
 
+  it('failure: self-parent admin reportLine is ignored (A5)', () => {
+    const positions = [pos('root', 'o1', { isHead: true }), pos('child', 'o1')];
+    const reports: DiagramReportLine[] = [
+      { fromId: 'child', toId: 'child', kind: 'admin' },
+      { fromId: 'root', toId: 'child', kind: 'admin' },
+    ];
+    const parents = adminParentMap(positions, reports, 'o1');
+    expect(parents.get('child')).toBe('root');
+    expect([...parents.values()].includes('child')).toBe(false);
+  });
+
   it('failure: no head and no unique parentless throws', () => {
     const positions = [pos('a', 'o1'), pos('b', 'o1')];
     expect(() => resolveStaffHead(positions, 'o1', [])).toThrow(/head|parentless/i);
@@ -204,6 +215,19 @@ describe('layoutStaffOrgBlock', () => {
         (e) => e.toId === 'orphan-a' || e.toId === 'orphan-b' || e.fromId === 'orphan-a',
       ),
     ).toBe(false);
+  });
+
+  it('success: self reportLine does not empty the tree canvas (A5)', async () => {
+    const positions = [pos('root', 'o1', { isHead: true }), pos('child', 'o1')];
+    const reports: DiagramReportLine[] = [
+      { fromId: 'child', toId: 'child', kind: 'admin' },
+      { fromId: 'root', toId: 'child', kind: 'admin' },
+    ];
+    const result = await layoutStaffOrgBlock(positions, reports, 'o1', {
+      staffCoordMode: 'tree',
+    });
+    expect(result.nodes).toHaveLength(2);
+    expect(result.edges).toEqual([{ fromId: 'root', toId: 'child', kind: 'admin' }]);
   });
 });
 

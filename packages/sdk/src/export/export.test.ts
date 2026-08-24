@@ -3,7 +3,7 @@ import { VARIANT_B_POSITIONS } from '../contour/bridge.js';
 import { assertExportOptions, ExportError } from './types.js';
 import { filterDiagramSubtree } from './subtree.js';
 import { buildDiagramSvg } from './svgExport.js';
-import { exportDiagram } from './exportDiagram.js';
+import { exportDiagram, printDiagram } from './exportDiagram.js';
 import { rgbImageToPdf, solidRgb } from './pdfExport.js';
 import { setCanvasToBlobImpl } from './pngExport.js';
 import type { DiagramData } from '../data/types.js';
@@ -233,5 +233,17 @@ describe('rgbImageToPdf', () => {
   it('success: header %PDF', () => {
     const pdf = rgbImageToPdf(2, 2, solidRgb(2, 2, 255, 0, 0));
     expect(String.fromCharCode(...pdf.slice(0, 5))).toBe('%PDF-');
+  });
+});
+
+describe('printDiagram', () => {
+  it('failure: popup blocked throws ExportError (A13)', () => {
+    const orig = window.open;
+    window.open = () => null;
+    try {
+      expect(() => printDiagram('<svg></svg>')).toThrow(ExportError);
+    } finally {
+      window.open = orig;
+    }
   });
 });

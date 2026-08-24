@@ -11,6 +11,7 @@ export function adminChildrenMap(
   const children = new Map<string, string[]>();
   for (const r of reports) {
     if (r.kind !== 'admin') continue;
+    if (r.fromId === r.toId) continue;
     if (!ids.has(r.fromId) || !ids.has(r.toId)) continue;
     const list = children.get(r.fromId);
     if (list) list.push(r.toId);

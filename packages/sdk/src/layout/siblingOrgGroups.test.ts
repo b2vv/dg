@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { siblingOrgGroupBounds } from './siblingOrgGroups.js';
+import type { DiagramOrganization } from '../data/types.js';
 import type { OrgLayoutNode } from './types.js';
 
 function node(
@@ -38,5 +39,52 @@ describe('siblingOrgGroupBounds', () => {
   it('failure: single child → no group frame', () => {
     const nodes = [node('p', undefined, 0, 0), node('a', 'p', 0, 100)];
     expect(siblingOrgGroupBounds(nodes)).toEqual([]);
+  });
+
+  it('success: collapsedMatrixOnly treats undefined collapsed as collapsed', () => {
+    const nodes = [
+      node('p', undefined, 200, 0),
+      node('a', 'p', 0, 120),
+      node('b', 'p', 120, 120),
+    ];
+    const orgById = new Map<string, DiagramOrganization>([
+      ['a', { id: 'a', name: 'a', groupIds: [] }],
+      ['b', { id: 'b', name: 'b', groupIds: [], collapsed: true }],
+    ]);
+    const groups = siblingOrgGroupBounds(nodes, 10, {
+      collapsedMatrixOnly: true,
+      orgById,
+    });
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.parentId).toBe('p');
+  });
+
+  it('failure: collapsedMatrixOnly skips group when a sibling is expanded', () => {
+    const nodes = [
+      node('p', undefined, 200, 0),
+      node('a', 'p', 0, 120),
+      node('b', 'p', 120, 120),
+    ];
+    const orgById = new Map<string, DiagramOrganization>([
+      ['a', { id: 'a', name: 'a', groupIds: [], collapsed: false }],
+      ['b', { id: 'b', name: 'b', groupIds: [], collapsed: true }],
+    ]);
+    expect(
+      siblingOrgGroupBounds(nodes, 10, { collapsedMatrixOnly: true, orgById }),
+    ).toEqual([]);
+  });
+
+  it('failure: collapsedMatrixOnly skips missing orgById entries', () => {
+    const nodes = [
+      node('p', undefined, 200, 0),
+      node('a', 'p', 0, 120),
+      node('b', 'p', 120, 120),
+    ];
+    expect(
+      siblingOrgGroupBounds(nodes, 10, {
+        collapsedMatrixOnly: true,
+        orgById: new Map(),
+      }),
+    ).toEqual([]);
   });
 });

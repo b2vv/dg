@@ -35,7 +35,7 @@ function adminEdges(
 ): StaffOrgBlockResult['edges'] {
   const ids = new Set(positions.map((p) => p.id));
   return reports
-    .filter((r) => ids.has(r.fromId) && ids.has(r.toId))
+    .filter((r) => r.fromId !== r.toId && ids.has(r.fromId) && ids.has(r.toId))
     .map((r) => ({ fromId: r.fromId, toId: r.toId, kind: r.kind }));
 }
 

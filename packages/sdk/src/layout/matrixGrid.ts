@@ -213,15 +213,17 @@ export function placeOrgAtMatrixCell(
   const target = organizations.find((o) => o.id === orgId);
   if (!target) return organizations;
 
+  // Persist integers so later assignMatrixCells occupant checks (cell.row === row) match.
+  const { row: targetRow, col: targetCol } = normalizeCell(row, col);
   const boundedDims: MatrixDimensions = { ...dims, bounded: true };
-  if (!isInsideGrid(row, col, boundedDims)) {
+  if (!isInsideGrid(targetRow, targetCol, boundedDims)) {
     return organizations;
   }
 
   const current = assignMatrixCells(organizations, boundedDims);
   let occupantId: string | undefined;
   for (const [id, cell] of current) {
-    if (id !== orgId && cell.row === row && cell.col === col) {
+    if (id !== orgId && cell.row === targetRow && cell.col === targetCol) {
       occupantId = id;
       break;
     }
@@ -231,8 +233,8 @@ export function placeOrgAtMatrixCell(
     if (org.id === orgId) {
       return {
         ...org,
-        matrixRow: row,
-        matrixCol: col,
+        matrixRow: targetRow,
+        matrixCol: targetCol,
         inMatrix: org.inMatrix ?? false,
       };
     }

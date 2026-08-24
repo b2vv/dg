@@ -50,6 +50,11 @@ export function searchIndexFromDTO(dto: SearchIndexDTO): SearchIndex {
   };
 }
 
+/** Case-fold then NFC so combining marks compose after lowercase (N3). */
+function foldSearchText(s: string): string {
+  return s.toLowerCase().normalize('NFC');
+}
+
 function pushEntry(index: SearchIndex, entry: SearchIndexEntry): void {
   const i = index.entries.length;
   index.entries.push(entry);
@@ -69,7 +74,7 @@ export function buildOrgSearchIndex(organizations: DiagramOrganization[]): Searc
     pushEntry(index, {
       node: { kind: 'organization', id: org.id, organizationId: org.id },
       label: org.name,
-      haystack: `${org.name} ${orgTestId(org)} ${org.id}`.normalize('NFC').toLowerCase(),
+      haystack: foldSearchText(`${org.name} ${orgTestId(org)} ${org.id}`),
     });
   }
   return index;
@@ -108,7 +113,9 @@ export function buildSearchIndexFromPositionRows(rows: PositionSearchRow[]): Sea
         personId: row.personId,
       },
       label: row.label,
-      haystack: `${row.label} ${row.title} ${row.personTestId ?? ''} ${row.positionTestId ?? ''} ${row.positionId}`.normalize('NFC').toLowerCase(),
+      haystack: foldSearchText(
+        `${row.label} ${row.title} ${row.personTestId ?? ''} ${row.positionTestId ?? ''} ${row.positionId}`,
+      ),
     });
     pushEntry(index, {
       node: {
@@ -120,7 +127,9 @@ export function buildSearchIndexFromPositionRows(rows: PositionSearchRow[]): Sea
         personId: row.personId,
       },
       label: row.title,
-      haystack: `${row.title} ${row.label} ${row.positionTestId ?? ''} ${row.positionId}`.normalize('NFC').toLowerCase(),
+      haystack: foldSearchText(
+        `${row.title} ${row.label} ${row.positionTestId ?? ''} ${row.positionId}`,
+      ),
     });
   }
   return index;
@@ -182,7 +191,7 @@ export function searchIndex(
   limit = 50,
 ): SearchResult[] {
   if (!index) return [];
-  const q = query.trim().normalize('NFC').toLowerCase();
+  const q = foldSearchText(query.trim());
   if (!q) return [];
 
   // B5: use first code point (not code unit) so non-BMP queries work.
