@@ -6,17 +6,29 @@ import { computeAllContoursInWorker, computeDeptContourInWorker } from './contou
 import { computeAllContours as computeAllContoursMain, computeDeptContour as computeDeptContourMain } from './contour/bridge.js';
 import { createIncrementalContourComputer, type IncrementalContourComputer } from './contour/incremental.js';
 import { PixiHost } from './render/PixiHost.js';
+import { MediaService, type DiagramMediaFacade, type MediaPlaceholderRegistry } from './media/index.js';
+import {
+  resolveThemedMediaFromOrganization,
+  resolveThemedMediaFromPerson,
+  DEFAULT_MEDIA_PLACEHOLDERS,
+} from './media/index.js';
 import {
   defaultRenderConfig,
   mergeTheme,
   resolveTheme,
   resolveNodeTheme,
   canvasBackgroundForTheme,
+  getOrgSymbolUrl,
   type NodeTheme,
   type RenderConfig,
   type CameraMotionOptions,
 } from './render/index.js';
-import { resolveLodLevel, defaultLodThresholds, type LodLevel, type LodThresholds } from './render/lod.js';
+import { resolvePersonPhotoUrl } from './render/PersonNode.js';
+import { resolveLodLevel, type LodLevel, type LodThresholds } from './render/lod.js';
+import { createRenderCoalesce } from './render/renderCoalesce.js';
+import { SelectionStore } from './state/SelectionStore.js';
+import { ViewStateStore } from './state/ViewStateStore.js';
+import { DataStore } from './state/DataStore.js';
 import type { PromoteCandidate } from './render/promoteTypes.js';
 import {
   collapseAllOrgs,
@@ -43,11 +55,6 @@ import {
   resolveOrganizationIdForNode,
   movePositionToCell,
   shiftPositionBlock,
-  selectMany as dedupeSelections,
-  replaceSelection,
-  toggleInSelection,
-  sameSelectionSet,
-  isSelectionToggleModifier,
   defaultContextMenuItems,
   type SearchIndex,
   type NodeRef,
@@ -83,8 +90,9 @@ export type {
   GridCell,
   Point2D,
   DiagramDataStats,
+  ThemedMedia,
 } from './data/types.js';
-export type { DiagramOrganization, DiagramPerson, DiagramPosition } from './data/types.js';
+export type { DiagramOrganization, DiagramPerson, DiagramPosition, DiagramGroup } from './data/types.js';
 export { emptyDiagramData, computeStats } from './data/types.js';
 
 export type { DataMapper, DiagramMappers, MapperContext, MapResult } from './mappers/types.js';
@@ -183,6 +191,10 @@ export {
   loadNodeTexture,
   configureNodeTextureLoader,
   clearNodeTextureCache,
+  evictNodeTextureCache,
+  acquireNodeTextureUrl,
+  releaseNodeTextureUrl,
+  nodeTextureUrlOwnerCount,
   isAllowedNodeMediaUrl,
   worldBoxToScreen,
   resolvePromoteIds,
@@ -201,6 +213,24 @@ export {
   getOrgSymbolUrl,
   getInactiveOrgSymbolUrl,
 } from './render/index.js';
+export {
+  MediaService,
+  mediaCacheKey,
+  mediaCacheKeyMatchesUrl,
+  resolveThemedMediaUrl,
+  resolveThemedMediaFromOrganization,
+  resolveThemedMediaFromPerson,
+  resolveThemedMediaFromPosition,
+  resolveThemedMediaFromGroup,
+  DEFAULT_MEDIA_PLACEHOLDERS,
+} from './media/index.js';
+export type {
+  DiagramMediaFacade,
+  MediaPlaceholderKind,
+  MediaPlaceholderRegistry,
+  MediaPlaceholderSet,
+  MediaServiceOptions,
+} from './media/index.js';
 export type {
   NodeTheme,
   ThemeMode,
@@ -340,13 +370,16 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
   lodThresholds?: LodThresholds;
   /** Enable DOM test anchors (`data-testid="node-*"`) — use with createTestAnchorOverlay (T55). */
   testAnchors?: boolean;
+  /** Per-diagram media placeholders keyed by host `entityType` (T74). */
+  mediaPlaceholders?: MediaPlaceholderRegistry;
+  /** Theme keys to prefetch besides active (T74 M4). */
+  prefetchMediaThemeKeys?: readonly string[];
 }
 
 /** Embed SDK — Pixi render + data/mappers + worker contour */
 export class OrgHierarchyDiagram {
-  private data: DiagramData = emptyDiagramData();
+  private readonly dataStore = new DataStore();
   private host: PixiHost | null = null;
-  private themeMode: 'light' | 'dark' | 'auto' = 'auto';
   private stylesPartial: Partial<NodeTheme> | undefined;
   private nodeTheme = mergeTheme();
   private renderConfig: RenderConfig = { ...defaultRenderConfig };
@@ -354,20 +387,30 @@ export class OrgHierarchyDiagram {
   private workerFactory: () => Worker = createTransformWorker;
   private workerPool: WorkerPool | null = null;
   private callbacks: OrgHierarchyCallbacks = {};
-  private staffCurrentOrgId: string | undefined;
-  private staffLayout: StaffLayoutOptions = {};
-  private orgLayout: OrgLayoutOptions = {};
-  private orgTreeChrome = true;
-  private staffExpandedOrgIds = new Set<string>();
-  private staffExpandedPositionIds = new Set<string>();
   private searchIdx: SearchIndex | null = null;
-  /** Multi-select set (T67). Primary / first element is also exposed via getSelection(). */
-  private selections: NodeRef[] = [];
-  private lodLevel: LodLevel = 'near';
-  private lodThresholds: LodThresholds = defaultLodThresholds;
+  /** Multi-select set (T67 / T76 SelectionStore). */
+  private readonly selectionStore = new SelectionStore((selections) => {
+    this.callbacks.onSelectionChange?.([...selections]);
+    this.notifyPromoteSync();
+  });
+  /** Theme / LOD / staff focus / expand sets (T76 ViewStateStore). */
+  private readonly viewState = new ViewStateStore();
   private lodRenderQueued = false;
+  /** T75 D2: coalesce overlapping render() so layers.clear never races. */
+  private readonly renderCoalesce = createRenderCoalesce(() => this.renderNow());
+  private destroyed = false;
   private contourComputer: IncrementalContourComputer | null = null;
   private promoteSyncListeners = new Set<() => void>();
+  private mediaService: MediaService | null = null;
+
+  /** Backing diagram data (T76 DataStore). */
+  private get data(): DiagramData {
+    return this.dataStore.snapshot;
+  }
+  private set data(next: DiagramData) {
+    this.dataStore.replace(next);
+  }
+
   static async create<TRaw>(
     container: HTMLElement,
     config: OrgHierarchyConfig<TRaw>,
@@ -376,24 +419,27 @@ export class OrgHierarchyDiagram {
       throw new Error('OrgHierarchyDiagram: container is required');
     }
     const instance = new OrgHierarchyDiagram();
-    instance.themeMode = config.theme ?? 'auto';
+    instance.viewState.themeMode = config.theme ?? 'auto';
     instance.stylesPartial = config.styles;
     instance.nodeTheme = resolveNodeTheme(
-      resolveTheme(instance.themeMode),
+      resolveTheme(instance.viewState.themeMode),
       config.styles,
     );
     instance.renderConfig = { ...defaultRenderConfig, ...config.render };
     instance.useWorker = config.useWorker ?? typeof Worker !== 'undefined';
     instance.callbacks = config.callbacks ?? {};
-    instance.staffCurrentOrgId = config.staffCurrentOrgId;
-    instance.staffLayout = config.staffLayout ?? {};
-    instance.orgLayout = config.orgLayout ?? {};
-    instance.orgTreeChrome = config.orgTreeChrome ?? true;
+    instance.viewState.staffCurrentOrgId = config.staffCurrentOrgId;
+    instance.viewState.staffLayout = config.staffLayout ?? {};
+    instance.viewState.orgLayout = config.orgLayout ?? {};
+    instance.viewState.orgTreeChrome = config.orgTreeChrome ?? true;
     if (config.staffExpandedOrgIds?.length) {
-      instance.staffExpandedOrgIds = new Set(config.staffExpandedOrgIds);
+      instance.viewState.staffExpandedOrgIds.clear();
+      for (const id of config.staffExpandedOrgIds) {
+        instance.viewState.staffExpandedOrgIds.add(id);
+      }
     }
     if (config.lodThresholds) {
-      instance.lodThresholds = config.lodThresholds;
+      instance.viewState.lodThresholds = config.lodThresholds;
     }
 
     const workerFactory = config.workerFactory ?? createTransformWorker;
@@ -419,9 +465,40 @@ export class OrgHierarchyDiagram {
       instance.onViewportTransform(t.scale);
       instance.notifyPromoteSync();
     });
-    instance.lodLevel = resolveLodLevel(instance.host.getZoom(), instance.lodThresholds);
+    instance.viewState.lodLevel = resolveLodLevel(
+      instance.host.getZoom(),
+      instance.viewState.lodThresholds,
+    );
+    const resolvedTheme = resolveTheme(instance.viewState.themeMode);
+    const hostPlaceholders = config.mediaPlaceholders;
+    instance.mediaService = new MediaService(
+      resolvedTheme,
+      {
+        ...DEFAULT_MEDIA_PLACEHOLDERS,
+        ...hostPlaceholders,
+        default: {
+          ...DEFAULT_MEDIA_PLACEHOLDERS.default,
+          ...hostPlaceholders?.default,
+        },
+      },
+      {
+        prefetchThemeKeys: config.prefetchMediaThemeKeys,
+        onInvalidateViews: async (urls) => {
+          await instance.host?.renderer.refreshMediaUrls(urls);
+        },
+        resolveNodeUrls: (ref) => instance.resolveMediaUrlsForRef(ref),
+      },
+    );
     await instance.render();
     return instance;
+  }
+
+  /** Per-diagram media loader / invalidation (T74). */
+  get media(): DiagramMediaFacade {
+    if (!this.mediaService) {
+      throw new Error('OrgHierarchyDiagram: media service not initialized');
+    }
+    return this.mediaService;
   }
 
   private notifyPromoteSync(): void {
@@ -437,9 +514,9 @@ export class OrgHierarchyDiagram {
   }
 
   private onViewportTransform(scale: number): void {
-    const next = resolveLodLevel(scale, this.lodThresholds);
-    if (next === this.lodLevel) return;
-    this.lodLevel = next;
+    const next = resolveLodLevel(scale, this.viewState.lodThresholds);
+    if (next === this.viewState.lodLevel) return;
+    this.viewState.lodLevel = next;
     if (this.lodRenderQueued) return;
     this.lodRenderQueued = true;
     queueMicrotask(() => {
@@ -482,38 +559,22 @@ export class OrgHierarchyDiagram {
   }
 
   private applySelection(next: NodeRef | null): void {
-    const result = replaceSelection(this.selections, next);
-    if (!result.changed) return;
-    this.selections = result.selections;
-    this.callbacks.onSelectionChange?.(this.selections);
-    this.notifyPromoteSync();
+    this.selectionStore.replace(next);
   }
 
   private applyToggleSelection(node: NodeRef): void {
-    const result = toggleInSelection(this.selections, node);
-    if (!result.changed) return;
-    this.selections = result.selections;
-    this.callbacks.onSelectionChange?.(this.selections);
-    this.notifyPromoteSync();
+    this.selectionStore.toggle(node);
   }
 
   private applySelections(next: readonly NodeRef[]): void {
-    const selections = dedupeSelections(next);
-    if (sameSelectionSet(this.selections, selections)) return;
-    this.selections = selections;
-    this.callbacks.onSelectionChange?.(this.selections);
-    this.notifyPromoteSync();
+    this.selectionStore.replaceMany(next);
   }
 
   private handleNodeSelect(
     node: NodeRef,
     mods?: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean },
   ): void {
-    if (mods && isSelectionToggleModifier(mods)) {
-      this.applyToggleSelection(node);
-    } else {
-      this.applySelection(node);
-    }
+    this.selectionStore.handlePointerSelect(node, mods);
   }
 
   private personNodeRef(personId: string, positionId: string): NodeRef {
@@ -621,9 +682,9 @@ export class OrgHierarchyDiagram {
 
   /** Sync interactive expand set from mapper/`position.expanded` flags. */
   private seedExpandedPositionsFromData(): void {
-    this.staffExpandedPositionIds.clear();
+    this.viewState.staffExpandedPositionIds.clear();
     for (const p of this.data.positions) {
-      if (p.expanded === true) this.staffExpandedPositionIds.add(p.id);
+      if (p.expanded === true) this.viewState.staffExpandedPositionIds.add(p.id);
     }
   }
 
@@ -634,40 +695,56 @@ export class OrgHierarchyDiagram {
         p.id === positionId && p.expanded !== expanded ? { ...p, expanded } : p,
       ),
     };
-    if (expanded) this.staffExpandedPositionIds.add(positionId);
-    else this.staffExpandedPositionIds.delete(positionId);
+    if (expanded) this.viewState.staffExpandedPositionIds.add(positionId);
+    else this.viewState.staffExpandedPositionIds.delete(positionId);
   }
 
+  /**
+   * Coalesce concurrent renders (T75 D2). Overlapping callers share one promise;
+   * a dirty flag schedules exactly one follow-up pass after the in-flight work.
+   */
   private async render(): Promise<void> {
-    if (!this.host) return;
-    const resolved = resolveTheme(this.themeMode);
+    if (!this.host || this.destroyed) return;
+    await this.renderCoalesce.schedule();
+  }
+
+  private async renderNow(): Promise<void> {
+    if (!this.host || this.destroyed) return;
+    const host = this.host;
+    const resolved = resolveTheme(this.viewState.themeMode);
     this.nodeTheme = resolveNodeTheme(resolved, this.stylesPartial);
-    this.host.setBackground(canvasBackgroundForTheme(resolved));
+    host.setBackground(canvasBackgroundForTheme(resolved));
     const computeContours = this.getContourComputer();
-    await this.host.renderer.render(this.data, this.nodeTheme, resolved, this.renderConfig, {
+    await host.renderer.render(this.data, this.nodeTheme, resolved, this.renderConfig, {
       computeContours,
-      lod: this.lodLevel,
-      orgLayout: this.orgLayout,
-      staff: this.staffCurrentOrgId
+      lod: this.viewState.lodLevel,
+      orgLayout: this.viewState.orgLayout,
+      staff: this.viewState.staffCurrentOrgId
         ? {
-            currentOrgId: this.staffCurrentOrgId,
+            currentOrgId: this.viewState.staffCurrentOrgId,
             layout: {
-              ...this.staffLayout,
-              expandedPositionIds: [...this.staffExpandedPositionIds],
+              ...this.viewState.staffLayout,
+              expandedPositionIds: [...this.viewState.staffExpandedPositionIds],
             },
-            expandedOrgIds: [...this.staffExpandedOrgIds],
+            expandedOrgIds: [...this.viewState.staffExpandedOrgIds],
           }
         : undefined,
-      selected: this.selections,
+      selected: this.selectionStore.list,
+      loadTexture: (url, revision) =>
+        this.mediaService
+          ? this.mediaService.loadTexture(url, revision)
+          : Promise.resolve(null),
       onCanvasClick: () => {
+        if (this.destroyed) return;
         this.applySelection(null);
-        void this.render();
+        this.repaintSelection();
       },
       onOrgClick: (orgId, mods) => {
+        if (this.destroyed) return;
         const node = this.orgNodeRef(orgId);
         this.handleNodeSelect(node, mods);
         this.callbacks.onNodeClick?.(node);
-        void this.render();
+        this.repaintSelection();
       },
       onOrgDoubleClick: (orgId) => {
         this.callbacks.onNodeDoubleClick?.(this.orgNodeRef(orgId));
@@ -682,10 +759,11 @@ export class OrgHierarchyDiagram {
         void this.togglePositionExpand(positionId);
       },
       onPersonClick: (personId, positionId, mods) => {
+        if (this.destroyed) return;
         const node = this.personNodeRef(personId, positionId);
         this.handleNodeSelect(node, mods);
         this.callbacks.onNodeClick?.(node);
-        void this.render();
+        this.repaintSelection();
       },
       onPersonDoubleClick: (personId, positionId) => {
         this.callbacks.onNodeDoubleClick?.(this.personNodeRef(personId, positionId));
@@ -699,12 +777,12 @@ export class OrgHierarchyDiagram {
       onOrgContextMenu: (orgId, pointer) => {
         this.emitContextMenu(this.orgNodeRef(orgId), pointer);
       },
-      onOrgExpand: this.orgTreeChrome
+      onOrgExpand: this.viewState.orgTreeChrome
         ? (orgId) => {
             void this.expandOrg(orgId);
           }
         : undefined,
-      onOrgCollapse: this.orgTreeChrome
+      onOrgCollapse: this.viewState.orgTreeChrome
         ? (orgId) => {
             void this.collapseOrg(orgId);
           }
@@ -713,8 +791,51 @@ export class OrgHierarchyDiagram {
         void this.movePersonToCell(positionId, col, row);
       },
     });
+    if (this.destroyed || !this.host) return;
     this.callbacks.onLayoutDiagnostics?.(this.getLayoutDiagnostics());
     this.notifyPromoteSync();
+    this.prefetchConfiguredMedia();
+  }
+
+  /** URLs currently bound to a node (for `diagram.media.refresh`). */
+  private resolveMediaUrlsForRef(ref: NodeRef): string[] {
+    const out = new Set<string>();
+    const theme = resolveTheme(this.viewState.themeMode);
+    if (ref.kind === 'organization') {
+      const org = this.data.organizations.find((o) => o.id === ref.id);
+      if (!org) return [];
+      const media = org.media ?? resolveThemedMediaFromOrganization(org);
+      if (media?.fallback) out.add(media.fallback.trim());
+      if (media?.byTheme) {
+        for (const u of Object.values(media.byTheme)) {
+          if (u?.trim()) out.add(u.trim());
+        }
+      }
+      const active = getOrgSymbolUrl(org, theme);
+      if (active?.trim()) out.add(active.trim());
+      return [...out];
+    }
+    const personId = ref.personId ?? (ref.kind === 'person' ? ref.id : undefined);
+    const person = personId
+      ? this.data.persons.find((p) => p.id === personId)
+      : undefined;
+    const photo = resolvePersonPhotoUrl(person);
+    if (photo) out.add(photo);
+    return [...out];
+  }
+
+  /** M4: preload alternate theme keys when host opts in via prefetchMediaThemeKeys. */
+  private prefetchConfiguredMedia(): void {
+    if (!this.mediaService?.hasPrefetchThemes) return;
+    if (this.viewState.lodLevel === 'far') return;
+    for (const org of this.data.organizations) {
+      const media = org.media ?? resolveThemedMediaFromOrganization(org);
+      this.mediaService.prefetch(media, media?.revision);
+    }
+    for (const person of this.data.persons) {
+      const media = person.media ?? resolveThemedMediaFromPerson(person);
+      this.mediaService.prefetch(media, media?.revision);
+    }
   }
 
   getOrgMode(): OrgDisplayMode {
@@ -841,7 +962,8 @@ export class OrgHierarchyDiagram {
   }
 
   async setTheme(theme: 'light' | 'dark' | 'auto'): Promise<void> {
-    this.themeMode = theme;
+    this.viewState.themeMode = theme;
+    this.mediaService?.setActiveThemeKey(resolveTheme(theme));
     await this.render();
   }
 
@@ -861,19 +983,19 @@ export class OrgHierarchyDiagram {
 
   /** Staff focus org (Tier-2). Pass `null` to clear and use auto-inference. */
   setStaffFocus(orgId: string | null): void {
-    this.staffCurrentOrgId = orgId ?? undefined;
+    this.viewState.staffCurrentOrgId = orgId ?? undefined;
   }
 
   getStaffFocus(): string | undefined {
-    return this.staffCurrentOrgId;
+    return this.viewState.staffCurrentOrgId;
   }
 
   getStaffExpandedOrgIds(): string[] {
-    return [...this.staffExpandedOrgIds];
+    return [...this.viewState.staffExpandedOrgIds];
   }
 
   getStaffExpandedPositionIds(): string[] {
-    return [...this.staffExpandedPositionIds];
+    return [...this.viewState.staffExpandedPositionIds];
   }
 
   /**
@@ -881,14 +1003,14 @@ export class OrgHierarchyDiagram {
    * Caps at one expanded card by default (clears others).
    */
   async toggleStaffOrgExpand(orgId: string): Promise<boolean> {
-    if (this.staffExpandedOrgIds.has(orgId)) {
-      this.staffExpandedOrgIds.delete(orgId);
+    if (this.viewState.staffExpandedOrgIds.has(orgId)) {
+      this.viewState.staffExpandedOrgIds.delete(orgId);
     } else {
-      this.staffExpandedOrgIds.clear();
-      this.staffExpandedOrgIds.add(orgId);
+      this.viewState.staffExpandedOrgIds.clear();
+      this.viewState.staffExpandedOrgIds.add(orgId);
     }
     await this.render();
-    return this.staffExpandedOrgIds.has(orgId);
+    return this.viewState.staffExpandedOrgIds.has(orgId);
   }
 
   /**
@@ -903,7 +1025,7 @@ export class OrgHierarchyDiagram {
       return false;
     }
 
-    const wasExpanded = this.staffExpandedPositionIds.has(positionId) || position.expanded === true;
+    const wasExpanded = this.viewState.staffExpandedPositionIds.has(positionId) || position.expanded === true;
     if (wasExpanded) {
       this.setPositionExpandedFlag(positionId, false);
       this.callbacks.onLayoutChange?.({
@@ -921,11 +1043,11 @@ export class OrgHierarchyDiagram {
       return false;
     }
 
-    const max = this.staffLayout.maxExpandedPositions ?? Number.POSITIVE_INFINITY;
+    const max = this.viewState.staffLayout.maxExpandedPositions ?? Number.POSITIVE_INFINITY;
     const evicted: string[] = [];
     if (Number.isFinite(max)) {
-      while (this.staffExpandedPositionIds.size >= max) {
-        const victim = this.staffExpandedPositionIds.values().next().value as string | undefined;
+      while (this.viewState.staffExpandedPositionIds.size >= max) {
+        const victim = this.viewState.staffExpandedPositionIds.values().next().value as string | undefined;
         if (victim === undefined) break;
         this.setPositionExpandedFlag(victim, false);
         evicted.push(victim);
@@ -968,7 +1090,7 @@ export class OrgHierarchyDiagram {
     organizationId?: string;
     depth: number;
   }): Promise<void> {
-    const organizationId = options.organizationId ?? this.staffCurrentOrgId;
+    const organizationId = options.organizationId ?? this.viewState.staffCurrentOrgId;
     if (!organizationId) return;
 
     const { expandedIds, positions } = assignExpandToDepth(
@@ -982,9 +1104,9 @@ export class OrgHierarchyDiagram {
     // Drop prior expands for this org, then apply depth set (bypass cap).
     for (const p of this.data.positions) {
       if (p.organizationId !== organizationId) continue;
-      this.staffExpandedPositionIds.delete(p.id);
+      this.viewState.staffExpandedPositionIds.delete(p.id);
     }
-    for (const id of expandSet) this.staffExpandedPositionIds.add(id);
+    for (const id of expandSet) this.viewState.staffExpandedPositionIds.add(id);
     this.data = { ...this.data, positions };
 
     const changedIds = [...expandSet];
@@ -1020,7 +1142,7 @@ export class OrgHierarchyDiagram {
 
   /** Apply staff focus and re-render (drill into Tier-3 org card). Clears expands. */
   async focusStaffOrg(orgId: string | null): Promise<void> {
-    this.staffExpandedOrgIds.clear();
+    this.viewState.staffExpandedOrgIds.clear();
     this.setStaffFocus(orgId);
     await this.render();
   }
@@ -1041,12 +1163,12 @@ export class OrgHierarchyDiagram {
 
   /** Primary / first selected node (compat). Prefer {@link getSelections}. */
   getSelection(): NodeRef | null {
-    return this.selections[0] ?? null;
+    return this.selectionStore.primary;
   }
 
   /** Full multi-select set (T67 Phase 1). Order = selection order. */
   getSelections(): readonly NodeRef[] {
-    return this.selections;
+    return this.selectionStore.list;
   }
 
   /** Soft layout warnings from the last render (anchor overlap, skipped expands, …). */
@@ -1057,25 +1179,32 @@ export class OrgHierarchyDiagram {
   /** Replace selection with one node (or clear). */
   async select(node: NodeRef | null): Promise<void> {
     this.applySelection(node);
-    await this.render();
+    this.repaintSelection();
   }
 
   /** Replace selection with many nodes (deduped). */
   async selectMany(nodes: readonly NodeRef[]): Promise<void> {
     this.applySelections(nodes);
-    await this.render();
+    this.repaintSelection();
   }
 
   /** Toggle membership of one node in the selection set. */
   async toggleSelection(node: NodeRef): Promise<void> {
     this.applyToggleSelection(node);
-    await this.render();
+    this.repaintSelection();
   }
 
   /** Clear the selection set. */
   async clearSelection(): Promise<void> {
     this.applySelection(null);
-    await this.render();
+    this.repaintSelection();
+  }
+
+  /** T75 D1: selection chrome only — keeps nodeViews alive. */
+  private repaintSelection(): void {
+    if (!this.host || this.destroyed) return;
+    this.host.renderer.repaintSelection(this.selectionStore.list);
+    this.notifyPromoteSync();
   }
 
   /**
@@ -1157,7 +1286,7 @@ export class OrgHierarchyDiagram {
     const ref = this.resolveNodeRef(nodeId);
     if (!ref) return false;
     this.applySelection(ref);
-    await this.render();
+    this.repaintSelection();
     const box =
       this.host?.renderer.getNodeBox(nodeId) ??
       (ref.positionId ? this.host?.renderer.getNodeBox(ref.positionId) : undefined);
@@ -1180,7 +1309,7 @@ export class OrgHierarchyDiagram {
   }
 
   getLodLevel(): LodLevel {
-    return this.lodLevel;
+    return this.viewState.lodLevel;
   }
 
   /**
@@ -1285,11 +1414,11 @@ export class OrgHierarchyDiagram {
         mounted: true,
         app: this.host.getApplication(),
         renderConfig: this.renderConfig,
-        currentOrgId: this.staffCurrentOrgId,
-        expandedOrgIds: [...this.staffExpandedOrgIds],
+        currentOrgId: this.viewState.staffCurrentOrgId,
+        expandedOrgIds: [...this.viewState.staffExpandedOrgIds],
         staffLayout: {
-          ...this.staffLayout,
-          expandedPositionIds: [...this.staffExpandedPositionIds],
+          ...this.viewState.staffLayout,
+          expandedPositionIds: [...this.viewState.staffExpandedPositionIds],
         },
         personTheme: this.nodeTheme.person,
       },
@@ -1356,7 +1485,11 @@ export class OrgHierarchyDiagram {
   }
 
   destroy(): void {
+    this.destroyed = true;
+    this.renderCoalesce.stop();
     this.promoteSyncListeners.clear();
+    void this.mediaService?.destroy();
+    this.mediaService = null;
     this.contourComputer?.invalidate();
     this.contourComputer = null;
     this.workerPool?.dispose();

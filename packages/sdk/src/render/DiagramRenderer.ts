@@ -106,6 +106,8 @@ export interface RenderOptions {
   };
   /** World card AABBs per department (with position id) for button-group paint. */
   contourMemberBoxesByDept?: Map<string, ContourMemberBox[]>;
+  /** T74: per-diagram texture loader (`diagram.media.loadTexture`). */
+  loadTexture?: import('./nodeMedia.js').NodeTextureLoader;
 }
 
 export interface NodeWorldBox {
@@ -168,13 +170,21 @@ export class LayerManager {
   }
 
   clear(): void {
-    this.zones.removeChildren();
-    this.departments.removeChildren();
-    this.edges.removeChildren();
-    this.organizations.removeChildren();
-    this.persons.removeChildren();
-    this.departmentStrokes.removeChildren();
-    this.overlay.removeChildren();
+    this.destroyLayerChildren(this.zones);
+    this.destroyLayerChildren(this.departments);
+    this.destroyLayerChildren(this.edges);
+    this.destroyLayerChildren(this.organizations);
+    this.destroyLayerChildren(this.persons);
+    this.destroyLayerChildren(this.departmentStrokes);
+    this.destroyLayerChildren(this.overlay);
+  }
+
+  /** T75 D3: removeChildren alone leaks GPU; destroy detached views. */
+  private destroyLayerChildren(layer: Container): void {
+    const removed = layer.removeChildren();
+    for (const child of removed) {
+      child.destroy({ children: true });
+    }
   }
 }
 
@@ -183,9 +193,13 @@ const DEFAULT_MORPH_MS = 160;
 export class DiagramRenderer {
   readonly layers = new LayerManager();
   private destroyed = false;
+  /** Bumped at each render entry; stale async passes bail after await (T75 D2). */
+  private renderEpoch = 0;
   private nodeBoxes = new Map<string, NodeWorldBox>();
   /** Pixi views keyed by node/position/org id — for promote hide/show. */
   private nodeViews = new Map<string, Container>();
+  /** T74 M1: media URL → views that can reloadMedia() after invalidate. */
+  private mediaUrlViews = new Map<string, Set<{ reloadMedia: () => Promise<void> }>>();
   private promotedIds = new Set<string>();
   private contourSession: ContourSession | null = null;
   private lastDiagnostics: string[] = [];
@@ -239,6 +253,37 @@ export class DiagramRenderer {
     view.visible = !this.promotedIds.has(id);
   }
 
+  private registerMediaView(
+    url: string | undefined,
+    view: { reloadMedia: () => Promise<void> },
+  ): void {
+    const trimmed = url?.trim();
+    if (!trimmed) return;
+    let set = this.mediaUrlViews.get(trimmed);
+    if (!set) {
+      set = new Set();
+      this.mediaUrlViews.set(trimmed, set);
+    }
+    set.add(view);
+  }
+
+  /**
+   * T74 M1: after MediaService.invalidate — reload textures on live sprites
+   * without a full scene rebuild.
+   */
+  async refreshMediaUrls(urls: readonly string[]): Promise<void> {
+    if (this.destroyed) return;
+    const seen = new Set<{ reloadMedia: () => Promise<void> }>();
+    for (const raw of urls) {
+      const trimmed = raw.trim();
+      if (!trimmed) continue;
+      for (const view of this.mediaUrlViews.get(trimmed) ?? []) {
+        seen.add(view);
+      }
+    }
+    await Promise.all([...seen].map((v) => v.reloadMedia()));
+  }
+
   private applyPromoteVisibility(): void {
     for (const [id, view] of this.nodeViews) {
       view.visible = !this.promotedIds.has(id);
@@ -270,12 +315,14 @@ export class DiagramRenderer {
     options: RenderOptions = {},
   ): Promise<void> {
     if (this.destroyed) return;
+    const epoch = ++this.renderEpoch;
     this.cancelContourMorphs();
     this.contourSession = null;
     this.contourWorld = null;
     this.layers.clear();
     this.nodeBoxes.clear();
     this.nodeViews.clear();
+    this.mediaUrlViews.clear();
     this.lastDiagnostics = [];
     this.drag = null;
 
@@ -289,18 +336,36 @@ export class DiagramRenderer {
     const lod = options.lod ?? 'near';
     const hasStaff = data.positions.length > 0;
     if (hasStaff) {
-      await this.renderStaff(data, theme, resolvedTheme, config, { ...options, lod });
+      await this.renderStaff(data, theme, resolvedTheme, config, { ...options, lod }, epoch);
     } else if (data.organizations.length > 0) {
-      await this.renderOrganizations(data, theme, resolvedTheme, config, { ...options, lod });
+      await this.renderOrganizations(data, theme, resolvedTheme, config, { ...options, lod }, epoch);
     }
+    if (!this.isRenderCurrent(epoch)) return;
 
     this.drawSelection(options.selected ?? []);
     this.applyPromoteVisibility();
   }
 
+  private isRenderCurrent(epoch: number): boolean {
+    return !this.destroyed && epoch === this.renderEpoch;
+  }
+
+  /**
+   * T75 D1: refresh selection chrome only — no layout / view rebuild.
+   */
+  repaintSelection(selected: NodeRef | null | readonly NodeRef[] = []): void {
+    if (this.destroyed) return;
+    const removed = this.layers.overlay.removeChildren();
+    for (const child of removed) {
+      child.destroy({ children: true });
+    }
+    this.drawSelection(selected);
+  }
+
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
+    this.renderEpoch += 1;
     this.cancelContourMorphs();
     this.contourSession = null;
     this.layers.clear();
@@ -655,6 +720,7 @@ export class DiagramRenderer {
     resolvedTheme: 'light' | 'dark',
     config: RenderConfig,
     options: RenderOptions,
+    epoch: number,
   ): Promise<void> {
     const currentOrgId = options.staff?.currentOrgId ?? inferStaffCurrentOrgId(data);
 
@@ -680,6 +746,7 @@ export class DiagramRenderer {
         currentOrgId,
         staffOpts,
       );
+      if (!this.isRenderCurrent(epoch)) return;
 
       this.lastDiagnostics = [...canvas.diagnostics];
 
@@ -755,6 +822,7 @@ export class DiagramRenderer {
           ...options,
           contourMemberBoxesByDept: memberBoxesByDept,
         });
+        if (!this.isRenderCurrent(epoch)) return;
       }
 
       if (config.dashedGridFrame) {
@@ -817,6 +885,7 @@ export class DiagramRenderer {
         const kids = childrenFor(position.organizationId).get(position.id) ?? [];
         const showExpand = collapsePositions && kids.length > 0 && !!options.onPositionExpandToggle;
         const node = PersonNodeView.create(person, position, personStyle, lod, {
+          loadTexture: options.loadTexture,
           onContextMenu: options.onPersonContextMenu
             ? (pointer) =>
                 options.onPersonContextMenu!(
@@ -856,6 +925,7 @@ export class DiagramRenderer {
         this.layers.persons.addChild(node);
         this.registerView(position.id, node);
         if (position.personId) this.registerView(position.personId, node);
+        this.registerMediaView(node.resolvedPhotoUrl, node);
       }
 
       for (const card of canvas.orgCards) {
@@ -891,6 +961,7 @@ export class DiagramRenderer {
           height: card.height,
         });
         this.registerView(card.orgId, view);
+        this.registerMediaView(view.resolvedSymbolUrl, view);
         view.on('pointertap', (e) => {
           if (!isPrimaryPointerTap(e)) return;
           if (view.activateChromePointer(e)) {
@@ -947,6 +1018,7 @@ export class DiagramRenderer {
       if (!position.gridCell) continue;
       const person = position.personId ? personById.get(position.personId) : undefined;
       const node = PersonNodeView.create(person, position, theme.person, options.lod ?? 'near', {
+        loadTexture: options.loadTexture,
         onContextMenu: options.onPersonContextMenu
           ? (pointer) =>
               options.onPersonContextMenu!(position.personId ?? '', position.id, {
@@ -979,6 +1051,7 @@ export class DiagramRenderer {
       this.layers.persons.addChild(node);
       this.registerView(position.id, node);
       if (position.personId) this.registerView(position.personId, node);
+      this.registerMediaView(node.resolvedPhotoUrl, node);
     }
   }
 
@@ -988,12 +1061,14 @@ export class DiagramRenderer {
     resolvedTheme: 'light' | 'dark',
     config: RenderConfig,
     options: RenderOptions,
+    epoch: number,
   ): Promise<void> {
     const layout = await computeOrgLayout(
       data.organizations,
       data.orgLinks ?? [],
       options.orgLayout,
     );
+    if (!this.isRenderCurrent(epoch)) return;
 
     const edgesView = OrgEdgesView.fromEdges(
       layout.edges,
@@ -1083,6 +1158,7 @@ export class DiagramRenderer {
       });
       this.layers.organizations.addChild(node);
       this.registerView(org.id, node);
+      this.registerMediaView(node.resolvedSymbolUrl, node);
     }
   }
 
@@ -1110,13 +1186,16 @@ export class DiagramRenderer {
     options: RenderOptions,
     config: RenderConfig = defaultRenderConfig,
   ): import('./OrganizationNode.js').OrganizationNodeOptions {
+    const base: import('./OrganizationNode.js').OrganizationNodeOptions = {
+      loadTexture: options.loadTexture,
+      prefetchInactiveSymbol: config.prefetchInactiveOrgSymbol === true,
+    };
     if (
       !options.onOrgContextMenu &&
       !options.onOrgExpand &&
-      !options.onOrgCollapse &&
-      !config.prefetchInactiveOrgSymbol
+      !options.onOrgCollapse
     ) {
-      return {};
+      return base;
     }
     const hasChildren = orgHasChildren(data.organizations, org.id);
     const openMenu = (pointer: { clientX: number; clientY: number }) => {
@@ -1128,8 +1207,8 @@ export class DiagramRenderer {
       });
     };
     return {
+      ...base,
       onContextMenu: options.onOrgContextMenu ? openMenu : undefined,
-      prefetchInactiveSymbol: config.prefetchInactiveOrgSymbol === true,
       chrome:
         hasChildren && (options.onOrgExpand || options.onOrgCollapse)
           ? {
@@ -1158,6 +1237,7 @@ export class DiagramRenderer {
       });
     };
     return {
+      loadTexture: options.loadTexture,
       onContextMenu: options.onOrgContextMenu ? openMenu : undefined,
       prefetchInactiveSymbol: config.prefetchInactiveOrgSymbol === true,
       chrome:

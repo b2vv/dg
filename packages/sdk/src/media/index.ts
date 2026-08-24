@@ -1,0 +1,17 @@
+export type {
+  ThemedMedia,
+  MediaPlaceholderKind,
+  MediaPlaceholderSet,
+  MediaPlaceholderRegistry,
+  MediaServiceOptions,
+  DiagramMediaFacade,
+} from './types.js';
+export { mediaCacheKey, mediaCacheKeyMatchesUrl, resolveThemedMediaUrl } from './types.js';
+export {
+  resolveThemedMediaFromOrganization,
+  resolveThemedMediaFromPerson,
+  resolveThemedMediaFromPosition,
+  resolveThemedMediaFromGroup,
+} from './legacyBridge.js';
+export { MediaService } from './MediaService.js';
+export { DEFAULT_MEDIA_PLACEHOLDERS } from './placeholders.js';
