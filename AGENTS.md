@@ -4,10 +4,11 @@ Guidance for coding agents working in **Org Hierarchy SDK** (`b2vv/dg`).
 
 ## Stack (short)
 
-- `packages/core` — Rust → WASM (contours, tidy / Ploeg layout)
+- `packages/core` — Rust → WASM (contours + Ploeg row-tree; canvas paint is TS)
 - `packages/sdk` — `@org-hierarchy/sdk` (Pixi render, workers, export, React context menu)
 - `packages/demo` — Rsbuild demo (`npm run dev`)
 - Spec / TDD / standards: `work/SPEC.md`, `work/TDD.md`, `work/CODING_STANDARDS.md`
+- Before implement: [`work/CTO-RESEARCH.md`](./work/CTO-RESEARCH.md) (product, seams, infra, risks). Live P0: `work/tasks/T78-post-t77-critique.md`.
 
 ## Commands
 

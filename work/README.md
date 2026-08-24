@@ -7,12 +7,15 @@
 ```
 work/
   README.md              ← цей файл (навігація)
+  CTO-RESEARCH.md        ← брифінг перед імплементацією (продукт, код, інфра, ризики)
   SPEC.md                ← специфікація + алгоритми + §13 стандарти TS
   TDD.md                 ← політика: тести ПЕРЕД кодом (success + failure)
   CODING_STANDARDS.md    ← Clean Code / Architecture / SOLID / DRY / KISS / GoF (TS)
   tech-debt/             ← зафіксований технічний борг
   tasks/                 ← детальні задачі для розробки
 ```
+
+**Перед кодом:** [CTO-RESEARCH.md](./CTO-RESEARCH.md). Живий P0: [T78](./tasks/T78-post-t77-critique.md).
 
 ## Процес розробки (TDD)
 
@@ -152,8 +155,9 @@ GitHub Actions: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
 
 | Документ | Призначення |
 |----------|-------------|
+| `work/CTO-RESEARCH.md` | CTO-брифінг перед імплементацією |
 | `docs/REQUIREMENTS.md` | Бізнес-вимоги, UI, magnetism rules |
 | `docs/TECH_STACK.md` | Архітектура та стек |
 | `work/SPEC.md` | Алгоритми, API, стан імплементації |
 | `work/TDD.md` | TDD: тести перед кодом, success + failure |
-| `packages/core/src/contour.rs` | Референс contour algorithm |
+| `packages/core/src/contour.rs` | Референс contour algorithm (WASM; canvas paint = TS rings) |

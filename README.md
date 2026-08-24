@@ -81,6 +81,7 @@ Run **`/setup-matt-pocock-skills`** once in Cursor to configure issue tracker, t
 ## Docs
 
 
+- [`work/CTO-RESEARCH.md`](./work/CTO-RESEARCH.md) — CTO briefing (read before implement)
 - [`docs/REQUIREMENTS.md`](./docs/REQUIREMENTS.md) — product requirements
 - [`docs/TECH_STACK.md`](./docs/TECH_STACK.md) — architecture
 - [`work/SPEC.md`](./work/SPEC.md) — algorithms + API status
