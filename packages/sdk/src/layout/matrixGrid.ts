@@ -53,7 +53,15 @@ function sortOrgs(organizations: DiagramOrganization[]): DiagramOrganization[] {
 }
 
 function isInsideGrid(row: number, col: number, dims: MatrixDimensions): boolean {
-  return row >= 0 && row < dims.rows && col >= 0 && col < dims.cols;
+  // Guard against fractional coords (A8: matrixRow/Col from external data may be float).
+  const r = Math.floor(row);
+  const c = Math.floor(col);
+  return r >= 0 && r < dims.rows && c >= 0 && c < dims.cols;
+}
+
+/** Normalize row/col to integers (A8). */
+function normalizeCell(row: number, col: number): { row: number; col: number } {
+  return { row: Math.floor(row), col: Math.floor(col) };
 }
 
 function firstEmptyCell(grid: (string | null)[][], dims: MatrixDimensions): { row: number; col: number } | null {
@@ -109,7 +117,7 @@ export function assignMatrixCells(
   if (!dims.bounded) {
     sorted.forEach((org, index) => {
       assignments.set(org.id, {
-        row: Math.floor(index / dims.cols),
+        row: Math.floor(index / dims.cols),  // already integer by construction
         col: index % dims.cols,
         inMatrix: true,
       });
@@ -150,16 +158,17 @@ export function assignMatrixCells(
   for (const org of sorted) {
     if (org.inMatrix === false) continue;
     if (org.matrixRow === undefined || org.matrixCol === undefined) continue;
-    if (!isInsideGrid(org.matrixRow, org.matrixCol, dims)) continue;
+    const { row: mr, col: mc } = normalizeCell(org.matrixRow, org.matrixCol);
+    if (!isInsideGrid(mr, mc, dims)) continue;
     if (assignments.has(org.id)) continue;
 
-    const occupant = grid[org.matrixRow]![org.matrixCol];
+    const occupant = grid[mr]![mc];
     if (occupant && occupant !== org.id) {
       ejectFromCell(grid, assignments, occupant);
       ejectedIds.add(occupant);
       overflowQueue.push(occupant);
     }
-    placeInGrid(org.id, org.matrixRow, org.matrixCol, true);
+    placeInGrid(org.id, mr, mc, true);
   }
 
   // 3. Foreign orgs with explicit cell → eject occupant
@@ -169,18 +178,19 @@ export function assignMatrixCells(
       overflowQueue.push(org.id);
       continue;
     }
-    if (!isInsideGrid(org.matrixRow, org.matrixCol, dims)) {
+    const { row: mr, col: mc } = normalizeCell(org.matrixRow, org.matrixCol);
+    if (!isInsideGrid(mr, mc, dims)) {
       overflowQueue.push(org.id);
       continue;
     }
 
-    const occupant = grid[org.matrixRow]![org.matrixCol];
+    const occupant = grid[mr]![mc];
     if (occupant && occupant !== org.id) {
       ejectFromCell(grid, assignments, occupant);
       ejectedIds.add(occupant);
       overflowQueue.push(occupant);
     }
-    placeInGrid(org.id, org.matrixRow, org.matrixCol, false);
+    placeInGrid(org.id, mr, mc, false);
   }
 
   // 4. Remaining orgs → overflow

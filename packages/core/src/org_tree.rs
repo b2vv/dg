@@ -33,8 +33,12 @@ pub fn validate_org_hierarchy(organizations: &[OrgFlatInput]) -> Result<(), OrgT
         }
     }
 
+    // Build by_id once — O(n) — then walk each chain — O(n) total.
+    let by_id: HashMap<&str, &OrgFlatInput> =
+        organizations.iter().map(|o| (o.id.as_str(), o)).collect();
+
     for org in organizations {
-        if has_cycle(&org.id, organizations) {
+        if has_cycle(&org.id, &by_id) {
             return Err(OrgTreeError::Cycle(org.id.clone()));
         }
     }
@@ -42,11 +46,7 @@ pub fn validate_org_hierarchy(organizations: &[OrgFlatInput]) -> Result<(), OrgT
     Ok(())
 }
 
-fn has_cycle(start_id: &str, organizations: &[OrgFlatInput]) -> bool {
-    let by_id: HashMap<&str, &OrgFlatInput> = organizations
-        .iter()
-        .map(|o| (o.id.as_str(), o))
-        .collect();
+fn has_cycle(start_id: &str, by_id: &HashMap<&str, &OrgFlatInput>) -> bool {
     let mut visited = HashSet::new();
     let mut cur = Some(start_id);
 

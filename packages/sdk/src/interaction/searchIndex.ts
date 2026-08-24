@@ -185,20 +185,34 @@ export function searchIndex(
   const q = query.trim().toLowerCase();
   if (!q) return [];
 
-  const scored: SearchResult[] = [];
   const seed = q[0]!;
-  const candidateIdx = index.byChar.get(seed);
-  const candidates = candidateIdx
-    ? candidateIdx.map((i) => index.entries[i]!)
-    : index.entries;
+  // Early exit: if the first character has no entries, nothing can match.
+  if (!index.byChar.has(seed)) return [];
 
-  for (const entry of candidates) {
-    const idx = entry.haystack.indexOf(q);
-    if (idx < 0) continue;
-    const score = idx === 0 ? 2 : 1;
-    scored.push({ node: entry.node, label: entry.label, score });
+  const candidateIdx = index.byChar.get(seed)!;
+  const exact: SearchResult[] = [];
+  const partial: SearchResult[] = [];
+
+  for (const i of candidateIdx) {
+    const entry = index.entries[i]!;
+    const pos = entry.haystack.indexOf(q);
+    if (pos < 0) continue;
+    if (pos === 0) {
+      exact.push({ node: entry.node, label: entry.label, score: 2 });
+    } else {
+      partial.push({ node: entry.node, label: entry.label, score: 1 });
+    }
+    // Stop collecting once we have enough; sort only within each bucket.
+    if (exact.length >= limit) break;
   }
 
-  scored.sort((a, b) => b.score - a.score || a.label.localeCompare(b.label));
-  return scored.slice(0, limit);
+  const take = limit - exact.length;
+  if (take <= 0) {
+    exact.sort((a, b) => a.label.localeCompare(b.label));
+    return exact.slice(0, limit);
+  }
+
+  exact.sort((a, b) => a.label.localeCompare(b.label));
+  partial.sort((a, b) => a.label.localeCompare(b.label));
+  return [...exact, ...partial.slice(0, take)];
 }

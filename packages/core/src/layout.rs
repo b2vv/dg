@@ -285,16 +285,13 @@ fn collect_nodes(
 ) {
     let internal = &nodes[idx];
     let source = sources[internal.source];
-    let sep_x = opts.node_width + opts.horizontal_gap;
     let sep_y = opts.node_height + opts.vertical_gap;
 
-    let x = if horizontal {
-        internal.y * sep_x
-    } else {
-        internal.x * sep_x
-    };
+    // first_walk stores prelim in pixel units (sep = node_width + gap).
+    // second_walk copies prelim → x unchanged.  Do NOT multiply by sep again.
+    let x = if horizontal { internal.y * sep_y } else { internal.x };
     let y = if horizontal {
-        internal.x * sep_y
+        internal.x
     } else {
         internal.y * sep_y
     };
@@ -440,6 +437,15 @@ mod tests {
                 assert!(
                     gap + 0.01 >= opts.horizontal_gap,
                     "overlap at depth {} between {} and {} (gap={gap})",
+                    left.depth,
+                    left.id,
+                    right.id
+                );
+                // Upper bound: Reingold–Tilford must not spread siblings more than
+                // 4× the expected gap (catches the double-scale bug).
+                assert!(
+                    gap <= opts.horizontal_gap * 4.0 + opts.node_width * 4.0,
+                    "siblings too far apart at depth {} between {} and {} (gap={gap})",
                     left.depth,
                     left.id,
                     right.id

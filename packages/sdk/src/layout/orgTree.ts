@@ -16,15 +16,16 @@ export function validateOrgHierarchy(organizations: DiagramOrganization[]): void
     ids.add(org.id);
   }
 
+  // Build once, walk once per org — O(n) total instead of O(n²).
+  const byId = new Map(organizations.map((o) => [o.id, o]));
   for (const org of organizations) {
-    if (org.parentOrgId && hasCycle(org.id, organizations)) {
+    if (org.parentOrgId && hasCycle(org.id, byId)) {
       throw new OrgHierarchyError(`Cycle detected in parentOrgId at ${org.id}`);
     }
   }
 }
 
-function hasCycle(startId: string, organizations: DiagramOrganization[]): boolean {
-  const byId = new Map(organizations.map((o) => [o.id, o]));
+function hasCycle(startId: string, byId: ReadonlyMap<string, DiagramOrganization>): boolean {
   const visited = new Set<string>();
   let cur: string | undefined = startId;
 

@@ -99,12 +99,17 @@ export function expandIdsForDepth(
   let frontier = [headId];
   let level = 0;
 
+  const seen = new Set<string>();
   while (level < d && frontier.length > 0) {
     const next: string[] = [];
     for (const id of frontier) {
+      if (seen.has(id)) continue;
+      seen.add(id);
       const kids = children.get(id) ?? [];
       if (kids.length > 0) expanded.push(id);
-      next.push(...kids);
+      for (const kid of kids) {
+        if (!seen.has(kid)) next.push(kid);
+      }
     }
     frontier = next;
     level += 1;

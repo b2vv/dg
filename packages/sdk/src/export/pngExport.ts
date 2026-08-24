@@ -3,12 +3,26 @@ import { rgbImageToPdf, solidRgb } from './pdfExport.js';
 
 const PNG_SIG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-export async function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
-  // jsdom implements toBlob but never invokes the callback (hangs). Detect / race.
-  const isJsdom =
-    typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent);
+/** Seam for tests — inject a real or mock toBlob implementation. */
+export type CanvasToBlobFn = (
+  canvas: HTMLCanvasElement,
+  type?: string,
+) => Promise<Blob | null>;
 
-  if (!isJsdom && typeof canvas.toBlob === 'function') {
+let canvasToBlobImpl: CanvasToBlobFn | null = null;
+
+/** Override the canvas→blob path (use in tests or when native toBlob is broken). */
+export function setCanvasToBlobImpl(fn: CanvasToBlobFn | null): void {
+  canvasToBlobImpl = fn;
+}
+
+export async function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  if (canvasToBlobImpl) {
+    const blob = await canvasToBlobImpl(canvas, 'image/png');
+    if (blob && blob.size > 0) return blob;
+  }
+
+  if (typeof canvas.toBlob === 'function') {
     try {
       const blob = await Promise.race([
         new Promise<Blob | null>((resolve, reject) => {
@@ -19,7 +33,7 @@ export async function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> 
           }
         }),
         new Promise<null>((resolve) => {
-          setTimeout(() => resolve(null), 100);
+          setTimeout(() => resolve(null), 400);
         }),
       ]);
       if (blob && blob.size > 0) return blob;
@@ -28,7 +42,7 @@ export async function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> 
     }
   }
 
-  if (!isJsdom && typeof canvas.toDataURL === 'function') {
+  if (typeof canvas.toDataURL === 'function') {
     try {
       const dataUrl = canvas.toDataURL('image/png');
       if (dataUrl.startsWith('data:image/png')) {
