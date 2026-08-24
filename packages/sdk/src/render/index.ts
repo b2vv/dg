@@ -15,11 +15,15 @@ export { arrowHeadTriangle, shortenPolylineForArrow } from './staffEdgeArrows.js
 export {
   buildStaffEdgeSegments,
   staffEdgeEndpoints,
+  classifyStaffEdgeRoute,
+  polylineHitsBoxInterior,
 } from './staffEdgeGeometry.js';
 export type {
   StaffEdgeBox,
   StaffEdgeLink,
   StaffEdgeSegment,
+  StaffEdgeRouteVia,
+  StaffEdgeRoute,
 } from './staffEdgeGeometry.js';
 export {
   visualPersonEdgeBox,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildStaffEdgeSegments,
+  classifyStaffEdgeRoute,
   polylineHitsBoxInterior,
   staffEdgeEndpoints,
   staffEdgePolyline,
@@ -150,5 +151,32 @@ describe('staffEdgeGeometry', () => {
 
   it('failure: empty edges → empty', () => {
     expect(buildStaffEdgeSegments([], [{ id: 'a', x: 0, y: 0, width: 1, height: 1 }])).toEqual([]);
+  });
+
+  it('success: clear vertical gap classifies as direct', () => {
+    const from = { id: 'mgr', x: 0, y: 0, width: 100, height: 40 };
+    const to = { id: 'rep', x: 0, y: 100, width: 100, height: 40 };
+    expect(classifyStaffEdgeRoute(from, to, 'admin').via).toBe('direct');
+  });
+
+  it('success: overlapping cards with no third obstacle classify as around', () => {
+    const from = { id: 'a', x: 0, y: 0, width: 100, height: 80 };
+    const to = { id: 'b', x: 40, y: 20, width: 100, height: 80 };
+    expect(classifyStaffEdgeRoute(from, to, 'admin').via).toBe('around');
+  });
+
+  it('failure: both around lanes hit a third card → forced (unchecked alt)', () => {
+    const from = { id: 'a', x: 100, y: 100, width: 80, height: 80 };
+    const to = { id: 'b', x: 140, y: 120, width: 80, height: 80 };
+    const blockers = [
+      { id: 'top', x: 120, y: 70, width: 80, height: 30 },
+      { id: 'left', x: 70, y: 130, width: 30, height: 40 },
+    ];
+    const route = classifyStaffEdgeRoute(from, to, 'admin', [
+      from,
+      to,
+      ...blockers,
+    ]);
+    expect(route.via).toBe('forced');
   });
 });

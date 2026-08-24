@@ -206,18 +206,23 @@ function isClean(points: StaffEdgePoint[], from: StaffEdgeBox, to: StaffEdgeBox)
   return !polylineHitsBoxInterior(points, from) && !polylineHitsBoxInterior(points, to);
 }
 
+export type StaffEdgeRouteVia = 'direct' | 'around' | 'forced';
+
+export interface StaffEdgeRoute {
+  via: StaffEdgeRouteVia;
+  points: StaffEdgePoint[];
+}
+
 /**
- * Orthogonal route by relative geometry.
- * Prefer clear vertical/horizontal gaps; if boxes overlap, lane around them.
- * Optional `obstacles` (other cards) force a lane route when the direct path
- * would cut through them — critical for matrix org trees.
+ * Same router as `staffEdgePolyline`, tagged by which branch won.
+ * `forced` is the last around-lane, returned without a cleanliness check.
  */
-export function staffEdgePolyline(
+export function classifyStaffEdgeRoute(
   from: StaffEdgeBox,
   to: StaffEdgeBox,
   kind: StaffEdgeLink['kind'] = 'admin',
   obstacles: StaffEdgeBox[] = [],
-): StaffEdgePoint[] {
+): StaffEdgeRoute {
   const fromCy = from.y + from.height / 2;
   const toCy = to.y + to.height / 2;
   const sameBand = Math.abs(toCy - fromCy) < Math.min(from.height, to.height) * 0.35;
@@ -225,11 +230,12 @@ export function staffEdgePolyline(
 
   const others = obstacles.filter((b) => b.id !== from.id && b.id !== to.id);
 
-  // Cross-tier: head → org card — prefer straight vertical from manager bottom.
+  // Cross-tier skips `others` on purpose (legacy paint path). Demo census:
+  // those routes can still clip foreign cards while classifying as `direct`.
   if (kind === 'cross-tier') {
     const vert = verticalPolyline(from, to);
     if (vert && isClean(vert, from, to)) {
-      return vert;
+      return { via: 'direct', points: vert };
     }
   }
 
@@ -249,18 +255,31 @@ export function staffEdgePolyline(
   for (const c of candidates) {
     if (!isClean(c, from, to)) continue;
     if (others.some((box) => polylineHitsBoxInterior(c, box))) continue;
-    return c;
+    return { via: 'direct', points: c };
   }
 
-  // Overlap / blocked gap — go around. Prefer lane routes even if they graze
-  // overlapping AABBs (orthogonal exterior is still better than center-cuts).
   const preferTop = kind === 'matrix' || kind === 'dotted' || sameBand || others.length > 0;
   const around = preferTop ? aroundTopPolyline(from, to) : aroundLeftPolyline(from, to);
   if (!others.some((box) => polylineHitsBoxInterior(around, box))) {
-    return around;
+    return { via: 'around', points: around };
   }
   const alt = preferTop ? aroundLeftPolyline(from, to) : aroundTopPolyline(from, to);
-  return alt;
+  return { via: 'forced', points: alt };
+}
+
+/**
+ * Orthogonal route by relative geometry.
+ * Prefer clear vertical/horizontal gaps; if boxes overlap, lane around them.
+ * Optional `obstacles` (other cards) force a lane route when the direct path
+ * would cut through them — critical for matrix org trees.
+ */
+export function staffEdgePolyline(
+  from: StaffEdgeBox,
+  to: StaffEdgeBox,
+  kind: StaffEdgeLink['kind'] = 'admin',
+  obstacles: StaffEdgeBox[] = [],
+): StaffEdgePoint[] {
+  return classifyStaffEdgeRoute(from, to, kind, obstacles).points;
 }
 
 export function staffEdgePolylineToSvg(points: StaffEdgePoint[]): string {
