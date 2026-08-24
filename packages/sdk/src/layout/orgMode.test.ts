@@ -3,6 +3,7 @@ import {
   detectOrgMode,
   collapseAllOrgs,
   expandOrg,
+  findExpandedRootIds,
   isOrgCollapsed,
 } from './orgMode.js';
 import type { DiagramOrganization } from '../data/types.js';
@@ -32,6 +33,23 @@ describe('isOrgCollapsed', () => {
     expect(isOrgCollapsed(org('a'))).toBe(true);
     expect(isOrgCollapsed(org('a', true))).toBe(true);
     expect(isOrgCollapsed(org('a', false))).toBe(false);
+  });
+});
+
+describe('findExpandedRootIds (T78-L3)', () => {
+  it('success: two expanded top-level roots both returned', () => {
+    const orgs = [org('a', false), org('b', false)];
+    expect(findExpandedRootIds(orgs)).toEqual(['a', 'b']);
+  });
+
+  it('success: expanded child under collapsed parent is hidden, not a second root', () => {
+    const orgs = [org('a', true), org('b', false, 'a')];
+    expect(findExpandedRootIds(orgs)).toEqual([]);
+  });
+
+  it('failure: expanded child under expanded parent is not a second root', () => {
+    const orgs = [org('a', false), org('b', false, 'a')];
+    expect(findExpandedRootIds(orgs)).toEqual(['a']);
   });
 });
 

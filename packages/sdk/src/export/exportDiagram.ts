@@ -48,21 +48,12 @@ export async function exportDiagram(
   }
 
   if (options.format === 'png') {
-    if (ctx.app) {
-      return extractPngFromPixi(ctx.app);
+    if (!ctx.app) {
+      throw new ExportError(
+        'PNG export requires a mounted Pixi application; refusing to emit a blank image',
+      );
     }
-    // No Pixi — rasterize via canvas fill, then canvasToPngBlob.
-    // Throws ExportError if toBlob/toDataURL are unavailable (e.g. jsdom without canvas pkg).
-    const canvas = document.createElement('canvas');
-    canvas.width = options.width ?? 800;
-    canvas.height = 600;
-    const c = canvas.getContext('2d');
-    if (c) {
-      c.fillStyle = options.background ?? '#f8fafc';
-      c.fillRect(0, 0, canvas.width, canvas.height);
-    }
-    const { canvasToPngBlob } = await import('./pngExport.js');
-    return canvasToPngBlob(canvas);
+    return extractPngFromPixi(ctx.app);
   }
 
   // pdf

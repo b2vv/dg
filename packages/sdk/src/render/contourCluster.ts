@@ -1,4 +1,5 @@
 import type { ContourPositionInput } from '../contour/bridge.js';
+import { resolveMagnetRadius } from './magnetRadius.js';
 
 function manhattan(a: ContourPositionInput, b: ContourPositionInput): number {
   return Math.abs(a.col - b.col) + Math.abs(a.row - b.row);
@@ -9,6 +10,7 @@ export function clusterPositionIds(
   positions: readonly ContourPositionInput[],
   magnetRadius = 1.5,
 ): string[][] {
+  const radius = resolveMagnetRadius(magnetRadius);
   const n = positions.length;
   if (n === 0) return [];
   const parent = positions.map((_, i) => i);
@@ -30,7 +32,7 @@ export function clusterPositionIds(
 
   for (let i = 0; i < n; i += 1) {
     for (let j = i + 1; j < n; j += 1) {
-      if (manhattan(positions[i]!, positions[j]!) <= magnetRadius) {
+      if (manhattan(positions[i]!, positions[j]!) <= radius) {
         union(i, j);
       }
     }

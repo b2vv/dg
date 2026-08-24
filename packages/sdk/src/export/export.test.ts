@@ -68,16 +68,20 @@ describe('exportDiagram', () => {
     ).rejects.toThrow(/mounted/i);
   });
 
-  it('success: png → image/png blob with real pixel data (not 8-byte sig)', async () => {
-    // Inject a seam that returns a non-trivial PNG-like blob (simulates real canvas export).
+  it('success: png with Pixi app uses extractPngFromPixi', async () => {
     const fakePixels = new Uint8Array(100).fill(0xff);
     setCanvasToBlobImpl(async () => new Blob([fakePixels], { type: 'image/png' }));
+    const canvas = document.createElement('canvas');
+    const fakeApp = {
+      stage: {},
+      renderer: { extract: { canvas: () => canvas } },
+    } as unknown as import('pixi.js').Application;
 
     const result = await exportDiagram(
       {
         data: variantB(),
         mounted: true,
-        app: null,
+        app: fakeApp,
         renderConfig: defaultRenderConfig,
         currentOrgId: 'org1',
       },
@@ -86,12 +90,10 @@ describe('exportDiagram', () => {
     expect(result).toBeInstanceOf(Blob);
     const blob = result as Blob;
     expect(blob.type).toBe('image/png');
-    // Must be the injected blob (100 bytes), not the 8-byte PNG signature fallback.
     expect(blob.size).toBe(100);
   });
 
-  it('failure: png without seam throws ExportError in jsdom (B6 — no silent 8-byte stub)', async () => {
-    // In jsdom, toBlob never fires and toDataURL is not implemented → ExportError.
+  it('failure: png without Pixi app throws ExportError (no blank fillRect)', async () => {
     await expect(
       exportDiagram(
         {
@@ -103,7 +105,7 @@ describe('exportDiagram', () => {
         },
         { format: 'png', scope: 'full' },
       ),
-    ).rejects.toThrow(/PNG export failed/i);
+    ).rejects.toThrow(/PNG export requires a mounted Pixi/i);
   });
 
   it('success: svg contains path d=', async () => {
@@ -251,7 +253,7 @@ describe('buildDiagramSvg', () => {
     expect(svg).toContain('Root Co');
   });
 
-  it('success: multi-org without currentOrgId exports all orgs, not one staff tree', async () => {
+  it('success: multi-org with seats and no currentOrgId infers staff focus (T78-L4)', async () => {
     const data: DiagramData = {
       organizations: [
         { id: 'a', name: 'Org A', groupIds: [], collapsed: true },
@@ -268,6 +270,7 @@ describe('buildDiagramSvg', () => {
           groupIds: [],
           status: 'vacant',
           isTemporary: false,
+          isHead: true,
           gridCell: { col: 0, row: 0 },
         },
         {
@@ -283,9 +286,9 @@ describe('buildDiagramSvg', () => {
       reportLines: [],
     };
     const svg = await buildDiagramSvg({ data });
-    expect(svg).toContain('data-org="a"');
-    expect(svg).toContain('data-org="b"');
-    expect(svg).not.toContain('data-position=');
+    // Same as canvas: infer org A (first / unique head) → staff seats present.
+    expect(svg).toContain('data-position=');
+    expect(svg).toContain('data-position="p-a"');
   });
 });
 

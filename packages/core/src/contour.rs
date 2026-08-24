@@ -597,9 +597,17 @@ pub fn compute_dept_contour(
     let pad = config.padding_cells.max(0);
     let corridor = config.corridor_cells.max(0);
     let radius = if config.magnet_radius.is_finite() {
-        config.magnet_radius.max(0.0)
+        config.magnet_radius
     } else {
-        f32::MAX
+        return Err(format!(
+            "magnet_radius must be a finite number ≥ 0 (got {})",
+            config.magnet_radius
+        ));
+    };
+    if radius < 0.0 {
+        return Err(format!(
+            "magnet_radius must be a finite number ≥ 0 (got {radius})"
+        ));
     };
 
     let own_list: Vec<Cell> = positions
@@ -920,6 +928,16 @@ mod tests {
         cfg.magnet_radius = 3.0;
         let merged = compute_dept_contour("IT", &positions, &cfg).unwrap();
         assert_eq!(merged.len(), 1);
+    }
+
+    #[test]
+    fn magnet_radius_nan_rejects() {
+        let positions = vec![pos("P1", "IT", 0, 0)];
+        let mut cfg = ContourMagnetConfig::default();
+        cfg.magnet_radius = f32::NAN;
+        cfg.smooth_iterations = 0;
+        let err = compute_dept_contour("IT", &positions, &cfg).unwrap_err();
+        assert!(err.contains("magnet_radius"), "{err}");
     }
 
     #[test]

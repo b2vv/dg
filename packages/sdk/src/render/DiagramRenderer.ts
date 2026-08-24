@@ -63,6 +63,8 @@ import { clusterPositionsByDepartment } from './contourCluster.js';
 import { memberBoxesForCluster } from './contourButtonGroup.js';
 import { polishContourRing } from './contourPolish.js';
 import { shouldPaintDeptContour } from './contourPaintFilter.js';
+import { resolveMagnetRadius } from './magnetRadius.js';
+import { inferStaffCurrentOrgId } from './inferStaffCurrentOrgId.js';
 
 export type ContourComputer = (
   positions: ContourPositionInput[],
@@ -232,6 +234,15 @@ export class DiagramRenderer {
     moved: boolean;
     previewCol: number | null;
     previewRow: number | null;
+    /** T78-L1: per-card grid origin (staff tiers share gridCell indices). */
+    snapGrid: {
+      pitchX: number;
+      pitchY: number;
+      originX: number;
+      originY: number;
+      insetX: number;
+      insetY: number;
+    } | null;
   } | null = null;
   /** Body double-tap tracker (T69); chrome / canvas resets it. */
   private readonly nodeDoubleTap = new DoubleTapTracker();
@@ -476,7 +487,7 @@ export class DiagramRenderer {
     const session = this.contourSession;
     if (!session) return new Map();
 
-    const radius = session.magnet.magnetRadius ?? 1.5;
+    const radius = resolveMagnetRadius(session.magnet.magnetRadius);
     const deptIds = [...new Set(session.inputs.map((p) => p.departmentId))].sort();
     const out = new Map<string, { x: number; y: number }[][]>();
 
@@ -599,7 +610,7 @@ export class DiagramRenderer {
       cellWidth: config.cellWidth,
       cellHeight: config.cellHeight,
       smoothIterations: 0,
-      magnetRadius: config.magnetRadius,
+      magnetRadius: resolveMagnetRadius(config.magnetRadius),
     };
     const lod = options.lod ?? 'near';
     const deptNames = new Map(data.departments.map((d) => [d.id, d.name]));
@@ -644,6 +655,7 @@ export class DiagramRenderer {
     box: NodeWorldBox,
     config: RenderConfig,
     options: RenderOptions,
+    gridCell?: { col: number; row: number },
   ): void {
     this.rememberBox(box);
 
@@ -689,6 +701,16 @@ export class DiagramRenderer {
         return;
       }
       const local = this.layers.persons.toLocal(e.global);
+      // T78-L1: origin from THIS card's world + gridCell, not the first staff tier.
+      let snapGrid: typeof this.drag extends null ? never : NonNullable<typeof this.drag>['snapGrid'] =
+        this.dragGrid;
+      if (this.dragGrid && gridCell) {
+        snapGrid = {
+          ...this.dragGrid,
+          originX: node.x - gridCell.col * this.dragGrid.pitchX - this.dragGrid.insetX,
+          originY: node.y - gridCell.row * this.dragGrid.pitchY - this.dragGrid.insetY,
+        };
+      }
       this.drag = {
         positionId,
         node,
@@ -700,6 +722,7 @@ export class DiagramRenderer {
         moved: false,
         previewCol: null,
         previewRow: null,
+        snapGrid,
       };
       e.stopPropagation();
     });
@@ -750,7 +773,7 @@ export class DiagramRenderer {
     y: number,
     config: RenderConfig,
   ): { col: number; row: number } {
-    const grid = this.dragGrid;
+    const grid = this.drag?.snapGrid ?? this.dragGrid;
     if (grid) {
       return snapWorldToCell(x, y, grid);
     }
@@ -982,6 +1005,7 @@ export class DiagramRenderer {
           },
           config,
           options,
+          position.gridCell,
         );
         this.layers.persons.addChild(node);
         this.registerView('position', position.id, node);
@@ -1071,10 +1095,29 @@ export class DiagramRenderer {
     }
 
     const contourInputs = diagramPositionsToContourInputs(data.positions);
-    await this.paintContours(contourInputs, data, theme, config, options);
-
     const insetX = (config.cellWidth - theme.person.width) / 2;
     const insetY = (config.cellHeight - theme.person.height) / 2;
+
+    // T78-C2: same member AABB path as staff — button-group needs boxes.
+    const memberBoxesByDept = new Map<string, ContourMemberBox[]>();
+    for (const position of data.positions) {
+      if (!position.gridCell || !position.departmentId) continue;
+      const list = memberBoxesByDept.get(position.departmentId) ?? [];
+      list.push({
+        positionId: position.id,
+        x: position.gridCell.col * config.cellWidth + insetX,
+        y: position.gridCell.row * config.cellHeight + insetY,
+        width: theme.person.width,
+        height: theme.person.height,
+      });
+      memberBoxesByDept.set(position.departmentId, list);
+    }
+
+    await this.paintContours(contourInputs, data, theme, config, {
+      ...options,
+      contourMemberBoxesByDept: memberBoxesByDept,
+    });
+
     this.dragGrid = {
       pitchX: config.cellWidth,
       pitchY: config.cellHeight,
@@ -1116,6 +1159,7 @@ export class DiagramRenderer {
         },
         config,
         options,
+        position.gridCell,
       );
       this.layers.persons.addChild(node);
       this.registerView('position', position.id, node);
@@ -1318,15 +1362,6 @@ export class DiagramRenderer {
           : undefined,
     };
   }
-}
-
-function inferStaffCurrentOrgId(data: DiagramData): string | undefined {
-  const orgIds = [...new Set(data.positions.map((p) => p.organizationId))];
-  if (orgIds.length === 1) return orgIds[0];
-  if (data.organizations.length === 1) return data.organizations[0]!.id;
-  const withHead = data.positions.filter((p) => p.isHead).map((p) => p.organizationId);
-  if (withHead.length === 1) return withHead[0];
-  return orgIds[0];
 }
 
 function countPositionsByDept(positions: DiagramData['positions']): Map<string, number> {
