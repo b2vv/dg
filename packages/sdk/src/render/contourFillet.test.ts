@@ -67,12 +67,20 @@ describe('filletClosedRing', () => {
     const invertedTrim = radius / Math.tan(phi / 2);
     const out = filletClosedRing(oct, radius, 4);
     expect(invertedTrim).toBeGreaterThan(expectedTrim + 10);
-    for (const v of oct) {
-      const nearest = out.reduce(
-        (best, p) => Math.min(best, Math.hypot(p.x - v.x, p.y - v.y)),
-        Infinity,
-      );
-      expect(nearest).toBeCloseTo(expectedTrim, 1);
+    const n = oct.length;
+    for (let i = 0; i < n; i += 1) {
+      const curr = oct[i]!;
+      const next = oct[(i + 1) % n]!;
+      const len = Math.hypot(next.x - curr.x, next.y - curr.y);
+      const ux = (next.x - curr.x) / len;
+      const uy = (next.y - curr.y) / len;
+      const onEdge = (dist: number) => ({ x: curr.x + ux * dist, y: curr.y + uy * dist });
+      const expected = onEdge(expectedTrim);
+      const inverted = onEdge(invertedTrim);
+      const near = (target: { x: number; y: number }) =>
+        out.some((p) => Math.hypot(p.x - target.x, p.y - target.y) < 1.5);
+      expect(near(expected)).toBe(true);
+      expect(near(inverted)).toBe(false);
     }
   });
 });
