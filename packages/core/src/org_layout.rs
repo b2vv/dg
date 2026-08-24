@@ -96,6 +96,13 @@ mod tests {
     }
 
     #[test]
+    fn layout_failure_unknown_parent() {
+        let orgs = vec![org("a", None, "A"), org("b", Some("missing"), "B")];
+        let err = compute_org_row_tree_layout(orgs, "a", &default_opts()).unwrap_err();
+        assert!(matches!(err, OrgTreeError::UnknownParent { .. }));
+    }
+
+    #[test]
     fn layout_failure_nan_node_width() {
         let orgs = vec![org("a", None, "A")];
         let mut opts = default_opts();

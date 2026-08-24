@@ -12,8 +12,8 @@
 - Search NFC — ✅ `toLowerCase().normalize('NFC')` + tests
 - NaN/`is_finite` на layout межі — ✅ Rust `resolve_layout_metric` / `LayoutOptions::validate` + TS `assertOrgLayoutMetrics` (width/height > 0)
 - `shiftPositionBlock` false positives — ✅ `positionIds` only ids actually shifted (`gridCell` present)
-- Висячий `parentOrgId` — deferred (Rust accepts, TS drops branch, orgBlockLayout re-parents)
+- Висячий `parentOrgId` — ✅ `validateOrgHierarchy` / `validate_org_hierarchy` throw `Unknown parentOrgId` (staff WASM re-parent of *positions* stays D5)
 
 ## Acceptance
 
-- [x] Чекліст вище з ✅/won't-fix + тест на кожен ✅ (hanging `parentOrgId` — deferred).
+- [x] Чекліст вище з ✅/won't-fix + тест на кожен ✅.

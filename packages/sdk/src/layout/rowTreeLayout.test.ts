@@ -28,6 +28,11 @@ describe('computeOrgRowTreeLayout', () => {
     expect(child.y).toBeGreaterThan(root.y);
   });
 
+  it('failure: hanging parentOrgId throws instead of dropping the branch', async () => {
+    const orgs = [org('root'), org('ghost', 'missing')];
+    await expect(computeOrgLayout(orgs, [])).rejects.toThrow(/unknown parentOrgId/i);
+  });
+
   it('failure: unknown expandedRootId throws', async () => {
     const orgs = [org('a')];
     await expect(computeOrgRowTreeLayout(orgs, 'missing')).rejects.toThrow(/unknown/i);

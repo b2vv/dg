@@ -36,7 +36,7 @@
 | §3 shiftPositionBlock false positives | ✅ M10 report shifted ids only | — |
 | §3 promote multi-id | ✅ M10 typed `kind:id` | — |
 | §3 fillet invert | ✅ M10 `r·tan(φ/2)` + octagon test | — |
-| §3 hanging parentOrgId | deferred | — |
+| §3 hanging parentOrgId | ✅ throw Unknown parentOrgId | — |
 | §4 layout.rs siblings >= | ✅ M07 upper-bound + layout fix | `8788908` |
 | §4 G6 flood assertion | ✅ M07 strengthened | `8788908` |
 | §4 pngExport jsdom-sniff | ✅ M07 DI seam | `8788908` |

@@ -83,6 +83,12 @@ describe('validateOrgHierarchy', () => {
     expect(() => validateOrgHierarchy([org('a'), org('a')])).toThrow(/duplicate/i);
   });
 
+  it('failure: hanging parentOrgId throws instead of treating the org as a root', () => {
+    const orgs = [org('root'), org('ghost', 1, 'missing')];
+    expect(() => validateOrgHierarchy(orgs)).toThrow(/unknown parentOrgId/i);
+    expect(() => validateOrgHierarchy(orgs)).toThrow(/ghost/);
+  });
+
   it('success: 4000-org deep chain completes quickly (B3 O(n) tri-color)', () => {
     // Deep linear chain: o0 → o1 → o2 → … → o3999.
     // Old O(n²): 4000-chain took ~577ms; O(n) finishes in < 50ms.
