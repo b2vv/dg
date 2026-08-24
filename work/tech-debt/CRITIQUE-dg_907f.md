@@ -17,18 +17,18 @@
 | A2 recursive walks | won't-fix (node count bounded) | — |
 | A3 worker error/messageerror | ✅ M02 | `97c502d` |
 | A4 PixiHost destroy-during-create | ✅ M03 | `97c502d` |
-| A5 self-parent reportLine | documented/open | — |
+| A5 self-parent reportLine | ✅ skip self-loops | — |
 | A6 appendData duplicate | ✅ M04 merge-by-id | `97c502d` |
 | A7 expandToDepth BFS seen | ✅ M11 | `8788908` |
-| A8 fractional matrix index | ✅ M11 | `8788908` |
-| A9 smooth_iterations OOM | ✅ M11 clamp 8 | `8788908` |
+| A8 fractional matrix index | ✅ M11 + N1 persist floor | `8788908` |
+| A9 smooth_iterations OOM | ✅ M11 clamp 8 + test | `8788908` |
 | A10 drag grab-offset | ✅ M05 | `97c502d` |
 | A11 snap wrong pitch | ✅ M05 snapWorldToCell | `97c502d` |
 | A12 expand-nonroot wipes forest | ✅ M06 revealOrgPath | `97c502d` |
-| A13 print() fail | documented/open | — |
+| A13 print() fail | ✅ throws + unit test | — |
 | A14 placeOrgAtMatrixCell no-op | won't-fix (returns patched array) | — |
-| §3 collapsed definition split | ✅ M10 isOrgCollapsed unified | `8241d12` |
-| §3 search NFC | ✅ M10 | `8241d12` |
+| §3 collapsed definition split | ✅ M10 isOrgCollapsed + tests | `8241d12` |
+| §3 search NFC | ✅ M10 fold + tests | `8241d12` |
 | §3 export 8-byte PNG | ✅ M07 seam + test | `8788908` |
 | §4 layout.rs siblings >= | ✅ M07 upper-bound + layout fix | `8788908` |
 | §4 G6 flood assertion | ✅ M07 strengthened | `8788908` |

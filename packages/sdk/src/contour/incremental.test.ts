@@ -41,7 +41,7 @@ describe('createIncrementalContourComputer', () => {
     expect(second).toEqual(first);
   });
 
-  it('success: moving one dept only recomputes that dept', async () => {
+  it('success: moving one dept dirties neighbors, not far depts', async () => {
     const computeAll = vi.fn(async (positions: ContourPositionInput[]) => {
       const depts = [...new Set(positions.map((p) => p.departmentId))];
       return depts.map((d) => fakeResult(d, 'all'));
@@ -49,23 +49,84 @@ describe('createIncrementalContourComputer', () => {
     const computeDept = vi.fn(async (id: string) => [fakeResult(id, `dept-${id}`)]);
     const computer = createIncrementalContourComputer(computeAll, computeDept);
 
+    const cfg = { magnetRadius: 2 };
     const base = [
       pos('P1', 'IT', 0, 0),
       pos('P2', 'IT', 1, 0),
       pos('P4', 'CEO', 0, 1),
+      pos('P9', 'HR', 20, 20),
     ];
-    await computer(base, { magnetRadius: 2 });
+    await computer(base, cfg);
 
     const moved = [
       pos('P1', 'IT', 2, 0),
       pos('P2', 'IT', 1, 0),
       pos('P4', 'CEO', 0, 1),
+      pos('P9', 'HR', 20, 20),
     ];
-    const next = await computer(moved, { magnetRadius: 2 });
-    expect(computeDept).toHaveBeenCalledTimes(1);
-    expect(computeDept.mock.calls[0]?.[0]).toBe('IT');
-    expect(computer.lastDirtyDepartmentIds()).toEqual(['IT']);
+    const next = await computer(moved, cfg);
+    expect(computeDept.mock.calls.map((c) => c[0]).sort()).toEqual(['CEO', 'IT']);
+    expect([...computer.lastDirtyDepartmentIds()].sort()).toEqual(['CEO', 'IT']);
     expect(next.find((r) => r.departmentId === 'IT')?.path).toContain('dept-IT');
+    expect(next.find((r) => r.departmentId === 'CEO')?.path).toContain('dept-CEO');
+    expect(next.find((r) => r.departmentId === 'HR')?.path).toContain('all');
+  });
+
+  it('success: foreign neighbor move dirties the occupant dept (G6/G7)', async () => {
+    const computeAll = vi.fn(async (positions: ContourPositionInput[]) => {
+      const depts = [...new Set(positions.map((p) => p.departmentId))];
+      return depts.map((d) => fakeResult(d, 'all'));
+    });
+    const computeDept = vi.fn(async (id: string) => [fakeResult(id, `dept-${id}`)]);
+    const computer = createIncrementalContourComputer(computeAll, computeDept);
+
+    const cfg = { magnetRadius: 2 };
+    const far = [
+      pos('P1', 'IT', 0, 0),
+      pos('P2', 'IT', 1, 0),
+      pos('P4', 'CEO', 10, 10),
+      pos('P9', 'HR', 20, 20),
+    ];
+    await computer(far, cfg);
+
+    const nextToIt = [
+      pos('P1', 'IT', 0, 0),
+      pos('P2', 'IT', 1, 0),
+      pos('P4', 'CEO', 0, 1),
+      pos('P9', 'HR', 20, 20),
+    ];
+    const next = await computer(nextToIt, cfg);
+    expect(computeDept.mock.calls.map((c) => c[0]).sort()).toEqual(['CEO', 'IT']);
+    expect(next.find((r) => r.departmentId === 'IT')?.path).toContain('dept-IT');
+    expect(next.find((r) => r.departmentId === 'HR')?.path).toContain('all');
+  });
+
+  it('success: far-away dept move does not dirty local contours', async () => {
+    const computeAll = vi.fn(async (positions: ContourPositionInput[]) => {
+      const depts = [...new Set(positions.map((p) => p.departmentId))];
+      return depts.map((d) => fakeResult(d, 'all'));
+    });
+    const computeDept = vi.fn(async (id: string) => [fakeResult(id, `dept-${id}`)]);
+    const computer = createIncrementalContourComputer(computeAll, computeDept);
+
+    const cfg = { magnetRadius: 2 };
+    const base = [
+      pos('P1', 'IT', 0, 0),
+      pos('P4', 'CEO', 0, 1),
+      pos('P9', 'HR', 20, 20),
+    ];
+    await computer(base, cfg);
+
+    const movedHr = [
+      pos('P1', 'IT', 0, 0),
+      pos('P4', 'CEO', 0, 1),
+      pos('P9', 'HR', 21, 20),
+    ];
+    const next = await computer(movedHr, cfg);
+    expect(computeDept).toHaveBeenCalledTimes(1);
+    expect(computeDept.mock.calls[0]?.[0]).toBe('HR');
+    expect(computer.lastDirtyDepartmentIds()).toEqual(['HR']);
+    expect(next.find((r) => r.departmentId === 'IT')?.path).toContain('all');
     expect(next.find((r) => r.departmentId === 'CEO')?.path).toContain('all');
   });
 

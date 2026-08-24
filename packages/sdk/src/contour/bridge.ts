@@ -14,6 +14,7 @@ export interface ContourMagnetConfig {
   corridorCells?: number;
   cellWidth?: number;
   cellHeight?: number;
+  /** Chaikin iterations; clamped to 8 at compute time (A9, OOM above ~18). */
   smoothIterations?: number;
   /** Prefer notch around foreign (documented; flood enforces G2/G5) */
   preferNotch?: boolean;
@@ -170,4 +171,4 @@ export const VARIANT_B_POSITIONS: ContourPositionInput[] = [
   { id: 'P6', departmentId: 'IT', col: 2, row: 2 },
 ];
 
-export { toRustConfig } from './config.js';
+export { toRustConfig, MAX_SMOOTH_ITERATIONS } from './config.js';

@@ -11,6 +11,8 @@ export function adminParentMap(
   const parents = new Map<string, string>();
   for (const r of reports) {
     if (r.kind !== 'admin') continue;
+    // A5: self-parent → WASM validate_org_hierarchy cycle → empty canvas.
+    if (r.fromId === r.toId) continue;
     if (!ids.has(r.fromId) || !ids.has(r.toId)) continue;
     parents.set(r.toId, r.fromId);
   }

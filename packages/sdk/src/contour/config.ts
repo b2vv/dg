@@ -1,5 +1,8 @@
 import type { ContourMagnetConfig } from './bridge.js';
 
+/** Chaikin cap (A9). Values above this are clamped; 18+ iterations OOM. */
+export const MAX_SMOOTH_ITERATIONS = 8;
+
 /** Map TS config → Rust snake_case (shared main + worker) */
 export function toRustConfig(cfg: ContourMagnetConfig = {}) {
   return {
@@ -8,7 +11,7 @@ export function toRustConfig(cfg: ContourMagnetConfig = {}) {
     corridor_cells: cfg.corridorCells ?? 0,
     cell_width: cfg.cellWidth ?? 100,
     cell_height: cfg.cellHeight ?? 80,
-    smooth_iterations: cfg.smoothIterations ?? 2,
+    smooth_iterations: Math.min(cfg.smoothIterations ?? 2, MAX_SMOOTH_ITERATIONS),
     prefer_notch: cfg.preferNotch ?? true,
   };
 }

@@ -2,6 +2,7 @@ use std::collections::{HashSet, VecDeque};
 
 use crate::types::{
     ContourMagnetConfig, ContourPoint, ContourPositionInput, DeptContourResult,
+    MAX_SMOOTH_ITERATIONS,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -658,7 +659,7 @@ pub fn compute_dept_contour(
         let raw_corners = trace_orthogonal_contour(&inside, &work_bbox);
 
         // A9: clamp smooth_iterations to prevent OOM (18+ iterations ≈ 1.5M pts).
-        let smooth_iters = config.smooth_iterations.min(8);
+        let smooth_iters = config.smooth_iterations.min(MAX_SMOOTH_ITERATIONS);
         let smooth_pts = if smooth_iters > 0 {
             chaikin(&raw_corners, smooth_iters)
         } else {
@@ -1179,6 +1180,25 @@ mod tests {
         let ceo_cx = 1.5 * cfg.cell_width;
         let ceo_cy = 1.5 * cfg.cell_height;
         assert!(!point_in_poly(ceo_cx, ceo_cy, &r.points), "CEO must be outside IT fill");
+    }
+
+    /// A9: requesting 20 Chaikin iterations must match the cap of 8 (20 would OOM).
+    #[test]
+    fn smooth_iterations_clamped_to_max() {
+        let positions = vec![pos("P1", "IT", 0, 0)];
+        let mut cfg_cap = ContourMagnetConfig::default();
+        cfg_cap.smooth_iterations = crate::types::MAX_SMOOTH_ITERATIONS;
+        let mut cfg_over = ContourMagnetConfig::default();
+        cfg_over.smooth_iterations = 20;
+        let a = compute_dept_contour("IT", &positions, &cfg_cap).unwrap();
+        let b = compute_dept_contour("IT", &positions, &cfg_over).unwrap();
+        assert_eq!(a[0].points.len(), b[0].points.len());
+        // Unclamped Chaikin 20 on a 4-gon ≈ 4M points; cap keeps this small.
+        assert!(
+            b[0].points.len() < 10_000,
+            "clamped Chaikin must stay well below OOM size, got {}",
+            b[0].points.len()
+        );
     }
 }
 

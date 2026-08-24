@@ -145,6 +145,9 @@ pub struct ContourPositionInput {
     pub row: i32,
 }
 
+/// Chaikin cap (A9). Values above this are clamped at compute time; 18+ ≈ OOM.
+pub const MAX_SMOOTH_ITERATIONS: u32 = 8;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContourMagnetConfig {
     /// Max Manhattan distance between own cells in one component (SPEC default 1.5).
@@ -158,6 +161,8 @@ pub struct ContourMagnetConfig {
     pub cell_width: f32,
     #[serde(default = "default_cell_height")]
     pub cell_height: f32,
+    /// Chaikin corner-cutting iterations. Compute clamps to [`MAX_SMOOTH_ITERATIONS`]
+    /// (A9: 18+ iterations ≈ 1.5M points / process abort).
     #[serde(default = "default_smooth_iterations")]
     pub smooth_iterations: u32,
     /// Prefer notch/corridor around foreign (documented; flood already enforces G2/G5).

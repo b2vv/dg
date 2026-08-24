@@ -22,12 +22,40 @@ function configKey(config?: ContourMagnetConfig): string {
   return JSON.stringify(toRustConfig(config));
 }
 
-function deptKey(departmentId: string, positions: ContourPositionInput[]): string {
-  const cells = positions
-    .filter((p) => p.departmentId === departmentId)
+function chebyshev(
+  a: Pick<ContourPositionInput, 'col' | 'row'>,
+  b: Pick<ContourPositionInput, 'col' | 'row'>,
+): number {
+  return Math.max(Math.abs(a.col - b.col), Math.abs(a.row - b.row));
+}
+
+/** Chebyshev ring of own cells that can change G6/G7 / magnet fill. */
+function influenceRadius(config?: ContourMagnetConfig): number {
+  const raw = config?.magnetRadius ?? 1.5;
+  const magnet = Number.isFinite(raw) ? Math.max(0, Math.ceil(raw)) : Number.MAX_SAFE_INTEGER;
+  const pad = Math.max(0, config?.paddingCells ?? 0);
+  const corridor = Math.max(0, config?.corridorCells ?? 0);
+  return magnet + pad + corridor + 1;
+}
+
+function deptKey(
+  departmentId: string,
+  positions: ContourPositionInput[],
+  config?: ContourMagnetConfig,
+): string {
+  const own = positions.filter((p) => p.departmentId === departmentId);
+  const ownPart = own
     .map((p) => `${p.id}:${p.col},${p.row}`)
-    .sort();
-  return cells.join('|');
+    .sort()
+    .join('|');
+  const radius = influenceRadius(config);
+  const foreignPart = positions
+    .filter((p) => p.departmentId !== departmentId)
+    .filter((p) => own.some((o) => chebyshev(o, p) <= radius))
+    .map((p) => `${p.id}:${p.departmentId}:${p.col},${p.row}`)
+    .sort()
+    .join('|');
+  return `${ownPart}#fx:${foreignPart}`;
 }
 
 function listDepartmentIds(positions: ContourPositionInput[]): string[] {
@@ -67,7 +95,7 @@ export function createIncrementalContourComputer(
 
     const dirty: string[] = [];
     for (const id of deptIds) {
-      const fp = deptKey(id, positions);
+      const fp = deptKey(id, positions, config);
       if (cachedFp.get(id) !== fp) dirty.push(id);
     }
 
@@ -90,7 +118,7 @@ export function createIncrementalContourComputer(
       cachedFp.clear();
       cachedResults.clear();
       for (const id of deptIds) {
-        cachedFp.set(id, deptKey(id, positions));
+        cachedFp.set(id, deptKey(id, positions, config));
         cachedResults.set(
           id,
           all.filter((r) => r.departmentId === id),
@@ -102,7 +130,7 @@ export function createIncrementalContourComputer(
     await Promise.all(
       dirty.map(async (id) => {
         const rs = await computeDept(id, positions, config);
-        cachedFp.set(id, deptKey(id, positions));
+        cachedFp.set(id, deptKey(id, positions, config));
         cachedResults.set(id, rs);
       }),
     );

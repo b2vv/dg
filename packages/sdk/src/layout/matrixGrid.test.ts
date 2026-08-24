@@ -99,4 +99,16 @@ describe('placeOrgAtMatrixCell', () => {
     const next = placeOrgAtMatrixCell(orgs, 'missing', 0, 0, { rows: 2, cols: 2 });
     expect(next).toBe(orgs);
   });
+
+  it('success: fractional row/col are floored and persisted (A8/N1)', () => {
+    // row-major 2×2: a → (0,0), b → (0,1). Floor(0.9, 1.2) = (0,1) ejects b.
+    const orgs = [org('a', 0), org('b', 1)];
+    const next = placeOrgAtMatrixCell(orgs, 'a', 0.9, 1.2, { rows: 2, cols: 2 });
+    expect(next.find((o) => o.id === 'a')).toMatchObject({
+      matrixRow: 0,
+      matrixCol: 1,
+    });
+    expect(next.find((o) => o.id === 'b')?.inMatrix).toBe(false);
+    expect(next.find((o) => o.id === 'b')?.matrixRow).toBeUndefined();
+  });
 });

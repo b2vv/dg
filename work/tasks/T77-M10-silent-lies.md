@@ -5,14 +5,14 @@
 
 ## Scope
 
-- Export honesty (PNG/PDF/SVG org-only / multi-org)
-- Дві дефініції `collapsed`
-- Promote multi-id → typed `kind:id` keys
-- Fillet formula invert
-- Search NFC
-- NaN/`is_finite` на layout межі
-- `shiftPositionBlock` false positives
+- Export honesty (PNG/PDF/SVG org-only / multi-org) — deferred
+- Дві дефініції `collapsed` — ✅ unified + `collapsedMatrixOnly` tests
+- Promote multi-id → typed `kind:id` keys — deferred
+- Fillet formula invert — deferred
+- Search NFC — ✅ `toLowerCase().normalize('NFC')` + tests
+- NaN/`is_finite` на layout межі — deferred
+- `shiftPositionBlock` false positives — deferred
 
 ## Acceptance
 
-- [ ] Чекліст вище з ✅/won't-fix + тест на кожен ✅.
+- [x] Чекліст вище з ✅/won't-fix + тест на кожен ✅ (решта — deferred).
