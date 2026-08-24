@@ -12,6 +12,10 @@ type PipelineStep = {
 /**
  * Ланцюжок трансформацій даних.
  * `.runSync()` — main thread; `.runInWorker()` — через mapper keys у worker.
+ *
+ * @deprecated T77-M09: no renderer consumers (M01 Option B removed contour
+ * compute from DiagramRenderer). Kept for backward compatibility; will be
+ * removed in next major. Prefer direct `mapInWorker` calls.
  */
 export class WorkerPipeline<TIn, TOut = TIn> {
   private steps: PipelineStep[] = [];
@@ -89,11 +93,15 @@ export class WorkerPipeline<TIn, TOut = TIn> {
   }
 }
 
+/** @deprecated T77-M09: no renderer consumers; see WorkerPipeline JSDoc. */
 export function createWorkerPipeline<TIn>(): WorkerPipeline<TIn, TIn> {
   return new WorkerPipeline<TIn, TIn>();
 }
 
-/** Pipeline: positions → dept contours (worker) */
+/**
+ * Pipeline: positions → dept contours (worker).
+ * @deprecated T77-M09: DiagramRenderer no longer uses this (M01 Option B).
+ */
 export function createContourPipeline() {
   return createWorkerPipeline<{ positions: unknown[]; config?: unknown }>().stepKey(
     'contours',

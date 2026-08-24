@@ -1,7 +1,7 @@
 # T77-M08 — validate O(n²) + search scale (§5)
 
 **Епік:** [T77](./T77-critique-remediation.md) · **Critique:** §5  
-**Пріоритет:** P1 · **Статус:** 📋  
+**Пріоритет:** P1 · **Статус:** ✅  
 **Файли:** `orgTree.ts`, `org_tree.rs`, `searchIndex.ts`
 
 ## Acceptance

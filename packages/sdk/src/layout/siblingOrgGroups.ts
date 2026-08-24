@@ -1,5 +1,6 @@
 import type { DiagramOrganization } from '../data/types.js';
 import type { OrgLayoutNode } from './types.js';
+import { isOrgCollapsed } from './orgMode.js';
 
 export interface WorldRect {
   x: number;
@@ -40,7 +41,8 @@ export interface SiblingOrgGroupOptions {
 
 function isCollapsedMatrixSibling(org: DiagramOrganization | undefined): boolean {
   if (!org) return false;
-  return org.collapsed === true;
+  // Use isOrgCollapsed (undefined/true → collapsed) — same rule as orgMode.ts.
+  return isOrgCollapsed(org);
 }
 
 /**

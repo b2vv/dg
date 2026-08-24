@@ -19,11 +19,11 @@
 | **M04** | [T77-M04-appenddata-dedupe.md](./T77-M04-appenddata-dedupe.md) | P0 | ✅ |
 | **M05** | [T77-M05-drag-grab-offset-grid-pitch.md](./T77-M05-drag-grab-offset-grid-pitch.md) | P0 | ✅ |
 | **M06** | [T77-M06-expand-nonroot-forest.md](./T77-M06-expand-nonroot-forest.md) | P0 | ✅ |
-| **M07** | [T77-M07-lying-tests.md](./T77-M07-lying-tests.md) | P1 | 📋 |
-| **M08** | [T77-M08-validate-search-perf.md](./T77-M08-validate-search-perf.md) | P1 | 📋 |
-| **M09** | [T77-M09-dead-code-purge.md](./T77-M09-dead-code-purge.md) | P1 | 📋 (після M01) |
+| **M07** | [T77-M07-lying-tests.md](./T77-M07-lying-tests.md) | P1 | ✅ |
+| **M08** | [T77-M08-validate-search-perf.md](./T77-M08-validate-search-perf.md) | P1 | ✅ |
+| **M09** | [T77-M09-dead-code-purge.md](./T77-M09-dead-code-purge.md) | P1 | ✅ (часткове) |
 | **M10** | [T77-M10-silent-lies.md](./T77-M10-silent-lies.md) | P2 | 📋 |
-| **M11** | [T77-M11-crash-hardening.md](./T77-M11-crash-hardening.md) | P1 | 📋 |
+| **M11** | [T77-M11-crash-hardening.md](./T77-M11-crash-hardening.md) | P1 | ✅ |
 
 ---
 

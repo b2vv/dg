@@ -69,7 +69,7 @@ export function buildOrgSearchIndex(organizations: DiagramOrganization[]): Searc
     pushEntry(index, {
       node: { kind: 'organization', id: org.id, organizationId: org.id },
       label: org.name,
-      haystack: `${org.name} ${orgTestId(org)} ${org.id}`.toLowerCase(),
+      haystack: `${org.name} ${orgTestId(org)} ${org.id}`.normalize('NFC').toLowerCase(),
     });
   }
   return index;
@@ -108,7 +108,7 @@ export function buildSearchIndexFromPositionRows(rows: PositionSearchRow[]): Sea
         personId: row.personId,
       },
       label: row.label,
-      haystack: `${row.label} ${row.title} ${row.personTestId ?? ''} ${row.positionTestId ?? ''} ${row.positionId}`.toLowerCase(),
+      haystack: `${row.label} ${row.title} ${row.personTestId ?? ''} ${row.positionTestId ?? ''} ${row.positionId}`.normalize('NFC').toLowerCase(),
     });
     pushEntry(index, {
       node: {
@@ -120,7 +120,7 @@ export function buildSearchIndexFromPositionRows(rows: PositionSearchRow[]): Sea
         personId: row.personId,
       },
       label: row.title,
-      haystack: `${row.title} ${row.label} ${row.positionTestId ?? ''} ${row.positionId}`.toLowerCase(),
+      haystack: `${row.title} ${row.label} ${row.positionTestId ?? ''} ${row.positionId}`.normalize('NFC').toLowerCase(),
     });
   }
   return index;
@@ -182,7 +182,7 @@ export function searchIndex(
   limit = 50,
 ): SearchResult[] {
   if (!index) return [];
-  const q = query.trim().toLowerCase();
+  const q = query.trim().normalize('NFC').toLowerCase();
   if (!q) return [];
 
   const seed = q[0]!;

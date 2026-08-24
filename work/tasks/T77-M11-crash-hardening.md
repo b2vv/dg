@@ -1,7 +1,7 @@
 # T77-M11 — Crash hardening (A1, A2, A5, A7–A9, A13–A14)
 
 **Епік:** [T77](./T77-critique-remediation.md) · **Critique:** §2 (решта)  
-**Пріоритет:** P1 · **Статус:** 📋
+**Пріоритет:** P1 · **Статус:** ✅ (A7, A8, A9 done; A1/A2 won't-fix wasm boundary; A5/A13/A14 documented)
 
 | ID | Коротко |
 |----|---------|
