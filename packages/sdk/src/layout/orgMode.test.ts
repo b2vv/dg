@@ -42,9 +42,9 @@ describe('findExpandedRootIds (T78-L3)', () => {
     expect(findExpandedRootIds(orgs)).toEqual(['a', 'b']);
   });
 
-  it('success: expanded child under collapsed parent is its own root', () => {
+  it('success: expanded child under collapsed parent is hidden, not a second root', () => {
     const orgs = [org('a', true), org('b', false, 'a')];
-    expect(findExpandedRootIds(orgs)).toEqual(['b']);
+    expect(findExpandedRootIds(orgs)).toEqual([]);
   });
 
   it('failure: expanded child under expanded parent is not a second root', () => {

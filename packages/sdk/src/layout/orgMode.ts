@@ -43,17 +43,20 @@ export function findExpandedRootId(organizations: DiagramOrganization[]): string
 
 /**
  * All expanded roots of a forest (T65 / T78-L3).
- * An expanded org is a root when its parent is missing or collapsed.
+ * An expanded org is a root only when it has no parent, or the parent is omitted
+ * from this payload. A collapsed parent must not promote children into extra trees:
+ * collapse hides the whole subtree (mockup: collapse mid hides peer divisions).
  */
 export function findExpandedRootIds(organizations: DiagramOrganization[]): string[] {
   const expanded = organizations.filter((o) => !isOrgCollapsed(o));
   if (expanded.length === 0) return [];
 
   const byId = new Map(organizations.map((o) => [o.id, o]));
+  // Forest roots: no parent, or parent omitted from this payload.
+  // A collapsed parent must NOT promote children into extra trees (collapse hides the subtree).
   const roots = expanded.filter((o) => {
     if (!o.parentOrgId) return true;
-    const parent = byId.get(o.parentOrgId);
-    return !parent || isOrgCollapsed(parent);
+    return !byId.has(o.parentOrgId);
   });
 
   const depth = (id: string, seen = new Set<string>()): number => {
