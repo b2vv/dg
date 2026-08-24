@@ -8,6 +8,7 @@ How the engineering skills should consume this repo's domain documentation when 
 - **`CONTEXT-MAP.md`** at the repo root if it exists: it points at one `CONTEXT.md` per context. Read each one relevant to the topic.
 - **`docs/adr/`**: read ADRs that touch the area you're about to work in.
 - Existing product docs (always useful here): `docs/REQUIREMENTS.md`, `docs/TECH_STACK.md`, `work/SPEC.md`, `work/CODING_STANDARDS.md`, `work/TDD.md`.
+- **Before implementing:** [`work/CTO-RESEARCH.md`](../../work/CTO-RESEARCH.md) — product, codebase seams, infra, dependencies, ranked risks. Do not start a feature until this briefing matches the ticket you are about to touch.
 
 If `CONTEXT.md` / ADRs don't exist yet, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
 

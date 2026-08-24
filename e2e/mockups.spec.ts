@@ -29,11 +29,34 @@ function parseZoom(statusText: string): number {
   return Number(m![1]);
 }
 
+/** Fixed mount size — toolbar height drifts with Linux font fallback (Segoe UI missing → wrap/metrics), which used to yield 810 vs snapshot 804 and fail CI. */
+const MOCKUP_MOUNT = { width: 1280, height: 800 } as const;
+
+async function pinDiagramMount(page: import('@playwright/test').Page): Promise<void> {
+  await page.addStyleTag({
+    content: `
+      #diagram-mount.diagram-mount {
+        flex: 0 0 ${MOCKUP_MOUNT.height}px !important;
+        height: ${MOCKUP_MOUNT.height}px !important;
+        max-height: ${MOCKUP_MOUNT.height}px !important;
+        width: ${MOCKUP_MOUNT.width}px !important;
+      }
+    `,
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+  const box = await page.locator('#diagram-mount').boundingBox();
+  expect(box?.width).toBe(MOCKUP_MOUNT.width);
+  // Bounding box is exact; element screenshots can round ±1px without clip.
+  expect(box?.height).toBeGreaterThanOrEqual(MOCKUP_MOUNT.height - 1);
+  expect(box?.height).toBeLessThanOrEqual(MOCKUP_MOUNT.height + 1);
+}
+
 test.describe('mockup tabs visual + hierarchy', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/?e2e=1');
     await expect(page.locator('[data-testid="diagram-ready"]')).toBeVisible({ timeout: 60_000 });
+    await pinDiagramMount(page);
   });
 
   for (const tab of MOCKUP_TABS) {
@@ -48,9 +71,19 @@ test.describe('mockup tabs visual + hierarchy', () => {
       await openMockupTab(page, tab.label);
       const mount = page.locator('#diagram-mount');
       await expect(mount).toBeVisible();
-      await expect(mount).toHaveScreenshot(`${tab.slug}.png`, {
+      const box = await mount.boundingBox();
+      expect(box).toBeTruthy();
+      // Subpixel toolbar height (e.g. y=96.15625) makes element screenshots 801px tall;
+      // page clip with integer origin keeps baselines size-stable across font metrics.
+      await expect(page).toHaveScreenshot(`${tab.slug}.png`, {
         maxDiffPixelRatio: 0.04,
         animations: 'disabled',
+        clip: {
+          x: Math.round(box!.x),
+          y: Math.round(box!.y),
+          width: MOCKUP_MOUNT.width,
+          height: MOCKUP_MOUNT.height,
+        },
       });
     });
   }
