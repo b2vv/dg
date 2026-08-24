@@ -282,6 +282,30 @@ describe('OrgHierarchyDiagram interactions', () => {
     document.body.removeChild(container);
   });
 
+  it('success: selection overlay resolves typed kind:id boxes', async () => {
+    const { container, diagram } = await mount();
+    type Host = {
+      renderer: {
+        getNodeBox: (id: string) => { id: string } | undefined;
+        layers: { overlay: { children: unknown[] } };
+      };
+    };
+    const host = (diagram as unknown as { host: Host }).host;
+    expect(host.renderer.getNodeBox('P1')).toBeTruthy();
+    expect(host.renderer.getNodeBox('position:P1')).toBeTruthy();
+
+    await diagram.select({
+      kind: 'person',
+      id: 'person-alice',
+      personId: 'person-alice',
+      positionId: 'P1',
+    });
+    expect(host.renderer.layers.overlay.children.length).toBeGreaterThan(0);
+
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
+
   it('success: focusByTestId expands collapsed org then selects', async () => {
     const onSelectionChange = vi.fn();
     const container = document.createElement('div');

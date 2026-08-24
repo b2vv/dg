@@ -428,9 +428,9 @@ export class DiagramRenderer {
   private drawSelection(selected: NodeRef | null | readonly NodeRef[]): void {
     for (const node of this.normalizeSelected(selected)) {
       const box =
-        this.nodeBoxes.get(node.id) ??
-        (node.positionId ? this.nodeBoxes.get(node.positionId) : undefined) ??
-        (node.personId ? this.nodeBoxes.get(node.personId) : undefined);
+        this.getNodeBox(node.id) ??
+        (node.positionId ? this.getNodeBox(node.positionId) : undefined) ??
+        (node.personId ? this.getNodeBox(node.personId) : undefined);
       if (!box) continue;
       const g = new Graphics();
       g.rect(box.x - 3, box.y - 3, box.width + 6, box.height + 6);
