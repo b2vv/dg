@@ -85,7 +85,6 @@ import {
 
 export type {
   DiagramData,
-  NodeVisualKind,
   PositionStatus,
   GridCell,
   Point2D,
@@ -95,8 +94,7 @@ export type {
 export type { DiagramOrganization, DiagramPerson, DiagramPosition, DiagramGroup } from './data/types.js';
 export { emptyDiagramData, computeStats } from './data/types.js';
 
-export type { DataMapper, DiagramMappers, MapperContext, MapResult } from './mappers/types.js';
-export { runMapper, composeMappers, identityMapper } from './mappers/types.js';
+export type { DataMapper, DiagramMappers, MapperContext } from './mappers/types.js';
 export {
   flatRowsToDiagram,
   mergeDiagramData,
@@ -105,8 +103,6 @@ export {
 } from './mappers/flatToDiagram.js';
 
 export {
-  createWorkerPipeline,
-  createContourPipeline,
   mapInWorker,
   WorkerPool,
   createTransformWorker,

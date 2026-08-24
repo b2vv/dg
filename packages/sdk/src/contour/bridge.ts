@@ -43,8 +43,6 @@ export interface WasmContourModule {
     positions: ContourPositionInput[],
     config?: ContourMagnetConfig,
   ) => DeptContourResult[];
-  computeLayout: (...args: unknown[]) => unknown;
-  buildFromFlat: (items: unknown) => unknown;
   computeOrgRowTreeLayout: (
     organizations: unknown,
     expandedRootId: string,

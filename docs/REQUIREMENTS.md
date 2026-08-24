@@ -489,22 +489,16 @@ const diagram = await OrgHierarchyDiagram.create(container, {
 Швидке перегоняння типів **off main thread**:
 
 ```ts
-import { createWorkerPipeline, mapInWorker } from '@org-hierarchy/sdk/worker';
+import { mapInWorker, mapFlatRowsInPool } from '@org-hierarchy/sdk/worker';
 
-const pipeline = createWorkerPipeline<RawRow[], DiagramData>()
-  .step('normalize', normalizeRows)      // sync або async у worker
-  .step('toDiagram', flatToDiagram)
-  .step('layout', computeLayoutWasm);    // WASM у worker
-
-const diagramData = await pipeline.run(rawRows);
+const diagramData = await mapInWorker(worker, 'flatRowsToDiagram', rawRows);
 ```
 
 | Helper | Призначення |
 |--------|-------------|
-| `createWorkerPipeline<TIn,TOut>()` | Ланцюжок трансформацій у Web Worker |
-| `mapInWorker(mapper, data)` | One-shot mapper у worker |
-| `transferable()` | Zero-copy для великих ArrayBuffer |
-| `WorkerPool` | Паралельні chunk-и для 2M records |
+| `mapInWorker(worker, key, data)` | One-shot mapper у worker |
+| `mapFlatRowsInPool(rows)` | Chunked pooled map → `DiagramData` |
+| `WorkerPool` | Паралельні chunk-и для великих масивів |
 
 ### 4.10 Callbacks для інтеграції
 
@@ -564,7 +558,7 @@ interface OrgHierarchyCallbacks {
 - [x] Web Worker bridge
 - [x] Pixi: viewport, clusters, базовий person/org node
 - [x] `DiagramData` types + `DataMapper<TRaw, TDiagram>`
-- [x] Worker helpers: `createWorkerPipeline`, `mapInWorker`, `WorkerPool`
+- [x] Worker helpers: `mapInWorker`, `WorkerPool`, `mapFlatRowsInPool`
 - [x] `mount(el, { data, mappers })` → `OrgHierarchyDiagram.create`
 
 ### Фаза 2 — Org modes

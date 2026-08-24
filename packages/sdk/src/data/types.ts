@@ -1,9 +1,3 @@
-/**
- * Візуальний тип вузла на діаграмі.
- * @deprecated T77-M09: no readers inside the repo. Use `NodeRef['kind']` instead.
- */
-export type NodeVisualKind = 'organization' | 'department' | 'person' | 'position';
-
 export type PositionStatus = 'filled' | 'vacant' | 'acting';
 
 /** Theme-keyed media URLs (T74). Host supplies URLs; SDK loads textures. */

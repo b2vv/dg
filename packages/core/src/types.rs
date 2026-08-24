@@ -125,15 +125,6 @@ pub struct OrgRowTreeLayoutResult {
     pub direction: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts-export", derive(TS))]
-#[cfg_attr(feature = "ts-export", ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts"))]
-pub struct TreeStats {
-    pub total_nodes: u32,
-    pub max_depth: u32,
-    pub vacant_count: u32,
-}
-
 // --- Dept contour (magnetism) ---
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,26 +1,30 @@
 # T77-M09 — Dead code purge (§6)
 
 **Епік:** [T77](./T77-critique-remediation.md) · **Critique:** §6  
-**Пріоритет:** P1 · **Статус:** ✅ (часткове; важкі видалення відкладені)  
+**Пріоритет:** P1 · **Статус:** ✅  
 **Блокер:** [M01](./T77-M01-contour-wire-or-delete.md) ✅
 
 ## Зроблено
 
 | Що | Дія |
 |----|-----|
-| `WorkerPipeline` / `createWorkerPipeline` / `createContourPipeline` | `@deprecated` |
-| `NodeVisualKind` | `@deprecated` (0 внутрішніх readers) |
-| `inflateClosedRing` | вже `@deprecated` (тільки тести) |
+| `WorkerPipeline` / `createWorkerPipeline` / `createContourPipeline` | видалено (+ `pipeline.test.ts`) |
+| `NodeVisualKind` | видалено |
+| `inflateClosedRing` | видалено |
+| `layout.rs` + `wasm_compute_layout` + `wasm_tree_stats` + `wasm_build_from_flat` | видалено |
+| Worker keys `computeLayout` / `buildFromFlat` | видалено |
+| `runMapper` / `composeMappers` / `identityMapper` / `MapResult` | видалено |
 
-## Відкладено (наступний major або окремий тікет)
+## Навмисно лишається (живе)
 
-| Кандидат | LOC | Ризик видалення |
-|----------|-----|-----------------|
-| `contour.rs` pipeline + incremental (§1.1) | ~2 300 | render/export тести використовують `computeAllContours` прямо |
-| `layout.rs` + `wasm_compute_layout` (§1.2) | ~580 | wasm pkg поставляється в repo; rebuild потрібен |
-| `mapArrayFacade` overkill | ~300 | search worker вживає |
-| matrix `bounded` no-ops (`placeOrgAtMatrixCell`) | ~250 | public API |
-| RAF twiners | ~80 | camera tweens |
-| dead export symbols (8) | ~35 | minor cleanup |
+| Кандидат | Чому |
+|----------|------|
+| `contour.rs` + incremental + worker-bridge | SVG export / G6–G7 / incremental cache |
+| `mapArrayFacade` | demo + `mapFlatRowsInPool` |
+| `placeOrgAtMatrixCell` / matrix bounded | public API (N1) |
+| RAF camera tweens | `Viewport` live |
+| `searchIndex.byChar` | M08 perf |
+| PixiHost viewport wrappers | public camera API |
+| `layoutX/Y` | staff hybrid coords |
 
-`npm run test:verify` зелений після депрекацій.
+`cargo test --lib` + SDK vitest після purge.

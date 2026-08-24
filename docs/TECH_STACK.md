@@ -49,7 +49,7 @@ const chunks = await pool.mapChunks('flatRowsToDiagram', rawRows, 50_000);
 | Шар | Технологія |
 |-----|------------|
 | Data | `DiagramData` + `DataMapper<TRaw>` |
-| Worker helpers | `mapInWorker`, `WorkerPool`, `createWorkerPipeline` |
+| Worker helpers | `mapInWorker`, `WorkerPool`, `mapFlatRowsInPool` |
 | Core | Rust WASM у worker |
 | Render | Pixi.js |
 | Bundler | **Rsbuild** |
