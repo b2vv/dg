@@ -33,7 +33,9 @@ function makeDiagram(overrides: Partial<PromoteOverlayDiagram> = {}): PromoteOve
     getSelection: () => ({ id: 'pos1', kind: 'position', positionId: 'pos1', personId: 'p1' }),
     select: vi.fn(async () => undefined),
     listPromoteCandidates: (ids) => {
-      if (ids && (ids.length === 0 || !ids.includes('pos1'))) return [];
+      if (ids && (ids.length === 0 || !ids.some((id) => id === 'pos1' || id === 'position:pos1'))) {
+        return [];
+      }
       return [candidate];
     },
     setPromotedNodeIds: vi.fn(),
@@ -68,9 +70,7 @@ describe('createReactPromoteOverlay', () => {
       });
     });
 
-    expect(diagram.setPromotedNodeIds).toHaveBeenCalledWith(
-      expect.arrayContaining(['pos1', 'p1']),
-    );
+    expect(diagram.setPromotedNodeIds).toHaveBeenCalledWith(['position:pos1']);
     expect(mount.querySelector('[data-promote-card]')).toBeTruthy();
     expect(mount.textContent).toContain('Alice');
 

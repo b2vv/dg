@@ -27,6 +27,11 @@ import {
   type SelectionPointerMods,
 } from '../interaction/selection.js';
 import type { NodeRef } from '../interaction/types.js';
+import {
+  nodeEntityKey,
+  parseNodeEntityKey,
+  promoteIdMatches,
+} from './promoteMath.js';
 import { DepartmentBlobView } from './DepartmentBlob.js';
 import { DepartmentCardView, paintDashedFrame } from './DepartmentCardView.js';
 import { StaffZonesView } from './StaffZonesView.js';
@@ -236,7 +241,20 @@ export class DiagramRenderer {
   }
 
   getNodeBox(id: string): NodeWorldBox | undefined {
-    return this.nodeBoxes.get(id);
+    const direct = this.nodeBoxes.get(id);
+    if (direct) return direct;
+    const parsed = parseNodeEntityKey(id);
+    if (parsed) {
+      return (
+        this.nodeBoxes.get(nodeEntityKey(parsed.kind, parsed.id)) ??
+        this.nodeBoxes.get(parsed.id)
+      );
+    }
+    return (
+      this.nodeBoxes.get(nodeEntityKey('position', id)) ??
+      this.nodeBoxes.get(nodeEntityKey('organization', id)) ??
+      this.nodeBoxes.get(nodeEntityKey('person', id))
+    );
   }
 
   /** Soft layout warnings from the last successful `render` (may be empty). */
@@ -261,9 +279,15 @@ export class DiagramRenderer {
     return [...this.promotedIds];
   }
 
-  private registerView(id: string, view: Container): void {
-    this.nodeViews.set(id, view);
-    view.visible = !this.promotedIds.has(id);
+  private registerView(kind: NodeWorldBox['kind'], id: string, view: Container): void {
+    const key = nodeEntityKey(kind, id);
+    this.nodeViews.set(key, view);
+    view.visible = !this.isPromotedKey(key);
+  }
+
+  private isPromotedKey(key: string): boolean {
+    if (this.promotedIds.has(key)) return true;
+    return promoteIdMatches(this.promotedIds, key);
   }
 
   private registerMediaView(
@@ -299,7 +323,7 @@ export class DiagramRenderer {
 
   private applyPromoteVisibility(): void {
     for (const [id, view] of this.nodeViews) {
-      view.visible = !this.promotedIds.has(id);
+      view.visible = !this.isPromotedKey(id);
     }
   }
 
@@ -416,7 +440,8 @@ export class DiagramRenderer {
   }
 
   private rememberBox(box: NodeWorldBox): void {
-    this.nodeBoxes.set(box.id, box);
+    const key = parseNodeEntityKey(box.id) ? box.id : nodeEntityKey(box.kind, box.id);
+    this.nodeBoxes.set(key, { ...box, id: key });
   }
 
   private beginContourSession(args: {
@@ -621,9 +646,6 @@ export class DiagramRenderer {
     options: RenderOptions,
   ): void {
     this.rememberBox(box);
-    if (personId) {
-      this.rememberBox({ ...box, id: personId, kind: 'person' });
-    }
 
     node.on('pointertap', (e) => {
       if (!isPrimaryPointerTap(e)) return;
@@ -962,8 +984,7 @@ export class DiagramRenderer {
           options,
         );
         this.layers.persons.addChild(node);
-        this.registerView(position.id, node);
-        if (position.personId) this.registerView(position.personId, node);
+        this.registerView('position', position.id, node);
         this.registerMediaView(node.resolvedPhotoUrl, node);
       }
 
@@ -999,7 +1020,7 @@ export class DiagramRenderer {
           width: card.width,
           height: card.height,
         });
-        this.registerView(card.orgId, view);
+        this.registerView('organization', card.orgId, view);
         this.registerMediaView(view.resolvedSymbolUrl, view);
         view.on('pointertap', (e) => {
           if (!isPrimaryPointerTap(e)) return;
@@ -1097,8 +1118,7 @@ export class DiagramRenderer {
         options,
       );
       this.layers.persons.addChild(node);
-      this.registerView(position.id, node);
-      if (position.personId) this.registerView(position.personId, node);
+      this.registerView('position', position.id, node);
       this.registerMediaView(node.resolvedPhotoUrl, node);
     }
   }
@@ -1205,7 +1225,7 @@ export class DiagramRenderer {
         });
       });
       this.layers.organizations.addChild(node);
-      this.registerView(org.id, node);
+      this.registerView('organization', org.id, node);
       this.registerMediaView(node.resolvedSymbolUrl, node);
     }
   }

@@ -7,6 +7,7 @@ import { assignMatrixCells, placeOrgAtMatrixCell, resolveMatrixDimensions } from
 import { buildSpineBusEdgesForForest } from './spineBusEdges.js';
 import {
   DEFAULT_ORG_LAYOUT_OPTIONS,
+  assertOrgLayoutMetrics,
   type OrgLayoutEdge,
   type OrgLayoutNode,
   type OrgLayoutOptions,
@@ -21,6 +22,7 @@ export function computeMatrixLayout(
   options: OrgLayoutOptions = {},
 ): OrgLayoutResult {
   const opts = { ...DEFAULT_ORG_LAYOUT_OPTIONS, ...options };
+  assertOrgLayoutMetrics(opts);
   if (organizations.length === 0) {
     return { mode: 'matrix', nodes: [], edges: [], width: 0, height: 0 };
   }

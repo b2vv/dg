@@ -3,6 +3,7 @@ import {
   resolvePromoteIds,
   screenRectInView,
   worldBoxToScreen,
+  nodeEntityKey,
 } from './promoteMath.js';
 
 describe('worldBoxToScreen', () => {
@@ -33,10 +34,36 @@ describe('resolvePromoteIds', () => {
     organizationId: 'org1',
   };
 
-  it('success: near-selection promotes when lod is near', () => {
+  it('success: near-selection promotes the one visual card', () => {
     expect(
       resolvePromoteIds({ mode: 'near-selection', lod: 'near', selection }),
-    ).toEqual(['pos1', 'p1', 'org1']);
+    ).toEqual([nodeEntityKey('position', 'pos1')]);
+  });
+
+  it('success: person selection promotes the position visual, not org+person aliases', () => {
+    expect(
+      resolvePromoteIds({
+        mode: 'selection',
+        lod: 'mid',
+        selection: {
+          id: 'p1',
+          kind: 'person',
+          positionId: 'pos1',
+          personId: 'p1',
+          organizationId: 'org1',
+        },
+      }),
+    ).toEqual([nodeEntityKey('position', 'pos1')]);
+  });
+
+  it('success: organization selection promotes only the org card', () => {
+    expect(
+      resolvePromoteIds({
+        mode: 'selection',
+        lod: 'near',
+        selection: { id: 'org1', kind: 'organization', organizationId: 'org1' },
+      }),
+    ).toEqual([nodeEntityKey('organization', 'org1')]);
   });
 
   it('failure: near-selection demotes when lod is mid/far', () => {

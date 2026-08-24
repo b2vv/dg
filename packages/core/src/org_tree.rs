@@ -8,6 +8,7 @@ pub enum OrgTreeError {
     Cycle(String),
     UnknownOrg(String),
     Empty,
+    InvalidMetrics(String),
 }
 
 impl OrgTreeError {
@@ -17,6 +18,7 @@ impl OrgTreeError {
             OrgTreeError::Cycle(id) => format!("Cycle detected in parentOrgId at {id}"),
             OrgTreeError::UnknownOrg(id) => format!("Unknown organization: {id}"),
             OrgTreeError::Empty => "Empty organizations".into(),
+            OrgTreeError::InvalidMetrics(msg) => msg.clone(),
         }
     }
 }

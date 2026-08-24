@@ -5,6 +5,7 @@ import { validateOrgHierarchy } from './orgTree.js';
 import { OrgHierarchyError } from './orgTree.js';
 import {
   DEFAULT_ORG_LAYOUT_OPTIONS,
+  assertOrgLayoutMetrics,
   type OrgLayoutOptions,
   type OrgLayoutResult,
 } from './types.js';
@@ -47,6 +48,7 @@ export async function computeOrgRowTreeLayout(
 ): Promise<OrgLayoutResult> {
   validateOrgHierarchy(organizations);
   const opts = { ...DEFAULT_ORG_LAYOUT_OPTIONS, ...options };
+  assertOrgLayoutMetrics(opts);
   if (!organizations.some((o) => o.id === expandedRootId)) {
     throw new OrgHierarchyError(`Unknown organization: ${expandedRootId}`);
   }

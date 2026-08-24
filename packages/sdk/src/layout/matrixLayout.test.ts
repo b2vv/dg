@@ -54,6 +54,12 @@ describe('computeMatrixLayout', () => {
     expect(layout.nodes).toHaveLength(0);
     expect(layout.edges).toHaveLength(0);
   });
+
+  it('failure: NaN nodeWidth throws instead of placing at NaN', () => {
+    expect(() => computeMatrixLayout([org('a', 0)], [], { nodeWidth: Number.NaN })).toThrow(
+      /finite/i,
+    );
+  });
 });
 
 describe('swapMatrixOrder', () => {

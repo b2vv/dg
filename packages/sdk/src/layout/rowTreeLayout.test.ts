@@ -33,6 +33,18 @@ describe('computeOrgRowTreeLayout', () => {
     await expect(computeOrgRowTreeLayout(orgs, 'missing')).rejects.toThrow(/unknown/i);
   });
 
+  it('failure: NaN nodeWidth throws instead of emitting empty paths', async () => {
+    await expect(
+      computeOrgRowTreeLayout([org('a')], 'a', { nodeWidth: Number.NaN }),
+    ).rejects.toThrow(/finite/i);
+  });
+
+  it('failure: infinite nodeHeight throws', async () => {
+    await expect(
+      computeOrgRowTreeLayout([org('a')], 'a', { nodeHeight: Number.POSITIVE_INFINITY }),
+    ).rejects.toThrow(/finite/i);
+  });
+
   it('success: expand non-root via revealOrgPath keeps sibling orgs (A12)', async () => {
     const matrix = [
       org('root', undefined, true),
