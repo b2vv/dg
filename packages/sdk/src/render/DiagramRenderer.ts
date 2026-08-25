@@ -933,7 +933,11 @@ export class DiagramRenderer {
           6,
         );
         if (frame) {
-          paintDashedFrame(this.layers.zones, frame, resolveStaffZoneStyle(theme, resolvedTheme).stroke);
+          const zoneStyle = resolveStaffZoneStyle(theme, resolvedTheme);
+          paintDashedFrame(this.layers.zones, frame, {
+            color: zoneStyle.stroke,
+            borderRadius: zoneStyle.borderRadius,
+          });
         }
       }
 
@@ -950,7 +954,10 @@ export class DiagramRenderer {
         lod,
       );
       this.layers.edges.addChild(
-        StaffEdgesView.fromLayout(canvas.edges, edgeBoxes, resolvedTheme),
+        StaffEdgesView.fromLayout(canvas.edges, edgeBoxes, {
+          theme: resolvedTheme,
+          edge: theme.edge,
+        }),
       );
 
       const staffLayoutOpts = {
@@ -1195,22 +1202,34 @@ export class DiagramRenderer {
     );
     if (!this.isRenderCurrent(epoch)) return;
 
-    const edgesView = OrgEdgesView.fromEdges(
-      layout.edges,
-      resolvedTheme === 'dark' ? 0x64748b : 0x94a3b8,
-    );
+    const edgesView = OrgEdgesView.fromEdges(layout.edges, {
+      color: resolvedTheme === 'dark' ? 0x64748b : 0x94a3b8,
+      ...theme.edge,
+    });
     this.layers.edges.addChild(edgesView);
 
     if (config.orgSiblingGroupChrome) {
       const orgById = new Map(data.organizations.map((o) => [o.id, o]));
-      const collapsedOnly = theme.organization.orgCardLayout === 'gojs-vertical';
-      const groups = siblingOrgGroupBounds(layout.nodes, 14, {
-        collapsedMatrixOnly: collapsedOnly,
+      const outline = (config.orgSiblingGroupStyle ?? 'zone') === 'outline';
+      const zone = theme.staffZone;
+      const frame = outline
+        ? {
+            pad: 14,
+            color: resolvedTheme === 'dark' ? 0x64748b : 0x94a3b8,
+          }
+        : {
+            pad: 32,
+            color: zone?.stroke ?? 0x3d5067,
+            fill: zone?.fill ?? 0x191f26,
+            fillAlpha: zone?.fillAlpha ?? 0.92,
+            borderRadius: zone?.borderRadius ?? 12,
+          };
+      const groups = siblingOrgGroupBounds(layout.nodes, frame.pad, {
+        collapsedMatrixOnly: outline,
         orgById,
       });
-      const stroke = resolvedTheme === 'dark' ? 0x64748b : 0x94a3b8;
       for (const g of groups) {
-        paintDashedFrame(this.layers.zones, g.bounds, stroke, 1);
+        paintDashedFrame(this.layers.zones, g.bounds, { width: 1, ...frame });
       }
     }
 
@@ -1298,7 +1317,6 @@ export class DiagramRenderer {
     for (const dept of data.departments) {
       const members = memberBoxesByDept.get(dept.id) ?? [];
       const card = DepartmentCardView.fromMembers(dept, members, style, {
-        padding: 8,
         minMembers,
       });
       if (card) this.layers.departments.addChild(card);

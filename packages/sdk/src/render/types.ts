@@ -7,6 +7,12 @@ export interface DepartmentBlobStyle {
   strokeWidth: number;
   labelColor: number;
   labelFontSize: number;
+  /**
+   * `center` (default) puts the name on the blob centroid — fine for sparse
+   * grids; `right` moves it to the ring's top-right corner so it never lands on
+   * a seat (Figma dept header).
+   */
+  labelAlign?: 'center' | 'right';
 }
 
 /** T64 — rectangular dept chrome (alternative to organic blob). */
@@ -18,6 +24,12 @@ export interface DepartmentCardStyle {
   borderRadius: number;
   labelColor: number;
   labelFontSize: number;
+  /** Figma staff: dashed dept outline (default solid). */
+  dashed?: boolean;
+  /** Inset between member cards and the card frame (default 8). */
+  padding?: number;
+  /** Reserve a row above the members for the label (Figma dept header). */
+  labelRow?: boolean;
 }
 
 /** T64 / B8 — named staff-block zone chrome. */
@@ -32,6 +44,8 @@ export interface StaffZoneStyle {
   labelAlign: 'left' | 'right';
   /** Figma mockup: dashed zone outline (default solid). */
   dashed?: boolean;
+  /** Label inset from the zone frame (default 8). */
+  labelPadding?: number;
 }
 
 export interface PersonNodeStyle {
@@ -73,6 +87,17 @@ export interface PersonNodeStyle {
   /** Inner card height for gojs-row (excludes timeline + count bar). */
   cardRowHeight?: number;
   /**
+   * Card fill alpha; `0` = chrome-less seat (Figma staff — avatar tile + text
+   * only, no card frame). Default 1.
+   */
+  backgroundAlpha?: number;
+  /** Hourglass glyph after the name vs «T» pill in the card corner. */
+  tempMarkerStyle?: 'badge' | 'hourglass';
+  /** Suppress the inline period chip (Figma shows the period in a popover). */
+  hidePeriodOnCard?: boolean;
+  /** Vacant seat renders the title only (no «(вакансія)» line). */
+  hideVacantLabel?: boolean;
+  /**
    * Seat chrome template. `auto` = infer from aspect (legacy).
    * `figma-row` = landscape Figma seat; `gojs-row` = GoJS landscape row;
    * `gojs-portrait` = GoJS / Variant B card.
@@ -105,6 +130,14 @@ export interface OrganizationNodeStyle {
   noCaptionSymbolHeight?: number;
   /** Vertical stack (symbol → name → unit code) vs legacy horizontal row. */
   orgCardLayout?: 'horizontal' | 'gojs-vertical';
+  /** gojs-vertical body inset — left/right (default 14). */
+  bodyPaddingX?: number;
+  /** gojs-vertical body inset — top/bottom (default 10). */
+  bodyPaddingY?: number;
+  /** gojs-vertical name row height (default 20). */
+  nameRowHeight?: number;
+  /** gojs-vertical gap between name row and symbol (default 6). */
+  symbolRowGap?: number;
   /** Suppress period line on the card (GoJS shows it on edges). */
   hidePeriodOnCard?: boolean;
   /** Hourglass on symbol vs «T» pill on card corner. */
@@ -129,12 +162,34 @@ export interface OrganizationNodeStyle {
   countsBadgeFontSize?: number;
 }
 
+/**
+ * Connector paint shared by org + staff edges. The Figma «Casiopeya» frames use
+ * 1px grey elbows with rounded corners and a round dot at each end instead of
+ * the default arrowhead.
+ */
+export interface EdgeStyle {
+  /** Stroke color for every edge kind. */
+  color?: number;
+  /** Stroke width; per-view default when unset. */
+  width?: number;
+  /** Elbow corner radius; 0 (default) keeps square corners. */
+  cornerRadius?: number;
+  /** Line ends: filled arrow at the target (default) or a dot at both ends. */
+  terminator?: 'arrow' | 'dot';
+  /** Dot radius when `terminator` is `dot`. */
+  dotRadius?: number;
+}
+
 export interface NodeTheme {
   organization: OrganizationNodeStyle;
   department: DepartmentBlobStyle;
   person: PersonNodeStyle;
   departmentCard?: DepartmentCardStyle;
   staffZone?: StaffZoneStyle;
+  /** Pixi clear color; falls back to {@link canvasBackgroundForTheme}. */
+  canvasBackground?: number;
+  /** Org + staff connector paint; falls back to the per-theme defaults. */
+  edge?: EdgeStyle;
 }
 
 export type DepartmentPaintStyle = 'blob' | 'card';
@@ -164,6 +219,12 @@ export interface RenderConfig {
    * (Figma org mockup / B8c preview). Org-layout only.
    */
   orgSiblingGroupChrome?: boolean;
+  /**
+   * Sibling-frame flavour when {@link RenderConfig.orgSiblingGroupChrome} is on:
+   * `zone` (default) = filled staff-zone chrome around any sibling group (Figma
+   * frame 1264:8121); `outline` = thin outline around collapsed matrix siblings.
+   */
+  orgSiblingGroupStyle?: 'zone' | 'outline';
   /**
    * T70 E11: prefetch the inactive theme’s org symbol URL on mount.
    * Default false — avoids automatic cross-theme fetches of untrusted URLs
@@ -328,6 +389,7 @@ export const defaultRenderConfig: RenderConfig = {
   departmentStyle: 'blob',
   dashedGridFrame: false,
   orgSiblingGroupChrome: false,
+  orgSiblingGroupStyle: 'zone',
   prefetchInactiveOrgSymbol: false,
 };
 
@@ -342,12 +404,16 @@ export function mergeTheme(
       person: { ...base.person },
       departmentCard: base.departmentCard ? { ...base.departmentCard } : undefined,
       staffZone: base.staffZone ? { ...base.staffZone } : undefined,
+      canvasBackground: base.canvasBackground,
+      edge: base.edge ? { ...base.edge } : undefined,
     };
   }
   return {
     organization: { ...base.organization, ...partial.organization },
     department: { ...base.department, ...partial.department },
     person: { ...base.person, ...partial.person },
+    canvasBackground: partial.canvasBackground ?? base.canvasBackground,
+    edge: base.edge || partial.edge ? { ...base.edge, ...partial.edge } : undefined,
     departmentCard:
       base.departmentCard || partial.departmentCard
         ? {

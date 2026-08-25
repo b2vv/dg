@@ -137,6 +137,14 @@ export class DepartmentBlobView extends Container {
     this.countBadge.visible = false;
     this.labelText.visible = true;
     this.labelText.text = this.label;
+    if (style.labelAlign === 'right') {
+      const pad = 8;
+      const maxX = Math.max(...pts.map((p) => p.x));
+      const minY = Math.min(...pts.map((p) => p.y));
+      this.labelText.anchor.set(1, 0);
+      this.labelText.position.set(maxX - pad, minY + pad);
+      return;
+    }
     this.labelText.anchor.set(0.5, 0.5);
     this.labelText.position.set(cx, cy);
   }

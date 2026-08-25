@@ -14,10 +14,14 @@ import {
   type StaffEdgeLink,
 } from '@org-hierarchy/sdk';
 import {
+  FIGMA_STAFF_LAYOUT,
+  MAGNETIC_STAFF_LAYOUT,
   MOCKUP_FIGMA_STYLES,
   MOCKUP_GOJS_STYLES,
+  MOCKUP_MAGNETIC_STYLES,
   buildMockupStaffFigmaData,
   buildMockupStaffGojsData,
+  buildMockupStaffMagneticData,
 } from './mockupFigma.js';
 import { buildStaffTreeData } from './staffTree.js';
 
@@ -104,20 +108,7 @@ function censusTab(
   };
 }
 
-const FIGMA_LAYOUT: StaffLayoutOptions = {
-  horizontalGap: 36,
-  verticalGap: 40,
-  tierGap: 48,
-  margin: 28,
-  nodeWidth: 248,
-  nodeHeight: 72,
-  orgCardWidth: 220,
-  orgCardHeight: 56,
-  refCellWidth: 260,
-  refCellHeight: 88,
-  expandedOrgIds: ['unit-current'],
-  collapseUnexpandedPositions: false,
-};
+const FIGMA_LAYOUT: StaffLayoutOptions = FIGMA_STAFF_LAYOUT;
 
 const GOJS_LAYOUT: StaffLayoutOptions = {
   horizontalGap: 36,
@@ -168,12 +159,26 @@ describe('staff edge fallback census (demo tabs)', () => {
       personLayout: MOCKUP_GOJS_STYLES.person.personLayout,
     };
 
+    const magneticData = buildMockupStaffMagneticData();
+    const magneticPerson: PersonNodeStyle = {
+      ...defaultNodeTheme.person,
+      width: MOCKUP_MAGNETIC_STYLES.person.width,
+      height: MOCKUP_MAGNETIC_STYLES.person.height,
+      personLayout: MOCKUP_MAGNETIC_STYLES.person.personLayout,
+    };
+
     const rows = [
       censusTab(
         'Staff · Figma',
         await layoutStaffCanvas(staffInput(figmaData), 'region', FIGMA_LAYOUT),
         figmaData,
         figmaPerson,
+      ),
+      censusTab(
+        'Staff · Magnetic',
+        await layoutStaffCanvas(staffInput(magneticData), 'region', MAGNETIC_STAFF_LAYOUT),
+        magneticData,
+        magneticPerson,
       ),
       censusTab(
         'Staff · GoJS',
@@ -199,7 +204,7 @@ describe('staff edge fallback census (demo tabs)', () => {
       { total: 0, forced: 0, dirty: 0 },
     );
 
-    expect(rows[0]?.total).toBe(9);
+    expect(rows[0]?.total).toBe(11);
     expect({
       total: totals.total,
       forced: totals.forced,
@@ -215,40 +220,65 @@ describe('staff edge fallback census (demo tabs)', () => {
       })),
     }).toMatchInlineSnapshot(`
       {
-        "dirty": 5,
-        "dirtyPct": 22.73,
-        "forced": 1,
-        "forcedPct": 4.55,
+        "dirty": 0,
+        "dirtyPct": 0,
+        "forced": 2,
+        "forcedPct": 5.71,
         "tabs": [
           {
             "around": 0,
-            "direct": 8,
-            "dirty": 2,
+            "direct": 10,
+            "dirty": 0,
             "forced": 1,
             "kinds": {
               "admin": {
                 "dirty": 0,
                 "forced": 0,
-                "total": 7,
+                "total": 9,
               },
               "cross-tier": {
-                "dirty": 1,
-                "forced": 0,
+                "dirty": 0,
+                "forced": 1,
                 "total": 1,
               },
               "dotted": {
-                "dirty": 1,
-                "forced": 1,
+                "dirty": 0,
+                "forced": 0,
                 "total": 1,
               },
             },
             "tab": "Staff · Figma",
-            "total": 9,
+            "total": 11,
+          },
+          {
+            "around": 0,
+            "direct": 11,
+            "dirty": 0,
+            "forced": 0,
+            "kinds": {
+              "admin": {
+                "dirty": 0,
+                "forced": 0,
+                "total": 9,
+              },
+              "cross-tier": {
+                "dirty": 0,
+                "forced": 0,
+                "total": 1,
+              },
+              "dotted": {
+                "dirty": 0,
+                "forced": 0,
+                "total": 1,
+              },
+            },
+            "tab": "Staff · Magnetic",
+            "total": 11,
           },
           {
             "around": 0,
             "direct": 9,
-            "dirty": 1,
+            "dirty": 0,
             "forced": 0,
             "kinds": {
               "admin": {
@@ -257,7 +287,7 @@ describe('staff edge fallback census (demo tabs)', () => {
                 "total": 7,
               },
               "cross-tier": {
-                "dirty": 1,
+                "dirty": 0,
                 "forced": 0,
                 "total": 1,
               },
@@ -271,10 +301,10 @@ describe('staff edge fallback census (demo tabs)', () => {
             "total": 9,
           },
           {
-            "around": 0,
-            "direct": 4,
-            "dirty": 2,
-            "forced": 0,
+            "around": 1,
+            "direct": 2,
+            "dirty": 0,
+            "forced": 1,
             "kinds": {
               "admin": {
                 "dirty": 0,
@@ -282,8 +312,8 @@ describe('staff edge fallback census (demo tabs)', () => {
                 "total": 1,
               },
               "cross-tier": {
-                "dirty": 2,
-                "forced": 0,
+                "dirty": 0,
+                "forced": 1,
                 "total": 3,
               },
             },
@@ -291,7 +321,7 @@ describe('staff edge fallback census (demo tabs)', () => {
             "total": 4,
           },
         ],
-        "total": 22,
+        "total": 35,
       }
     `);
   });

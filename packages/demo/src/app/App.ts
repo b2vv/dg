@@ -34,8 +34,14 @@ import {
   buildMockupOrgsGojsData,
   buildMockupStaffFigmaData,
   buildMockupStaffGojsData,
+  buildMockupStaffMagneticData,
+  FIGMA_ORG_LAYOUT,
+  FIGMA_STAFF_LAYOUT,
+  MAGNETIC_CELL,
+  MAGNETIC_STAFF_LAYOUT,
   MOCKUP_FIGMA_STYLES,
   MOCKUP_GOJS_STYLES,
+  MOCKUP_MAGNETIC_STYLES,
 } from '../scenarios/mockupFigma.js';
 import {
   SCALE_ORG_TOTAL,
@@ -55,6 +61,7 @@ export type DemoTab =
   | 'mockup-orgs-figma'
   | 'mockup-orgs-gojs'
   | 'mockup-staff-figma'
+  | 'mockup-staff-magnetic'
   | 'mockup-staff-gojs'
   | 'flat-orgs'
   | 'scale-100k'
@@ -64,6 +71,7 @@ export type DemoTab =
 const FIGMA_MOCKUP_TABS: ReadonlySet<DemoTab> = new Set([
   'mockup-orgs-figma',
   'mockup-staff-figma',
+  'mockup-staff-magnetic',
 ]);
 const GOJS_MOCKUP_TABS: ReadonlySet<DemoTab> = new Set([
   'mockup-orgs-gojs',
@@ -259,6 +267,7 @@ export class App {
                 ? `${this.tab} · 0 selected`
                 : `selection · ${nodes.length} selected`,
             );
+            this.syncBulkBar(nodes);
           },
           onNodeClick: (node) => {
             this.contextMenu?.close();
@@ -345,6 +354,7 @@ export class App {
         };
       }
       this.mountZoomFab();
+      this.mountBulkBar();
       if (this.tab === 'staff-tree') {
         this.setStatus(`Staff tree · focus ${this.diagram.getStaffFocus() ?? 'ops'}`);
       } else if (this.tab === 'scale-100k' && this.scaleWindow) {
@@ -412,6 +422,47 @@ export class App {
     this.setStatus(`${this.tab} · zoom ${this.diagram?.getZoom().toFixed(2) ?? '—'}`);
   }
 
+  /**
+   * Bulk action bar for multi-select (Shift/Ctrl+click). Hidden for 0–1 nodes;
+   * the same actions are in the node context menu (`bulk-*` item ids).
+   */
+  private syncBulkBar(nodes: readonly { kind: string; id: string }[]): void {
+    const bar = this.mountEl.querySelector<HTMLElement>('.bulk-bar');
+    if (!bar) return;
+    const many = nodes.length > 1;
+    bar.hidden = !many;
+    if (!many) return;
+    const kinds = new Set(nodes.map((n) => n.kind));
+    const kindLabel = kinds.size === 1 ? ` · ${[...kinds][0]}` : '';
+    const count = bar.querySelector<HTMLElement>('[data-bulk="count"]');
+    if (count) count.textContent = `${nodes.length} selected${kindLabel}`;
+  }
+
+  private mountBulkBar(): void {
+    this.mountEl.querySelectorAll('.bulk-bar').forEach((el) => el.remove());
+    const bar = document.createElement('div');
+    bar.className = 'bulk-bar';
+    bar.hidden = true;
+    bar.setAttribute('data-testid', 'bulk-bar');
+    bar.innerHTML =
+      '<span data-bulk="count">0 selected</span>' +
+      '<button type="button" data-bulk="copy">Copy ids</button>' +
+      '<button type="button" data-bulk="clear">Clear</button>';
+    bar.addEventListener('click', (e) => {
+      const action = (e.target as HTMLElement).closest('button[data-bulk]')?.getAttribute('data-bulk');
+      if (!action) return;
+      const nodes = this.diagram?.getSelections() ?? [];
+      if (action === 'copy') {
+        const ids = nodes.map((n) => `${n.kind}:${n.id}`).join(' ');
+        void navigator.clipboard?.writeText(ids);
+        this.showToast(`Copied ${nodes.length} ids`);
+        return;
+      }
+      if (action === 'clear') void this.diagram?.clearSelection();
+    });
+    this.mountEl.appendChild(bar);
+  }
+
   /** On-diagram zoom controls (mobile-friendly; toolbar +/- can scroll off-screen). */
   private mountZoomFab(): void {
     const fab = document.createElement('div');
@@ -447,7 +498,7 @@ export class App {
       const caption = document.createElement('p');
       caption.className = 'scene-caption';
       caption.textContent =
-        'Figma orgs · tall cards · N [M] counts · dark chrome (no sibling frame)';
+        'Figma orgs · 234×110 cards · N [M] counts top-right · dashed sibling frame';
       this.mountEl.appendChild(caption);
       return;
     }
@@ -463,7 +514,15 @@ export class App {
       const caption = document.createElement('p');
       caption.className = 'scene-caption';
       caption.textContent =
-        'Figma staff · dashed zones · dept cards · row seats · orange name = temporary · green period';
+        'Figma staff · dashed zones · dept cards · chrome-less seats · accent names · ⏳ = acting';
+      this.mountEl.appendChild(caption);
+      return;
+    }
+    if (this.tab === 'mockup-staff-magnetic') {
+      const caption = document.createElement('p');
+      caption.className = 'scene-caption';
+      caption.textContent =
+        'Figma staff · magnetic department contours (one per magnetic component) · organization = block, foreign nodes stay outside';
       this.mountEl.appendChild(caption);
       return;
     }
@@ -557,17 +616,12 @@ export class App {
           data: buildMockupOrgsFigmaData(),
           styles: MOCKUP_FIGMA_STYLES,
           lodThresholds: MOCKUP_LOD_THRESHOLDS,
-          orgLayout: {
-            nodeWidth: 200,
-            nodeHeight: 120,
-            horizontalGap: 36,
-            verticalGap: 48,
-            margin: 40,
-            orgEdgeStyle: 'spine-bus',
-          },
+          orgLayout: FIGMA_ORG_LAYOUT,
+          // Frame 1264:8121 shows bare cards — no tree expander chrome.
+          orgTreeChrome: false,
           render: {
             ...base.render,
-            orgSiblingGroupChrome: false,
+            orgSiblingGroupChrome: true,
           },
         };
       case 'mockup-orgs-gojs':
@@ -588,6 +642,7 @@ export class App {
           render: {
             ...base.render,
             orgSiblingGroupChrome: true,
+            orgSiblingGroupStyle: 'outline',
           },
         };
       case 'mockup-staff-figma':
@@ -597,27 +652,36 @@ export class App {
           data: buildMockupStaffFigmaData(),
           styles: MOCKUP_FIGMA_STYLES,
           lodThresholds: MOCKUP_LOD_THRESHOLDS,
+          // Frame 1264:7906 has two zones — managing tier + current tier; the
+          // tier-3 expand-in-place demo lives on the GoJS staff tab.
           staffCurrentOrgId: 'region',
-          staffExpandedOrgIds: ['unit-current'],
-          staffLayout: {
-            horizontalGap: 36,
-            verticalGap: 40,
-            tierGap: 48,
-            margin: 28,
-            nodeWidth: 248,
-            nodeHeight: 72,
-            orgCardWidth: 220,
-            orgCardHeight: 56,
-            refCellWidth: 260,
-            refCellHeight: 88,
-            collapseUnexpandedPositions: false,
-          },
+          staffLayout: FIGMA_STAFF_LAYOUT,
           render: {
             ...base.render,
             staffZoneChrome: true,
             departmentStyle: 'card',
-            cellWidth: 260,
-            cellHeight: 88,
+            cellWidth: FIGMA_STAFF_LAYOUT.refCellWidth,
+            cellHeight: FIGMA_STAFF_LAYOUT.refCellHeight,
+          },
+        };
+      case 'mockup-staff-magnetic':
+        return {
+          ...base,
+          theme: 'dark',
+          data: buildMockupStaffMagneticData(),
+          styles: MOCKUP_MAGNETIC_STYLES,
+          lodThresholds: MOCKUP_LOD_THRESHOLDS,
+          staffCurrentOrgId: 'region',
+          staffLayout: MAGNETIC_STAFF_LAYOUT,
+          render: {
+            ...base.render,
+            // Department = magnetic contour (pre-T64 default), org = zone block.
+            staffZoneChrome: true,
+            departmentStyle: 'blob',
+            magnetRadius: VARIANT_B_MAGNET_RADIUS,
+            minContourMembers: 1,
+            cellWidth: MAGNETIC_CELL.width,
+            cellHeight: MAGNETIC_CELL.height,
           },
         };
       case 'mockup-staff-gojs':
@@ -862,7 +926,10 @@ export class App {
   }
 
   private syncContourControlsEnabled(): void {
-    const enabled = this.tab === 'variant-b' || this.tab === 'mockup-staff-gojs';
+    const enabled =
+      this.tab === 'variant-b' ||
+      this.tab === 'mockup-staff-gojs' ||
+      this.tab === 'mockup-staff-magnetic';
     for (const id of ['padding-control', 'smooth-control']) {
       const el = document.getElementById(id);
       if (!el) continue;
@@ -899,6 +966,8 @@ export class App {
         return 'Orgs · GoJS';
       case 'mockup-staff-figma':
         return 'Staff · Figma';
+      case 'mockup-staff-magnetic':
+        return 'Staff · Magnetic';
       case 'mockup-staff-gojs':
         return 'Staff · GoJS';
       case 'flat-orgs':

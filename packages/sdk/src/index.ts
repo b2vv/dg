@@ -54,6 +54,7 @@ import {
   resolveOrganizationIdForNode,
   movePositionToCell,
   shiftPositionBlock,
+  bulkContextMenuItems,
   defaultContextMenuItems,
   type SearchIndex,
   type NodeRef,
@@ -215,6 +216,7 @@ export {
   VACANT_POSITION_LABEL,
   getOrgSymbolUrl,
   getInactiveOrgSymbolUrl,
+  clusterPositionsByDepartment,
 } from './render/index.js';
 export {
   MediaService,
@@ -281,6 +283,7 @@ export {
   movePositionToCell,
   shiftPositionBlock,
   InteractionError,
+  bulkContextMenuItems,
   defaultContextMenuItems,
   resolveContextMenuNodeData,
   nodeDomTestId,
@@ -607,7 +610,7 @@ export class OrgHierarchyDiagram {
     node: NodeRef,
     pointer: { clientX: number; clientY: number; canvasX?: number; canvasY?: number },
   ): void {
-    const defaults = defaultContextMenuItems(node);
+    const defaults = defaultContextMenuItems(node, { selection: this.selectionStore.list });
     const request: ContextMenuRequest = {
       node: resolveContextMenuNodeData(this.data, node),
       items: defaults,
@@ -711,7 +714,9 @@ export class OrgHierarchyDiagram {
     const host = this.host;
     const resolved = resolveTheme(this.viewState.themeMode);
     this.nodeTheme = resolveNodeTheme(resolved, this.stylesPartial);
-    host.setBackground(canvasBackgroundForTheme(resolved));
+    host.setBackground(
+      this.nodeTheme.canvasBackground ?? canvasBackgroundForTheme(resolved),
+    );
     await host.renderer.render(this.data, this.nodeTheme, resolved, this.renderConfig, {
       lod: this.viewState.lodLevel,
       orgLayout: this.viewState.orgLayout,

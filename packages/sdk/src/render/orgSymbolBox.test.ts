@@ -3,6 +3,7 @@ import {
   isFullBleedIntrinsic,
   orgCardAabb,
   resolveOrgSymbolLayout,
+  verticalBodyMetrics,
   ORG_SYMBOL_PAD,
 } from './orgSymbolBox.js';
 import { defaultNodeTheme } from './types.js';
@@ -107,5 +108,40 @@ describe('orgSymbolBox', () => {
       { hasSymbol: false },
     );
     expect(layout.displayName).toBe('OnlyName');
+  });
+});
+
+/** Figma «організації» card (frame 1264:8121): 234×110, 16px inset, 17px name row. */
+describe('vertical body metrics overrides', () => {
+  const figmaOrgStyle = {
+    ...defaultNodeTheme.organization,
+    width: 234,
+    height: 110,
+    symbolWidth: 116,
+    symbolHeight: 49,
+    orgCardLayout: 'gojs-vertical' as const,
+    bodyPaddingX: 16,
+    bodyPaddingY: 16,
+    nameRowHeight: 17,
+    symbolRowGap: 12,
+  };
+
+  it('falls back to GoJS defaults when unset', () => {
+    const metrics = verticalBodyMetrics(defaultNodeTheme.organization);
+    expect(metrics).toEqual({ padX: 14, padY: 10, nameRowHeight: 20, symbolRowGap: 6 });
+  });
+
+  it('places the symbol row under the name row using style overrides', () => {
+    const layout = resolveOrgSymbolLayout(org, figmaOrgStyle, {
+      hasSymbol: true,
+      textureWidth: 120,
+      textureHeight: 120,
+    });
+    expect(layout.box.y).toBe(16 + 17 + 12);
+    expect(layout.box.height).toBe(49);
+    expect(layout.vertical?.nameY).toBe(16);
+    expect(layout.vertical?.nameMaxWidth).toBe(234 - 16 * 2);
+    // Card bottom inset stays 16px: 45 + 49 + 16 = 110.
+    expect(layout.box.y + layout.box.height + 16).toBe(110);
   });
 });

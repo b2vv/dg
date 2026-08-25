@@ -45,7 +45,11 @@ export class StaffZonesView extends Container {
         g.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, style.borderRadius);
         g.fill({ color: style.fill, alpha: style.fillAlpha });
         if (style.dashed) {
-          paintDashedFrame(view, bounds, style.stroke, style.strokeWidth);
+          paintDashedFrame(view, bounds, {
+            color: style.stroke,
+            width: style.strokeWidth,
+            borderRadius: style.borderRadius,
+          });
         } else {
           g.stroke({ width: style.strokeWidth, color: style.stroke });
         }
@@ -61,7 +65,7 @@ export class StaffZonesView extends Container {
               fontFamily: 'system-ui, sans-serif',
             },
           });
-          const pad = 8;
+          const pad = style.labelPadding ?? 8;
           const tx =
             style.labelAlign === 'right'
               ? bounds.x + bounds.width - text.width - pad

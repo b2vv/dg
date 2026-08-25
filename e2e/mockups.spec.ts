@@ -11,6 +11,7 @@ const MOCKUP_TABS = [
   { label: 'Orgs · Figma', slug: 'mockup-orgs-figma', anchor: 'mockup-root' },
   { label: 'Orgs · GoJS', slug: 'mockup-orgs-gojs', anchor: 'mockup-hq' },
   { label: 'Staff · Figma', slug: 'mockup-staff-figma', anchor: 'staff-head' },
+  { label: 'Staff · Magnetic', slug: 'mockup-staff-magnetic', anchor: 'staff-head' },
   { label: 'Staff · GoJS', slug: 'mockup-staff-gojs', anchor: 'staff-head' },
 ] as const;
 
@@ -113,10 +114,20 @@ test.describe('mockup tabs visual + hierarchy', () => {
     await expect(page.getByTestId('node-mockup-mid')).toBeVisible();
   });
 
-  test('Staff · Figma: unit-current expanded by default', async ({ page }) => {
-    await openMockupTab(page, 'Staff · Figma');
+  test('Staff · Magnetic: dept blobs + org blocks paint', async ({ page }) => {
+    await openMockupTab(page, 'Staff · Magnetic');
+    // Same seats as Staff · Figma, laid out on the authored grid.
     await expect(page.getByTestId('node-staff-head')).toBeVisible();
-    await expect(page.getByTestId('node-mockup-unit')).toBeVisible();
+    await expect(page.getByTestId('node-staff-temp')).toBeVisible();
+    await expect(page.getByTestId('node-staff-vacant')).toBeVisible();
+    // Contour sliders drive the department blobs on this tab.
+    await expect(page.locator('#padding-control')).toHaveAttribute('data-disabled', 'false');
+  });
+
+  test('Staff · GoJS: unit-current expanded by default', async ({ page }) => {
+    await openMockupTab(page, 'Staff · GoJS');
+    await expect(page.getByTestId('node-staff-head')).toBeVisible();
+    await expect(page.getByTestId('node-unit-head')).toBeVisible();
 
     const expanded = await page.evaluate(() => {
       const bridge = (window as unknown as { __demoE2e?: DemoE2eBridge }).__demoE2e;
@@ -138,14 +149,16 @@ test.describe('mockup tabs visual + hierarchy', () => {
       );
     expect(sorted).toEqual([
       { kind: 'admin', fromId: 'pos-1z', toId: 'pos-sup' },
+      { kind: 'admin', fromId: 'pos-2z', toId: 'pos-p1' },
+      { kind: 'admin', fromId: 'pos-2z', toId: 'pos-p2' },
       { kind: 'admin', fromId: 'pos-head', toId: 'pos-1z' },
       { kind: 'admin', fromId: 'pos-head', toId: 'pos-2z' },
       { kind: 'admin', fromId: 'pos-head', toId: 'pos-ops' },
-      { kind: 'admin', fromId: 'pos-sup', toId: 'pos-vac' },
-      { kind: 'admin', fromId: 'pos-u-h', toId: 'pos-u-2' },
-      { kind: 'admin', fromId: 'pos-u-h', toId: 'pos-u-sup' },
-      { kind: 'cross-tier', fromId: 'pos-head', toId: 'unit-current' },
-      { kind: 'dotted', fromId: 'pos-1z', toId: 'pos-u-h' },
+      { kind: 'admin', fromId: 'pos-hq-head', toId: 'pos-hq-1z' },
+      { kind: 'admin', fromId: 'pos-hq-head', toId: 'pos-hq-2z' },
+      { kind: 'admin', fromId: 'pos-hq-head', toId: 'pos-hq-cos' },
+      { kind: 'cross-tier', fromId: 'pos-hq-head', toId: 'pos-head' },
+      { kind: 'dotted', fromId: 'pos-hq-1z', toId: 'pos-head' },
     ]);
   });
 });

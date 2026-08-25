@@ -178,6 +178,62 @@ body {
   font-size: 0.7rem;
 }
 
+/*
+ * Figma «Casiopeya» viewport buttons (frames 1264:7906 / 1264:8121):
+ * 40×40 row, 5px gap, translucent bg/primary with a 1.5px backdrop blur.
+ */
+body[data-active-tab='mockup-orgs-figma'] .zoom-fab,
+body[data-active-tab='mockup-staff-figma'] .zoom-fab,
+body[data-active-tab='mockup-staff-magnetic'] .zoom-fab {
+  flex-direction: row;
+  gap: 5px;
+  right: 16px;
+  bottom: 16px;
+}
+
+body[data-active-tab='mockup-orgs-figma'] .zoom-fab button,
+body[data-active-tab='mockup-staff-figma'] .zoom-fab button,
+body[data-active-tab='mockup-staff-magnetic'] .zoom-fab button {
+  border: 0;
+  border-radius: 8px;
+  background: rgba(18, 18, 18, 0.5);
+  backdrop-filter: blur(1.5px);
+  color: #fff;
+  box-shadow: none;
+}
+
+/* Multi-select (Shift/Ctrl+click) bulk actions. */
+.bulk-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.18);
+  font-size: 0.8rem;
+}
+
+.bulk-bar[hidden] {
+  display: none;
+}
+
+.bulk-bar button {
+  font: inherit;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
 .viewport-hint {
   position: absolute;
   left: 12px;

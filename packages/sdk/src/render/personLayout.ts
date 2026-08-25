@@ -21,15 +21,51 @@ export interface PersonAvatarSlot {
   borderRadius?: number;
 }
 
-/** Figma landscape seat — photo left, title + name stacked right. */
+/** Figma landscape seat — 40×40 rounded-square photo left, title + name stacked right. */
+export const FIGMA_ROW_AVATAR_SIZE = 40;
+export const FIGMA_ROW_AVATAR_RADIUS = 8;
+export const FIGMA_ROW_TEXT_GAP = 12;
+
 export function figmaRowAvatar(style: PersonNodeStyle): PersonAvatarSlot {
-  const r = Math.min((style.height - 16) / 2, 28);
-  const cx = 10 + r;
-  return { cx, cy: style.height / 2, r };
+  const size = FIGMA_ROW_AVATAR_SIZE;
+  const r = size / 2;
+  return {
+    cx: r,
+    cy: style.height / 2,
+    r,
+    size,
+    borderRadius: FIGMA_ROW_AVATAR_RADIUS,
+  };
 }
 
 export function figmaRowTextX(avatar: PersonAvatarSlot): number {
-  return avatar.cx + avatar.r + 10;
+  const size = avatar.size ?? avatar.r * 2;
+  return avatar.cx + size / 2 + FIGMA_ROW_TEXT_GAP;
+}
+
+/** Figma seat text metrics: line box ≈ 1.25×font, 2px between title and name. */
+export const FIGMA_ROW_LINE_RATIO = 1.25;
+export const FIGMA_ROW_LINE_GAP = 2;
+
+export interface FigmaRowTextRows {
+  titleY: number;
+  nameY: number;
+  blockHeight: number;
+}
+
+/**
+ * Title + name stack centered against the avatar tile. A vacant seat that hides
+ * the name line centers the title alone (Figma «Начальник штабу»).
+ */
+export function figmaRowTextRows(
+  style: Pick<PersonNodeStyle, 'height' | 'nameFontSize' | 'titleFontSize'>,
+  hasName = true,
+): FigmaRowTextRows {
+  const titleLine = style.titleFontSize * FIGMA_ROW_LINE_RATIO;
+  const nameLine = style.nameFontSize * FIGMA_ROW_LINE_RATIO;
+  const blockHeight = hasName ? titleLine + FIGMA_ROW_LINE_GAP + nameLine : titleLine;
+  const titleY = Math.max(0, (style.height - blockHeight) / 2);
+  return { titleY, nameY: titleY + titleLine + FIGMA_ROW_LINE_GAP, blockHeight };
 }
 
 /** Timeline chip band height (GoJS row). */

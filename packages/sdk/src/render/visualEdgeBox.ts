@@ -1,6 +1,11 @@
 import type { DiagramPosition } from '../data/types.js';
 import type { LodLevel } from './lod.js';
-import { resolveGojsRowLayoutMetrics, resolvePersonLayout } from './personLayout.js';
+import {
+  figmaRowAvatar,
+  FIGMA_ROW_AVATAR_SIZE,
+  resolveGojsRowLayoutMetrics,
+  resolvePersonLayout,
+} from './personLayout.js';
 import type { StaffEdgeBox } from './staffEdgeGeometry.js';
 import { personVisualWorldRect } from './personVisualGeometry.js';
 import type { PersonNodeStyle } from './types.js';
@@ -28,6 +33,18 @@ export function visualPersonEdgeBox(box: StaffEdgeBox, lod: LodLevel): StaffEdge
       height: hints.cardH + hints.countBarH,
     };
   }
+  if (lod === 'near' && hints?.layout === 'figma-row') {
+    // Chrome-less seat: edges dock on the tile, but the whole row (tile + text
+    // column) stays an obstacle so other routes do not cross the labels.
+    return {
+      id: box.id,
+      x: box.x + hints.tileX,
+      y: box.y + hints.tileY,
+      width: hints.tileSize,
+      height: hints.tileSize,
+      obstacle: { x: box.x, y: box.y, width: box.width, height: box.height },
+    };
+  }
   return personVisualWorldRect(box, lod);
 }
 
@@ -44,7 +61,21 @@ export function staffEdgeBoxForPosition(
     width: node.width,
     height: node.height,
   };
-  if (resolvePersonLayout(style) !== 'gojs-row') return box;
+  const layout = resolvePersonLayout(style);
+  if (layout === 'figma-row') {
+    const avatar = figmaRowAvatar(style);
+    const size = avatar.size ?? FIGMA_ROW_AVATAR_SIZE;
+    return {
+      ...box,
+      personEdgeHints: {
+        layout: 'figma-row',
+        tileX: avatar.cx - size / 2,
+        tileY: avatar.cy - size / 2,
+        tileSize: size,
+      },
+    };
+  }
+  if (layout !== 'gojs-row') return box;
   const metrics = resolveGojsRowLayoutMetrics(position, style);
   return {
     ...box,

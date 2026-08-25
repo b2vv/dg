@@ -1,5 +1,10 @@
-import type { DiagramData } from '@org-hierarchy/sdk';
-import { DEMO_PLACEHOLDER_PNG, DEMO_AVATAR_PNG } from './demoMedia.js';
+import type {
+  DiagramData,
+  NodeTheme,
+  OrgLayoutOptions,
+  StaffLayoutOptions,
+} from '@org-hierarchy/sdk';
+import { DEMO_AVATAR_PNG } from './demoMedia.js';
 
 /** Neutral brand mark (letter) as data-URI SVG — safe for GitHub Pages. */
 export function brandMarkSymbol(mark: string, fill = '#5b9bd5'): string {
@@ -67,7 +72,7 @@ export function buildMockupOrgsFigmaData(): DiagramData {
         id: id as string,
         name: name as string,
         parentOrgId: 'org-mid',
-        groupIds: ['g-peer'],
+        groupIds: [],
         collapsed: false,
         matrixOrder: i,
         filledCount: filled as number,
@@ -77,7 +82,8 @@ export function buildMockupOrgsFigmaData(): DiagramData {
         symbolUrlDark: peer,
       })),
     ],
-    groups: [{ id: 'g-peer', name: 'Regional peers', emblemUrl: DEMO_PLACEHOLDER_PNG }],
+    // Frame 1264:8121 shows the peers inside a bare dashed frame — no group caption.
+    groups: [],
     departments: [],
     persons: [],
     positions: [],
@@ -347,9 +353,272 @@ function buildStaffTopology(
   };
 }
 
-/** Figma staff: landscape seats. */
+/** Figma seat box (frame 1264:7906). */
+const FIGMA_SEAT = { width: 248, height: 44 } as const;
+
+/** Org row-tree layout for frame 1264:8121 — 234×110 cards, 40px between peers. */
+export const FIGMA_ORG_LAYOUT = {
+  nodeWidth: 234,
+  nodeHeight: 110,
+  horizontalGap: 40,
+  verticalGap: 72,
+  margin: 40,
+  orgEdgeStyle: 'spine-bus',
+} satisfies OrgLayoutOptions;
+
+/**
+ * Staff canvas layout for frame 1264:7906. Zone inset is `margin / 2`, kept
+ * clear of the 16px department padding so the two labels never collide.
+ */
+export const FIGMA_STAFF_LAYOUT = {
+  horizontalGap: 56,
+  verticalGap: 76,
+  tierGap: 72,
+  margin: 96,
+  nodeWidth: FIGMA_SEAT.width,
+  nodeHeight: FIGMA_SEAT.height,
+  orgCardWidth: 234,
+  orgCardHeight: 110,
+  refCellWidth: 304,
+  refCellHeight: 88,
+  collapseUnexpandedPositions: false,
+} satisfies StaffLayoutOptions;
+
+/** Magnetic copy: matrix mode, so `refCell*` must equal `render.cell*`. */
+export const MAGNETIC_STAFF_LAYOUT = {
+  ...FIGMA_STAFF_LAYOUT,
+  refCellHeight: 120,
+} satisfies StaffLayoutOptions;
+
+/** Contour grid pitch for the magnetic copy (`render.cellWidth/Height`). */
+export const MAGNETIC_CELL = { width: 304, height: 120 } as const;
+
+/**
+ * Figma «посади» topology (frame 1264:7906) with civilian names (rule 1 of
+ * work/tasks/MOCKUP-styles-review.md): a managing tier holding one command
+ * department, and the current tier holding a command department with two
+ * service departments side by side beneath it.
+ */
 export function buildMockupStaffFigmaData(): DiagramData {
-  return buildStaffTopology({ width: 248, height: 72 });
+  const seat = FIGMA_SEAT;
+  const photo = DEMO_AVATAR_PNG;
+  return {
+    organizations: [
+      { id: 'holding', name: 'Lumen Holdings', groupIds: [], collapsed: false },
+      {
+        id: 'region',
+        name: 'Pacific Region',
+        parentOrgId: 'holding',
+        groupIds: [],
+        collapsed: false,
+        testId: 'mockup-unit',
+      },
+    ],
+    groups: [],
+    departments: [
+      { id: 'hq-exec', name: 'Executive office', organizationId: 'holding' },
+      { id: 'exec', name: 'Regional leadership', organizationId: 'region' },
+      { id: 'supply', name: 'Supply service', organizationId: 'region' },
+      { id: 'people', name: 'People operations', organizationId: 'region' },
+    ],
+    persons: [
+      { id: 'p-hq-head', fullName: 'Dana Whitfield', photoUrl: photo },
+      { id: 'p-hq-1z', fullName: 'Noel Farrow', photoUrl: photo },
+      { id: 'p-hq-2z', fullName: 'Sasha Ilves', photoUrl: photo },
+      { id: 'p-head', fullName: 'Avery Chen', photoUrl: photo, testId: 'staff-head' },
+      { id: 'p-1z', fullName: 'Jordan Blake', photoUrl: photo, testId: 'staff-temp' },
+      { id: 'p-2z', fullName: 'Morgan Lee', photoUrl: photo },
+      { id: 'p-sup', fullName: 'Casey Nguyen', photoUrl: photo },
+      { id: 'p-u1', fullName: 'Taylor Brooks', photoUrl: photo },
+      { id: 'p-u2', fullName: 'Jamie Ortiz', photoUrl: photo },
+    ],
+    positions: [
+      // Managing tier — command department (frame zone «Тактична група»).
+      // Sibling groups are declared in reverse: the row-tree lays siblings
+      // out right→left, so on screen this reads deputy → chief of staff.
+      staffPosition(
+        {
+          id: 'pos-hq-head',
+          title: 'Group director',
+          organizationId: 'holding',
+          departmentId: 'hq-exec',
+          personId: 'p-hq-head',
+          isHead: true,
+          isTemporary: true,
+          periodStart: '2018-06-27',
+          periodEnd: null,
+        },
+        seat,
+      ),
+      staffPosition(
+        {
+          id: 'pos-hq-cos',
+          title: 'Chief of staff',
+          organizationId: 'holding',
+          departmentId: 'hq-exec',
+          status: 'vacant',
+        },
+        seat,
+      ),
+      staffPosition(
+        {
+          id: 'pos-hq-2z',
+          title: 'Deputy director',
+          organizationId: 'holding',
+          departmentId: 'hq-exec',
+          personId: 'p-hq-2z',
+        },
+        seat,
+      ),
+      staffPosition(
+        {
+          id: 'pos-hq-1z',
+          title: 'First deputy',
+          organizationId: 'holding',
+          departmentId: 'hq-exec',
+          personId: 'p-hq-1z',
+        },
+        seat,
+      ),
+      // Current tier — command department (frame zone «поточний підрозділ»).
+      staffPosition(
+        {
+          id: 'pos-head',
+          title: 'Regional director',
+          organizationId: 'region',
+          departmentId: 'exec',
+          personId: 'p-head',
+          isHead: true,
+          testId: 'staff-head',
+        },
+        seat,
+      ),
+      staffPosition(
+        {
+          id: 'pos-ops',
+          title: 'Chief of staff',
+          organizationId: 'region',
+          departmentId: 'exec',
+          status: 'vacant',
+          testId: 'staff-vacant',
+        },
+        seat,
+      ),
+      staffPosition(
+        {
+          id: 'pos-2z',
+          title: 'Deputy director',
+          organizationId: 'region',
+          departmentId: 'exec',
+          personId: 'p-2z',
+        },
+        seat,
+      ),
+      staffPosition(
+        {
+          id: 'pos-1z',
+          title: 'First deputy',
+          organizationId: 'region',
+          departmentId: 'exec',
+          personId: 'p-1z',
+          isTemporary: true,
+          periodStart: '2018-06-27',
+          periodEnd: null,
+          testId: 'staff-temp',
+        },
+        seat,
+      ),
+      // Service departments — one row under the command department.
+      staffPosition(
+        {
+          id: 'pos-p2',
+          title: 'Analyst',
+          organizationId: 'region',
+          departmentId: 'people',
+          personId: 'p-u2',
+        },
+        seat,
+      ),
+      staffPosition(
+        {
+          id: 'pos-p1',
+          title: 'Coordinator',
+          organizationId: 'region',
+          departmentId: 'people',
+          personId: 'p-u1',
+        },
+        seat,
+      ),
+      staffPosition(
+        {
+          id: 'pos-sup',
+          title: 'Service lead',
+          organizationId: 'region',
+          departmentId: 'supply',
+          personId: 'p-sup',
+        },
+        seat,
+      ),
+    ],
+    reportLines: [
+      { fromId: 'pos-hq-head', toId: 'pos-hq-1z', kind: 'admin' },
+      { fromId: 'pos-hq-head', toId: 'pos-hq-2z', kind: 'admin' },
+      { fromId: 'pos-hq-head', toId: 'pos-hq-cos', kind: 'admin' },
+      { fromId: 'pos-head', toId: 'pos-1z', kind: 'admin' },
+      { fromId: 'pos-head', toId: 'pos-2z', kind: 'admin' },
+      { fromId: 'pos-head', toId: 'pos-ops', kind: 'admin' },
+      { fromId: 'pos-1z', toId: 'pos-sup', kind: 'admin' },
+      { fromId: 'pos-2z', toId: 'pos-p1', kind: 'admin' },
+      { fromId: 'pos-2z', toId: 'pos-p2', kind: 'admin' },
+      // Frame 1264:7906 draws the zone-to-zone line from the managing deputy;
+      // the SDK adds its own cross-tier edge (managing head → current head).
+      { fromId: 'pos-hq-1z', toId: 'pos-head', kind: 'dotted' },
+    ],
+    orgLinks: [],
+  };
+}
+
+/**
+ * Magnetic copy of the Figma «посади» scene (frame 1264:7906).
+ *
+ * Same people and departments as {@link buildMockupStaffFigmaData}, but every
+ * seat carries `gridCell` so the canvas runs in matrix mode: departments become
+ * **magnetic contours** (own cells with Manhattan ≤ magnetRadius merge into one
+ * blob) and each organization is a **zone block** — a plain rectangle around its
+ * own seats that foreign nodes never enter.
+ *
+ * Grid (local per org block):
+ * ```text
+ *        col 0            col 1            col 2
+ * row 0                   head
+ * row 1  first deputy     deputy           chief of staff
+ * row 2  supply           people ·1        people ·2
+ * ```
+ */
+export function buildMockupStaffMagneticData(): DiagramData {
+  const base = buildMockupStaffFigmaData();
+  const cells: Record<string, { col: number; row: number }> = {
+    // Managing org block — head over a three-seat command row.
+    'pos-hq-head': { col: 1, row: 0 },
+    'pos-hq-1z': { col: 0, row: 1 },
+    'pos-hq-2z': { col: 1, row: 1 },
+    'pos-hq-cos': { col: 2, row: 1 },
+    // Current org block — command row, then the two service departments.
+    'pos-head': { col: 1, row: 0 },
+    'pos-1z': { col: 0, row: 1 },
+    'pos-2z': { col: 1, row: 1 },
+    'pos-ops': { col: 2, row: 1 },
+    'pos-sup': { col: 0, row: 2 },
+    'pos-p1': { col: 1, row: 2 },
+    'pos-p2': { col: 2, row: 2 },
+  };
+  return {
+    ...base,
+    positions: base.positions.map((p) => {
+      const gridCell = cells[p.id];
+      return gridCell ? { ...p, gridCell } : p;
+    }),
+  };
 }
 
 /** GoJS staff: landscape row seats (production card). */
@@ -362,69 +631,137 @@ export const buildMockupOrgsData = buildMockupOrgsFigmaData;
 /** @deprecated Use buildMockupStaffFigmaData */
 export const buildMockupStaffData = buildMockupStaffFigmaData;
 
-/** Dark Figma-like styles (orgs + staff). */
+/**
+ * Figma «Casiopeya» dark tokens (2026-08 frames 1264:7906 «посади» /
+ * 1264:8121 «організації»). Hex mirrors the Figma variables:
+ * bg/primary #121212 · bg/secondary #222222 · bg/tertiary #303030 ·
+ * text/primary #ffffff · text/secondary #a6a6a6 · accent/primary #e8490f.
+ */
 export const MOCKUP_FIGMA_STYLES = {
+  /** Canvas surface — bg/secondary behind the dashed zones. */
+  canvasBackground: 0x222222,
+  /** Connectors: 1px grey elbows, rounded corners, round dot at each port. */
+  edge: {
+    color: 0xa6a6a6,
+    width: 1,
+    cornerRadius: 8,
+    terminator: 'dot',
+    dotRadius: 2.67,
+  },
   organization: {
-    width: 200,
-    height: 120,
-    background: 0x2a323c,
-    border: 0x3d4a5c,
+    // Frame 1264:8121 — 234×110 card, 16px body inset, symbol row 49px.
+    width: 234,
+    height: 110,
+    background: 0x121212,
+    border: 0x303030,
     borderWidth: 1,
-    borderRadius: 8,
-    nameColor: 0xf1f5f9,
-    groupColor: 0x94a3b8,
-    nameFontSize: 13,
-    groupFontSize: 11,
-    symbolSize: 56,
-    periodColor: 0x4ade80,
-    metaColor: 0x94a3b8,
-    badgeColor: 0xf59e0b,
+    borderRadius: 12,
+    nameColor: 0xffffff,
+    groupColor: 0xa6a6a6,
+    nameFontSize: 14,
+    groupFontSize: 12,
+    symbolSize: 49,
+    symbolWidth: 116,
+    symbolHeight: 49,
+    orgCardLayout: 'gojs-vertical',
+    bodyPaddingX: 16,
+    bodyPaddingY: 16,
+    nameRowHeight: 17,
+    symbolRowGap: 12,
+    hidePeriodOnCard: true,
+    hideMenuChrome: true,
+    tempMarkerStyle: 'hourglass',
+    brandColor: 0xe8490f,
+    periodColor: 0xa6a6a6,
+    metaColor: 0xa6a6a6,
+    metaFontSize: 12,
+    badgeColor: 0xe8490f,
     badgeTextColor: 0xffffff,
-    countsBadgeBackground: 0x1e293b,
-    countsBadgeTextColor: 0xe2e8f0,
+    // `N [M]` sits top-right of the body, no chip background.
+    countsBadgeBackground: 0x121212,
+    countsBadgeTextColor: 0xa6a6a6,
+    countsBadgeFontSize: 14,
   },
   person: {
+    // Frame 1264:7906 — chrome-less seat: 40×40 tile + title/name column.
     width: 248,
-    height: 72,
-    background: 0x2a323c,
-    border: 0x3d4a5c,
-    borderWidth: 1,
+    height: 44,
+    background: 0x121212,
+    backgroundAlpha: 0,
+    border: 0x303030,
+    borderWidth: 0,
     borderRadius: 8,
-    nameColor: 0xf97316,
-    titleColor: 0xf1f5f9,
-    nameFontSize: 13,
-    titleFontSize: 12,
-    badgeColor: 0xf59e0b,
+    nameColor: 0xe8490f,
+    titleColor: 0xffffff,
+    nameFontSize: 14,
+    titleFontSize: 16,
+    badgeColor: 0xe8490f,
     badgeTextColor: 0xffffff,
-    avatarColor: 0x64748b,
-    periodChipBackground: 0x14532d,
-    periodChipTextColor: 0x86efac,
-    vacantLabelColor: 0x94a3b8,
-    temporaryNameColor: 0xf97316,
-    permanentNameColor: 0xf1f5f9,
-    personLayout: 'figma-row' as const,
+    avatarColor: 0x5e5a57,
+    avatarPlaceholderColor: 0x121212,
+    periodChipBackground: 0x222222,
+    periodChipTextColor: 0xffffff,
+    periodChipFontSize: 14,
+    vacantLabelColor: 0xa6a6a6,
+    // Both permanent and acting names are accent/primary; ⏳ marks acting.
+    temporaryNameColor: 0xe8490f,
+    permanentNameColor: 0xe8490f,
+    tempMarkerStyle: 'hourglass',
+    hidePeriodOnCard: true,
+    hideVacantLabel: true,
+    personLayout: 'figma-row',
   },
   staffZone: {
-    fill: 0x1a222d,
-    fillAlpha: 0.55,
-    stroke: 0x3b82f6,
-    strokeWidth: 1.25,
-    borderRadius: 4,
-    labelColor: 0xe2e8f0,
-    labelFontSize: 13,
-    labelAlign: 'right' as const,
+    // Tier band + sibling-org frame: #191f26 fill, dashed #3d5067.
+    fill: 0x191f26,
+    fillAlpha: 1,
+    stroke: 0x3d5067,
+    strokeWidth: 1,
+    borderRadius: 12,
+    labelColor: 0xa6a6a6,
+    labelFontSize: 14,
+    labelAlign: 'right',
+    labelPadding: 16,
     dashed: true,
   },
   departmentCard: {
-    fill: 0x1e3a5f,
-    fillAlpha: 0.92,
-    stroke: 0x334155,
+    // Department block inside a tier: #242f3d fill, dashed #3d5067.
+    fill: 0x242f3d,
+    fillAlpha: 1,
+    stroke: 0x3d5067,
     strokeWidth: 1,
-    borderRadius: 6,
-    labelColor: 0xcbd5e1,
-    labelFontSize: 12,
+    borderRadius: 8,
+    labelColor: 0xa6a6a6,
+    labelFontSize: 14,
+    padding: 16,
+    labelRow: true,
+    dashed: true,
   },
-};
+} satisfies Partial<NodeTheme>;
+
+/**
+ * Magnetic variant of the Figma tokens: departments are painted as magnetic
+ * contours (pre-T64 default) instead of rectangular cards, and the staff zone
+ * is a solid block rather than a dashed frame.
+ */
+export const MOCKUP_MAGNETIC_STYLES = {
+  ...MOCKUP_FIGMA_STYLES,
+  /** Department contour — same palette as the Figma dept card. */
+  department: {
+    fill: 0x242f3d,
+    fillAlpha: 1,
+    stroke: 0x3d5067,
+    strokeWidth: 1,
+    labelColor: 0xa6a6a6,
+    labelFontSize: 14,
+    labelAlign: 'right',
+  },
+  /** Organization block: solid #191f26 rectangle, foreign nodes stay outside. */
+  staffZone: {
+    ...MOCKUP_FIGMA_STYLES.staffZone,
+    dashed: false,
+  },
+} satisfies Partial<NodeTheme>;
 
 /** Dark GoJS-production styles (cassiopeia-admin-ui gamma). */
 export const MOCKUP_GOJS_STYLES = {
@@ -444,9 +781,9 @@ export const MOCKUP_GOJS_STYLES = {
     symbolHeight: 56,
     noCaptionSymbolWidth: 109,
     noCaptionSymbolHeight: 76,
-    orgCardLayout: 'gojs-vertical' as const,
+    orgCardLayout: 'gojs-vertical',
     hidePeriodOnCard: true,
-    tempMarkerStyle: 'hourglass' as const,
+    tempMarkerStyle: 'hourglass',
     hideMenuChrome: true,
     gojsTreeExpander: true,
     brandColor: 0x2563eb,
@@ -488,7 +825,7 @@ export const MOCKUP_GOJS_STYLES = {
     countBarBackground: 0x334155,
     countBarTextColor: 0xe2e8f0,
     countBarFontSize: 11,
-    personLayout: 'gojs-row' as const,
+    personLayout: 'gojs-row',
   },
   staffZone: {
     fill: 0x191f26,
@@ -498,7 +835,7 @@ export const MOCKUP_GOJS_STYLES = {
     borderRadius: 6,
     labelColor: 0xe2e8f0,
     labelFontSize: 12,
-    labelAlign: 'right' as const,
+    labelAlign: 'right',
     dashed: false,
   },
   departmentCard: {
@@ -510,7 +847,7 @@ export const MOCKUP_GOJS_STYLES = {
     labelColor: 0xcbd5e1,
     labelFontSize: 12,
   },
-};
+} satisfies Partial<NodeTheme>;
 
 /** @deprecated Use MOCKUP_FIGMA_STYLES */
 export const MOCKUP_DARK_STYLES = MOCKUP_FIGMA_STYLES;

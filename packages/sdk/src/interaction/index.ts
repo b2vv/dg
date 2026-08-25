@@ -41,7 +41,11 @@ export {
   type SelectionPointerMods,
 } from './selection.js';
 export { DoubleTapTracker, NODE_DOUBLE_TAP_MS, type DoubleTapKind } from './doubleTap.js';
-export { defaultContextMenuItems } from './contextMenu.js';
+export {
+  bulkContextMenuItems,
+  defaultContextMenuItems,
+  type ContextMenuItemsOptions,
+} from './contextMenu.js';
 export { resolveContextMenuNodeData } from './contextMenuPayload.js';
 export {
   nodeDomTestId,

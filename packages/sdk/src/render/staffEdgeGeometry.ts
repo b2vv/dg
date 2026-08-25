@@ -1,9 +1,24 @@
 /** Near LOD edge hints when layout chrome is smaller than the layout cell. */
-export interface PersonEdgeVisualHints {
-  layout: 'gojs-row';
-  cardY: number;
-  cardH: number;
-  countBarH: number;
+export type PersonEdgeVisualHints =
+  | {
+      layout: 'gojs-row';
+      cardY: number;
+      cardH: number;
+      countBarH: number;
+    }
+  | {
+      /** Figma seat: ports sit on the avatar tile, not the full text row. */
+      layout: 'figma-row';
+      tileX: number;
+      tileY: number;
+      tileSize: number;
+    };
+
+export interface StaffEdgeRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface StaffEdgeBox {
@@ -13,6 +28,18 @@ export interface StaffEdgeBox {
   width: number;
   height: number;
   personEdgeHints?: PersonEdgeVisualHints;
+  /**
+   * Area other routes must avoid when it is larger than the port box — a
+   * chrome-less Figma seat docks edges on its 40px tile but still owns the
+   * whole text row.
+   */
+  obstacle?: { x: number; y: number; width: number; height: number };
+}
+
+/** Area a route must not cut through: the declared obstacle, else the port box. */
+export function routerObstacle(box: StaffEdgeBox): StaffEdgeRect {
+  const { x, y, width, height } = box.obstacle ?? box;
+  return { x, y, width, height };
 }
 
 export interface StaffEdgeLink {
@@ -172,7 +199,7 @@ function horizontalPolyline(from: StaffEdgeBox, to: StaffEdgeBox): StaffEdgePoin
 export function segmentHitsBoxInterior(
   a: StaffEdgePoint,
   b: StaffEdgePoint,
-  box: StaffEdgeBox,
+  box: StaffEdgeRect,
   eps = 0.75,
 ): boolean {
   const left = box.x + eps;
@@ -193,7 +220,7 @@ export function segmentHitsBoxInterior(
 
 export function polylineHitsBoxInterior(
   points: StaffEdgePoint[],
-  box: StaffEdgeBox,
+  box: StaffEdgeRect,
   eps = 0.75,
 ): boolean {
   for (let i = 0; i < points.length - 1; i += 1) {
@@ -230,11 +257,16 @@ export function classifyStaffEdgeRoute(
 
   const others = obstacles.filter((b) => b.id !== from.id && b.id !== to.id);
 
-  // Cross-tier skips `others` on purpose (legacy paint path). Demo census:
-  // those routes can still clip foreign cards while classifying as `direct`.
+  // Cross-tier prefers the straight vertical drop, but only when it stays clear
+  // of foreign cards — otherwise it falls through to the shared candidate/around
+  // ladder (the drop used to clip whatever sat under the parent).
   if (kind === 'cross-tier') {
     const vert = verticalPolyline(from, to);
-    if (vert && isClean(vert, from, to)) {
+    if (
+      vert &&
+      isClean(vert, from, to) &&
+      !others.some((box) => polylineHitsBoxInterior(vert, routerObstacle(box)))
+    ) {
       return { via: 'direct', points: vert };
     }
   }
@@ -254,13 +286,13 @@ export function classifyStaffEdgeRoute(
 
   for (const c of candidates) {
     if (!isClean(c, from, to)) continue;
-    if (others.some((box) => polylineHitsBoxInterior(c, box))) continue;
+    if (others.some((box) => polylineHitsBoxInterior(c, routerObstacle(box)))) continue;
     return { via: 'direct', points: c };
   }
 
   const preferTop = kind === 'matrix' || kind === 'dotted' || sameBand || others.length > 0;
   const around = preferTop ? aroundTopPolyline(from, to) : aroundLeftPolyline(from, to);
-  if (!others.some((box) => polylineHitsBoxInterior(around, box))) {
+  if (!others.some((box) => polylineHitsBoxInterior(around, routerObstacle(box)))) {
     return { via: 'around', points: around };
   }
   const alt = preferTop ? aroundLeftPolyline(from, to) : aroundTopPolyline(from, to);

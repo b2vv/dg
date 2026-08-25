@@ -19,3 +19,12 @@ export function formatPositionCountsBadge(position: DiagramPosition): string | u
 
 /** E7 Phase 2 default vacancy copy (uk). */
 export const VACANT_POSITION_LABEL = '(вакансія)';
+
+/**
+ * Approximate rendered width of a Pixi `Text`. Pixi measures via a canvas
+ * context, which jsdom/worker hosts lack — layout code that only needs an
+ * offset (badge after a name, reserved gutter) uses this estimate instead.
+ */
+export function estimateTextWidth(text: string, fontSize: number): number {
+  return text.length * fontSize * 0.55;
+}

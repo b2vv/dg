@@ -284,6 +284,52 @@ describe('layoutStaffCanvas', () => {
     expect(cross.some((e) => e.fromId === 'ceo' && e.toId === 'sub')).toBe(true);
   });
 
+  it('tier 1: managing head + its direct reports (SPEC «керівний склад»)', async () => {
+    const organizations = [org('mgr'), org('current', 'mgr')];
+    const positions = [
+      pos('mgr-ceo', 'mgr', { isHead: true }),
+      pos('mgr-1z', 'mgr'),
+      pos('mgr-2z', 'mgr'),
+      // Second-level report inside the managing org — stays off tier 1.
+      pos('mgr-analyst', 'mgr'),
+      pos('ceo', 'current', { isHead: true }),
+    ];
+    const reports: DiagramReportLine[] = [
+      { fromId: 'mgr-ceo', toId: 'mgr-1z', kind: 'admin' },
+      { fromId: 'mgr-ceo', toId: 'mgr-2z', kind: 'admin' },
+      { fromId: 'mgr-1z', toId: 'mgr-analyst', kind: 'admin' },
+    ];
+
+    const canvas = await layoutStaffCanvas(
+      { organizations, positions, reports, groups: [], departments: [], persons: [] },
+      'current',
+    );
+
+    const tier1 = canvas.positionNodes.filter((n) => n.tier === 1).map((n) => n.id).sort();
+    expect(tier1).toEqual(['mgr-1z', 'mgr-2z', 'mgr-ceo']);
+    // Deputies sit below the head, in one row.
+    const head = canvas.positionNodes.find((n) => n.id === 'mgr-ceo')!;
+    const deputies = canvas.positionNodes.filter((n) => n.id !== 'mgr-ceo' && n.tier === 1);
+    expect(deputies.every((n) => n.y > head.y)).toBe(true);
+    expect(new Set(deputies.map((n) => n.y)).size).toBe(1);
+  });
+
+  it('tier 1: head alone when it has no direct reports', async () => {
+    const organizations = [org('mgr'), org('current', 'mgr')];
+    const canvas = await layoutStaffCanvas(
+      {
+        organizations,
+        positions: [pos('mgr-ceo', 'mgr', { isHead: true }), pos('ceo', 'current', { isHead: true })],
+        reports: [],
+        groups: [],
+        departments: [],
+        persons: [],
+      },
+      'current',
+    );
+    expect(canvas.positionNodes.filter((n) => n.tier === 1).map((n) => n.id)).toEqual(['mgr-ceo']);
+  });
+
   it('success: expand-in-place places child staff under the card', async () => {
     const organizations = [
       org('mgr'),

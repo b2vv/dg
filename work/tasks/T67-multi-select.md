@@ -1,7 +1,7 @@
 # T67 — Мультивибір вузлів (D2)
 
 **Пріоритет:** P2  
-**Статус:** Phase 1 done  
+**Статус:** Phase 1 done · bulk-меню + host bulk bar (2026-08-25)  
 **Parity:** D2  
 **Узгодження:** [T73](./T73-remaining-agreements.md)  
 **Уточнення продукту:** вимога з **наступних задач** (не блокер поточного cutover)  
@@ -56,13 +56,15 @@ onSelectionChange?(nodes: NodeRef[]): void  // already exists
 // marquee: NOT Phase 1 — only if product explicitly orders Phase 2
 ```
 
-- Context menu: bulk items коли `getSelections().length > 1`.
+- Context menu: bulk items коли `getSelections().length > 1` — **зроблено** (`bulkContextMenuItems`; org-only набір додає `bulk-expand` / `bulk-collapse`, будь-який — `bulk-copy-ids` / `bulk-clear`). Пункти зʼявляються лише коли клікнутий вузол входить у виділення.
 - Promote overlay: multi near-selection — later.
 - Тести: toggle, clear on canvas click, optional max selection cap.
 
 ## Acceptance (Phase 1)
 
-- [x] Ctrl/Cmd+click додає/знімає з вибору
+- [x] Ctrl/Cmd+**Shift**+click додає/знімає з вибору (працює однаково для org / position / person — один шлях `handleNodeSelect`)
+- [x] Bulk-меню на правий клік по вузлу з виділення
+- [x] Host-демо: bulk bar (`data-testid="bulk-bar"`) з `N selected` + Copy ids / Clear
 - [x] `getSelections()` / docs узгоджено; scalar `getSelection()` не ламає hosts
 - [x] Canvas click очищає multi
 - [x] Unit success/failure

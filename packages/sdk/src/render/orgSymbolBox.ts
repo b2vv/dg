@@ -68,6 +68,21 @@ function isGojsVertical(style: OrganizationNodeStyle): boolean {
   return style.orgCardLayout === 'gojs-vertical';
 }
 
+/** Vertical card body metrics — GoJS defaults, overridable per style (Figma 2026-08). */
+export function verticalBodyMetrics(style: OrganizationNodeStyle): {
+  padX: number;
+  padY: number;
+  nameRowHeight: number;
+  symbolRowGap: number;
+} {
+  return {
+    padX: style.bodyPaddingX ?? GOJS_BODY_MARGIN.left,
+    padY: style.bodyPaddingY ?? GOJS_BODY_MARGIN.top,
+    nameRowHeight: style.nameRowHeight ?? GOJS_NAME_ROW_H,
+    symbolRowGap: style.symbolRowGap ?? GOJS_SYMBOL_ROW_GAP,
+  };
+}
+
 function fullNameOf(org: DiagramOrganization): string {
   return org.fullName?.trim() || org.name;
 }
@@ -105,9 +120,10 @@ function verticalSymbolBox(
     symH = style.symbolHeight ?? GOJS_SYMBOL_H;
   }
 
+  const body = verticalBodyMetrics(style);
   const symbolY = showName
-    ? GOJS_BODY_MARGIN.top + GOJS_NAME_ROW_H + GOJS_SYMBOL_ROW_GAP
-    : GOJS_BODY_MARGIN.top;
+    ? body.padY + body.nameRowHeight + body.symbolRowGap
+    : body.padY;
   return {
     x: (nodeW - symW) / 2,
     y: symbolY,
@@ -121,10 +137,10 @@ function verticalMetrics(
   style: OrganizationNodeStyle,
   layout: Pick<OrgSymbolLayout, 'box'>,
 ): OrgSymbolLayout['vertical'] {
-  const m = GOJS_BODY_MARGIN;
+  const body = verticalBodyMetrics(style);
   const unitY = layout.box.y + layout.box.height + GOJS_UNIT_ROW_GAP;
-  const nameMaxWidth = Math.max(24, style.width - m.left - m.right);
-  return { nameY: m.top, unitY, nameMaxWidth };
+  const nameMaxWidth = Math.max(24, style.width - body.padX * 2);
+  return { nameY: body.padY, unitY, nameMaxWidth };
 }
 
 /**

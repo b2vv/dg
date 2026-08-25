@@ -67,7 +67,7 @@ function hostOf(diagram: OrgHierarchyDiagram): PixiHost {
 
 function pointerEvent(
   local: { x: number; y: number } = { x: 40, y: 40 },
-  extra: { button?: number; ctrlKey?: boolean } = {},
+  extra: { button?: number; ctrlKey?: boolean; shiftKey?: boolean } = {},
 ) {
   return {
     stopPropagation: () => {},
@@ -79,7 +79,7 @@ function pointerEvent(
     button: extra.button ?? 0,
     ctrlKey: Boolean(extra.ctrlKey),
     metaKey: false,
-    shiftKey: false,
+    shiftKey: Boolean(extra.shiftKey),
   };
 }
 
@@ -359,5 +359,60 @@ describe('NODE interactions contract', () => {
       diagram.destroy();
       document.body.removeChild(container);
     });
+  });
+});
+
+describe('SEL-4 shift+click multi-select across node kinds', () => {
+  it('shift+tap adds staff seats to the set; plain tap replaces it', async () => {
+    const { container, diagram } = await mountDiagram(staffWithVacantData(), {}, {
+      staffCurrentOrgId: 'o1',
+    });
+
+    const filled = findPersonNode(diagram, 'Alice Chen');
+    const vacant = findPersonNode(diagram, '(вакансія)');
+
+    filled.emit('pointertap', pointerEvent());
+    expect(diagram.getSelections()).toHaveLength(1);
+
+    vacant.emit('pointertap', pointerEvent({}, { shiftKey: true }));
+    expect(diagram.getSelections()).toHaveLength(2);
+
+    // Shift again removes membership; a plain tap collapses back to one.
+    vacant.emit('pointertap', pointerEvent({}, { shiftKey: true }));
+    expect(diagram.getSelections()).toHaveLength(1);
+    vacant.emit('pointertap', pointerEvent());
+    expect(diagram.getSelections()).toHaveLength(1);
+
+    diagram.destroy();
+    container.remove();
+  });
+
+  it('shift+tap adds organization cards, and the menu turns bulk', async () => {
+    const items: string[][] = [];
+    const { container, diagram } = await mountDiagram(orgTreeData(), {
+      onContextMenu: (request) => {
+        items.push(request.items.map((i) => i.id));
+        return false;
+      },
+    });
+
+    const orgs = hostOf(diagram).renderer.layers.organizations.children;
+    const [first, second] = orgs;
+    if (!first || !second) throw new Error('expected two org cards');
+
+    first.emit('pointertap', pointerEvent());
+    second.emit('pointertap', pointerEvent({}, { shiftKey: true }));
+    expect(diagram.getSelections()).toHaveLength(2);
+
+    second.emit('rightclick', pointerEvent({}, { button: 2 }));
+    expect(items.at(-1)).toEqual([
+      'bulk-expand',
+      'bulk-collapse',
+      'bulk-copy-ids',
+      'bulk-clear',
+    ]);
+
+    diagram.destroy();
+    container.remove();
   });
 });

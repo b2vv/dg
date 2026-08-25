@@ -53,7 +53,7 @@ describe('Viewport', () => {
     expect(vp.getTransform().x).toBe(30);
   });
 
-  it('success: attachWheel zooms on wheel event', () => {
+  it('success: attachWheel zooms on ctrl+wheel', () => {
     const world = fakeWorld();
     const vp = new Viewport(world);
     vp.setScreenSize(100, 100);
@@ -62,9 +62,31 @@ describe('Viewport', () => {
       ({ left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100, x: 0, y: 0, toJSON: () => ({}) });
     vp.attachWheel(canvas);
     canvas.dispatchEvent(
-      new WheelEvent('wheel', { deltaY: -100, clientX: 50, clientY: 50, cancelable: true }),
+      new WheelEvent('wheel', {
+        deltaY: -100,
+        clientX: 50,
+        clientY: 50,
+        ctrlKey: true,
+        cancelable: true,
+      }),
     );
     expect(vp.getZoom()).toBeGreaterThan(1);
+    vp.destroy();
+  });
+
+  it('success: a bare wheel pans instead of zooming', () => {
+    const world = fakeWorld();
+    const vp = new Viewport(world);
+    vp.setScreenSize(100, 100);
+    const canvas = document.createElement('canvas');
+    canvas.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100, x: 0, y: 0, toJSON: () => ({}) });
+    vp.attachWheel(canvas);
+    canvas.dispatchEvent(
+      new WheelEvent('wheel', { deltaY: 100, clientX: 50, clientY: 50, cancelable: true }),
+    );
+    expect(vp.getZoom()).toBe(1);
+    expect(vp.getTransform().y).toBe(-100);
     vp.destroy();
   });
 

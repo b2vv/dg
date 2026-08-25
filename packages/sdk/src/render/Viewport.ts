@@ -248,18 +248,27 @@ export class Viewport {
     this.animCancel = null;
   }
 
-  /** Wheel zoom on the canvas (pan is driven via beginPan/movePan/endPan from Pixi). */
+  /**
+   * Wheel gestures on the canvas: **Ctrl/⌘ + scroll zooms** at the pointer
+   * (trackpad pinch arrives as ctrl+wheel too), plain scroll pans vertically and
+   * Shift + scroll pans horizontally. Drag-pan still comes from beginPan/movePan.
+   */
   attachWheel(canvas: HTMLCanvasElement): void {
     this.detachWheel?.();
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       this.cancelAnimation();
-      const rect = canvas.getBoundingClientRect?.() ?? { left: 0, top: 0 };
-      const sx = e.clientX - rect.left;
-      const sy = e.clientY - rect.top;
-      const factor = Math.exp(-e.deltaY * this.wheelIntensity);
-      this.zoomAt(this.scale * factor, sx, sy);
+      if (isZoomWheel(e)) {
+        const rect = canvas.getBoundingClientRect?.() ?? { left: 0, top: 0 };
+        const sx = e.clientX - rect.left;
+        const sy = e.clientY - rect.top;
+        const factor = Math.exp(-e.deltaY * this.wheelIntensity);
+        this.zoomAt(this.scale * factor, sx, sy);
+        return;
+      }
+      const { dx, dy } = wheelPanDelta(e);
+      this.panBy(dx, dy);
     };
 
     canvas.addEventListener('wheel', onWheel, { passive: false });
@@ -350,6 +359,15 @@ export class Viewport {
     this.zoomAt(this.scale * factor, this.screenWidth / 2, this.screenHeight / 2);
   }
 
+  /** Move the camera by a screen-space delta (wheel / keyboard pan). */
+  panBy(screenDx: number, screenDy: number): void {
+    if (!Number.isFinite(screenDx) || !Number.isFinite(screenDy)) return;
+    if (screenDx === 0 && screenDy === 0) return;
+    this.x += screenDx;
+    this.y += screenDy;
+    this.apply();
+  }
+
   beginPan(pointerId: number, screenX: number, screenY: number): void {
     if (this.pinch) return;
     this.cancelAnimation();
@@ -417,4 +435,23 @@ export class Viewport {
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
+}
+
+/** Ctrl/⌘ + wheel = zoom (this is also how a trackpad pinch reaches the page). */
+export function isZoomWheel(e: Pick<WheelEvent, 'ctrlKey' | 'metaKey'>): boolean {
+  return e.ctrlKey || e.metaKey;
+}
+
+/**
+ * Screen-space camera delta for a pan wheel: content follows the scroll, so the
+ * camera moves the other way. Shift swaps a vertical wheel onto the X axis.
+ */
+export function wheelPanDelta(
+  e: Pick<WheelEvent, 'deltaX' | 'deltaY' | 'shiftKey'>,
+): { dx: number; dy: number } {
+  const deltaX = Number.isFinite(e.deltaX) ? e.deltaX : 0;
+  const deltaY = Number.isFinite(e.deltaY) ? e.deltaY : 0;
+  const invert = (v: number) => (v === 0 ? 0 : -v);
+  if (e.shiftKey && deltaX === 0) return { dx: invert(deltaY), dy: 0 };
+  return { dx: invert(deltaX), dy: invert(deltaY) };
 }

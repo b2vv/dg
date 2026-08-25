@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { layoutStaffCanvas } from '@org-hierarchy/sdk';
-import { buildMockupStaffFigmaData } from './mockupFigma.js';
+import { buildMockupStaffFigmaData, FIGMA_STAFF_LAYOUT } from './mockupFigma.js';
 
 /** Canonical staff mockup edge inventory — see MOCKUP-edge-map-discussion.md */
 describe('mockup staff edge inventory', () => {
@@ -16,13 +16,7 @@ describe('mockup staff edge inventory', () => {
         persons: data.persons,
       },
       'region',
-      {
-        expandedOrgIds: ['unit-current'],
-        nodeWidth: 248,
-        nodeHeight: 72,
-        orgCardWidth: 220,
-        orgCardHeight: 56,
-      },
+      FIGMA_STAFF_LAYOUT,
     );
 
     const sorted = canvas.edges
@@ -32,15 +26,19 @@ describe('mockup staff edge inventory', () => {
       );
 
     expect(sorted).toEqual([
+      // Current tier — command row + service departments.
       { kind: 'admin', fromId: 'pos-1z', toId: 'pos-sup' },
+      { kind: 'admin', fromId: 'pos-2z', toId: 'pos-p1' },
+      { kind: 'admin', fromId: 'pos-2z', toId: 'pos-p2' },
       { kind: 'admin', fromId: 'pos-head', toId: 'pos-1z' },
       { kind: 'admin', fromId: 'pos-head', toId: 'pos-2z' },
       { kind: 'admin', fromId: 'pos-head', toId: 'pos-ops' },
-      { kind: 'admin', fromId: 'pos-sup', toId: 'pos-vac' },
-      { kind: 'admin', fromId: 'pos-u-h', toId: 'pos-u-2' },
-      { kind: 'admin', fromId: 'pos-u-h', toId: 'pos-u-sup' },
-      { kind: 'cross-tier', fromId: 'pos-head', toId: 'unit-current' },
-      { kind: 'dotted', fromId: 'pos-1z', toId: 'pos-u-h' },
+      // Managing tier — leadership (SPEC §2.2 «керівний склад»).
+      { kind: 'admin', fromId: 'pos-hq-head', toId: 'pos-hq-1z' },
+      { kind: 'admin', fromId: 'pos-hq-head', toId: 'pos-hq-2z' },
+      { kind: 'admin', fromId: 'pos-hq-head', toId: 'pos-hq-cos' },
+      { kind: 'cross-tier', fromId: 'pos-hq-head', toId: 'pos-head' },
+      { kind: 'dotted', fromId: 'pos-hq-1z', toId: 'pos-head' },
     ]);
   });
 });

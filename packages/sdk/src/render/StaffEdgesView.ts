@@ -5,7 +5,13 @@ import {
   type StaffEdgeLink,
   type StaffEdgePoint,
 } from './staffEdgeGeometry.js';
-import { arrowHeadTriangle, shortenPolylineForArrow } from './staffEdgeArrows.js';
+import {
+  arrowHeadTriangle,
+  drawEdgeEndDots,
+  shortenPolylineForArrow,
+  traceRoundedPolyline,
+} from './staffEdgeArrows.js';
+import type { EdgeStyle } from './types.js';
 
 const ARROW_SIZE = 7;
 
@@ -23,6 +29,37 @@ const STROKE_DARK: Record<StaffEdgeLink['kind'], { color: number; width: number;
   dotted: { color: 0xa8a29e, width: 1.5, dash: [2, 4] },
 };
 
+type StaffEdgeStrokeTable = Record<
+  StaffEdgeLink['kind'],
+  { color: number; width: number; dash?: number[] }
+>;
+
+/** Per-kind stroke table; a host {@link EdgeStyle} repaints/resizes every kind. */
+export function staffEdgeStrokes(
+  theme: 'light' | 'dark',
+  edge?: EdgeStyle,
+): StaffEdgeStrokeTable {
+  const base = theme === 'dark' ? STROKE_DARK : STROKE_LIGHT;
+  if (edge?.color === undefined && edge?.width === undefined) return base;
+  const apply = (s: { color: number; width: number; dash?: number[] }) => ({
+    ...s,
+    color: edge.color ?? s.color,
+    width: edge.width ?? s.width,
+  });
+  return {
+    admin: apply(base.admin),
+    'cross-tier': apply(base['cross-tier']),
+    matrix: apply(base.matrix),
+    dotted: apply(base.dotted),
+  };
+}
+
+/** Theme + host edge overrides for one staff-edge repaint. */
+export interface StaffEdgePaint {
+  theme?: 'light' | 'dark';
+  edge?: EdgeStyle;
+}
+
 /** Report lines between staff position boxes (admin solid; matrix/dotted dashed). */
 export class StaffEdgesView extends Container {
   private readonly graphics = new Graphics();
@@ -35,39 +72,39 @@ export class StaffEdgesView extends Container {
   static fromLayout(
     edges: StaffEdgeLink[],
     boxes: StaffEdgeBox[],
-    theme: 'light' | 'dark' = 'light',
+    paint: StaffEdgePaint = {},
   ): StaffEdgesView {
     const view = new StaffEdgesView();
-    view.redraw(edges, boxes, theme);
+    view.redraw(edges, boxes, paint);
     return view;
   }
 
-  redraw(
-    edges: StaffEdgeLink[],
-    boxes: StaffEdgeBox[],
-    theme: 'light' | 'dark' = 'light',
-  ): void {
+  redraw(edges: StaffEdgeLink[], boxes: StaffEdgeBox[], paint: StaffEdgePaint = {}): void {
     this.graphics.clear();
-    const stroke = theme === 'dark' ? STROKE_DARK : STROKE_LIGHT;
+    const { theme = 'light', edge } = paint;
+    const stroke = staffEdgeStrokes(theme, edge);
+    const dotted = edge?.terminator === 'dot';
+    const dotRadius = edge?.dotRadius ?? 2.5;
+    const radius = edge?.cornerRadius ?? 0;
     const segments = buildStaffEdgeSegments(edges, boxes);
     for (const seg of segments) {
       const style = stroke[seg.kind] ?? stroke.admin;
-      const withArrow = seg.kind === 'admin' || seg.kind === 'cross-tier';
+      const withArrow = !dotted && (seg.kind === 'admin' || seg.kind === 'cross-tier');
       if (style.dash) {
         drawDashedPolyline(this.graphics, seg.points, style.dash);
         this.graphics.stroke({ color: style.color, width: style.width });
+        if (dotted) drawEdgeEndDots(this.graphics, seg.points, style.color, dotRadius);
         continue;
       }
       const pts = seg.points;
       if (pts.length < 2) continue;
       const drawPts = withArrow ? shortenPolylineForArrow(pts, ARROW_SIZE) : pts;
-      this.graphics.moveTo(drawPts[0]!.x, drawPts[0]!.y);
-      for (let i = 1; i < drawPts.length; i += 1) {
-        this.graphics.lineTo(drawPts[i]!.x, drawPts[i]!.y);
-      }
+      traceRoundedPolyline(this.graphics, drawPts, radius);
       this.graphics.stroke({ color: style.color, width: style.width, join: 'round', cap: 'round' });
       if (withArrow) {
         drawArrowHead(this.graphics, pts, style.color);
+      } else if (dotted) {
+        drawEdgeEndDots(this.graphics, pts, style.color, dotRadius);
       }
     }
   }

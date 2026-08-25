@@ -1,4 +1,4 @@
-import type { DiagramData } from '../../data/types.js';
+import type { DiagramData, DiagramPosition } from '../../data/types.js';
 import { layoutStaffOrgBlock } from './orgBlockLayout.js';
 import { resolveStaffHead } from './resolveHead.js';
 import {
@@ -21,7 +21,23 @@ export interface StaffCanvasInput {
 }
 
 /**
- * Leadership-only for managing org (tier 1): isHead or parentless in that org.
+ * Tier-1 leadership: the managing org's head plus every staff position it
+ * admin-reports to directly inside that org. Deeper reports stay off the tier.
+ */
+function leadershipOf(
+  head: DiagramPosition,
+  orgPositions: readonly DiagramPosition[],
+  reports: StaffCanvasInput['reports'],
+): DiagramPosition[] {
+  const direct = new Set(
+    reports.filter((r) => r.kind === 'admin' && r.fromId === head.id).map((r) => r.toId),
+  );
+  return orgPositions.filter((p) => p.id === head.id || direct.has(p.id));
+}
+
+/**
+ * Leadership-only for managing org (tier 1): the head plus its direct admin
+ * reports inside that org (SPEC §2.2 «ярус 1 — керівний склад»).
  * Full staff for current (tier 2). Tier 3 = org cards for children.
  */
 export async function layoutStaffCanvas(
@@ -43,13 +59,15 @@ export async function layoutStaffCanvas(
 
   let cursorY = opts.margin;
 
-  // Tier 1 — managing org leadership only
+  // Tier 1 — managing org leadership (head + its direct admin reports)
   const managingId = current.parentOrgId;
   if (managingId && data.organizations.some((o) => o.id === managingId)) {
     const mgrPositions = data.positions.filter((p) => p.organizationId === managingId);
-    const leadership = mgrPositions.filter((p) => p.isHead === true);
+    const heads = mgrPositions.filter((p) => p.isHead === true);
+    const head = heads.length === 1 ? heads[0] : undefined;
 
-    if (leadership.length === 1) {
+    if (head) {
+      const leadership = leadershipOf(head, mgrPositions, data.reports);
       const block = await layoutStaffOrgBlock(leadership, data.reports, managingId, options);
       const nodes = block.nodes.map((n) => ({
         ...n,
@@ -68,7 +86,7 @@ export async function layoutStaffCanvas(
         organizationId: managingId,
       });
       cursorY += height + opts.tierGap;
-    } else if (leadership.length > 1) {
+    } else if (heads.length > 1) {
       diagnostics.push(`Tier1 skipped: multiple isHead in managing org ${managingId}`);
     }
   }

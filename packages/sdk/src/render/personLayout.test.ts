@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   figmaRowAvatar,
+  figmaRowTextRows,
   figmaRowTextX,
+  FIGMA_ROW_LINE_GAP,
+  FIGMA_ROW_LINE_RATIO,
   gojsRowAvatar,
   GOJS_ROW_COUNT_BAR_H,
   GOJS_ROW_TIMELINE_H,
@@ -114,5 +117,27 @@ describe('isExplicitLayout', () => {
   it('returns false for auto or undefined', () => {
     expect(isExplicitLayout('auto')).toBe(false);
     expect(isExplicitLayout(undefined)).toBe(false);
+  });
+});
+
+describe('figmaRowTextRows', () => {
+  const seat = baseStyle({ width: 248, height: 44, nameFontSize: 14, titleFontSize: 16 });
+
+  it('centers the title + name stack in the seat', () => {
+    const rows = figmaRowTextRows(seat);
+    const blockHeight = 16 * FIGMA_ROW_LINE_RATIO + FIGMA_ROW_LINE_GAP + 14 * FIGMA_ROW_LINE_RATIO;
+    expect(rows.blockHeight).toBeCloseTo(blockHeight, 5);
+    expect(rows.titleY).toBeCloseTo((44 - blockHeight) / 2, 5);
+    expect(rows.nameY - rows.titleY).toBeCloseTo(16 * FIGMA_ROW_LINE_RATIO + FIGMA_ROW_LINE_GAP, 5);
+  });
+
+  it('vacant seat (no name line) centers the title alone', () => {
+    const rows = figmaRowTextRows(seat, false);
+    expect(rows.blockHeight).toBeCloseTo(16 * FIGMA_ROW_LINE_RATIO, 5);
+    expect(rows.titleY).toBeCloseTo((44 - 16 * FIGMA_ROW_LINE_RATIO) / 2, 5);
+  });
+
+  it('never pushes text above the seat when the stack is taller', () => {
+    expect(figmaRowTextRows(baseStyle({ height: 12 })).titleY).toBe(0);
   });
 });

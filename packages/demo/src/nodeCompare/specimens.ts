@@ -54,14 +54,14 @@ function personFor(data: ReturnType<typeof buildMockupStaffFigmaData>, pos: Diag
 export const NODE_COMPARE_SPECIMENS: NodeCompareSpecimen[] = [
   {
     id: 'org-figma-root',
-    label: 'Org · Figma — Cedar Lake root (200×120)',
+    label: 'Org · Figma — Cedar Lake root (234×110)',
     diagramTab: 'mockup-orgs-figma',
     diagramTestId: 'mockup-root',
     kind: 'organization',
     theme: 'dark',
     width: MOCKUP_FIGMA_STYLES.organization.width,
     height: MOCKUP_FIGMA_STYLES.organization.height,
-    stageBackground: 0x0f172a,
+    stageBackground: MOCKUP_FIGMA_STYLES.canvasBackground,
   },
   {
     id: 'org-gojs-hq',
@@ -72,7 +72,7 @@ export const NODE_COMPARE_SPECIMENS: NodeCompareSpecimen[] = [
     theme: 'dark',
     width: MOCKUP_GOJS_STYLES.organization.width,
     height: MOCKUP_GOJS_STYLES.organization.height,
-    stageBackground: 0x222222,
+    stageBackground: MOCKUP_FIGMA_STYLES.canvasBackground,
   },
   {
     id: 'person-figma-head',
@@ -83,7 +83,7 @@ export const NODE_COMPARE_SPECIMENS: NodeCompareSpecimen[] = [
     theme: 'dark',
     width: MOCKUP_FIGMA_STYLES.person.width,
     height: MOCKUP_FIGMA_STYLES.person.height,
-    stageBackground: 0x0f172a,
+    stageBackground: MOCKUP_FIGMA_STYLES.canvasBackground,
   },
   {
     id: 'person-figma-temp',
@@ -94,18 +94,18 @@ export const NODE_COMPARE_SPECIMENS: NodeCompareSpecimen[] = [
     theme: 'dark',
     width: MOCKUP_FIGMA_STYLES.person.width,
     height: MOCKUP_FIGMA_STYLES.person.height,
-    stageBackground: 0x0f172a,
+    stageBackground: MOCKUP_FIGMA_STYLES.canvasBackground,
   },
   {
     id: 'person-figma-vacant',
-    label: 'Staff · Figma row — Operations analyst (vacant)',
+    label: 'Staff · Figma row — Chief of staff (vacant)',
     diagramTab: 'mockup-staff-figma',
     diagramTestId: 'staff-vacant',
     kind: 'person',
     theme: 'dark',
     width: MOCKUP_FIGMA_STYLES.person.width,
     height: MOCKUP_FIGMA_STYLES.person.height,
-    stageBackground: 0x0f172a,
+    stageBackground: MOCKUP_FIGMA_STYLES.canvasBackground,
   },
   {
     id: 'person-gojs-head',
@@ -116,7 +116,7 @@ export const NODE_COMPARE_SPECIMENS: NodeCompareSpecimen[] = [
     theme: 'dark',
     width: MOCKUP_GOJS_STYLES.person.width,
     height: MOCKUP_GOJS_STYLES.person.height,
-    stageBackground: 0x222222,
+    stageBackground: MOCKUP_FIGMA_STYLES.canvasBackground,
   },
   {
     id: 'person-gojs-temp',
@@ -127,7 +127,7 @@ export const NODE_COMPARE_SPECIMENS: NodeCompareSpecimen[] = [
     theme: 'dark',
     width: MOCKUP_GOJS_STYLES.person.width,
     height: MOCKUP_GOJS_STYLES.person.height,
-    stageBackground: 0x222222,
+    stageBackground: MOCKUP_FIGMA_STYLES.canvasBackground,
   },
 ];
 
@@ -188,7 +188,7 @@ export function isolatedPayloadFor(specimenId: string): IsolatedNodePayload {
       };
     }
     case 'person-figma-vacant': {
-      const position = posById(staffFigma, 'pos-vac');
+      const position = posById(staffFigma, 'pos-ops');
       return {
         kind: 'person',
         theme: 'dark',

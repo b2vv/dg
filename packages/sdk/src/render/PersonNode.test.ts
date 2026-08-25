@@ -3,6 +3,8 @@ import { Texture } from 'pixi.js';
 import { PersonNodeView } from './PersonNode.js';
 import { configureNodeTextureLoader, clearNodeTextureCache } from './nodeMedia.js';
 import { defaultNodeTheme } from './types.js';
+import { figmaRowTextRows } from './personLayout.js';
+import { VACANT_POSITION_LABEL } from './orgCardChrome.js';
 
 describe('PersonNodeView', () => {
   afterEach(() => {
@@ -242,12 +244,86 @@ describe('PersonNodeView', () => {
     await view.mediaReady;
     const title = view.findText('Regional Director');
     const name = view.findText('Alex Morgan');
+    const rows = figmaRowTextRows({
+      height: 72,
+      nameFontSize: defaultNodeTheme.person.nameFontSize,
+      titleFontSize: defaultNodeTheme.person.titleFontSize,
+    });
     expect(title).toBeTruthy();
     expect(name).toBeTruthy();
-    expect(title!.position.y).toBe(14);
-    expect(name!.position.y).toBe(34);
+    // Title + name stack is centered against the 40px avatar tile.
+    expect(title!.position.y).toBeCloseTo(rows.titleY, 5);
+    expect(name!.position.y).toBeCloseTo(rows.nameY, 5);
     expect(title!.position.x).toBeGreaterThan(40);
     expect(name!.position.x).toBe(title!.position.x);
+  });
+
+  /** Figma «посади» seat (frame 1264:7906): no card frame, ⏳ marks acting. */
+  describe('figma seat (chrome-less)', () => {
+    const figmaSeat = {
+      ...defaultNodeTheme.person,
+      width: 248,
+      height: 44,
+      background: 0x121212,
+      backgroundAlpha: 0,
+      borderWidth: 0,
+      nameFontSize: 14,
+      titleFontSize: 16,
+      nameColor: 0xe8490f,
+      titleColor: 0xffffff,
+      avatarPlaceholderColor: 0x121212,
+      temporaryNameColor: 0xe8490f,
+      permanentNameColor: 0xe8490f,
+      tempMarkerStyle: 'hourglass' as const,
+      hidePeriodOnCard: true,
+      hideVacantLabel: true,
+      personLayout: 'figma-row' as const,
+    };
+
+    it('acting seat: hourglass after the name, no «T» pill, no period chip', async () => {
+      const view = PersonNodeView.create(
+        { id: 'p1', fullName: 'Alex Morgan' },
+        {
+          id: 'pos1',
+          title: 'First deputy',
+          organizationId: 'org1',
+          groupIds: [],
+          status: 'filled',
+          isTemporary: true,
+          periodStart: '2018-06-27',
+          periodEnd: null,
+        },
+        figmaSeat,
+        'near',
+      );
+      await view.mediaReady;
+      const name = view.findText('Alex Morgan');
+      const hourglass = view.findText('⏳');
+      expect(name).toBeTruthy();
+      expect(hourglass).toBeTruthy();
+      expect(hourglass!.position.x).toBeGreaterThan(name!.position.x);
+      expect(view.hasTempBadge()).toBe(false);
+      expect(view.hasPeriodChip()).toBe(false);
+    });
+
+    it('vacant seat: title only (no «(вакансія)» line)', async () => {
+      const view = PersonNodeView.create(
+        undefined,
+        {
+          id: 'pos2',
+          title: 'Chief of staff',
+          organizationId: 'org1',
+          groupIds: [],
+          status: 'vacant',
+          isTemporary: false,
+        },
+        figmaSeat,
+        'near',
+      );
+      await view.mediaReady;
+      expect(view.findText('Chief of staff')).toBeTruthy();
+      expect(view.findText(VACANT_POSITION_LABEL)).toBeUndefined();
+    });
   });
 
   it('gojs-portrait: centered name + title below avatar band', async () => {

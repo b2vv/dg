@@ -47,6 +47,18 @@ describe('canvasBackgroundForTheme', () => {
     expect(canvasBackgroundForTheme('dark')).toBe(0x0f172a);
     expect(canvasBackgroundForTheme('light')).toBe(0xf8fafc);
   });
+
+  it('host override: canvasBackground / edge survive the merge', () => {
+    const merged = resolveNodeTheme('dark', {
+      canvasBackground: 0x222222,
+      edge: { color: 0xa6a6a6, width: 1, terminator: 'dot' },
+    });
+    expect(merged.canvasBackground).toBe(0x222222);
+    expect(merged.edge).toEqual({ color: 0xa6a6a6, width: 1, terminator: 'dot' });
+    // Unset stays undefined so the per-theme default applies.
+    expect(resolveNodeTheme('dark').canvasBackground).toBeUndefined();
+    expect(resolveNodeTheme('dark').edge).toBeUndefined();
+  });
 });
 
 describe('getOrgSymbolUrl', () => {

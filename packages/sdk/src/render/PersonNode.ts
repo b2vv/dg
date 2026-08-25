@@ -4,7 +4,11 @@ import type { LodLevel } from './lod.js';
 import { loadNodeTexture, type NodeTextureLoader } from './nodeMedia.js';
 import { avatarColorFromName, personInitials } from './personInitials.js';
 import { formatOrgPeriodLabel } from './formatPeriodLabel.js';
-import { formatPositionCountsBadge, VACANT_POSITION_LABEL } from './orgCardChrome.js';
+import {
+  estimateTextWidth,
+  formatPositionCountsBadge,
+  VACANT_POSITION_LABEL,
+} from './orgCardChrome.js';
 import type { PersonNodeStyle } from './types.js';
 import {
   attachMenuButton,
@@ -17,6 +21,9 @@ import {
   avatarForLayout,
   figmaRowAvatar,
   figmaRowTextX,
+  figmaRowTextRows,
+  FIGMA_ROW_AVATAR_RADIUS,
+  FIGMA_ROW_AVATAR_SIZE,
   gojsRowAvatar,
   gojsRowTextX,
   gojsPortraitAvatar,
@@ -255,7 +262,7 @@ export class PersonNodeView extends Container {
     this.chromeControls.removeChildren();
     if (lod === 'far') return;
     const layout = resolvePersonLayout(style);
-    if (layout === 'gojs-row') return;
+    if (layout === 'gojs-row' || layout === 'figma-row') return;
 
     const visual = personVisualLocalRect(style.width, style.height, lod);
     let x = 4;
@@ -373,11 +380,16 @@ export class PersonNodeView extends Container {
       else if (detached) stroke = style.detachedBorderColor ?? style.titleColor;
     }
 
-    this.shadow.roundRect(2, cardY + 3, width, cardH, borderRadius);
-    this.shadow.fill({ color: 0x0f172a, alpha: 0.1 });
-    this.card.roundRect(0, cardY, width, cardH, borderRadius);
-    this.card.fill({ color: style.background });
-    this.card.stroke({ color: stroke, width: style.borderWidth });
+    const backgroundAlpha = style.backgroundAlpha ?? 1;
+    if (backgroundAlpha > 0) {
+      this.shadow.roundRect(2, cardY + 3, width, cardH, borderRadius);
+      this.shadow.fill({ color: 0x0f172a, alpha: 0.1 });
+      this.card.roundRect(0, cardY, width, cardH, borderRadius);
+      this.card.fill({ color: style.background, alpha: backgroundAlpha });
+      if (style.borderWidth > 0) {
+        this.card.stroke({ color: stroke, width: style.borderWidth });
+      }
+    }
     if (detached) {
       this.strokeDashedRoundRect(0, cardY, width, cardH, borderRadius, stroke, style.borderWidth);
     }
@@ -389,6 +401,14 @@ export class PersonNodeView extends Container {
       const tileFill = style.avatarPlaceholderColor ?? style.border;
       this.avatarTile.roundRect(avatar.cx - size / 2, avatar.cy - size / 2, size, size, br);
       this.avatarTile.fill({ color: tileFill });
+      this.avatarTile.visible = true;
+    } else if (lod === 'near' && layout === 'figma-row') {
+      // Figma seat: 40×40 rounded tile (bg/primary) instead of a photo circle.
+      const avatar = figmaRowAvatar(style);
+      const size = avatar.size ?? FIGMA_ROW_AVATAR_SIZE;
+      const br = avatar.borderRadius ?? FIGMA_ROW_AVATAR_RADIUS;
+      this.avatarTile.roundRect(avatar.cx - size / 2, avatar.cy - size / 2, size, size, br);
+      this.avatarTile.fill({ color: style.avatarPlaceholderColor ?? this.avatarFill });
       this.avatarTile.visible = true;
     } else if (lod === 'near') {
       const avatar = avatarForLayout(layout, style, cardY);
@@ -490,6 +510,7 @@ export class PersonNodeView extends Container {
 
     const gojsRow = gojsRowNear;
 
+    const hideVacantName = vacant && style.hideVacantLabel === true && !gojsRow;
     const name =
       vacant && gojsRow
         ? position.title
@@ -508,7 +529,7 @@ export class PersonNodeView extends Container {
       nameFill = style.temporaryNameColor;
     }
 
-    this.nameText.visible = true;
+    this.nameText.visible = !hideVacantName;
     this.nameText.text = name;
     this.nameText.style.fontSize = style.nameFontSize;
     this.nameText.style.fontWeight = '600';
@@ -525,9 +546,11 @@ export class PersonNodeView extends Container {
       this.layoutCompactContent(person, position, style, lod, Math.max(6, style.width * 0.06), vacant);
     }
 
-    const showLegacyTempBadge = position.isTemporary && !gojsRow;
+    const hourglassTemp = style.tempMarkerStyle === 'hourglass';
+    const showLegacyTempBadge = position.isTemporary && !gojsRow && !hourglassTemp;
+    const showHourglass = position.isTemporary && hourglassTemp && this.nameText.visible;
     this.badge.visible = showLegacyTempBadge;
-    this.badgeLabel.visible = showLegacyTempBadge;
+    this.badgeLabel.visible = showLegacyTempBadge || showHourglass;
     if (showLegacyTempBadge) {
       const br = Math.max(7, style.width * 0.06);
       this.badge.clear();
@@ -535,11 +558,29 @@ export class PersonNodeView extends Container {
       this.badge.fill({ color: style.badgeColor });
       this.badgeLabel.text = 'T';
       this.badgeLabel.anchor.set(0.5);
+      this.badgeLabel.style.fontSize = 9;
+      this.badgeLabel.style.fill = style.badgeTextColor;
       this.badgeLabel.position.set(style.width - br - 4, cardY + br + 4);
+    } else if (showHourglass) {
+      // Figma seat: hourglass right after the person name (acting / temporary).
+      this.badge.clear();
+      this.badgeLabel.text = '⏳';
+      this.badgeLabel.anchor.set(0, 0);
+      this.badgeLabel.style.fontSize = style.nameFontSize;
+      this.badgeLabel.style.fill = style.temporaryNameColor ?? style.nameColor;
+      this.badgeLabel.position.set(
+        this.nameText.position.x +
+          estimateTextWidth(this.nameText.text, style.nameFontSize) +
+          4,
+        this.nameText.position.y,
+      );
     }
 
-    if (!gojsRow) {
+    if (!gojsRow && style.hidePeriodOnCard !== true) {
       this.layoutPeriodChip(position, style, lod, Math.max(6, style.width * 0.06), layout);
+    } else if (!gojsRow) {
+      this.periodChip.visible = false;
+      this.periodChipLabel.visible = false;
     }
   }
 
@@ -682,10 +723,13 @@ export class PersonNodeView extends Container {
     this.titleText.style.fill = style.titleColor;
     this.titleText.anchor.set(0, 0);
     truncatePixiText(this.titleText, maxTextW);
-    this.titleText.position.set(textX, 14);
+
+    // Figma seat: title + name stack centered against the 40px avatar tile.
+    const rows = figmaRowTextRows(style, this.nameText.visible);
+    this.titleText.position.set(textX, rows.titleY);
 
     truncatePixiText(this.nameText, maxTextW);
-    this.nameText.position.set(textX, 34);
+    this.nameText.position.set(textX, rows.nameY);
 
     const initials = vacant ? '' : personInitials(person?.fullName);
     this.initialsText.text = initials;

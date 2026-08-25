@@ -4,7 +4,7 @@ import { loadNodeTexture, type NodeTextureLoader } from './nodeMedia.js';
 import { getInactiveOrgSymbolUrl, getOrgSymbolUrl } from './theme.js';
 import { fitContain } from './fitContain.js';
 import { formatOrgPeriodLabel } from './formatPeriodLabel.js';
-import { formatOrgCountsBadge } from './orgCardChrome.js';
+import { estimateTextWidth, formatOrgCountsBadge } from './orgCardChrome.js';
 import type { LodLevel } from './lod.js';
 import type { OrganizationNodeStyle } from './types.js';
 import {
@@ -16,7 +16,7 @@ import {
 import { mountOrgNodeChrome, type OrgNodeChrome } from './orgNodeChrome.js';
 import type { FederatedPointerEvent } from 'pixi.js';
 import {
-  GOJS_BODY_MARGIN,
+  verticalBodyMetrics,
   resolveOrgSymbolLayout,
   type OrgSymbolBox,
   type OrgSymbolBoxMode,
@@ -382,9 +382,10 @@ export class OrganizationNodeView extends Container {
       this.countsBadgeLabel.style.fontSize = fs;
       this.countsBadgeLabel.style.fill = style.countsBadgeTextColor ?? 0x334155;
       if (vertical) {
-        // Spot(1,0,-14,12) — top-right, no chip background.
+        // Spot(1,0,-padX,padY) — top-right of the body, no chip background.
+        const body = verticalBodyMetrics(style);
         this.countsBadgeLabel.anchor.set(1, 0);
-        this.countsBadgeLabel.position.set(style.width - 14, 12);
+        this.countsBadgeLabel.position.set(style.width - body.padX, body.padY);
       } else {
         this.countsBadgeLabel.anchor.set(0.5);
         const padY = 2;
@@ -433,8 +434,17 @@ export class OrganizationNodeView extends Container {
   /** GoJS vertical stack: name → symbol → unit code. */
   private layoutVerticalTexts(style: OrganizationNodeStyle, layout: OrgSymbolLayout): void {
     const vm = layout.vertical;
-    const m = GOJS_BODY_MARGIN;
-    const maxTextW = vm?.nameMaxWidth ?? style.width - m.left - m.right;
+    const body = verticalBodyMetrics(style);
+    const countsReserve = this.countsBadgeLabel.visible
+      ? estimateTextWidth(
+          this.countsBadgeLabel.text,
+          style.countsBadgeFontSize ?? 13,
+        ) + 8
+      : 0;
+    const maxTextW = Math.max(
+      24,
+      (vm?.nameMaxWidth ?? style.width - body.padX * 2) - countsReserve,
+    );
 
     this.nameText.anchor.set(0, 0);
     this.unitCodeText.anchor.set(0.5, 0);
@@ -443,7 +453,7 @@ export class OrganizationNodeView extends Container {
 
     if (this.nameText.visible) {
       truncatePixiText(this.nameText, maxTextW);
-      this.nameText.position.set(m.left, vm?.nameY ?? m.top);
+      this.nameText.position.set(body.padX, vm?.nameY ?? body.padY);
     }
 
     if (this.fullNameFallbackText.visible) {
@@ -553,8 +563,8 @@ export class OrganizationNodeView extends Container {
         lod,
         hasSymbol: false,
       });
-      this.layoutTexts(style, lod);
       this.layoutChromeBadges(style, lod);
+      this.layoutTexts(style, lod);
       return;
     }
 
@@ -565,8 +575,8 @@ export class OrganizationNodeView extends Container {
         lod,
         hasSymbol: false,
       });
-      this.layoutTexts(style, lod);
       this.layoutChromeBadges(style, lod);
+      this.layoutTexts(style, lod);
       return;
     }
     this.showSymbol(texture, style, lod);

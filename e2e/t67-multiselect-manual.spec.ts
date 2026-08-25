@@ -1,10 +1,11 @@
 import { expect, test } from '@playwright/test';
 
 /**
- * T67 Phase 1 — multi-select via Pixi canvas (NOT e2e anchors).
+ * T67 — multi-select via Pixi canvas (NOT e2e anchors): Shift+click (and Ctrl)
+ * toggle set membership, and the bulk bar shows while more than one is selected.
  * With ?e2e=1, invisible anchors call focusByTestId → replace-only selection.
  */
-test('T67: ctrl+click multi-select without e2e anchors', async ({ page }) => {
+test('T67: shift/ctrl+click multi-select + bulk bar without e2e anchors', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/');
   expect(page.url()).not.toContain('e2e=1');
@@ -16,12 +17,12 @@ test('T67: ctrl+click multi-select without e2e anchors', async ({ page }) => {
 
   const status = () => page.locator('#status').textContent();
 
-  const clickAt = async (nx: number, ny: number, ctrl = false) => {
+  const clickAt = async (nx: number, ny: number, modifier?: 'Control' | 'Shift') => {
     const x = box.x + box.width * nx;
     const y = box.y + box.height * ny;
-    if (ctrl) await page.keyboard.down('Control');
+    if (modifier) await page.keyboard.down(modifier);
     await page.mouse.click(x, y);
-    if (ctrl) await page.keyboard.up('Control');
+    if (modifier) await page.keyboard.up(modifier);
     await page.waitForTimeout(300);
   };
 
@@ -35,17 +36,17 @@ test('T67: ctrl+click multi-select without e2e anchors', async ({ page }) => {
     throw new Error('T67 e2e: no canvas point selects exactly one card');
   };
 
-  const findCtrlAddClick = async (base: { nx: number; ny: number }) => {
+  const findShiftAddClick = async (base: { nx: number; ny: number }) => {
     for (let ny = 0.15; ny <= 0.75; ny += 0.05) {
       for (let nx = 0.15; nx <= 0.85; nx += 0.05) {
         if (Math.hypot(nx - base.nx, ny - base.ny) < 0.08) continue;
         await clickAt(base.nx, base.ny);
         expect(await status()).toMatch(/1 selected/i);
-        await clickAt(nx, ny, true);
+        await clickAt(nx, ny, 'Shift');
         if ((await status())?.match(/2 selected/i)) return { nx, ny };
       }
     }
-    throw new Error('T67 e2e: no ctrl+click adds a second card');
+    throw new Error('T67 e2e: no shift+click adds a second card');
   };
 
   const findCanvasClearClick = async () => {
@@ -63,11 +64,28 @@ test('T67: ctrl+click multi-select without e2e anchors', async ({ page }) => {
   };
 
   const first = await findSingleSelectClick();
-  const second = await findCtrlAddClick(first);
+  const second = await findShiftAddClick(first);
   expect(await status()).toMatch(/2 selected/i);
 
-  await clickAt(second.nx, second.ny, true);
+  // Bulk bar appears only for a multi-selection.
+  const bulk = page.getByTestId('bulk-bar');
+  await expect(bulk).toBeVisible();
+  await expect(bulk).toContainText(/2 selected/i);
+
+  await clickAt(second.nx, second.ny, 'Shift');
   expect(await status()).toMatch(/1 selected/i);
+  await expect(bulk).toBeHidden();
+
+  // Ctrl+click keeps working alongside shift.
+  await clickAt(second.nx, second.ny, 'Control');
+  expect(await status()).toMatch(/2 selected/i);
+  await expect(bulk).toBeVisible();
+
+  // Bulk «Clear» drops the whole set.
+  await bulk.getByRole('button', { name: 'Clear' }).click();
+  await page.waitForTimeout(300);
+  expect(await status()).toMatch(/0 selected/i);
+  await expect(bulk).toBeHidden();
 
   await findCanvasClearClick();
   expect(await status()).toMatch(/0 selected/i);
