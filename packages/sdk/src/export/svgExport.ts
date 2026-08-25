@@ -16,7 +16,7 @@ import { buildStaffEdgeSegments } from '../render/staffEdgeGeometry.js';
 import { mapStaffEdgeBoxesForLod, mapPositionNodesToStaffEdgeBoxes } from '../render/visualEdgeBox.js';
 import { paintMagneticGroups } from '../render/contour/paintMagneticGroups.js';
 import type { ContourMemberBox } from '../render/contour/contourClearance.js';
-import { resolveMagnetRadius } from '../render/contour/magnetRadius.js';
+import { resolveMagnetRadius } from '../contour/magnetRadius.js';
 import { inferStaffCurrentOrgId } from '../render/inferStaffCurrentOrgId.js';
 import { arrowHeadTriangle, shortenPolylineForArrow } from '../render/staffEdgeArrows.js';
 import { enrichStaffTierBands } from '../render/staffZoneBounds.js';

@@ -4,7 +4,7 @@ import { clusterPositionsByDepartment } from './contourCluster.js';
 import { memberBoxesForCluster } from './contourButtonGroup.js';
 import { polishContourRings } from './contourPolish.js';
 import { isPaintableDepartment, shouldPaintDeptContour } from './contourPaintFilter.js';
-import { resolveMagnetRadius } from './magnetRadius.js';
+import { resolveMagnetRadius } from '../../contour/magnetRadius.js';
 
 export interface PaintMagneticGroupsArgs {
   inputs: readonly ContourPositionInput[];

@@ -10,7 +10,7 @@ import type { ContourWorldTransform } from './contourWorldTransform.js';
 import { DepartmentBlobView } from './DepartmentBlob.js';
 import { runPointMorph, type PointMorphHandle } from './contourMorph.js';
 import { paintMagneticGroups } from './paintMagneticGroups.js';
-import { resolveMagnetRadius } from './magnetRadius.js';
+import { resolveMagnetRadius } from '../../contour/magnetRadius.js';
 import { cloneMemberBoxes, offsetMemberBoxesForGridMove } from './offsetMemberBoxes.js';
 import { defaultRenderConfig } from '../types.js';
 import type {

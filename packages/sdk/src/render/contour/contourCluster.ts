@@ -1,5 +1,5 @@
 import type { ContourPositionInput } from '../../contour/bridge.js';
-import { resolveMagnetRadius } from './magnetRadius.js';
+import { resolveMagnetRadius } from '../../contour/magnetRadius.js';
 
 function manhattan(a: ContourPositionInput, b: ContourPositionInput): number {
   return Math.abs(a.col - b.col) + Math.abs(a.row - b.row);

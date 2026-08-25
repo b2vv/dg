@@ -1,6 +1,6 @@
 import type { ContourMagnetConfig, ContourPositionInput, DeptContourResult } from './bridge.js';
 import { toRustConfig } from './config.js';
-import { resolveMagnetRadius } from '../render/contour/magnetRadius.js';
+import { resolveMagnetRadius } from './magnetRadius.js';
 
 export type ContourComputerFn = (
   positions: ContourPositionInput[],
