@@ -223,7 +223,7 @@ describe('staff edge fallback census (demo tabs)', () => {
         "dirty": 0,
         "dirtyPct": 0,
         "forced": 2,
-        "forcedPct": 5.71,
+        "forcedPct": 5.56,
         "tabs": [
           {
             "around": 0,
@@ -252,14 +252,14 @@ describe('staff edge fallback census (demo tabs)', () => {
           },
           {
             "around": 0,
-            "direct": 11,
+            "direct": 12,
             "dirty": 0,
             "forced": 0,
             "kinds": {
               "admin": {
                 "dirty": 0,
                 "forced": 0,
-                "total": 9,
+                "total": 10,
               },
               "cross-tier": {
                 "dirty": 0,
@@ -273,7 +273,7 @@ describe('staff edge fallback census (demo tabs)', () => {
               },
             },
             "tab": "Staff · Magnetic",
-            "total": 11,
+            "total": 12,
           },
           {
             "around": 0,
@@ -321,7 +321,7 @@ describe('staff edge fallback census (demo tabs)', () => {
             "total": 4,
           },
         ],
-        "total": 35,
+        "total": 36,
       }
     `);
   });

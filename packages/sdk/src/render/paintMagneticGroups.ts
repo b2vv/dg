@@ -3,7 +3,7 @@ import type { ContourMemberBox } from './contourClearance.js';
 import { clusterPositionsByDepartment } from './contourCluster.js';
 import { memberBoxesForCluster } from './contourButtonGroup.js';
 import { polishContourRings } from './contourPolish.js';
-import { shouldPaintDeptContour } from './contourPaintFilter.js';
+import { isPaintableDepartment, shouldPaintDeptContour } from './contourPaintFilter.js';
 import { resolveMagnetRadius } from './magnetRadius.js';
 
 export interface PaintMagneticGroupsArgs {
@@ -29,6 +29,9 @@ export function paintMagneticGroups(args: PaintMagneticGroupsArgs): PaintedMagne
   const out: PaintedMagneticGroup[] = [];
   const allBoxes = [...args.memberBoxesByDept.values()].flat();
   for (const deptId of args.departmentIds) {
+    // Seats without a department are foreign to every wash — they are in
+    // `allBoxes` above, but they never get a contour of their own.
+    if (!isPaintableDepartment(deptId)) continue;
     if (!shouldPaintDeptContour(args.personCounts.get(deptId), args.minContourMembers)) {
       continue;
     }

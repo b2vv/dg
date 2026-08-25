@@ -1,3 +1,4 @@
+import { NO_DEPARTMENT_ID } from '../render/contourPaintFilter.js';
 import type { ContourMagnetConfig } from './bridge.js';
 import { resolveMagnetRadius } from '../render/magnetRadius.js';
 
@@ -17,6 +18,12 @@ export function toRustConfig(cfg: ContourMagnetConfig = {}) {
   };
 }
 
+/**
+ * Every seat with authored coords becomes a contour input. Seats without a
+ * department go under {@link NO_DEPARTMENT_ID}: they own no contour, but the
+ * flood and the notch have to see them as foreign cards (M2) rather than as
+ * empty grid space that a wash may cover.
+ */
 export function diagramPositionsToContourInputs(
   positions: Array<{
     id: string;
@@ -25,10 +32,10 @@ export function diagramPositionsToContourInputs(
   }>,
 ) {
   return positions
-    .filter((p) => p.gridCell && p.departmentId)
+    .filter((p) => p.gridCell)
     .map((p) => ({
       id: p.id,
-      departmentId: p.departmentId!,
+      departmentId: p.departmentId || NO_DEPARTMENT_ID,
       col: p.gridCell!.col,
       row: p.gridCell!.row,
     }));

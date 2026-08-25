@@ -353,6 +353,28 @@ function buildStaffTopology(
   };
 }
 
+/**
+ * Adds one staff position **without a department** — production rosters are
+ * full of them, and both contour engines have to treat it as a foreign card
+ * rather than as empty grid space.
+ */
+function withLooseSeat(data: DiagramData): DiagramData {
+  const loose = staffPosition(
+    {
+      id: 'pos-loose',
+      title: 'Attached officer',
+      organizationId: 'region',
+      personId: 'p-sup',
+    },
+    FIGMA_SEAT,
+  );
+  return {
+    ...data,
+    positions: [...data.positions, loose],
+    reportLines: [...data.reportLines, { fromId: 'pos-1z', toId: 'pos-loose', kind: 'admin' }],
+  };
+}
+
 /** Figma seat box (frame 1264:7906). */
 const FIGMA_SEAT = { width: 248, height: 44 } as const;
 
@@ -606,15 +628,17 @@ export function buildMockupStaffFigmaData(): DiagramData {
  *        col 0            col 1            col 2
  * row 0                   head             supply           ← foreign inside the
  * row 1  first deputy     deputy           chief of staff      command bbox
- * row 2                   people ·1        people ·2
+ * row 2  no department    people ·1        people ·2
  * ```
  *
  * The supply seat sits inside the command department's bounding box on purpose:
  * it is the G2/M2 case — the command contour has to notch around a foreign card
- * instead of swallowing it.
+ * instead of swallowing it. The seat at (0,2) carries **no** `departmentId`,
+ * which production rosters have plenty of: it owns no contour, and no wash may
+ * cover it either.
  */
 export function buildMockupStaffMagneticData(): DiagramData {
-  const base = buildMockupStaffFigmaData();
+  const base = withLooseSeat(buildMockupStaffFigmaData());
   const cells: Record<string, { col: number; row: number }> = {
     // Managing org block — head over a three-seat command row.
     'pos-hq-head': { col: 1, row: 0 },
@@ -628,6 +652,7 @@ export function buildMockupStaffMagneticData(): DiagramData {
     'pos-ops': { col: 2, row: 1 },
     // Foreign card inside the command component's bbox (G2 / M2 demo).
     'pos-sup': { col: 2, row: 0 },
+    'pos-loose': { col: 0, row: 2 },
     'pos-p1': { col: 1, row: 2 },
     'pos-p2': { col: 2, row: 2 },
   };
@@ -657,7 +682,7 @@ export function buildMockupStaffMagneticData(): DiagramData {
  * ```
  */
 export function buildMockupStaffFloodData(): DiagramData {
-  const base = buildMockupStaffFigmaData();
+  const base = withLooseSeat(buildMockupStaffFigmaData());
   const cells: Record<string, { col: number; row: number }> = {
     // Managing org keeps the plain command block.
     'pos-hq-head': { col: 1, row: 0 },
@@ -670,6 +695,7 @@ export function buildMockupStaffFloodData(): DiagramData {
     'pos-2z': { col: 2, row: 0 },
     'pos-ops': { col: 0, row: 1 },
     'pos-sup': { col: 1, row: 1 },
+    'pos-loose': { col: 0, row: 2 },
     'pos-p1': { col: 1, row: 2 },
     'pos-p2': { col: 2, row: 2 },
   };

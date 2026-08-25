@@ -22,6 +22,7 @@ import { inferStaffCurrentOrgId } from '../render/inferStaffCurrentOrgId.js';
 import { arrowHeadTriangle, shortenPolylineForArrow } from '../render/staffEdgeArrows.js';
 import { enrichStaffTierBands } from '../render/staffZoneBounds.js';
 import { contourButtonGroupMargin } from '../render/contourButtonGroup.js';
+import { NO_DEPARTMENT_ID } from '../render/contourPaintFilter.js';
 
 function esc(text: string): string {
   return text
@@ -179,15 +180,16 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
     }
 
     const positionById = new Map(data.positions.map((p) => [p.id, p]));
+    // Seats without a department stay in the input as foreign cards (M2).
     const contourInputs = canvas.positionNodes
       .map((n) => positionById.get(n.id))
       .filter(
-        (p): p is NonNullable<typeof p> & { departmentId: string; gridCell: { col: number; row: number } } =>
-          !!p?.departmentId && !!p.gridCell,
+        (p): p is NonNullable<typeof p> & { gridCell: { col: number; row: number } } =>
+          !!p?.gridCell,
       )
       .map((p) => ({
         id: p.id,
-        departmentId: p.departmentId,
+        departmentId: p.departmentId || NO_DEPARTMENT_ID,
         col: p.gridCell.col,
         row: p.gridCell.row,
       }));
@@ -195,8 +197,9 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
     const memberBoxesByDept = new Map<string, ContourMemberBox[]>();
     for (const n of canvas.positionNodes) {
       const pos = positionById.get(n.id);
-      if (!pos?.departmentId) continue;
-      const list = memberBoxesByDept.get(pos.departmentId) ?? [];
+      if (!pos) continue;
+      const deptId = pos.departmentId || NO_DEPARTMENT_ID;
+      const list = memberBoxesByDept.get(deptId) ?? [];
       list.push({
         positionId: n.id,
         x: n.x,
@@ -204,7 +207,7 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
         width: n.width,
         height: n.height,
       });
-      memberBoxesByDept.set(pos.departmentId, list);
+      memberBoxesByDept.set(deptId, list);
     }
 
     const deptIds = [...new Set(contourInputs.map((p) => p.departmentId))].sort();

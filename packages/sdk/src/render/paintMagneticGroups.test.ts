@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { paintMagneticGroups } from './paintMagneticGroups.js';
 import type { ContourMemberBox } from './contourClearance.js';
+import { NO_DEPARTMENT_ID } from './contourPaintFilter.js';
 
 const CELL = 100;
 const cell = (positionId: string, col: number, row: number): ContourMemberBox => ({
@@ -105,5 +106,54 @@ describe('paintMagneticGroups (G2 / M2)', () => {
       personCounts: new Map([['CEO', 1]]),
     });
     expect(groups).toEqual([]);
+  });
+});
+
+describe('seats without a department', () => {
+  const base = {
+    magnetRadius: 1.5,
+    strokeWidth: 1,
+    paddingCells: 0,
+    smoothIterations: 0,
+    minContourMembers: 1,
+  };
+
+  /** IT owns the row; the loose seat has no department and sits inside it. */
+  function sceneWithLooseSeat() {
+    const it = [cell('P1', 0, 0), cell('P2', 2, 0), cell('P3', 0, 1), cell('P4', 2, 1)];
+    const loose = cell('P5', 1, 0);
+    return {
+      it,
+      loose,
+      groups: paintMagneticGroups({
+        ...base,
+        inputs: [
+          { id: 'P1', departmentId: 'IT', col: 0, row: 0 },
+          { id: 'P2', departmentId: 'IT', col: 2, row: 0 },
+          { id: 'P3', departmentId: 'IT', col: 0, row: 1 },
+          { id: 'P4', departmentId: 'IT', col: 2, row: 1 },
+          { id: 'P5', departmentId: NO_DEPARTMENT_ID, col: 1, row: 0 },
+        ],
+        memberBoxesByDept: new Map([
+          ['IT', it],
+          [NO_DEPARTMENT_ID, [loose]],
+        ]),
+        departmentIds: ['IT', NO_DEPARTMENT_ID],
+        personCounts: new Map([['IT', 4]]),
+      }),
+    };
+  }
+
+  it('success: a seat with no department is foreign, never under a wash (M2)', () => {
+    const { groups, loose } = sceneWithLooseSeat();
+    expect(groups.length).toBeGreaterThan(0);
+    for (const group of groups) {
+      expect(ringCovers(group.ring, centerOf(loose))).toBe(false);
+    }
+  });
+
+  it('failure: the no-department bucket never gets a contour of its own', () => {
+    const { groups } = sceneWithLooseSeat();
+    expect(groups.some((g) => g.departmentId === NO_DEPARTMENT_ID)).toBe(false);
   });
 });

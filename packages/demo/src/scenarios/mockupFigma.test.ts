@@ -199,12 +199,15 @@ describe('mockup style tokens (approved)', () => {
 
 /** Staff · Magnetic — same scene, pre-T64 chrome: dept blob + org block. */
 describe('magnetic staff copy', () => {
-  it('mirrors the Figma staff scene, seat for seat', () => {
+  it('mirrors the Figma staff scene plus one seat with no department', () => {
     const figma = buildMockupStaffFigmaData();
     const magnetic = buildMockupStaffMagneticData();
-    expect(magnetic.positions.map((p) => p.id)).toEqual(figma.positions.map((p) => p.id));
+    const added = magnetic.positions.filter((p) => !figma.positions.some((f) => f.id === p.id));
+    expect(added.map((p) => p.id)).toEqual(['pos-loose']);
+    // Production rosters carry seats with no department — both engines must see
+    // it as a foreign card, so the fixture keeps one.
+    expect(added[0]!.departmentId).toBeUndefined();
     expect(magnetic.departments).toEqual(figma.departments);
-    expect(magnetic.reportLines).toEqual(figma.reportLines);
     expect(JSON.stringify(magnetic)).not.toMatch(MILITARY_HINT);
   });
 
@@ -261,11 +264,12 @@ describe('flood staff copy', () => {
     expect(JSON.stringify(data)).not.toMatch(MILITARY_HINT);
   });
 
-  it('keeps the Figma people and adds only the seat the C-shape needs', () => {
+  it('keeps the Figma people and adds only the seats the demo needs', () => {
     const figma = buildMockupStaffFigmaData();
     const flood = buildMockupStaffFloodData();
     const added = flood.positions.filter((p) => !figma.positions.some((f) => f.id === p.id));
-    expect(added.map((p) => p.id)).toEqual(['pos-cmd-right']);
+    expect(added.map((p) => p.id).sort()).toEqual(['pos-cmd-right', 'pos-loose']);
+    expect(added.find((p) => p.id === 'pos-loose')?.departmentId).toBeUndefined();
     expect(flood.departments).toEqual(figma.departments);
     expect(flood.persons).toEqual(figma.persons);
   });

@@ -6,7 +6,7 @@ import {
 } from '../contour/bridge.js';
 import { computeAllContours } from '../contour/bridge.js';
 import { diagramPositionsToContourInputs } from '../contour/config.js';
-import { filterContoursForPaint } from './contourPaintFilter.js';
+import { filterContoursForPaint, NO_DEPARTMENT_ID } from './contourPaintFilter.js';
 import { mapFloodRingToCards, type FloodCardGeometry } from './floodRingCards.js';
 import { contourButtonGroupMargin } from './contourButtonGroup.js';
 import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
@@ -970,15 +970,17 @@ export class DiagramRenderer {
 
       // Contours only for authored grid cells — remapping tree/hybrid world
       // coords into the cell grid produces crooked “macaroni” blobs.
+      // Seats without a department join under NO_DEPARTMENT_ID: they own no
+      // contour, but both engines must see them as foreign cards (M2).
       const contourInputs: ContourPositionInput[] = canvas.positionNodes
         .map((n) => positionById.get(n.id))
         .filter(
-          (p): p is NonNullable<typeof p> & { departmentId: string; gridCell: { col: number; row: number } } =>
-            !!p?.departmentId && !!p.gridCell,
+          (p): p is NonNullable<typeof p> & { gridCell: { col: number; row: number } } =>
+            !!p?.gridCell,
         )
         .map((p) => ({
           id: p.id,
-          departmentId: p.departmentId,
+          departmentId: p.departmentId || NO_DEPARTMENT_ID,
           col: p.gridCell.col,
           row: p.gridCell.row,
         }));
@@ -986,8 +988,9 @@ export class DiagramRenderer {
       const memberBoxesByDept = new Map<string, ContourMemberBox[]>();
       for (const n of canvas.positionNodes) {
         const pos = positionById.get(n.id);
-        if (!pos?.departmentId) continue;
-        const list = memberBoxesByDept.get(pos.departmentId) ?? [];
+        if (!pos) continue;
+        const deptId = pos.departmentId || NO_DEPARTMENT_ID;
+        const list = memberBoxesByDept.get(deptId) ?? [];
         list.push({
           positionId: n.id,
           x: n.x,
@@ -995,7 +998,7 @@ export class DiagramRenderer {
           width: n.width,
           height: n.height,
         });
-        memberBoxesByDept.set(pos.departmentId, list);
+        memberBoxesByDept.set(deptId, list);
       }
 
       const deptStyle = config.departmentStyle ?? defaultRenderConfig.departmentStyle ?? 'blob';
@@ -1224,8 +1227,9 @@ export class DiagramRenderer {
     // T78-C2: same member AABB path as staff — button-group needs boxes.
     const memberBoxesByDept = new Map<string, ContourMemberBox[]>();
     for (const position of data.positions) {
-      if (!position.gridCell || !position.departmentId) continue;
-      const list = memberBoxesByDept.get(position.departmentId) ?? [];
+      if (!position.gridCell) continue;
+      const deptId = position.departmentId || NO_DEPARTMENT_ID;
+      const list = memberBoxesByDept.get(deptId) ?? [];
       list.push({
         positionId: position.id,
         x: position.gridCell.col * config.cellWidth + insetX,
@@ -1233,7 +1237,7 @@ export class DiagramRenderer {
         width: theme.person.width,
         height: theme.person.height,
       });
-      memberBoxesByDept.set(position.departmentId, list);
+      memberBoxesByDept.set(deptId, list);
     }
 
     await this.paintContours(contourInputs, data, theme, config, {
