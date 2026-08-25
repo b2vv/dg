@@ -65,76 +65,20 @@ import {
 import { SAMPLE_MAPPER_JSON, SAMPLE_MAPPER_ROWS } from '../scenarios/sampleMapper.js';
 import { parseJsonFile } from '../utils/json.js';
 import { requireElement, setThemeAttribute, showError } from '../utils/dom.js';
+import {
+  ALL_MOCKUP_TABS,
+  FIGMA_MOCKUP_TABS,
+  GOJS_MOCKUP_TABS,
+  MOCKUP_FIT_MIN_SCALE,
+  TAB_META,
+  type ContourControls,
+  type DemoTab,
+} from './tabs.js';
+import { buildTabConfig } from './tabConfigs.js';
+import { captionForTab } from './captions.js';
 
-export type DemoTab =
-  | 'variant-b'
-  | 'staff-tree'
-  | 'mockup-orgs-figma'
-  | 'mockup-orgs-gojs'
-  | 'mockup-staff-figma'
-  | 'mockup-staff-magnetic'
-  | 'mockup-staff-flood'
-  | 'mockup-staff-gojs'
-  | 'staff-1m'
-  | 'flat-orgs'
-  | 'scale-100k'
-  | 'mapper'
-  | 'worker';
+export type { ContourControls, DemoTab };
 
-/**
- * One row per tab instead of a switch per question. `family` pins the theme the
- * mockup was approved in, `contourControls` enables the Padding / Smooth
- * sliders for the tabs whose departments are magnetic contours.
- */
-interface DemoTabMeta {
-  label: string;
-  family?: 'figma' | 'gojs';
-  contourControls?: boolean;
-}
-
-const TAB_META: Record<DemoTab, DemoTabMeta> = {
-  'variant-b': { label: 'Variant B', contourControls: true },
-  'staff-tree': { label: 'Staff tree' },
-  'mockup-orgs-figma': { label: 'Orgs · Figma', family: 'figma' },
-  'mockup-orgs-gojs': { label: 'Orgs · GoJS', family: 'gojs' },
-  'mockup-staff-figma': { label: 'Staff · Figma', family: 'figma' },
-  'mockup-staff-magnetic': { label: 'Staff · Magnetic', family: 'figma', contourControls: true },
-  'mockup-staff-flood': { label: 'Staff · Flood', family: 'figma', contourControls: true },
-  'mockup-staff-gojs': { label: 'Staff · GoJS', family: 'gojs', contourControls: true },
-  'staff-1m': { label: 'Staff · 1M' },
-  'flat-orgs': { label: 'Flat orgs' },
-  'scale-100k': { label: '100k orgs' },
-  mapper: { label: 'Mapper' },
-  worker: { label: 'Worker' },
-};
-
-function tabsInFamily(family: DemoTabMeta['family']): ReadonlySet<DemoTab> {
-  return new Set(
-    (Object.keys(TAB_META) as DemoTab[]).filter((tab) => TAB_META[tab].family === family),
-  );
-}
-
-const FIGMA_MOCKUP_TABS = tabsInFamily('figma');
-const GOJS_MOCKUP_TABS = tabsInFamily('gojs');
-const ALL_MOCKUP_TABS: ReadonlySet<DemoTab> = new Set([
-  ...FIGMA_MOCKUP_TABS,
-  ...GOJS_MOCKUP_TABS,
-]);
-
-/** Keep mockup cards at mid/near LOD — avoid fitView zoom-out to symbol-only far LOD (<0.45). */
-const MOCKUP_FIT_MIN_SCALE = 0.55;
-/** fitView lands ~0.55–0.9; default midMax 1.2 kept cards in mid LOD — force near for mockup chrome. */
-const MOCKUP_LOD_THRESHOLDS: LodThresholds = {
-  farMax: defaultLodThresholds.farMax,
-  midMax: 0.5,
-};
-
-export interface ContourControls {
-  paddingCells: number;
-  smoothIterations: number;
-}
-
-/** Playwright hooks when `?e2e=1`. */
 export interface DemoE2eBridge {
   collapseOrg(orgId: string): Promise<void> | undefined;
   expandOrg(orgId: string): Promise<void> | undefined;
@@ -539,71 +483,12 @@ export class App {
 
   private mountSceneCaption(): void {
     this.mountEl.querySelectorAll('.scene-caption').forEach((el) => el.remove());
-    if (this.tab === 'variant-b') {
-      const caption = document.createElement('p');
-      caption.className = 'scene-caption';
-      caption.textContent =
-        'Blue wash = magnetic groups (same dept, adjacent cells) · arrows = reports · orange T = temporary';
-      this.mountEl.appendChild(caption);
-      return;
-    }
-    if (this.tab === 'mockup-orgs-figma') {
-      const caption = document.createElement('p');
-      caption.className = 'scene-caption';
-      caption.textContent =
-        'Figma orgs · 234×110 cards · N [M] counts top-right · dashed sibling frame';
-      this.mountEl.appendChild(caption);
-      return;
-    }
-    if (this.tab === 'mockup-orgs-gojs') {
-      const caption = document.createElement('p');
-      caption.className = 'scene-caption';
-      caption.textContent =
-        'GoJS orgs · 220×121 vertical cards · tree counts · dashed sibling frame · dark chrome';
-      this.mountEl.appendChild(caption);
-      return;
-    }
-    if (this.tab === 'mockup-staff-figma') {
-      const caption = document.createElement('p');
-      caption.className = 'scene-caption';
-      caption.textContent =
-        'Figma staff · dashed zones · dept cards · chrome-less seats · accent names · ⏳ = acting';
-      this.mountEl.appendChild(caption);
-      return;
-    }
-    if (this.tab === 'mockup-staff-magnetic') {
-      const caption = document.createElement('p');
-      caption.className = 'scene-caption';
-      caption.textContent =
-        'Figma staff · magnetic department contours (one per magnetic component) · organization = block, foreign nodes stay outside';
-      this.mountEl.appendChild(caption);
-      return;
-    }
-    if (this.tab === 'staff-1m') {
-      const win = this.staffScaleWindow;
-      const caption = document.createElement('p');
-      caption.className = 'scene-caption';
-      caption.textContent = win
-        ? `1M staff · window ${win.windowSize.toLocaleString('uk-UA')} seats of ${win.total.toLocaleString('uk-UA')} · tier 1 lead org · tier 2 current org · tier 3 ${win.composition.groups} groups + ${win.composition.simpleOrgs} simple orgs · «pos-N» moves the window inside tier 2 (${LEAD_SEATS}…${(LEAD_SEATS + win.composition.current - 1).toLocaleString('uk-UA')})`
-        : '1M staff · windowed';
-      this.mountEl.appendChild(caption);
-      return;
-    }
-    if (this.tab === 'mockup-staff-flood') {
-      const caption = document.createElement('p');
-      caption.className = 'scene-caption';
-      caption.textContent =
-        'Figma staff · Rust cell flood (G1–G8) · departments interleave, so the command contour becomes a C around the supply seat';
-      this.mountEl.appendChild(caption);
-      return;
-    }
-    if (this.tab === 'mockup-staff-gojs') {
-      const caption = document.createElement('p');
-      caption.className = 'scene-caption';
-      caption.textContent =
-        'GoJS staff · solid zones · row seats 200×56 · dept cards · dark production chrome';
-      this.mountEl.appendChild(caption);
-    }
+    const text = captionForTab(this.tab, this.staffScaleWindow);
+    if (!text) return;
+    const caption = document.createElement('p');
+    caption.className = 'scene-caption';
+    caption.textContent = text;
+    this.mountEl.appendChild(caption);
   }
 
   /** 1M staff address space — one window materialized around the focus seat. */
@@ -626,282 +511,13 @@ export class App {
   }
 
   private buildConfig(): OrgHierarchyConfig<unknown> {
-    const base = {
+    return buildTabConfig(this.tab, {
       theme: this.theme,
-      useWorker: true,
-      workerPoolSize: recommendWorkerPoolSize(),
-      render: {
-        cellWidth: 140,
-        cellHeight: 160,
-        paddingCells: this.contourControls.paddingCells,
-        smoothIterations: this.contourControls.smoothIterations,
-      },
-    };
-
-    switch (this.tab) {
-      case 'variant-b':
-        return {
-          ...base,
-          data: buildVariantBData(),
-          staffCurrentOrgId: 'org1',
-          // Corridor gaps so report edges are readable; contour pitch = cell + gap.
-          staffLayout: {
-            horizontalGap: VARIANT_B_HORIZONTAL_GAP,
-            verticalGap: VARIANT_B_VERTICAL_GAP,
-            margin: 0,
-            refCellWidth: 140,
-            refCellHeight: 160,
-            nodeWidth: 136,
-            nodeHeight: 156,
-          },
-          render: {
-            ...base.render,
-            magnetRadius: VARIANT_B_MAGNET_RADIUS,
-            // Hide singleton CEO wash so the IT notch stays empty (T46).
-            minContourMembers: 2,
-            smoothIterations: this.contourControls.smoothIterations,
-          },
-        };
-      case 'staff-tree':
-        return {
-          ...base,
-          data: buildStaffTreeData(),
-          staffCurrentOrgId: 'ops',
-          render: {
-            ...base.render,
-            staffZoneChrome: true,
-            departmentStyle: 'card',
-          },
-          staffLayout: {
-            horizontalGap: 40,
-            verticalGap: 52,
-            tierGap: 36,
-            margin: 24,
-            nodeWidth: 136,
-            nodeHeight: 156,
-            orgCardWidth: 200,
-            orgCardHeight: 64,
-            refCellWidth: 140,
-            refCellHeight: 160,
-            collapseUnexpandedPositions: true,
-          },
-        };
-      case 'mockup-orgs-figma':
-        return {
-          ...base,
-          theme: 'dark',
-          data: buildMockupOrgsFigmaData(),
-          styles: MOCKUP_FIGMA_STYLES,
-          lodThresholds: MOCKUP_LOD_THRESHOLDS,
-          orgLayout: FIGMA_ORG_LAYOUT,
-          // Frame 1264:8121 shows bare cards — no tree expander chrome.
-          orgTreeChrome: false,
-          render: {
-            ...base.render,
-            orgSiblingGroupChrome: true,
-          },
-        };
-      case 'mockup-orgs-gojs':
-        return {
-          ...base,
-          theme: 'dark',
-          data: buildMockupOrgsGojsData(),
-          styles: MOCKUP_GOJS_STYLES,
-          lodThresholds: MOCKUP_LOD_THRESHOLDS,
-          orgLayout: {
-            nodeWidth: 220,
-            nodeHeight: 121,
-            horizontalGap: 40,
-            verticalGap: 48,
-            margin: 40,
-            orgEdgeStyle: 'spine-bus',
-          },
-          render: {
-            ...base.render,
-            orgSiblingGroupChrome: true,
-            orgSiblingGroupStyle: 'outline',
-          },
-        };
-      case 'mockup-staff-figma':
-        return {
-          ...base,
-          theme: 'dark',
-          data: buildMockupStaffFigmaData(),
-          styles: MOCKUP_FIGMA_STYLES,
-          lodThresholds: MOCKUP_LOD_THRESHOLDS,
-          // Frame 1264:7906 has two zones — managing tier + current tier; the
-          // tier-3 expand-in-place demo lives on the GoJS staff tab.
-          staffCurrentOrgId: 'region',
-          staffLayout: FIGMA_STAFF_LAYOUT,
-          render: {
-            ...base.render,
-            staffZoneChrome: true,
-            departmentStyle: 'card',
-            cellWidth: FIGMA_STAFF_LAYOUT.refCellWidth,
-            cellHeight: FIGMA_STAFF_LAYOUT.refCellHeight,
-          },
-        };
-      case 'mockup-staff-magnetic':
-        return {
-          ...base,
-          theme: 'dark',
-          data: buildMockupStaffMagneticData(),
-          styles: MOCKUP_MAGNETIC_STYLES,
-          lodThresholds: MOCKUP_LOD_THRESHOLDS,
-          staffCurrentOrgId: 'region',
-          staffLayout: MAGNETIC_STAFF_LAYOUT,
-          render: {
-            ...base.render,
-            // Department = magnetic contour (pre-T64 default), org = zone block.
-            staffZoneChrome: true,
-            departmentStyle: 'blob',
-            magnetRadius: VARIANT_B_MAGNET_RADIUS,
-            minContourMembers: 1,
-            cellWidth: MAGNETIC_CELL.width,
-            cellHeight: MAGNETIC_CELL.height,
-          },
-        };
-      case 'mockup-staff-flood':
-        return {
-          ...base,
-          theme: 'dark',
-          data: buildMockupStaffFloodData(),
-          styles: MOCKUP_MAGNETIC_STYLES,
-          lodThresholds: MOCKUP_LOD_THRESHOLDS,
-          staffCurrentOrgId: 'region',
-          staffLayout: FLOOD_STAFF_LAYOUT,
-          render: {
-            ...base.render,
-            staffZoneChrome: true,
-            departmentStyle: 'blob',
-            // Same scene as Staff · Magnetic, other geometry: Rust cell flood.
-            contourEngine: 'cell-flood',
-            magnetRadius: VARIANT_B_MAGNET_RADIUS,
-            minContourMembers: 1,
-            cellWidth: FLOOD_CELL.width,
-            cellHeight: FLOOD_CELL.height,
-          },
-        };
-      case 'staff-1m': {
-        const win = this.staffScaleWindow ?? this.rebuildStaffScaleWindow();
-        return {
-          ...base,
-          theme: 'dark',
-          data: win.data,
-          styles: MOCKUP_MAGNETIC_STYLES,
-          // Default LOD bands on purpose: the mockup override pins «near» up to
-          // 0.5, so the first frame drew text for every seat in the window.
-          staffCurrentOrgId: 'current-org',
-          staffExpandedOrgIds: ['sub-0'],
-          staffLayout: {
-            ...MAGNETIC_STAFF_LAYOUT,
-            // Denser than the mockup: a window is a wall of seats, not a scene.
-            horizontalGap: 24,
-            verticalGap: 28,
-            refCellWidth: 248,
-            refCellHeight: 44,
-          },
-          render: {
-            ...base.render,
-            staffZoneChrome: true,
-            departmentStyle: 'blob',
-            magnetRadius: VARIANT_B_MAGNET_RADIUS,
-            minContourMembers: 2,
-            cellWidth: 272,
-            cellHeight: 72,
-          },
-        };
-      }
-      case 'mockup-staff-gojs':
-        return {
-          ...base,
-          theme: 'dark',
-          data: buildMockupStaffGojsData(),
-          styles: MOCKUP_GOJS_STYLES,
-          lodThresholds: MOCKUP_LOD_THRESHOLDS,
-          staffCurrentOrgId: 'region',
-          staffExpandedOrgIds: ['unit-current'],
-          staffLayout: {
-            horizontalGap: 36,
-            verticalGap: 40,
-            tierGap: 48,
-            margin: 28,
-            nodeWidth: 200,
-            nodeHeight: 98,
-            orgCardWidth: 220,
-            orgCardHeight: 121,
-            refCellWidth: 220,
-            refCellHeight: 72,
-            collapseUnexpandedPositions: false,
-          },
-          render: {
-            ...base.render,
-            staffZoneChrome: true,
-            departmentStyle: 'card',
-            cellWidth: 220,
-            cellHeight: 72,
-          },
-        };
-      case 'flat-orgs':
-        return {
-          ...base,
-          data: this.flatOrgsData,
-          orgLayout: {
-            nodeWidth: 200,
-            nodeHeight: 64,
-            horizontalGap: 36,
-            verticalGap: 44,
-            margin: 40,
-          },
-        };
-      case 'scale-100k': {
-        const win = this.scaleWindow ?? this.ensureScaleWindow(0);
-        return {
-          ...base,
-          orgTreeChrome: false,
-          data: win.data,
-          orgLayout: {
-            nodeWidth: 160,
-            nodeHeight: 52,
-            horizontalGap: 20,
-            verticalGap: 24,
-            margin: 24,
-          },
-        };
-      }
-      case 'mapper':
-        return {
-          ...base,
-          data: SAMPLE_MAPPER_ROWS,
-          mappers: { toDiagram: flatRowsToDiagram },
-          staffCurrentOrgId: 'org-it',
-          orgLayout: {
-            nodeWidth: 200,
-            nodeHeight: 64,
-            horizontalGap: 36,
-            verticalGap: 44,
-            margin: 40,
-          },
-        } as OrgHierarchyConfig<unknown>;
-      case 'worker':
-        return {
-          ...base,
-          data: buildVariantBData(),
-          staffCurrentOrgId: 'org1',
-          staffLayout: {
-            horizontalGap: VARIANT_B_HORIZONTAL_GAP,
-            verticalGap: VARIANT_B_VERTICAL_GAP,
-            margin: 0,
-            refCellWidth: 140,
-            refCellHeight: 160,
-            nodeWidth: 136,
-            nodeHeight: 156,
-          },
-          render: { ...base.render, magnetRadius: VARIANT_B_MAGNET_RADIUS, minContourMembers: 2 },
-        };
-      default:
-        return { ...base, data: buildVariantBData() };
-    }
+      contourControls: this.contourControls,
+      flatOrgsData: this.flatOrgsData,
+      scaleOrgsWindow: () => this.scaleWindow ?? this.ensureScaleWindow(0),
+      scaleStaffWindow: () => this.staffScaleWindow ?? this.rebuildStaffScaleWindow(),
+    });
   }
 
   private async downloadExport(format: 'png' | 'svg' | 'pdf'): Promise<void> {
