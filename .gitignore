@@ -13,3 +13,5 @@ packages/core/target/
 
 # WASM pkg is built via `npm run build:wasm` (see packages/sdk/src/wasm/pkg/.gitignore)
 worktrees/
+# Added by code-review-graph
+.code-review-graph/
