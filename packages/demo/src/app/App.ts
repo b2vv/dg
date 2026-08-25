@@ -81,16 +81,41 @@ export type DemoTab =
   | 'mapper'
   | 'worker';
 
-const FIGMA_MOCKUP_TABS: ReadonlySet<DemoTab> = new Set([
-  'mockup-orgs-figma',
-  'mockup-staff-figma',
-  'mockup-staff-magnetic',
-  'mockup-staff-flood',
-]);
-const GOJS_MOCKUP_TABS: ReadonlySet<DemoTab> = new Set([
-  'mockup-orgs-gojs',
-  'mockup-staff-gojs',
-]);
+/**
+ * One row per tab instead of a switch per question. `family` pins the theme the
+ * mockup was approved in, `contourControls` enables the Padding / Smooth
+ * sliders for the tabs whose departments are magnetic contours.
+ */
+interface DemoTabMeta {
+  label: string;
+  family?: 'figma' | 'gojs';
+  contourControls?: boolean;
+}
+
+const TAB_META: Record<DemoTab, DemoTabMeta> = {
+  'variant-b': { label: 'Variant B', contourControls: true },
+  'staff-tree': { label: 'Staff tree' },
+  'mockup-orgs-figma': { label: 'Orgs · Figma', family: 'figma' },
+  'mockup-orgs-gojs': { label: 'Orgs · GoJS', family: 'gojs' },
+  'mockup-staff-figma': { label: 'Staff · Figma', family: 'figma' },
+  'mockup-staff-magnetic': { label: 'Staff · Magnetic', family: 'figma', contourControls: true },
+  'mockup-staff-flood': { label: 'Staff · Flood', family: 'figma', contourControls: true },
+  'mockup-staff-gojs': { label: 'Staff · GoJS', family: 'gojs', contourControls: true },
+  'staff-1m': { label: 'Staff · 1M' },
+  'flat-orgs': { label: 'Flat orgs' },
+  'scale-100k': { label: '100k orgs' },
+  mapper: { label: 'Mapper' },
+  worker: { label: 'Worker' },
+};
+
+function tabsInFamily(family: DemoTabMeta['family']): ReadonlySet<DemoTab> {
+  return new Set(
+    (Object.keys(TAB_META) as DemoTab[]).filter((tab) => TAB_META[tab].family === family),
+  );
+}
+
+const FIGMA_MOCKUP_TABS = tabsInFamily('figma');
+const GOJS_MOCKUP_TABS = tabsInFamily('gojs');
 const ALL_MOCKUP_TABS: ReadonlySet<DemoTab> = new Set([
   ...FIGMA_MOCKUP_TABS,
   ...GOJS_MOCKUP_TABS,
@@ -1053,11 +1078,7 @@ export class App {
   }
 
   private syncContourControlsEnabled(): void {
-    const enabled =
-      this.tab === 'variant-b' ||
-      this.tab === 'mockup-staff-gojs' ||
-      this.tab === 'mockup-staff-magnetic' ||
-      this.tab === 'mockup-staff-flood';
+    const enabled = TAB_META[this.tab]?.contourControls === true;
     for (const id of ['padding-control', 'smooth-control']) {
       const el = document.getElementById(id);
       if (!el) continue;
@@ -1083,36 +1104,7 @@ export class App {
   }
 
   private tabLabel(): string {
-    switch (this.tab) {
-      case 'variant-b':
-        return 'Variant B';
-      case 'staff-tree':
-        return 'Staff tree';
-      case 'mockup-orgs-figma':
-        return 'Orgs · Figma';
-      case 'mockup-orgs-gojs':
-        return 'Orgs · GoJS';
-      case 'mockup-staff-figma':
-        return 'Staff · Figma';
-      case 'mockup-staff-magnetic':
-        return 'Staff · Magnetic';
-      case 'staff-1m':
-        return 'Staff · 1M';
-      case 'mockup-staff-flood':
-        return 'Staff · Flood';
-      case 'mockup-staff-gojs':
-        return 'Staff · GoJS';
-      case 'flat-orgs':
-        return 'Flat orgs';
-      case 'scale-100k':
-        return '100k orgs';
-      case 'mapper':
-        return 'Mapper';
-      case 'worker':
-        return 'Worker';
-      default:
-        return this.tab;
-    }
+    return TAB_META[this.tab]?.label ?? this.tab;
   }
 
   private showToast(message: string): void {

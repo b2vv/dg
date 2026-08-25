@@ -161,112 +161,105 @@ function seat(
  * of the current org around the focus, and every subordinate card with a slice
  * of the focused one's staff.
  */
-export function buildScaleStaffWindow(options: {
-  total?: number;
-  windowSize?: number;
-  focusIndex?: number;
-  expandedOrgId?: string;
-} = {}): ScaleStaffWindow {
-  const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
-  const total = options.total ?? STAFF_SCALE_TOTAL;
-  const composition = scaleStaffComposition(total);
-  const windowSize = Math.min(options.windowSize ?? STAFF_SCALE_WINDOW, composition.current);
-  const focusIndex = Math.max(0, Math.min(options.focusIndex ?? 0, total - 1));
+interface TierSeats {
+  positions: DiagramPosition[];
+  persons: DiagramData['persons'];
+  reportLines: DiagramData['reportLines'];
+}
 
-  const positions: DiagramPosition[] = [];
-  const persons: DiagramData['persons'] = [];
-  const reportLines: DiagramData['reportLines'] = [];
+function emptyTier(): TierSeats {
+  return { positions: [], persons: [], reportLines: [] };
+}
 
-  // Tier 1 — lead org leadership (head + direct reports).
-  for (let i = 0; i < composition.lead; i += 1) {
-    const id = `pos-${i}`;
-    persons.push({ id: `person-${i}`, fullName: personName(i) });
-    positions.push(
-      seat(id, i === 0 ? 'Group director' : seatTitle(i), 'lead-org', {
-        personId: `person-${i}`,
-        departmentId: 'lead-exec',
-        isHead: i === 0,
-        gridCell: { col: i === 0 ? 1 : i - 1, row: i === 0 ? 0 : 1 },
-        testId: i === 0 ? 'scale-lead-head' : undefined,
-      }),
-    );
-    if (i > 0) reportLines.push({ fromId: 'pos-0', toId: id, kind: 'admin' });
+function pushSeat(
+  tier: TierSeats,
+  index: number,
+  position: Omit<DiagramPosition, 'groupIds' | 'status' | 'isTemporary' | 'personId'>,
+): void {
+  tier.persons.push({ id: `person-${index}`, fullName: personName(index) });
+  tier.positions.push(seat(position.id, position.title, position.organizationId, {
+    ...position,
+    personId: `person-${index}`,
+  }));
+}
+
+/** Tier 1 — the lead org's leadership: head plus its direct reports. */
+function leadTier(seats: number): TierSeats {
+  const tier = emptyTier();
+  for (let i = 0; i < seats; i += 1) {
+    pushSeat(tier, i, {
+      id: `pos-${i}`,
+      title: i === 0 ? 'Group director' : seatTitle(i),
+      organizationId: 'lead-org',
+      departmentId: 'lead-exec',
+      isHead: i === 0,
+      gridCell: { col: i === 0 ? 1 : i - 1, row: i === 0 ? 0 : 1 },
+      testId: i === 0 ? 'scale-lead-head' : undefined,
+    });
+    if (i > 0) tier.reportLines.push({ fromId: 'pos-0', toId: `pos-${i}`, kind: 'admin' });
   }
+  return tier;
+}
 
-  // Tier 2 — window of the current org around the focus seat. The window can
-  // only centre inside this tier: a lead or subordinate index still renders,
-  // but `focusMaterialized` reports that no seat carries the focus marker.
-  const focusTier = tierOfSeat(focusIndex, total);
-  const currentFocus = Math.max(0, Math.min(focusIndex - composition.lead, composition.current - 1));
-  const start = composition.lead + resolveStaffWindowStart(currentFocus, windowSize, composition.current);
-  const end = Math.min(composition.lead + composition.current, start + windowSize);
-  const headId = `pos-${start}`;
-  for (let i = start; i < end; i += 1) {
-    const local = i - start;
-    const globalLocal = i - composition.lead;
-    const id = `pos-${i}`;
-    persons.push({ id: `person-${i}`, fullName: personName(i) });
-    positions.push(
-      seat(id, i === focusIndex ? `${seatTitle(i)} · focus` : seatTitle(i), 'current-org', {
-        personId: `person-${i}`,
-        departmentId: departmentOfSeat(globalLocal),
-        isHead: i === start,
-        gridCell: { col: local % STAFF_SCALE_COLS, row: Math.floor(local / STAFF_SCALE_COLS) },
-        testId: i === focusIndex ? 'scale-focus-seat' : undefined,
-      }),
-    );
-    if (i !== start) reportLines.push({ fromId: headId, toId: id, kind: 'admin' });
+/** Tier 2 — the window of current-org seats the viewport actually draws. */
+function currentTier(range: { start: number; end: number; leadSeats: number }, focusIndex: number): TierSeats {
+  const tier = emptyTier();
+  const headId = `pos-${range.start}`;
+  for (let i = range.start; i < range.end; i += 1) {
+    const local = i - range.start;
+    pushSeat(tier, i, {
+      id: `pos-${i}`,
+      title: i === focusIndex ? `${seatTitle(i)} · focus` : seatTitle(i),
+      organizationId: 'current-org',
+      departmentId: departmentOfSeat(i - range.leadSeats),
+      isHead: i === range.start,
+      gridCell: { col: local % STAFF_SCALE_COLS, row: Math.floor(local / STAFF_SCALE_COLS) },
+      testId: i === focusIndex ? 'scale-focus-seat' : undefined,
+    });
+    if (i !== range.start) tier.reportLines.push({ fromId: headId, toId: `pos-${i}`, kind: 'admin' });
   }
-  reportLines.push({ fromId: 'pos-0', toId: headId, kind: 'dotted' });
+  tier.reportLines.push({ fromId: 'pos-0', toId: headId, kind: 'dotted' });
+  return tier;
+}
 
-  // Tier 3 — every subordinate card; the expanded one shows a slice of its staff.
-  const organizations: DiagramData['organizations'] = [
-    { id: 'lead-org', name: 'Lumen Holdings', groupIds: [], collapsed: false },
-    {
-      id: 'current-org',
-      name: 'Pacific Region',
-      parentOrgId: 'lead-org',
-      groupIds: [],
-      collapsed: false,
-      testId: 'scale-current-org',
-    },
-  ];
-  const groups: DiagramData['groups'] = Array.from({ length: SUBORDINATE_GROUPS }, (_, g) => ({
+/** Tier 3 — the slice of staff shown under the expanded subordinate card. */
+function subordinateTier(base: number, seats: number, orgId: string): TierSeats {
+  const tier = emptyTier();
+  for (let k = 0; k < seats; k += 1) {
+    const i = base + k;
+    pushSeat(tier, i, {
+      id: `pos-${i}`,
+      title: seatTitle(i),
+      organizationId: orgId,
+      departmentId: k % NO_DEPARTMENT_EVERY === 0 ? undefined : `sub-dept-${k % 3}`,
+      isHead: k === 0,
+      gridCell: { col: k % 6, row: Math.floor(k / 6) },
+    });
+    if (k > 0) tier.reportLines.push({ fromId: `pos-${base}`, toId: `pos-${i}`, kind: 'admin' });
+  }
+  return tier;
+}
+
+/** Tier-3 cards: the first half sit in groups, the rest stand alone. */
+function subordinateOrgs(): { organizations: DiagramData['organizations']; groups: DiagramData['groups'] } {
+  const groups = Array.from({ length: SUBORDINATE_GROUPS }, (_, g) => ({
     id: `sub-group-${g}`,
     name: `Group ${g + 1}`,
   }));
   const grouped = SUBORDINATE_ORGS / 2;
-  for (let s = 0; s < SUBORDINATE_ORGS; s += 1) {
-    const inGroup = s < grouped;
-    organizations.push({
-      id: `sub-${s}`,
-      name: inGroup ? `Grouped unit ${s}` : `Simple unit ${s}`,
-      parentOrgId: 'current-org',
-      groupIds: inGroup ? [`sub-group-${s % SUBORDINATE_GROUPS}`] : [],
-      collapsed: false,
-      testId: s === 0 ? 'scale-sub-first' : undefined,
-    });
-  }
+  const organizations = Array.from({ length: SUBORDINATE_ORGS }, (_, s) => ({
+    id: `sub-${s}`,
+    name: s < grouped ? `Grouped unit ${s}` : `Simple unit ${s}`,
+    parentOrgId: 'current-org',
+    groupIds: s < grouped ? [`sub-group-${s % SUBORDINATE_GROUPS}`] : [],
+    collapsed: false,
+    testId: s === 0 ? ('scale-sub-first' as const) : undefined,
+  }));
+  return { organizations, groups };
+}
 
-  const expandedOrgId = options.expandedOrgId ?? 'sub-0';
-  const subBase = composition.lead + composition.current;
-  const subSeats = Math.min(SUBORDINATE_WINDOW, composition.subordinate);
-  for (let k = 0; k < subSeats; k += 1) {
-    const i = subBase + k;
-    const id = `pos-${i}`;
-    persons.push({ id: `person-${i}`, fullName: personName(i) });
-    positions.push(
-      seat(id, seatTitle(i), expandedOrgId, {
-        personId: `person-${i}`,
-        departmentId: k % NO_DEPARTMENT_EVERY === 0 ? undefined : `sub-dept-${k % 3}`,
-        isHead: k === 0,
-        gridCell: { col: k % 6, row: Math.floor(k / 6) },
-      }),
-    );
-    if (k > 0) reportLines.push({ fromId: `pos-${subBase}`, toId: id, kind: 'admin' });
-  }
-
-  const departments: DiagramData['departments'] = [
+function departmentsFor(expandedOrgId: string): DiagramData['departments'] {
+  return [
     { id: 'lead-exec', name: 'Executive office', organizationId: 'lead-org' },
     ...Array.from({ length: DEPARTMENTS }, (_, d) => ({
       id: `dept-${d}`,
@@ -279,6 +272,41 @@ export function buildScaleStaffWindow(options: {
       organizationId: expandedOrgId,
     })),
   ];
+}
+
+/**
+ * Materialize the scene for one focus seat: the whole (tiny) lead tier, a window
+ * of the current org around the focus, and every subordinate card with a slice
+ * of the expanded one's staff.
+ */
+export function buildScaleStaffWindow(options: {
+  total?: number;
+  windowSize?: number;
+  focusIndex?: number;
+  expandedOrgId?: string;
+} = {}): ScaleStaffWindow {
+  const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const total = options.total ?? STAFF_SCALE_TOTAL;
+  const composition = scaleStaffComposition(total);
+  const windowSize = Math.min(options.windowSize ?? STAFF_SCALE_WINDOW, composition.current);
+  const focusIndex = Math.max(0, Math.min(options.focusIndex ?? 0, total - 1));
+  const expandedOrgId = options.expandedOrgId ?? 'sub-0';
+
+  // The window can only centre inside tier 2: a lead or subordinate index still
+  // renders, but `focusMaterialized` reports that no seat carries the marker.
+  const focusTier = tierOfSeat(focusIndex, total);
+  const currentFocus = Math.max(0, Math.min(focusIndex - composition.lead, composition.current - 1));
+  const start = composition.lead + resolveStaffWindowStart(currentFocus, windowSize, composition.current);
+  const end = Math.min(composition.lead + composition.current, start + windowSize);
+  const subBase = composition.lead + composition.current;
+
+  const tiers = [
+    leadTier(composition.lead),
+    currentTier({ start, end, leadSeats: composition.lead }, focusIndex),
+    subordinateTier(subBase, Math.min(SUBORDINATE_WINDOW, composition.subordinate), expandedOrgId),
+  ];
+  const positions = tiers.flatMap((t) => t.positions);
+  const { organizations: subOrgs, groups } = subordinateOrgs();
 
   const t1 = typeof performance !== 'undefined' ? performance.now() : Date.now();
   return {
@@ -290,6 +318,25 @@ export function buildScaleStaffWindow(options: {
     startIndex: start,
     buildMs: Math.round(t1 - t0),
     composition,
-    data: { organizations, groups, departments, persons, positions, reportLines, orgLinks: [] },
+    data: {
+      organizations: [
+        { id: 'lead-org', name: 'Lumen Holdings', groupIds: [], collapsed: false },
+        {
+          id: 'current-org',
+          name: 'Pacific Region',
+          parentOrgId: 'lead-org',
+          groupIds: [],
+          collapsed: false,
+          testId: 'scale-current-org',
+        },
+        ...subOrgs,
+      ],
+      groups,
+      departments: departmentsFor(expandedOrgId),
+      persons: tiers.flatMap((t) => t.persons),
+      positions,
+      reportLines: tiers.flatMap((t) => t.reportLines),
+      orgLinks: [],
+    },
   };
 }

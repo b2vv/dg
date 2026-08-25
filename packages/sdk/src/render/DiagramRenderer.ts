@@ -4,10 +4,8 @@ import {
   type ContourPositionInput,
   type DeptContourResult,
 } from '../contour/bridge.js';
-import { computeAllContours } from '../contour/bridge.js';
-import { filterContoursForPaint } from './contourPaintFilter.js';
 import { contourSceneInputs, matrixNodeBoxes } from './contourInputs.js';
-import { mapFloodRingToCards, type FloodCardGeometry } from './floodRingCards.js';
+import { computeFloodContours } from './floodContourEngine.js';
 import { contourButtonGroupMargin } from './contourButtonGroup.js';
 import {
   corridorCellsForFlood,
@@ -700,64 +698,28 @@ export class DiagramRenderer {
       );
       return;
     }
-    const boxById = new Map(
-      [...session.memberBoxesByDept.values()].flat().map((b) => [b.positionId, b]),
-    );
 
-    for (const [, inputs] of groupInputsByOrg(session.inputs, session.orgByPosition)) {
-      const cellById = new Map(inputs.map((p) => [p.id, { gridCell: { col: p.col, row: p.row } }]));
-      const nodes = inputs
-        .map((p) => boxById.get(p.id))
-        .filter((b): b is NonNullable<typeof b> => !!b)
-        .map((b) => ({ id: b.positionId, x: b.x, y: b.y, width: b.width, height: b.height }));
-      const blockTransform = resolveContourWorldTransform(
-        nodes,
-        cellById,
-        transform.cellWidth,
-        transform.cellHeight,
-        transform.pitchX,
-        transform.pitchY,
-      );
-
-      let contours: DeptContourResult[];
-      try {
-        contours = await computeAllContours(inputs, magnet);
-      } catch (err) {
-        this.reportContourDiagnostic(
-          `Contour flood unavailable: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        return;
-      }
-      if (this.destroyed || this.contourSession !== session) return;
-
-      // Cells are wider than the seats inside them, so the ring is snapped onto
-      // the card rectangle + the same padding the button-group wash uses —
-      // otherwise the contour hangs a whole gap away on the right and bottom.
-      const cards: FloodCardGeometry = {
-        pitchX: blockTransform.pitchX,
-        pitchY: blockTransform.pitchY,
-        cellWidth: blockTransform.cellWidth,
-        cellHeight: blockTransform.cellHeight,
-        originX: blockTransform.originX,
-        originY: blockTransform.originY,
+    const { ringsByDept, diagnostics } = await computeFloodContours({
+      inputs: session.inputs,
+      magnet,
+      orgByPosition: session.orgByPosition,
+      memberBoxes: [...session.memberBoxesByDept.values()].flat(),
+      transform,
+      cards: {
         cardWidth: session.cardWidth,
         cardHeight: session.cardHeight,
         insetX: this.dragGrid?.insetX ?? 0,
         insetY: this.dragGrid?.insetY ?? 0,
         padding: contourButtonGroupMargin(session.paintPaddingCells, session.style.strokeWidth),
-      };
+      },
+      personCounts: session.personCounts,
+      minContourMembers: session.minContourMembers,
+      isCurrent: () => !this.destroyed && this.contourSession === session,
+    });
 
-      for (const contour of filterContoursForPaint(
-        contours,
-        session.personCounts,
-        session.minContourMembers,
-      )) {
-        if (contour.points.length < 3) continue;
-        const rings = session.floodRingsByDept.get(contour.departmentId) ?? [];
-        rings.push(mapFloodRingToCards(contour.points, cards));
-        session.floodRingsByDept.set(contour.departmentId, rings);
-      }
-    }
+    if (this.destroyed || this.contourSession !== session) return;
+    session.floodRingsByDept = ringsByDept;
+    for (const message of diagnostics) this.reportContourDiagnostic(message);
   }
 
   /**
@@ -1525,21 +1487,6 @@ function departmentWrapperPadding(theme: NodeTheme, config: RenderConfig): numbe
     return padding + (card?.labelRow ? (card.labelFontSize ?? 12) + 6 : 0);
   }
   return contourButtonGroupMargin(config.paddingCells ?? 0, theme.department.strokeWidth);
-}
-
-/** Flood runs per org block — `gridCell` is local to one block. */
-function groupInputsByOrg(
-  inputs: readonly ContourPositionInput[],
-  orgByPosition: ReadonlyMap<string, string>,
-): Map<string, ContourPositionInput[]> {
-  const byOrg = new Map<string, ContourPositionInput[]>();
-  for (const input of inputs) {
-    const orgId = orgByPosition.get(input.id) ?? '';
-    const list = byOrg.get(orgId) ?? [];
-    list.push(input);
-    byOrg.set(orgId, list);
-  }
-  return byOrg;
 }
 
 function countPositionsByDept(positions: DiagramData['positions']): Map<string, number> {

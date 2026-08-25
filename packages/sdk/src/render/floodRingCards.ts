@@ -28,17 +28,13 @@ export interface FloodCardGeometry {
   padding: number;
 }
 
-export interface FloodPoint {
-  x: number;
-  y: number;
-}
-
 import { mergeCollinearRing } from './contourNotch.js';
+import { CONTOUR_EPS, type ContourPoint } from './contourFillet.js';
 
-const EPS = 1e-6;
+const EPS = CONTOUR_EPS;
 
 /** Even-odd test — the ring is orthogonal and closed. */
-function isInsideRing(ring: readonly FloodPoint[], p: FloodPoint): boolean {
+function isInsideRing(ring: readonly ContourPoint[], p: ContourPoint): boolean {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
     const a = ring[i]!;
@@ -57,7 +53,7 @@ function boundaryIndex(value: number, cellSize: number): number {
 }
 
 function edgeIsLeftBoundary(
-  ring: readonly FloodPoint[],
+  ring: readonly ContourPoint[],
   x: number,
   y: number,
   cellWidth: number,
@@ -67,7 +63,7 @@ function edgeIsLeftBoundary(
 }
 
 function edgeIsTopBoundary(
-  ring: readonly FloodPoint[],
+  ring: readonly ContourPoint[],
   x: number,
   y: number,
   cellHeight: number,
@@ -82,9 +78,9 @@ function edgeIsTopBoundary(
  * column; one with fill to its left is the right side of the previous column.
  */
 export function mapFloodRingToCards(
-  raw: readonly FloodPoint[],
+  raw: readonly ContourPoint[],
   geom: FloodCardGeometry,
-): FloodPoint[] {
+): ContourPoint[] {
   if (raw.length < 3) return raw.map((p) => ({ x: p.x, y: p.y }));
   // The flood emits a vertex per cell step; a point in the middle of a straight
   // run has no vertical/horizontal edge pair to read the fill side from.

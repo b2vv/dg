@@ -14,19 +14,13 @@
  * free of the WASM round-trip).
  */
 
-export interface ContourRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+import type { ContourClearBox } from './contourClearance.js';
+import { CONTOUR_EPS, type ContourPoint } from './contourFillet.js';
 
-export interface ContourNotchPoint {
-  x: number;
-  y: number;
-}
+/** Rect in world space — same shape the clearance helpers already pass around. */
+export type ContourRect = ContourClearBox;
 
-const EPS = 1e-6;
+const EPS = CONTOUR_EPS;
 
 export function aabbOfRects(rects: readonly ContourRect[]): ContourRect | null {
   if (rects.length === 0) return null;
@@ -110,7 +104,7 @@ function uniqueSorted(values: readonly number[]): number[] {
   return out.filter((v, i) => i === 0 || v - out[i - 1]! > EPS);
 }
 
-function edgeKey(a: ContourNotchPoint, b: ContourNotchPoint): string {
+function edgeKey(a: ContourPoint, b: ContourPoint): string {
   return `${a.x},${a.y}|${b.x},${b.y}`;
 }
 
@@ -119,9 +113,9 @@ function boundaryEdges(
   xs: readonly number[],
   ys: readonly number[],
   kept: readonly boolean[][],
-): Map<string, [ContourNotchPoint, ContourNotchPoint]> {
-  const edges = new Map<string, [ContourNotchPoint, ContourNotchPoint]>();
-  const add = (a: ContourNotchPoint, b: ContourNotchPoint) => {
+): Map<string, [ContourPoint, ContourPoint]> {
+  const edges = new Map<string, [ContourPoint, ContourPoint]>();
+  const add = (a: ContourPoint, b: ContourPoint) => {
     const twin = edgeKey(b, a);
     if (edges.delete(twin)) return;
     edges.set(edgeKey(a, b), [a, b]);
@@ -144,20 +138,20 @@ function boundaryEdges(
 }
 
 function chainLoops(
-  edges: Map<string, [ContourNotchPoint, ContourNotchPoint]>,
-): ContourNotchPoint[][] {
-  const byStart = new Map<string, [ContourNotchPoint, ContourNotchPoint][]>();
+  edges: Map<string, [ContourPoint, ContourPoint]>,
+): ContourPoint[][] {
+  const byStart = new Map<string, [ContourPoint, ContourPoint][]>();
   for (const edge of edges.values()) {
     const key = `${edge[0].x},${edge[0].y}`;
     const list = byStart.get(key) ?? [];
     list.push(edge);
     byStart.set(key, list);
   }
-  const loops: ContourNotchPoint[][] = [];
+  const loops: ContourPoint[][] = [];
   for (const [, list] of byStart) {
     while (list.length > 0) {
       const start = list.pop()!;
-      const loop: ContourNotchPoint[] = [start[0]];
+      const loop: ContourPoint[] = [start[0]];
       let current = start[1];
       while (`${current.x},${current.y}` !== `${loop[0]!.x},${loop[0]!.y}`) {
         const next = byStart.get(`${current.x},${current.y}`);
@@ -176,8 +170,8 @@ function chainLoops(
  * Drop vertices that sit in the middle of a straight run, so every remaining
  * vertex is a real corner with one vertical and one horizontal edge.
  */
-export function mergeCollinearRing(loop: readonly ContourNotchPoint[]): ContourNotchPoint[] {
-  const out: ContourNotchPoint[] = [];
+export function mergeCollinearRing(loop: readonly ContourPoint[]): ContourPoint[] {
+  const out: ContourPoint[] = [];
   for (let i = 0; i < loop.length; i += 1) {
     const prev = loop[(i - 1 + loop.length) % loop.length]!;
     const cur = loop[i]!;
@@ -189,7 +183,7 @@ export function mergeCollinearRing(loop: readonly ContourNotchPoint[]): ContourN
   return out;
 }
 
-function signedArea(loop: readonly ContourNotchPoint[]): number {
+function signedArea(loop: readonly ContourPoint[]): number {
   let sum = 0;
   for (let i = 0; i < loop.length; i += 1) {
     const a = loop[i]!;
@@ -207,7 +201,7 @@ function signedArea(loop: readonly ContourNotchPoint[]): number {
 export function subtractRects(
   frame: ContourRect,
   cuts: readonly ContourRect[],
-): ContourNotchPoint[][] {
+): ContourPoint[][] {
   const clipped = cuts.map((c) => intersectRects(c, frame)).filter((c): c is ContourRect => !!c);
   if (clipped.length === 0) {
     return [
@@ -247,7 +241,7 @@ export interface NotchedRingsInput {
 }
 
 /** Padded component frame with every intruding foreign card notched out. */
-export function notchedRings(input: NotchedRingsInput): ContourNotchPoint[][] {
+export function notchedRings(input: NotchedRingsInput): ContourPoint[][] {
   const own = aabbOfRects(input.memberBoxes);
   if (!own) return [];
   const frame = inflateRect(own, input.margin);

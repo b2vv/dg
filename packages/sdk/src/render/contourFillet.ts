@@ -10,6 +10,9 @@ export interface ContourPoint {
   y: number;
 }
 
+/** Shared tolerance for orthogonal contour geometry (px). */
+export const CONTOUR_EPS = 1e-6;
+
 function signedArea(pts: readonly ContourPoint[]): number {
   let a = 0;
   for (let i = 0; i < pts.length; i += 1) {
