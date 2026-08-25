@@ -2,7 +2,7 @@ import { Container, Graphics, Sprite, Text, type FederatedPointerEvent, type Tex
 import type { DiagramPerson, DiagramPosition } from '../data/types.js';
 import type { LodLevel } from './lod.js';
 import { loadNodeTexture, type NodeTextureLoader } from '../media/nodeMedia.js';
-import { avatarColorFromName, personInitials } from './personInitials.js';
+import { avatarColorFromName } from './personInitials.js';
 import { formatOrgPeriodLabel } from './formatPeriodLabel.js';
 import {
   estimateTextWidth,
@@ -20,19 +20,23 @@ import {
 import {
   avatarForLayout,
   figmaRowAvatar,
-  figmaRowTextX,
-  figmaRowTextRows,
   FIGMA_ROW_AVATAR_RADIUS,
   FIGMA_ROW_AVATAR_SIZE,
   gojsRowAvatar,
-  gojsRowTextX,
-  gojsPortraitAvatar,
   resolveGojsRowLayoutMetrics,
   resolvePersonLayout,
-  type GojsRowLayoutMetrics,
-  type ResolvedPersonLayout,
 } from './personLayout.js';
 import { personVisualLocalRect } from './personVisualGeometry.js';
+import {
+  layoutCompactContent,
+  layoutFigmaRowContent,
+  layoutGojsPortraitContent,
+  layoutGojsRowContent,
+  layoutPeriodChip,
+  truncatePixiText,
+  type GojsRowLayout,
+  type PersonCardParts,
+} from './personCardContent.js';
 import { roundedRectRing, strokeDashedRing } from './dashedStroke.js';
 
 /** Prefer ThemedMedia, then legacy photoUrl (T74). */
@@ -61,11 +65,6 @@ export interface PersonNodeOptions {
   loadTexture?: NodeTextureLoader;
 }
 
-interface GojsRowLayout extends GojsRowLayoutMetrics {
-  timelineLabel?: string;
-  countsLabel?: string;
-}
-
 export class PersonNodeView extends Container {
   private readonly shadow = new Graphics();
   private readonly card = new Graphics();
@@ -92,6 +91,8 @@ export class PersonNodeView extends Container {
   readonly avatarFill: number;
 
   private gojsLayout: GojsRowLayout | null = null;
+  /** The display objects the content layouts write into. */
+  private readonly parts: PersonCardParts;
   private expandToggle: (() => void) | undefined;
   private loadTexture: NodeTextureLoader = loadNodeTexture;
   private mediaRevision: string | number | undefined;
@@ -187,6 +188,20 @@ export class PersonNodeView extends Container {
       this.hoverRing,
       this.chromeControls,
     );
+
+    this.parts = {
+      nameText: this.nameText,
+      titleText: this.titleText,
+      initialsText: this.initialsText,
+      periodChip: this.periodChip,
+      periodChipLabel: this.periodChipLabel,
+      timelineDot: this.timelineDot,
+      pendingMarker: this.pendingMarker,
+      pendingLabel: this.pendingLabel,
+      countBar: this.countBar,
+      countBarLabel: this.countBarLabel,
+      countExpander: this.countExpander,
+    };
 
     this.on('pointerover', () => this.setHovered(true, style));
     this.on('pointerout', () => this.setHovered(false, style));
@@ -513,14 +528,20 @@ export class PersonNodeView extends Container {
     this.nameText.style.fill = nameFill;
     this.nameText.anchor.set(0, 0);
 
+    const content = { person, position, style, vacant };
+    const pad = Math.max(6, style.width * 0.06);
     if (gojsRow) {
-      this.layoutGojsRowContent(person, position, style, vacant, options);
+      layoutGojsRowContent(this.parts, {
+        ...content,
+        gojs: this.gojsLayout!,
+        expand: options.expand,
+      });
     } else if (layout === 'figma-row' && lod === 'near') {
-      this.layoutFigmaRowContent(person, position, style, vacant, nameFill);
+      layoutFigmaRowContent(this.parts, content);
     } else if (layout === 'gojs-portrait' && lod === 'near') {
-      this.layoutGojsPortraitContent(person, position, style, Math.max(6, style.width * 0.06), vacant);
+      layoutGojsPortraitContent(this.parts, { ...content, pad });
     } else {
-      this.layoutCompactContent(person, position, style, lod, Math.max(6, style.width * 0.06), vacant);
+      layoutCompactContent(this.parts, { ...content, lod, pad });
     }
 
     const hourglassTemp = style.tempMarkerStyle === 'hourglass';
@@ -554,303 +575,11 @@ export class PersonNodeView extends Container {
     }
 
     if (!gojsRow && style.hidePeriodOnCard !== true) {
-      this.layoutPeriodChip(position, style, lod, Math.max(6, style.width * 0.06), layout);
+      layoutPeriodChip(this.parts, { position, style, lod, pad, layout });
     } else if (!gojsRow) {
       this.periodChip.visible = false;
       this.periodChipLabel.visible = false;
     }
-  }
-
-  private layoutGojsRowContent(
-    person: DiagramPerson | undefined,
-    position: DiagramPosition,
-    style: PersonNodeStyle,
-    vacant: boolean,
-    options: PersonNodeOptions,
-  ): void {
-    const gl = this.gojsLayout!;
-    const { cardY, cardH, timelineH, countBarH, timelineLabel, countsLabel } = gl;
-    const avatar = gojsRowAvatar(style, cardY);
-    const textX = gojsRowTextX(avatar);
-    const maxTextW = Math.max(24, style.width - textX - 12);
-
-    truncatePixiText(this.nameText, maxTextW);
-    this.nameText.position.set(textX, cardY + 12);
-
-    this.titleText.visible = true;
-    this.titleText.text = vacant ? VACANT_POSITION_LABEL : position.title;
-    this.titleText.style.fontSize = style.titleFontSize;
-    this.titleText.style.fontWeight = '400';
-    this.titleText.style.fill = vacant
-      ? (style.vacantLabelColor ?? style.titleColor)
-      : style.titleColor;
-    this.titleText.anchor.set(0, 0);
-    truncatePixiText(this.titleText, maxTextW);
-    this.titleText.position.set(textX, cardY + 32);
-
-    const initials = vacant ? '' : personInitials(person?.fullName);
-    this.initialsText.text = initials;
-    this.initialsText.style.fontSize = Math.max(10, (avatar.size ?? 28) * 0.38);
-    this.initialsText.position.set(avatar.cx, avatar.cy);
-    this.initialsText.visible = initials.length > 0;
-
-    // Timeline chip — top-left above card.
-    const showTimeline = !!timelineLabel;
-    this.periodChip.visible = showTimeline;
-    this.periodChipLabel.visible = showTimeline;
-    this.timelineDot.visible = showTimeline;
-    if (showTimeline && timelineLabel) {
-      const fs = style.periodChipFontSize ?? 12;
-      this.periodChipLabel.text = timelineLabel;
-      this.periodChipLabel.style.fontSize = fs;
-      this.periodChipLabel.style.fill = style.periodChipTextColor ?? style.titleColor;
-      this.periodChipLabel.anchor.set(0, 0.5);
-      truncatePixiText(this.periodChipLabel, style.width - 24);
-      const padX = 8;
-      const padY = 3;
-      const dotR = 3.5;
-      const textW = timelineLabel.length * fs * 0.58;
-      const chipW = padX * 2 + dotR * 2 + 6 + textW;
-      const chipH = fs + padY * 2;
-      const bx = 0;
-      const by = (timelineH - chipH) / 2;
-      this.periodChip.clear();
-      this.periodChip.roundRect(bx, by, chipW, chipH, 4);
-      this.periodChip.fill({ color: style.periodChipBackground ?? 0x334155 });
-      this.periodChip.stroke({ color: style.border, width: 1 });
-      this.timelineDot.clear();
-      this.timelineDot.circle(bx + padX + dotR, by + chipH / 2, dotR);
-      this.timelineDot.fill({ color: style.timelineDotColor ?? 0x4ade80 });
-      this.periodChipLabel.position.set(bx + padX + dotR * 2 + 6, by + chipH / 2);
-    }
-
-    // Pending hourglass — top-right of card (distinct from isKeyPosition name).
-    const showPending = position.pending === true;
-    this.pendingMarker.visible = showPending;
-    this.pendingLabel.visible = showPending;
-    if (showPending) {
-      this.pendingMarker.clear();
-      const sz = 11;
-      const px = style.width - sz - 4;
-      const py = cardY + 4;
-      this.pendingMarker.roundRect(px, py, sz, sz, 2);
-      this.pendingMarker.fill({ color: style.pendingColor ?? 0xf59e0b, alpha: 0.15 });
-      this.pendingLabel.position.set(px + 1, py - 1);
-    }
-
-    // Count bar + expander.
-    const showCounts = !!countsLabel;
-    this.countBar.visible = showCounts;
-    this.countBarLabel.visible = showCounts;
-    this.countExpander.visible = showCounts;
-    if (showCounts && countsLabel) {
-      const barY = cardY + cardH;
-      const barH = countBarH;
-      this.countBar.clear();
-      this.countBar.roundRect(0, barY, style.width, barH, 4);
-      this.countBar.fill({ color: style.countBarBackground ?? style.background });
-      this.countBar.stroke({ color: style.border, width: 1 });
-      this.countBarLabel.text = countsLabel;
-      this.countBarLabel.anchor.set(0.5);
-      this.countBarLabel.position.set(style.width / 2, barY + barH / 2);
-
-      const brand = style.brandColor ?? 0x2563eb;
-      const exR = 8;
-      const exCx = style.width - 10;
-      const exCy = barY + barH / 2;
-      this.countExpander.clear();
-      this.countExpander.circle(exCx, exCy, exR);
-      this.countExpander.fill({ color: brand });
-      if (options.expand?.hasChildren) {
-        this.countExpander.eventMode = 'static';
-        this.countExpander.cursor = 'pointer';
-        this.countExpander.hitArea = {
-          contains: (x, y) => {
-            const dx = x - exCx;
-            const dy = y - exCy;
-            return dx * dx + dy * dy <= exR * exR;
-          },
-        };
-        this.countExpander.removeAllListeners();
-        this.countExpander.on('pointerdown', (e) => e.stopPropagation());
-        this.countExpander.on('pointertap', (e) => {
-          e.stopPropagation();
-          options.expand!.onToggle();
-        });
-      }
-    }
-  }
-
-  private layoutFigmaRowContent(
-    person: DiagramPerson | undefined,
-    position: DiagramPosition,
-    style: PersonNodeStyle,
-    vacant: boolean,
-    _nameFill: number,
-  ): void {
-    const avatar = figmaRowAvatar(style);
-    const textX = figmaRowTextX(avatar);
-    const pad = Math.max(6, style.width * 0.06);
-    const maxTextW = Math.max(24, style.width - textX - pad - (position.isTemporary ? 22 : 0));
-
-    this.titleText.visible = true;
-    this.titleText.text = position.title;
-    this.titleText.style.fontSize = style.titleFontSize;
-    this.titleText.style.fontWeight = '400';
-    this.titleText.style.fill = style.titleColor;
-    this.titleText.anchor.set(0, 0);
-    truncatePixiText(this.titleText, maxTextW);
-
-    // Figma seat: title + name stack centered against the 40px avatar tile.
-    const rows = figmaRowTextRows(style, this.nameText.visible);
-    this.titleText.position.set(textX, rows.titleY);
-
-    truncatePixiText(this.nameText, maxTextW);
-    this.nameText.position.set(textX, rows.nameY);
-
-    const initials = vacant ? '' : personInitials(person?.fullName);
-    this.initialsText.text = initials;
-    this.initialsText.style.fontSize = Math.max(11, avatar.r * 0.65);
-    this.initialsText.position.set(avatar.cx, avatar.cy);
-    this.initialsText.visible = initials.length > 0;
-  }
-
-  private layoutGojsPortraitContent(
-    person: DiagramPerson | undefined,
-    position: DiagramPosition,
-    style: PersonNodeStyle,
-    pad: number,
-    vacant: boolean,
-  ): void {
-    const maxTextW = Math.max(24, style.width - pad * 2);
-    truncatePixiText(this.nameText, maxTextW);
-    this.nameText.position.set(pad, 92);
-
-    this.titleText.visible = true;
-    this.titleText.text = position.title;
-    this.titleText.style.fontSize = style.titleFontSize;
-    this.titleText.style.fontWeight = '400';
-    this.titleText.style.fill = style.titleColor;
-    this.titleText.anchor.set(0, 0);
-    truncatePixiText(this.titleText, maxTextW);
-    this.titleText.position.set(pad, 112);
-
-    const avatar = gojsPortraitAvatar(style);
-    const initials = vacant ? '' : personInitials(person?.fullName);
-    this.initialsText.text = initials;
-    this.initialsText.style.fontSize = Math.max(12, avatar.r * 0.7);
-    this.initialsText.position.set(avatar.cx, avatar.cy);
-    this.initialsText.visible = initials.length > 0;
-
-    if (vacant) {
-      this.titleText.visible = true;
-      this.titleText.text = VACANT_POSITION_LABEL;
-      this.titleText.style.fill = style.vacantLabelColor ?? style.titleColor;
-      truncatePixiText(this.titleText, maxTextW);
-      this.titleText.position.set(pad, 112);
-      this.nameText.anchor.set(0.5, 0);
-      this.nameText.position.set(style.width / 2, 92);
-    }
-  }
-
-  private layoutCompactContent(
-    person: DiagramPerson | undefined,
-    position: DiagramPosition,
-    style: PersonNodeStyle,
-    lod: LodLevel,
-    pad: number,
-    vacant: boolean,
-  ): void {
-    const maxTextW = Math.max(24, style.width - pad * 2);
-    truncatePixiText(this.nameText, maxTextW);
-    if (lod === 'mid') {
-      const h = Math.min(style.height, Math.max(56, style.height * 0.48));
-      const y0 = (style.height - h) / 2;
-      this.nameText.position.set(pad, y0 + h * 0.35);
-      this.titleText.visible = false;
-      this.initialsText.visible = false;
-    } else {
-      const layout = resolvePersonLayout(style);
-      if (layout === 'figma-row' || layout === 'gojs-row') {
-        this.titleText.visible = true;
-        this.titleText.text = vacant ? VACANT_POSITION_LABEL : position.title;
-        this.titleText.style.fontSize = style.titleFontSize;
-        this.titleText.style.fill = style.titleColor;
-        truncatePixiText(this.titleText, maxTextW);
-        if (layout === 'figma-row') {
-          this.titleText.position.set(pad, style.height * 0.22);
-          this.nameText.position.set(pad, style.height * 0.52);
-        } else {
-          this.nameText.position.set(pad, style.height * 0.22);
-          this.titleText.position.set(pad, style.height * 0.52);
-        }
-      } else {
-        this.nameText.position.set(pad, style.height * 0.48);
-        this.titleText.visible = true;
-        this.titleText.text = position.title;
-        this.titleText.style.fontSize = style.titleFontSize;
-        this.titleText.style.fill = style.titleColor;
-        truncatePixiText(this.titleText, maxTextW);
-        this.titleText.position.set(pad, style.height * 0.64);
-      }
-      const initials = vacant ? '' : personInitials(person?.fullName);
-      this.initialsText.text = initials;
-      this.initialsText.style.fontSize = Math.max(11, Math.min(style.width, style.height) * 0.09);
-      const avatar = avatarForLayout(layout, style);
-      this.initialsText.position.set(avatar.cx, avatar.cy);
-      this.initialsText.visible = initials.length > 0;
-    }
-  }
-
-  private layoutPeriodChip(
-    position: DiagramPosition,
-    style: PersonNodeStyle,
-    lod: LodLevel,
-    pad: number,
-    layout: ResolvedPersonLayout,
-  ): void {
-    const label = formatOrgPeriodLabel(position);
-    const show = !!label;
-    this.periodChip.visible = show;
-    this.periodChipLabel.visible = show;
-    this.timelineDot.visible = false;
-    if (!show || !label) return;
-
-    const fs = style.periodChipFontSize ?? 9;
-    this.periodChipLabel.text = label;
-    this.periodChipLabel.style.fontSize = fs;
-    this.periodChipLabel.style.fill = style.periodChipTextColor ?? 0x15803d;
-    this.periodChipLabel.anchor.set(0.5);
-
-    const maxChipW = Math.max(40, style.width - pad * 2);
-    truncatePixiText(this.periodChipLabel, maxChipW - 10);
-    const chipText = this.periodChipLabel.text;
-    const estW = Math.min(maxChipW, Math.max(36, chipText.length * fs * 0.55 + 10));
-    const estH = fs + 4;
-
-    let cx: number;
-    let cy: number;
-    if (layout === 'figma-row' && lod === 'near') {
-      cx = style.width - estW / 2 - (position.isTemporary ? 26 : 8);
-      cy = 6 + estH / 2;
-    } else if (layout === 'gojs-row' && lod === 'near') {
-      return;
-    } else if (lod === 'mid') {
-      const h = Math.min(style.height, Math.max(56, style.height * 0.48));
-      const y0 = (style.height - h) / 2;
-      cx = style.width / 2;
-      cy = y0 + 10 + estH / 2;
-    } else {
-      cx = style.width / 2;
-      cy = layout === 'figma-row' ? 6 + estH / 2 : style.height * 0.72;
-    }
-
-    const bx = cx - estW / 2;
-    const by = cy - estH / 2;
-    this.periodChip.clear();
-    this.periodChip.roundRect(bx, by, estW, estH, 4);
-    this.periodChip.fill({ color: style.periodChipBackground ?? 0xdcfce7 });
-    this.periodChipLabel.position.set(cx, cy);
   }
 
   private async applyPhoto(
@@ -911,15 +640,6 @@ export class PersonNodeView extends Container {
     this.photoSprite.mask = null;
     this.photoMask.visible = false;
   }
-}
-
-function truncatePixiText(label: Text, maxWidth: number): void {
-  const raw = label.text;
-  if (!raw) return;
-  const fontSize = Number(label.style.fontSize) || 12;
-  const maxChars = Math.max(1, Math.floor(maxWidth / (fontSize * 0.58)));
-  if (raw.length <= maxChars) return;
-  label.text = `${raw.slice(0, Math.max(1, maxChars - 1))}…`;
 }
 
 function hitAreaFromRect(rect: { x: number; y: number; width: number; height: number }) {
