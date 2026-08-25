@@ -505,3 +505,68 @@ describe('revealPath renders before focusing (search → focus)', () => {
     container.remove();
   });
 });
+
+describe('appendData search index (streaming)', () => {
+  function chunk(from: number, to: number) {
+    return {
+      organizations: Array.from({ length: to - from }, (_, i) => ({
+        id: `org-${from + i}`,
+        name: `Chunk org ${from + i}`,
+        groupIds: [] as string[],
+      })),
+    };
+  }
+
+  async function mountEmpty() {
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: {
+        organizations: [{ id: 'root', name: 'Root', groupIds: [] }],
+        groups: [],
+        departments: [],
+        persons: [],
+        positions: [],
+        reportLines: [],
+      },
+      useWorker: false,
+    });
+    return { container, diagram };
+  }
+
+  it('success: new chunks merge into the index instead of rebuilding it', async () => {
+    const { container, diagram } = await mountEmpty();
+    await diagram.appendData(chunk(0, 3), { append: async (c) => c });
+    await diagram.appendData(chunk(3, 6), { append: async (c) => c });
+
+    // Every appended org is findable, exactly once.
+    for (const i of [0, 3, 5]) {
+      const hits = await diagram.search(`Chunk org ${i}`);
+      expect(hits.filter((h) => h.node.id === `org-${i}`)).toHaveLength(1);
+    }
+    // And the entry that was there before the stream survives.
+    expect((await diagram.search('Root')).length).toBeGreaterThan(0);
+
+    diagram.destroy();
+    container.remove();
+  });
+
+  it('failure: a chunk that updates a known org rebuilds, so no stale duplicate', async () => {
+    const { container, diagram } = await mountEmpty();
+    await diagram.appendData(chunk(0, 2), { append: async (c) => c });
+    await diagram.appendData(
+      { organizations: [{ id: 'org-0', name: 'Renamed org', groupIds: [] }] },
+      { append: async (c) => c },
+    );
+
+    const renamed = await diagram.search('Renamed org');
+    expect(renamed.map((h) => h.node.id)).toContain('org-0');
+    // The old label is gone rather than lingering as a second entry.
+    expect(await diagram.search('Chunk org 0')).toHaveLength(0);
+
+    diagram.destroy();
+    container.remove();
+  });
+});

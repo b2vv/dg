@@ -48,6 +48,7 @@ import type { OrgHierarchyCallbacks, LayoutPatch } from './callbacks.js';
 import { createTransformWorker, WorkerPool } from './worker/index.js';
 import {
   buildSearchIndex,
+  mergeSearchIndexes,
   searchIndex as querySearchIndex,
   buildSearchIndexAsync,
   revealOrgPath,
@@ -1015,17 +1016,46 @@ export class OrgHierarchyDiagram {
   }
 
   async appendData<TRaw>(chunk: TRaw, mappers?: DiagramMappers<TRaw>): Promise<void> {
+    let patch: Partial<DiagramData>;
     if (mappers?.append) {
-      const patch = await mappers.append(chunk);
-      this.data = mergePartial(this.data, patch);
+      patch = await mappers.append(chunk);
     } else if (mappers?.toDiagram) {
-      const mapped = await mappers.toDiagram(chunk);
-      this.data = mergePartial(this.data, mapped);
+      patch = await mappers.toDiagram(chunk);
     } else {
       throw new InteractionError('appendData requires mappers.append or mappers.toDiagram');
     }
-    await this.rebuildSearchIndexForScale();
+    const known = this.searchIdx ? knownSearchIds(this.data) : null;
+    this.data = mergePartial(this.data, patch);
+    await this.appendSearchIndex(patch, known);
     await this.render();
+  }
+
+  /**
+   * Streaming append: index only the chunk and merge it into the live index.
+   * Rebuilding per chunk made a streamed load O(N²) — every chunk re-walked the
+   * whole roster. A chunk that **updates** an entity cannot merge (the old
+   * entry would linger as a duplicate hit), so that case still rebuilds.
+   */
+  private async appendSearchIndex(
+    patch: Partial<DiagramData>,
+    known: ReadonlySet<string> | null,
+  ): Promise<void> {
+    const index = this.searchIdx;
+    if (!index || !known || patchUpdatesKnownEntities(patch, known)) {
+      await this.rebuildSearchIndexForScale();
+      return;
+    }
+    this.searchIdx = mergeSearchIndexes([
+      index,
+      buildSearchIndex({
+        organizations: patch.organizations ?? [],
+        groups: [],
+        departments: [],
+        persons: this.data.persons,
+        positions: patch.positions ?? [],
+        reportLines: [],
+      }),
+    ]);
   }
 
   /** Staff focus org (Tier-2). Pass `null` to clear and use auto-inference. */
@@ -1568,6 +1598,31 @@ function isDiagramData(v: unknown): v is DiagramData {
     'organizations' in v &&
     'persons' in v &&
     'positions' in v
+  );
+}
+
+/** Ids the search index already holds (orgs + positions + their persons). */
+function knownSearchIds(data: DiagramData): Set<string> {
+  const ids = new Set<string>();
+  for (const org of data.organizations) ids.add(`org:${org.id}`);
+  for (const position of data.positions) ids.add(`pos:${position.id}`);
+  for (const person of data.persons) ids.add(`person:${person.id}`);
+  return ids;
+}
+
+/**
+ * True when the chunk touches something already indexed — an updated label has
+ * to replace its entry, which merging cannot do.
+ */
+function patchUpdatesKnownEntities(
+  patch: Partial<DiagramData>,
+  known: ReadonlySet<string>,
+): boolean {
+  return (
+    (patch.organizations ?? []).some((o) => known.has(`org:${o.id}`)) ||
+    (patch.positions ?? []).some((p) => known.has(`pos:${p.id}`)) ||
+    // A person update renames the seats that already reference them.
+    (patch.persons ?? []).some((p) => known.has(`person:${p.id}`))
   );
 }
 
