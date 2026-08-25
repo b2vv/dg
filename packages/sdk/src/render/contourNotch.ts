@@ -166,13 +166,17 @@ function chainLoops(
         loop.push(current);
         current = edge[1];
       }
-      if (loop.length >= 4) loops.push(mergeCollinear(loop));
+      if (loop.length >= 4) loops.push(mergeCollinearRing(loop));
     }
   }
   return loops;
 }
 
-function mergeCollinear(loop: readonly ContourNotchPoint[]): ContourNotchPoint[] {
+/**
+ * Drop vertices that sit in the middle of a straight run, so every remaining
+ * vertex is a real corner with one vertical and one horizontal edge.
+ */
+export function mergeCollinearRing(loop: readonly ContourNotchPoint[]): ContourNotchPoint[] {
   const out: ContourNotchPoint[] = [];
   for (let i = 0; i < loop.length; i += 1) {
     const prev = loop[(i - 1 + loop.length) % loop.length]!;

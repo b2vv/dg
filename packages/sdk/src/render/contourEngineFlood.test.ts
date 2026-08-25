@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { OrgHierarchyDiagram } from '../index.js';
 import { DepartmentBlobView } from './DepartmentBlob.js';
 import { resetContourWasmForTests, setContourWasmLoaderForTests } from '../contour/bridge.js';
+import { contourButtonGroupMargin } from './contourButtonGroup.js';
+import { defaultNodeTheme } from './types.js';
 import type { DiagramData } from '../data/types.js';
 
 /**
@@ -66,7 +68,15 @@ async function mount(contourEngine: 'button-group' | 'cell-flood') {
       cellWidth: 140,
       cellHeight: 160,
     },
-    staffLayout: { refCellWidth: 140, refCellHeight: 160, nodeWidth: 136, nodeHeight: 156 },
+    // Gaps 0 → pitch == cell, so ring widths compare directly with the lattice.
+    staffLayout: {
+      refCellWidth: 140,
+      refCellHeight: 160,
+      nodeWidth: 136,
+      nodeHeight: 156,
+      horizontalGap: 0,
+      verticalGap: 0,
+    },
   });
   return { container, diagram };
 }
@@ -105,6 +115,23 @@ describe('RenderConfig.contourEngine', () => {
     // Flood rings are orthogonal cell walks — a plain frame would be 4 corners
     // before filleting; the IT ring wraps the CEO cell, so it has more.
     expect(Math.max(...rings.map((r) => r.length))).toBeGreaterThan(4);
+    diagram.destroy();
+    container.remove();
+  });
+
+  it('success: flood rings track the cards, not the cell lattice', async () => {
+    const { container, diagram } = await mount('cell-flood');
+    const rings = blobRings(diagram);
+    const widest = rings.reduce((best, r) => {
+      const w = Math.max(...r.map((p) => p.x)) - Math.min(...r.map((p) => p.x));
+      return w > best.width ? { width: w, ring: r } : best;
+    }, { width: 0, ring: [] as { x: number; y: number }[] });
+
+    const pitchX = 140; // refCellWidth + horizontalGap (gap 0 in this fixture)
+    const cardWidth = 136;
+    const padding = contourButtonGroupMargin(0, defaultNodeTheme.department.strokeWidth);
+    // Card union across three columns + the wash padding — not 3 × cell.
+    expect(widest.width).toBeCloseTo(2 * pitchX + cardWidth + padding * 2, 5);
     diagram.destroy();
     container.remove();
   });

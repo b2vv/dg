@@ -7,7 +7,8 @@ import {
 import { computeAllContours } from '../contour/bridge.js';
 import { diagramPositionsToContourInputs } from '../contour/config.js';
 import { filterContoursForPaint } from './contourPaintFilter.js';
-import { mapContourPointsToWorld } from './contourWorldTransform.js';
+import { mapFloodRingToCards, type FloodCardGeometry } from './floodRingCards.js';
+import { contourButtonGroupMargin } from './contourButtonGroup.js';
 import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
 import {
   DEFAULT_STAFF_LAYOUT_OPTIONS,
@@ -149,6 +150,9 @@ interface ContourSession {
   engine: ContourEngine;
   /** positionId → organizationId; the flood runs per org block (local cells). */
   orgByPosition: Map<string, string>;
+  /** Seat box the flood ring is snapped onto (cells are wider than cards). */
+  cardWidth: number;
+  cardHeight: number;
   /** Rings from the Rust flood, already mapped to world space (`cell-flood`). */
   floodRingsByDept: Map<string, { x: number; y: number }[][]>;
   memberBoxesByDept: Map<string, ContourMemberBox[]>;
@@ -476,6 +480,8 @@ export class DiagramRenderer {
     paintSmoothIterations: number;
     engine: ContourEngine;
     orgByPosition: Map<string, string>;
+    cardWidth: number;
+    cardHeight: number;
     memberBoxesByDept?: Map<string, ContourMemberBox[]>;
   }): ContourSession {
     this.cancelContourMorphs();
@@ -638,6 +644,8 @@ export class DiagramRenderer {
       paintSmoothIterations: config.smoothIterations,
       engine,
       orgByPosition: new Map(data.positions.map((p) => [p.id, p.organizationId])),
+      cardWidth: theme.person.width,
+      cardHeight: theme.person.height,
       memberBoxesByDept: options.contourMemberBoxesByDept,
     });
     if (this.destroyed || !this.contourSession) return;
@@ -696,6 +704,23 @@ export class DiagramRenderer {
       }
       if (this.destroyed || this.contourSession !== session) return;
 
+      // Cells are wider than the seats inside them, so the ring is snapped onto
+      // the card rectangle + the same padding the button-group wash uses —
+      // otherwise the contour hangs a whole gap away on the right and bottom.
+      const cards: FloodCardGeometry = {
+        pitchX: blockTransform.pitchX,
+        pitchY: blockTransform.pitchY,
+        cellWidth: blockTransform.cellWidth,
+        cellHeight: blockTransform.cellHeight,
+        originX: blockTransform.originX,
+        originY: blockTransform.originY,
+        cardWidth: session.cardWidth,
+        cardHeight: session.cardHeight,
+        insetX: this.dragGrid?.insetX ?? 0,
+        insetY: this.dragGrid?.insetY ?? 0,
+        padding: contourButtonGroupMargin(session.paintPaddingCells, session.style.strokeWidth),
+      };
+
       for (const contour of filterContoursForPaint(
         contours,
         session.personCounts,
@@ -703,7 +728,7 @@ export class DiagramRenderer {
       )) {
         if (contour.points.length < 3) continue;
         const rings = session.floodRingsByDept.get(contour.departmentId) ?? [];
-        rings.push(mapContourPointsToWorld(contour.points, blockTransform));
+        rings.push(mapFloodRingToCards(contour.points, cards));
         session.floodRingsByDept.set(contour.departmentId, rings);
       }
     }
