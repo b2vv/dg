@@ -166,8 +166,9 @@ export function adminDescendantIds(
  *
  * `maxExpandedPositions` caps how many subtrees stay open at once; with a
  * finite cap the set is trimmed to `max - 1` so the new expand lands inside it.
- * A cap of 0 clears the set — the caller still expands, which is the documented
- * «expandToDepth bypasses the cap» behaviour.
+ * A cap of 0 clears the set and `togglePositionExpand` still expands the one it
+ * was asked for — a cap cannot refuse an explicit toggle. (`expandToDepth`
+ * bypasses the cap by not consulting this helper at all.)
  */
 export function victimsForExpand(
   expandedIds: ReadonlySet<string>,

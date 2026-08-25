@@ -5,7 +5,9 @@ import {
   isPrimaryPointerTap,
   isSelectionToggleModifier,
   readSelectionPointerMods,
+  type SelectionPointerMods,
 } from '../interaction/selection.js';
+import type { ContextMenuPointer } from '../interaction/contextMenuPayload.js';
 import type { PersonNodeView } from './PersonNode.js';
 import type { NodeWorldBox } from './SceneRegistry.js';
 import type { RenderConfig } from './types.js';
@@ -25,13 +27,13 @@ export interface PersonPointerHandlers {
   onPersonClick?: (
     personId: string | undefined,
     positionId: string,
-    mods: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean },
+    mods: SelectionPointerMods,
   ) => void;
   onPersonDoubleClick?: (personId: string, positionId: string) => void;
   onPersonContextMenu?: (
     personId: string,
     positionId: string,
-    pointer: { clientX: number; clientY: number; canvasX: number; canvasY: number },
+    pointer: Required<ContextMenuPointer>,
   ) => void;
   onPersonDragEnd?: (positionId: string, col: number, row: number) => void;
 }

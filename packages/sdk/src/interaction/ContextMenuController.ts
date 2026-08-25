@@ -5,6 +5,7 @@ import {
   type ContextMenuPointer,
   type ContextMenuRequest,
 } from './contextMenuPayload.js';
+import { nodeEntityKey } from './nodeKey.js';
 import type { MenuItem, NodeRef } from './types.js';
 
 /** Subset of the host callbacks this controller needs (avoids a module cycle). */
@@ -96,7 +97,9 @@ export class ContextMenuController {
         );
         return;
       case 'bulk-copy-ids':
-        await this.copy(this.deps.selection().map((n) => `${n.kind}:${n.id}`).join(' '));
+        await this.copy(
+          this.deps.selection().map((n) => nodeEntityKey(n.kind, n.id)).join(' '),
+        );
         return;
       case 'bulk-clear':
         await commands.clearSelection();

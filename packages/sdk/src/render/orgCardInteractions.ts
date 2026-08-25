@@ -5,6 +5,7 @@ import {
   readSelectionPointerMods,
   type SelectionPointerMods,
 } from '../interaction/selection.js';
+import type { ContextMenuPointer } from '../interaction/contextMenuPayload.js';
 import type { OrganizationNodeView } from './OrganizationNode.js';
 
 /** Pointer callbacks an org card can fire (subset of RenderOptions). */
@@ -13,7 +14,7 @@ export interface OrgCardHandlers {
   onOrgDoubleClick?: (orgId: string) => void;
   onOrgContextMenu?: (
     orgId: string,
-    pointer: { clientX: number; clientY: number; canvasX: number; canvasY: number },
+    pointer: Required<ContextMenuPointer>,
   ) => void;
 }
 

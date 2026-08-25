@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DiagramOrganization } from '../data/types.js';
 import {
+  applyMatrixPlacement,
   assignMatrixCells,
   occupantAtCell,
   placeOrgAtMatrixCell,
@@ -152,5 +153,37 @@ describe('occupantAtCell', () => {
   it('failure: a cell outside the grid has no occupant', () => {
     expect(occupantAtCell(orgs(), { row: 9, col: 9 }, dims, 'a')).toBeUndefined();
     expect(occupantAtCell([], { row: 0, col: 0 }, dims, 'a')).toBeUndefined();
+  });
+});
+
+describe('applyMatrixPlacement', () => {
+  const orgs = (): DiagramOrganization[] => [
+    { id: 'a', name: 'A', groupIds: [], matrixRow: 0, matrixCol: 0 },
+    { id: 'b', name: 'B', groupIds: [], matrixRow: 1, matrixCol: 1 },
+  ];
+  const dims = { rows: 2, cols: 2 };
+
+  it('success: names who was ejected, so the host can be told without a second scan', () => {
+    const result = applyMatrixPlacement(orgs(), 'b', { row: 0, col: 0 }, dims);
+    expect(result.ejectedOrgId).toBe('a');
+    expect(result.organizations.find((o) => o.id === 'b')).toMatchObject({
+      matrixRow: 0,
+      matrixCol: 0,
+    });
+    expect(result.organizations.find((o) => o.id === 'a')).toMatchObject({ inMatrix: false });
+  });
+
+  it('success: a free cell ejects nobody', () => {
+    const result = applyMatrixPlacement(orgs(), 'a', { row: 1, col: 0 }, dims);
+    expect(result.ejectedOrgId).toBeUndefined();
+  });
+
+  it('failure: no-ops return the input array itself, which callers use as the «nothing moved» check', () => {
+    const input = orgs();
+    // unknown org, same cell, and outside the grid
+    expect(applyMatrixPlacement(input, 'zz', { row: 0, col: 1 }, dims).organizations).toBe(input);
+    expect(applyMatrixPlacement(input, 'a', { row: 0, col: 0 }, dims).organizations).toBe(input);
+    expect(applyMatrixPlacement(input, 'a', { row: 9, col: 9 }, dims).organizations).toBe(input);
+    expect(placeOrgAtMatrixCell(input, 'a', 9, 9, dims)).toBe(input);
   });
 });

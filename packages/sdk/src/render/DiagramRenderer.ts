@@ -27,6 +27,7 @@ import type { OrgLayoutOptions } from '../layout/types.js';
 import { isOrgCollapsed, orgHasChildren } from '../layout/orgMode.js';
 import { DoubleTapTracker } from '../interaction/doubleTap.js';
 import type { SelectionPointerMods } from '../interaction/selection.js';
+import type { ContextMenuPointer } from '../interaction/contextMenuPayload.js';
 import type { NodeRef } from '../interaction/types.js';
 import { DepartmentCardView } from './DepartmentCardView.js';
 import { paintDashedFrame } from './dashedStroke.js';
@@ -84,11 +85,11 @@ export interface RenderOptions {
   onPersonContextMenu?: (
     personId: string,
     positionId: string,
-    pointer: { clientX: number; clientY: number; canvasX: number; canvasY: number },
+    pointer: Required<ContextMenuPointer>,
   ) => void;
   onOrgContextMenu?: (
     orgId: string,
-    pointer: { clientX: number; clientY: number; canvasX: number; canvasY: number },
+    pointer: Required<ContextMenuPointer>,
   ) => void;
   onOrgExpand?: (orgId: string) => void;
   onOrgCollapse?: (orgId: string) => void;

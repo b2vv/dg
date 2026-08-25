@@ -2,12 +2,12 @@ import type { DiagramData } from '../data/types.js';
 import type { WorkerPool } from '../worker/index.js';
 import {
   buildSearchIndex,
-  buildSearchIndexAsync,
   mergeSearchIndexes,
   searchIndex as querySearchIndex,
   type SearchIndex,
 } from './searchIndex.js';
 import type { SearchResult } from './types.js';
+import { nodeEntityKey } from './nodeKey.js';
 import { buildSearchIndexForScale } from './searchWorker.js';
 
 /** Prefer the chunked / worker build once org+position count exceeds this. */
@@ -36,10 +36,6 @@ export class SearchIndexService {
   /** Synchronous build — small datasets and tests. */
   rebuild(data: DiagramData): void {
     this.index = buildSearchIndex(data);
-  }
-
-  async rebuildAsync(data: DiagramData): Promise<void> {
-    this.index = await buildSearchIndexAsync(data);
   }
 
   /** Size-aware build: sync under the threshold, worker/pool above it. */
@@ -89,9 +85,9 @@ export class SearchIndexService {
 /** Ids the search index already holds (orgs + positions + their persons). */
 export function knownSearchIds(data: DiagramData): Set<string> {
   const ids = new Set<string>();
-  for (const org of data.organizations) ids.add(`org:${org.id}`);
-  for (const position of data.positions) ids.add(`pos:${position.id}`);
-  for (const person of data.persons) ids.add(`person:${person.id}`);
+  for (const org of data.organizations) ids.add(nodeEntityKey('organization', org.id));
+  for (const position of data.positions) ids.add(nodeEntityKey('position', position.id));
+  for (const person of data.persons) ids.add(nodeEntityKey('person', person.id));
   return ids;
 }
 
@@ -104,9 +100,9 @@ export function patchUpdatesKnownEntities(
   known: ReadonlySet<string>,
 ): boolean {
   return (
-    (patch.organizations ?? []).some((o) => known.has(`org:${o.id}`)) ||
-    (patch.positions ?? []).some((p) => known.has(`pos:${p.id}`)) ||
+    (patch.organizations ?? []).some((o) => known.has(nodeEntityKey('organization', o.id))) ||
+    (patch.positions ?? []).some((p) => known.has(nodeEntityKey('position', p.id))) ||
     // A person update renames the seats that already reference them.
-    (patch.persons ?? []).some((p) => known.has(`person:${p.id}`))
+    (patch.persons ?? []).some((p) => known.has(nodeEntityKey('person', p.id)))
   );
 }

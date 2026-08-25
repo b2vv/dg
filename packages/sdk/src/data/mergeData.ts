@@ -36,35 +36,30 @@ export function mergeById<T extends { id: string }>(
   return [...map.values()];
 }
 
-/** Edges have no id — from/to/kind is the identity. */
-function reportLineKey(line: { fromId: string; toId: string; kind: string }): string {
-  return `${line.fromId}\0${line.toId}\0${line.kind}`;
+/** Edges have no id — their endpoints and kind are the identity. */
+function mergeByKey<T>(
+  base: readonly T[],
+  patch: readonly T[] | undefined,
+  keyOf: (item: T) => string,
+): T[] {
+  if (!patch?.length) return [...base];
+  const map = new Map(base.map((item) => [keyOf(item), item]));
+  for (const item of patch) {
+    map.set(keyOf(item), item);
+  }
+  return [...map.values()];
 }
 
 export function mergeReportLines(
   base: DiagramData['reportLines'],
   patch: DiagramData['reportLines'] | undefined,
 ): DiagramData['reportLines'] {
-  if (!patch?.length) return [...base];
-  const map = new Map(base.map((line) => [reportLineKey(line), line]));
-  for (const line of patch) {
-    map.set(reportLineKey(line), line);
-  }
-  return [...map.values()];
-}
-
-function orgLinkKey(link: { fromOrgId: string; toOrgId: string; kind: string }): string {
-  return `${link.fromOrgId}\0${link.toOrgId}\0${link.kind}`;
+  return mergeByKey(base, patch, (l) => `${l.fromId}\0${l.toId}\0${l.kind}`);
 }
 
 export function mergeOrgLinks(
   base: NonNullable<DiagramData['orgLinks']>,
   patch: DiagramData['orgLinks'] | undefined,
 ): DiagramData['orgLinks'] {
-  if (!patch?.length) return [...base];
-  const map = new Map(base.map((link) => [orgLinkKey(link), link]));
-  for (const link of patch) {
-    map.set(orgLinkKey(link), link);
-  }
-  return [...map.values()];
+  return mergeByKey(base, patch, (l) => `${l.fromOrgId}\0${l.toOrgId}\0${l.kind}`);
 }

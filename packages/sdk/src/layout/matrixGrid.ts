@@ -203,11 +203,7 @@ export function assignMatrixCells(
   return assignments;
 }
 
-/**
- * Which org currently sits at `cell`, ignoring `exceptOrgId`. Callers need it
- * both to eject the occupant and to report the ejection to the host, so it is
- * one pass over the assignment, not two.
- */
+/** Which org currently sits at `cell`, ignoring `exceptOrgId`. */
 export function occupantAtCell(
   organizations: DiagramOrganization[],
   cell: { row: number; col: number },
@@ -221,26 +217,40 @@ export function occupantAtCell(
   return undefined;
 }
 
-export function placeOrgAtMatrixCell(
+/** Placement result: the new list, plus whoever was pushed out of the cell. */
+export interface MatrixPlacement {
+  organizations: DiagramOrganization[];
+  /** Undefined when the cell was free, or when nothing moved. */
+  ejectedOrgId?: string;
+}
+
+/**
+ * Move an org to (row,col), ejecting the current occupant from the matrix.
+ *
+ * Returns the ejected id too, because the host has to be told who moved — and
+ * finding it out afterwards would mean a second `assignMatrixCells` pass over
+ * every organization. {@link placeOrgAtMatrixCell} is the list-only form.
+ */
+export function applyMatrixPlacement(
   organizations: DiagramOrganization[],
   orgId: string,
-  row: number,
-  col: number,
+  cell: { row: number; col: number },
   dims: Pick<MatrixDimensions, 'rows' | 'cols'>,
-): DiagramOrganization[] {
+): MatrixPlacement {
+  const { row, col } = cell;
   const target = organizations.find((o) => o.id === orgId);
-  if (!target) return organizations;
+  if (!target) return { organizations };
 
   // Persist integers so later assignMatrixCells occupant checks (cell.row === row) match.
   const { row: targetRow, col: targetCol } = normalizeCell(row, col);
   const boundedDims: MatrixDimensions = { ...dims, bounded: true };
   if (!isInsideGrid(targetRow, targetCol, boundedDims)) {
-    return organizations;
+    return { organizations };
   }
 
   // Already persisted at this cell — no-op (do not rewrite inMatrix / eject).
   if (target.matrixRow === targetRow && target.matrixCol === targetCol) {
-    return organizations;
+    return { organizations };
   }
 
   const occupantId = occupantAtCell(
@@ -250,7 +260,7 @@ export function placeOrgAtMatrixCell(
     orgId,
   );
 
-  return organizations.map((org) => {
+  const placed = organizations.map((org) => {
     if (org.id === orgId) {
       // Keep inMatrix as authored. `?? false` would mark default members foreign (T78-L7).
       return {
@@ -265,4 +275,20 @@ export function placeOrgAtMatrixCell(
     }
     return org;
   });
+
+  return { organizations: placed, ejectedOrgId: occupantId };
+}
+
+/**
+ * List-only placement (public API). Returns the input array unchanged when the
+ * move is a no-op, which callers use as an «did anything move» check.
+ */
+export function placeOrgAtMatrixCell(
+  organizations: DiagramOrganization[],
+  orgId: string,
+  row: number,
+  col: number,
+  dims: Pick<MatrixDimensions, 'rows' | 'cols'>,
+): DiagramOrganization[] {
+  return applyMatrixPlacement(organizations, orgId, { row, col }, dims).organizations;
 }

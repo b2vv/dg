@@ -29,6 +29,7 @@ import { ViewStateStore } from './state/ViewStateStore.js';
 import { DataStore } from './state/DataStore.js';
 import type { PromoteCandidate } from './render/promoteTypes.js';
 import { promoteIdMatches } from './render/promoteMath.js';
+import type { SelectionPointerMods } from './interaction/selection.js';
 import { resolveContextMenuNodeData } from './interaction/contextMenuPayload.js';
 import {
   collapseAllOrgs,
@@ -36,8 +37,7 @@ import {
   detectOrgMode,
   expandOrg,
   swapMatrixOrder,
-  placeOrgAtMatrixCell,
-  occupantAtCell,
+  applyMatrixPlacement,
   assignExpandToDepth,
   adminDescendantIds,
   positionHasAdminChildren,
@@ -297,7 +297,7 @@ export class OrgHierarchyDiagram {
 
   private handleNodeSelect(
     node: NodeRef,
-    mods?: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean },
+    mods?: SelectionPointerMods,
   ): void {
     this.selectionStore.handlePointerSelect(node, mods);
   }
@@ -501,7 +501,7 @@ export class OrgHierarchyDiagram {
       this.host?.fitView(48, { animate: true });
       return;
     }
-    this.panToOrg(orgId, { animate: true });
+    this.panToNode(orgId, { animate: true });
   }
 
   async collapseOrg(orgId: string): Promise<void> {
@@ -511,7 +511,7 @@ export class OrgHierarchyDiagram {
     };
     this.callbacks.onOrgModeChange?.(this.getOrgMode());
     await this.render();
-    this.panToOrg(orgId, { animate: true });
+    this.panToNode(orgId, { animate: true });
   }
 
   /**
@@ -542,11 +542,16 @@ export class OrgHierarchyDiagram {
     this.host?.fitView(48, { animate: true });
   }
 
-  /** Pan camera to an org card after matrix↔row-tree transitions (T53). */
-  private panToOrg(orgId: string, motion?: import('./render/Viewport.js').CameraMotionOptions): void {
-    const box = this.host?.renderer.getNodeBox(orgId);
-    if (!box) return;
+  /**
+   * Pan the camera to a rendered node's centre (T53: after matrix↔row-tree
+   * transitions, after expand/collapse, after focus). False when the node has
+   * no box — it is collapsed away or not laid out yet.
+   */
+  private panToNode(nodeId: string, motion?: CameraMotionOptions): boolean {
+    const box = this.host?.renderer.getNodeBox(nodeId);
+    if (!box) return false;
     this.host?.panTo(box.x + box.width / 2, box.y + box.height / 2, motion);
+    return true;
   }
 
   async reorderOrg(orgId: string, newIndex: number): Promise<void> {
@@ -569,12 +574,11 @@ export class OrgHierarchyDiagram {
     const side = Math.max(1, Math.ceil(Math.sqrt(this.data.organizations.length)));
     const dims = grid ?? { rows: side, cols: side };
     const cell = { row: Math.floor(row), col: Math.floor(col) };
-    const nextOrgs = placeOrgAtMatrixCell(this.data.organizations, orgId, row, col, dims);
-    if (nextOrgs === this.data.organizations) return;
+    const placement = applyMatrixPlacement(this.data.organizations, orgId, cell, dims);
+    if (placement.organizations === this.data.organizations) return;
 
-    // Read the occupant before the move — afterwards it is already ejected.
-    const ejectedOrgId = occupantAtCell(this.data.organizations, cell, dims, orgId);
-    this.data = { ...this.data, organizations: nextOrgs };
+    const { ejectedOrgId } = placement;
+    this.data = { ...this.data, organizations: placement.organizations };
     const patch: LayoutPatch = {
       type: 'matrix-cell',
       orgId,
@@ -693,7 +697,7 @@ export class OrgHierarchyDiagram {
       this.setPositionExpandedFlag(positionId, false);
       this.emitPositionExpand(positionId, false, [positionId]);
       await this.render();
-      this.panToPosition(positionId, { animate: true });
+      this.panToNode(positionId, { animate: true });
       return false;
     }
 
@@ -708,7 +712,7 @@ export class OrgHierarchyDiagram {
     for (const id of evicted) this.emitPositionExpand(id, false, [id]);
     this.emitPositionExpand(positionId, true, [positionId, ...evicted]);
     await this.render();
-    this.panToPosition(positionId, { animate: true });
+    this.panToNode(positionId, { animate: true });
     return true;
   }
 
@@ -763,7 +767,7 @@ export class OrgHierarchyDiagram {
     const head = this.data.positions.find(
       (p) => p.organizationId === organizationId && p.isHead,
     );
-    if (head) this.panToPosition(head.id, { animate: true });
+    if (head) this.panToNode(head.id, { animate: true });
   }
 
   /** Collapse a position and clear expand flags on its admin descendants. */
@@ -781,7 +785,7 @@ export class OrgHierarchyDiagram {
       changedIds: ids,
     });
     await this.render();
-    this.panToPosition(positionId, { animate: true });
+    this.panToNode(positionId, { animate: true });
   }
 
   /** Apply staff focus and re-render (drill into Tier-3 org card). Clears expands. */
@@ -789,16 +793,6 @@ export class OrgHierarchyDiagram {
     this.viewState.staffExpandedOrgIds.clear();
     this.setStaffFocus(orgId);
     await this.render();
-  }
-
-  /** Pan camera to a position card after expand/collapse (T53 lesson). */
-  private panToPosition(
-    positionId: string,
-    motion?: import('./render/Viewport.js').CameraMotionOptions,
-  ): void {
-    const box = this.host?.renderer.getNodeBox(positionId);
-    if (!box) return;
-    this.host?.panTo(box.x + box.width / 2, box.y + box.height / 2, motion);
   }
 
   async search(query: string): Promise<SearchResult[]> {
@@ -934,11 +928,9 @@ export class OrgHierarchyDiagram {
     if (!ref) return false;
     this.applySelection(ref);
     this.repaintSelection();
-    const box =
-      this.host?.renderer.getNodeBox(nodeId) ??
-      (ref.positionId ? this.host?.renderer.getNodeBox(ref.positionId) : undefined);
-    if (box) {
-      this.host?.panTo(box.x + box.width / 2, box.y + box.height / 2, { animate: true });
+    // A person id has no box of its own — the seat it fills does.
+    if (!this.panToNode(nodeId, { animate: true }) && ref.positionId) {
+      this.panToNode(ref.positionId, { animate: true });
     }
     return true;
   }

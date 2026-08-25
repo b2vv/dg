@@ -67,16 +67,7 @@ export function resolveNodeRefInData(data: DiagramData, nodeId: string): NodeRef
   }
   if (kindHint === 'position' || !kindHint) {
     const position = data.positions.find((p) => p.id === raw);
-    if (position?.personId) return personNodeRef(data, position.personId, position.id);
-    if (position) {
-      return {
-        kind: 'position',
-        id: position.id,
-        organizationId: position.organizationId,
-        departmentId: position.departmentId,
-        positionId: position.id,
-      };
-    }
+    if (position) return seatNodeRef(data, position.personId, position.id);
     if (kindHint === 'position') return null;
   }
   if (kindHint === 'person' || !kindHint) {

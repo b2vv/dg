@@ -139,7 +139,7 @@ export {
 } from './types.js';
 export { StaffZonesView } from './StaffZonesView.js';
 export { DepartmentCardView } from './DepartmentCardView.js';
-export { paintDashedFrame, roundedRectRing } from './dashedStroke.js';
+export { paintDashedFrame } from './dashedStroke.js';
 export {
   enrichStaffTierBands,
   worldBoundsForTier,
