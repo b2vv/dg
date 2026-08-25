@@ -1,17 +1,14 @@
 import { Container, Graphics } from 'pixi.js';
+import { LayerManager } from './LayerManager.js';
+import { SceneRegistry, type NodeWorldBox } from './SceneRegistry.js';
+import { ContourPainter } from './ContourPainter.js';
 import {
   type ContourMagnetConfig,
   type ContourPositionInput,
   type DeptContourResult,
 } from '../contour/bridge.js';
 import { contourSceneInputs, matrixNodeBoxes } from './contourInputs.js';
-import { computeFloodContours } from './floodContourEngine.js';
 import { contourButtonGroupMargin } from './contourButtonGroup.js';
-import {
-  corridorCellsForFlood,
-  corridorPx,
-  DEFAULT_CORRIDOR_CELLS,
-} from './contourCorridor.js';
 import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
 import {
   DEFAULT_STAFF_LAYOUT_OPTIONS,
@@ -34,12 +31,6 @@ import {
   type SelectionPointerMods,
 } from '../interaction/selection.js';
 import type { NodeRef } from '../interaction/types.js';
-import {
-  nodeEntityKey,
-  parseNodeEntityKey,
-  promoteIdMatches,
-} from './promoteMath.js';
-import { DepartmentBlobView } from './DepartmentBlob.js';
 import { DepartmentCardView, paintDashedFrame } from './DepartmentCardView.js';
 import { StaffZonesView } from './StaffZonesView.js';
 import { enrichStaffTierBands, unionBoxes } from './staffZoneBounds.js';
@@ -47,10 +38,7 @@ import { OrgEdgesView } from './OrgEdgesView.js';
 import { StaffEdgesView } from './StaffEdgesView.js';
 import { PersonNodeView } from './PersonNode.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
-import { runPointMorph, type PointMorphHandle } from './contourMorph.js';
 import type {
-  ContourEngine,
-  DepartmentBlobStyle,
   DepartmentCardStyle,
   NodeTheme,
   RenderConfig,
@@ -67,10 +55,7 @@ import {
 import {
   type ContourMemberBox,
 } from './contourClearance.js';
-import { paintMagneticGroups } from './paintMagneticGroups.js';
-import { resolveMagnetRadius } from './magnetRadius.js';
 import { inferStaffCurrentOrgId } from './inferStaffCurrentOrgId.js';
-import { offsetMemberBoxesForGridMove, cloneMemberBoxes } from './offsetMemberBoxes.js';
 
 export type ContourComputer = (
   positions: ContourPositionInput[],
@@ -125,94 +110,8 @@ export interface RenderOptions {
   loadTexture?: import('./nodeMedia.js').NodeTextureLoader;
 }
 
-export interface NodeWorldBox {
-  id: string;
-  kind: 'person' | 'organization' | 'position';
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
 
-interface ContourSession {
-  baseInputs: ContourPositionInput[];
-  inputs: ContourPositionInput[];
-  magnet: ContourMagnetConfig;
-  style: DepartmentBlobStyle;
-  lod: LodLevel;
-  morphMs: number;
-  deptNames: Map<string, string>;
-  personCounts: Map<string, number>;
-  /** Paint only depts with at least this many positions (T46). */
-  minContourMembers: number;
-  /** Paint-only: demo Padding slider → px margin around card union. */
-  paintPaddingCells: number;
-  /** Paint-only: demo Smooth slider → corner arc segments. */
-  paintSmoothIterations: number;
-  /** Which geometry paints the contour (T80). */
-  engine: ContourEngine;
-  /** positionId → organizationId; the flood runs per org block (local cells). */
-  orgByPosition: Map<string, string>;
-  /** Seat box the flood ring is snapped onto (cells are wider than cards). */
-  cardWidth: number;
-  cardHeight: number;
-  /** G2 corridor in px for the button-group painter. */
-  corridorPx: number;
-  /** Rings from the Rust flood, already mapped to world space (`cell-flood`). */
-  floodRingsByDept: Map<string, { x: number; y: number }[][]>;
-  memberBoxesByDept: Map<string, ContourMemberBox[]>;
-  baseMemberBoxesByDept: Map<string, ContourMemberBox[]>;
-  blobsByDept: Map<string, DepartmentBlobView[]>;
-  morphHandles: Map<DepartmentBlobView, PointMorphHandle>;
-  previewGen: number;
-}
-
-export class LayerManager {
-  readonly root = new Container();
-  /** T64 named zones under department chrome / cards. */
-  readonly zones = new Container();
-  readonly departments = new Container();
-  readonly edges = new Container();
-  readonly organizations = new Container();
-  readonly persons = new Container();
-  /** Contour strokes above cards so corridor outlines stay visible / stable. */
-  readonly departmentStrokes = new Container();
-  readonly overlay = new Container();
-
-  constructor() {
-    this.root.addChild(
-      this.zones,
-      this.departments,
-      this.edges,
-      this.organizations,
-      this.persons,
-      this.departmentStrokes,
-      this.overlay,
-    );
-    // Edges/strokes/zones are paint-only — must not steal hits from node chrome underneath.
-    this.edges.eventMode = 'none';
-    this.departmentStrokes.eventMode = 'none';
-    this.zones.eventMode = 'none';
-  }
-
-  clear(): void {
-    this.destroyLayerChildren(this.zones);
-    this.destroyLayerChildren(this.departments);
-    this.destroyLayerChildren(this.edges);
-    this.destroyLayerChildren(this.organizations);
-    this.destroyLayerChildren(this.persons);
-    this.destroyLayerChildren(this.departmentStrokes);
-    this.destroyLayerChildren(this.overlay);
-  }
-
-  /** T75 D3: removeChildren alone leaks GPU; destroy detached views. */
-  private destroyLayerChildren(layer: Container): void {
-    const removed = layer.removeChildren();
-    for (const child of removed) {
-      child.destroy({ children: true });
-    }
-  }
-}
+export type { NodeWorldBox };
 
 const DEFAULT_MORPH_MS = 160;
 
@@ -221,16 +120,19 @@ export class DiagramRenderer {
   private destroyed = false;
   /** Bumped at each render entry; stale async passes bail after await (T75 D2). */
   private renderEpoch = 0;
-  private nodeBoxes = new Map<string, NodeWorldBox>();
-  /** Pixi views keyed by node/position/org id — for promote hide/show. */
-  private nodeViews = new Map<string, Container>();
-  /** T74 M1: media URL → views that can reloadMedia() after invalidate. */
-  private mediaUrlViews = new Map<string, Set<{ reloadMedia: () => Promise<void> }>>();
-  private promotedIds = new Set<string>();
-  private contourSession: ContourSession | null = null;
+  /** Boxes, views and promote state for what the last render put on screen. */
+  private readonly scene = new SceneRegistry();
   private lastDiagnostics: string[] = [];
   /** Contour cell-space → staff world (pitch + origin). */
   private contourWorld: ContourWorldTransform | null = null;
+  /** Department contours: session, engine choice and drag morphs. */
+  private readonly contours = new ContourPainter({
+    layers: this.layers,
+    isDestroyed: () => this.destroyed,
+    worldTransform: () => this.contourWorld,
+    cardInset: () => ({ x: this.dragGrid?.insetX ?? 0, y: this.dragGrid?.insetY ?? 0 }),
+    reportDiagnostic: (message) => this.reportContourDiagnostic(message),
+  });
   /** Active grid for person drag snap (staff pitch or bare cell). */
   private dragGrid: {
     pitchX: number;
@@ -269,20 +171,7 @@ export class DiagramRenderer {
   }
 
   getNodeBox(id: string): NodeWorldBox | undefined {
-    const direct = this.nodeBoxes.get(id);
-    if (direct) return direct;
-    const parsed = parseNodeEntityKey(id);
-    if (parsed) {
-      return (
-        this.nodeBoxes.get(nodeEntityKey(parsed.kind, parsed.id)) ??
-        this.nodeBoxes.get(parsed.id)
-      );
-    }
-    return (
-      this.nodeBoxes.get(nodeEntityKey('position', id)) ??
-      this.nodeBoxes.get(nodeEntityKey('organization', id)) ??
-      this.nodeBoxes.get(nodeEntityKey('person', id))
-    );
+    return this.scene.getBox(id);
   }
 
   /** Soft layout warnings from the last successful `render` (may be empty). */
@@ -291,7 +180,7 @@ export class DiagramRenderer {
   }
 
   listNodeBoxes(): readonly NodeWorldBox[] {
-    return [...this.nodeBoxes.values()];
+    return this.scene.listBoxes();
   }
 
   /**
@@ -299,37 +188,22 @@ export class DiagramRenderer {
    * Call after render or when the promote set changes.
    */
   setPromotedNodeIds(ids: readonly string[]): void {
-    this.promotedIds = new Set(ids);
-    this.applyPromoteVisibility();
+    this.scene.setPromotedIds(ids);
   }
 
   getPromotedNodeIds(): readonly string[] {
-    return [...this.promotedIds];
+    return this.scene.listPromotedIds();
   }
 
   private registerView(kind: NodeWorldBox['kind'], id: string, view: Container): void {
-    const key = nodeEntityKey(kind, id);
-    this.nodeViews.set(key, view);
-    view.visible = !this.isPromotedKey(key);
-  }
-
-  private isPromotedKey(key: string): boolean {
-    if (this.promotedIds.has(key)) return true;
-    return promoteIdMatches(this.promotedIds, key);
+    this.scene.registerView(kind, id, view);
   }
 
   private registerMediaView(
     url: string | undefined,
     view: { reloadMedia: () => Promise<void> },
   ): void {
-    const trimmed = url?.trim();
-    if (!trimmed) return;
-    let set = this.mediaUrlViews.get(trimmed);
-    if (!set) {
-      set = new Set();
-      this.mediaUrlViews.set(trimmed, set);
-    }
-    set.add(view);
+    this.scene.registerMediaView(url, view);
   }
 
   /**
@@ -338,38 +212,12 @@ export class DiagramRenderer {
    */
   async refreshMediaUrls(urls: readonly string[]): Promise<void> {
     if (this.destroyed) return;
-    const seen = new Set<{ reloadMedia: () => Promise<void> }>();
-    for (const raw of urls) {
-      const trimmed = raw.trim();
-      if (!trimmed) continue;
-      for (const view of this.mediaUrlViews.get(trimmed) ?? []) {
-        seen.add(view);
-      }
-    }
-    await Promise.all([...seen].map((v) => v.reloadMedia()));
-  }
-
-  private applyPromoteVisibility(): void {
-    for (const [id, view] of this.nodeViews) {
-      view.visible = !this.isPromotedKey(id);
-    }
+    await Promise.all(this.scene.viewsForMediaUrls(urls).map((v) => v.reloadMedia()));
   }
 
   /** Axis-aligned union of remembered node boxes (world space). */
   getContentBounds(): { x: number; y: number; width: number; height: number } | null {
-    if (this.nodeBoxes.size === 0) return null;
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    for (const box of this.nodeBoxes.values()) {
-      minX = Math.min(minX, box.x);
-      minY = Math.min(minY, box.y);
-      maxX = Math.max(maxX, box.x + box.width);
-      maxY = Math.max(maxY, box.y + box.height);
-    }
-    if (!Number.isFinite(minX) || !Number.isFinite(minY)) return null;
-    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+    return this.scene.contentBounds();
   }
 
   async render(
@@ -381,14 +229,11 @@ export class DiagramRenderer {
   ): Promise<void> {
     if (this.destroyed) return;
     const epoch = ++this.renderEpoch;
-    this.cancelContourMorphs();
-    this.contourSession = null;
+    this.contours.reset();
     this.contourWorld = null;
     this.dragGrid = null;
     this.layers.clear();
-    this.nodeBoxes.clear();
-    this.nodeViews.clear();
-    this.mediaUrlViews.clear();
+    this.scene.clear();
     this.lastDiagnostics = [];
     this.drag = null;
 
@@ -409,7 +254,16 @@ export class DiagramRenderer {
     if (!this.isRenderCurrent(epoch)) return;
 
     this.drawSelection(options.selected ?? []);
-    this.applyPromoteVisibility();
+    this.scene.applyPromoteVisibility();
+  }
+
+  /**
+   * An empty contour layer with a silent console is the kind of quiet lie this
+   * repo bans — every reason the flood produced nothing goes to
+   * `getLayoutDiagnostics()`, which the host receives after each render.
+   */
+  private reportContourDiagnostic(message: string): void {
+    this.lastDiagnostics = [...this.lastDiagnostics, message];
   }
 
   private isRenderCurrent(epoch: number): boolean {
@@ -432,17 +286,9 @@ export class DiagramRenderer {
     if (this.destroyed) return;
     this.destroyed = true;
     this.renderEpoch += 1;
-    this.cancelContourMorphs();
-    this.contourSession = null;
+    this.contours.reset();
     this.layers.clear();
     this.layers.root.destroy({ children: true });
-  }
-
-  private cancelContourMorphs(): void {
-    const session = this.contourSession;
-    if (!session) return;
-    for (const handle of session.morphHandles.values()) handle.cancel();
-    session.morphHandles.clear();
   }
 
   private normalizeSelected(
@@ -468,295 +314,7 @@ export class DiagramRenderer {
   }
 
   private rememberBox(box: NodeWorldBox): void {
-    const key = parseNodeEntityKey(box.id) ? box.id : nodeEntityKey(box.kind, box.id);
-    this.nodeBoxes.set(key, { ...box, id: key });
-  }
-
-  private beginContourSession(args: {
-    inputs: ContourPositionInput[];
-    magnet: ContourMagnetConfig;
-    style: DepartmentBlobStyle;
-    lod: LodLevel;
-    morphMs: number;
-    deptNames: Map<string, string>;
-    personCounts: Map<string, number>;
-    minContourMembers: number;
-    paintPaddingCells: number;
-    paintSmoothIterations: number;
-    engine: ContourEngine;
-    orgByPosition: Map<string, string>;
-    cardWidth: number;
-    cardHeight: number;
-    corridorPx: number;
-    memberBoxesByDept?: Map<string, ContourMemberBox[]>;
-  }): ContourSession {
-    this.cancelContourMorphs();
-    const cloned = args.inputs.map((p) => ({ ...p }));
-    const boxes = cloneMemberBoxes(args.memberBoxesByDept);
-    this.contourSession = {
-      ...args,
-      memberBoxesByDept: boxes,
-      baseMemberBoxesByDept: cloneMemberBoxes(boxes),
-      baseInputs: cloned.map((p) => ({ ...p })),
-      inputs: cloned,
-      blobsByDept: new Map(),
-      morphHandles: new Map(),
-      previewGen: 0,
-      floodRingsByDept: new Map(),
-    };
-    return this.contourSession;
-  }
-
-  /** Rings for the current engine: TS button-group by default, else the flood. */
-  private buildPaintRingsByDept(): Map<string, { x: number; y: number }[][]> {
-    const session = this.contourSession;
-    if (!session) return new Map();
-    if (session.engine === 'cell-flood') return session.floodRingsByDept;
-
-    // Same painter as the SVG export — canvas and export must not drift apart.
-    const painted = paintMagneticGroups({
-      inputs: session.inputs,
-      memberBoxesByDept: session.memberBoxesByDept,
-      departmentIds: [...new Set(session.inputs.map((p) => p.departmentId))].sort(),
-      magnetRadius: resolveMagnetRadius(session.magnet.magnetRadius),
-      strokeWidth: session.style.strokeWidth,
-      paddingCells: session.paintPaddingCells,
-      smoothIterations: session.paintSmoothIterations,
-      personCounts: session.personCounts,
-      minContourMembers: session.minContourMembers,
-      corridorPx: session.corridorPx,
-    });
-
-    const out = new Map<string, { x: number; y: number }[][]>();
-    for (const group of painted) {
-      const rings = out.get(group.departmentId) ?? [];
-      rings.push(group.ring);
-      out.set(group.departmentId, rings);
-    }
-    return out;
-  }
-
-  private mountDeptBlob(blob: DepartmentBlobView): void {
-    this.layers.departments.addChild(blob);
-    this.layers.departmentStrokes.addChild(blob.strokeGraphics);
-  }
-
-  private unmountDeptBlob(blob: DepartmentBlobView): void {
-    this.layers.departmentStrokes.removeChild(blob.strokeGraphics);
-    this.layers.departments.removeChild(blob);
-    blob.destroy();
-  }
-
-  private refreshContourPaint(morph: boolean): void {
-    const session = this.contourSession;
-    if (!session) return;
-
-    const ringsByDept = this.buildPaintRingsByDept();
-
-    for (const [deptId, blobs] of [...session.blobsByDept.entries()]) {
-      if (ringsByDept.has(deptId)) continue;
-      for (const blob of blobs) {
-        session.morphHandles.get(blob)?.cancel();
-        session.morphHandles.delete(blob);
-        this.unmountDeptBlob(blob);
-      }
-      session.blobsByDept.delete(deptId);
-    }
-
-    for (const [deptId, rings] of ringsByDept) {
-      let blobs = session.blobsByDept.get(deptId);
-      if (!blobs) {
-        blobs = [];
-        session.blobsByDept.set(deptId, blobs);
-      }
-
-      const label = session.deptNames.get(deptId) ?? deptId;
-      const count = session.personCounts.get(deptId);
-
-      if (blobs.length !== rings.length) {
-        for (const blob of blobs) {
-          session.morphHandles.get(blob)?.cancel();
-          session.morphHandles.delete(blob);
-          this.unmountDeptBlob(blob);
-        }
-        blobs.length = 0;
-        for (const ring of rings) {
-          const blob = DepartmentBlobView.fromPoints(
-            ring,
-            label,
-            session.style,
-            session.lod,
-            count,
-          );
-          blobs.push(blob);
-          this.mountDeptBlob(blob);
-        }
-        continue;
-      }
-
-      for (let i = 0; i < rings.length; i += 1) {
-        const blob = blobs[i]!;
-        const to = rings[i]!;
-        const from = blob.getDrawnPoints().map((p) => ({ x: p.x, y: p.y }));
-        session.morphHandles.get(blob)?.cancel();
-        session.morphHandles.delete(blob);
-
-        if (!morph || session.morphMs <= 0 || from.length < 2 || to.length < 2) {
-          blob.redrawPoints(to, session.style, session.lod, count);
-          continue;
-        }
-
-        const handle = runPointMorph({
-          from,
-          to,
-          durationMs: session.morphMs,
-          onUpdate: (pts) => {
-            blob.redrawPoints(pts, session.style, session.lod, count);
-          },
-        });
-        session.morphHandles.set(blob, handle);
-      }
-    }
-  }
-
-  private async paintContours(
-    inputs: ContourPositionInput[],
-    data: DiagramData,
-    theme: NodeTheme,
-    config: RenderConfig,
-    options: RenderOptions,
-  ): Promise<void> {
-    // T77-M01 Option B still holds for `button-group`: rings are computed in
-    // TS, no round-trip. `cell-flood` (T80) opts into one await on purpose.
-    const corridorCells = config.corridorCells ?? defaultRenderConfig.corridorCells ?? DEFAULT_CORRIDOR_CELLS;
-    const magnet: ContourMagnetConfig = {
-      paddingCells: 0,
-      // G2: the flood dilates foreign cells by whole rings; below one cell the
-      // exclusion of the foreign cell itself is already the gap.
-      corridorCells: corridorCellsForFlood(corridorCells),
-      cellWidth: config.cellWidth,
-      cellHeight: config.cellHeight,
-      smoothIterations: 0,
-      magnetRadius: resolveMagnetRadius(config.magnetRadius),
-    };
-    const lod = options.lod ?? 'near';
-    const deptNames = new Map(data.departments.map((d) => [d.id, d.name]));
-    const personCounts = countPositionsByDept(data.positions);
-    const engine = config.contourEngine ?? defaultRenderConfig.contourEngine ?? 'button-group';
-    const session = this.beginContourSession({
-      inputs,
-      magnet,
-      style: theme.department,
-      lod,
-      morphMs: options.contourMorphMs ?? DEFAULT_MORPH_MS,
-      deptNames,
-      personCounts,
-      minContourMembers: config.minContourMembers ?? defaultRenderConfig.minContourMembers,
-      paintPaddingCells: config.paddingCells,
-      paintSmoothIterations: config.smoothIterations,
-      engine,
-      orgByPosition: new Map(data.positions.map((p) => [p.id, p.organizationId])),
-      cardWidth: theme.person.width,
-      cardHeight: theme.person.height,
-      corridorPx: corridorPx(
-        config.corridorCells ?? defaultRenderConfig.corridorCells ?? DEFAULT_CORRIDOR_CELLS,
-        {
-          cellWidth: config.cellWidth,
-          cellHeight: config.cellHeight,
-          cardWidth: theme.person.width,
-          cardHeight: theme.person.height,
-        },
-        contourButtonGroupMargin(config.paddingCells, theme.department.strokeWidth),
-      ),
-      memberBoxesByDept: options.contourMemberBoxesByDept,
-    });
-    if (this.destroyed || !this.contourSession) return;
-    if (engine === 'cell-flood') {
-      await this.loadFloodRings(session, magnet);
-      if (this.destroyed || this.contourSession !== session) return;
-    }
-    this.refreshContourPaint(false);
-  }
-
-  /**
-   * `cell-flood`: Rust flood geometry (G1–G8) instead of the TS button-group.
-   *
-   * `gridCell` is **local to one org block**, so the flood runs per block and
-   * each block's rings are mapped with its own origin — feeding every block to
-   * one flood would overlay tier 1 and tier 2 on the same cell grid. Rings come
-   * back in cell units and go through the transform the drag grid uses.
-   */
-  private async loadFloodRings(
-    session: ContourSession,
-    magnet: ContourMagnetConfig,
-  ): Promise<void> {
-    session.floodRingsByDept = new Map();
-    const transform = this.contourWorld;
-    if (!transform) {
-      this.reportContourDiagnostic(
-        'Contour flood skipped: no cell transform — positions need authored gridCell',
-      );
-      return;
-    }
-
-    const { ringsByDept, diagnostics } = await computeFloodContours({
-      inputs: session.inputs,
-      magnet,
-      orgByPosition: session.orgByPosition,
-      memberBoxes: [...session.memberBoxesByDept.values()].flat(),
-      transform,
-      cards: {
-        cardWidth: session.cardWidth,
-        cardHeight: session.cardHeight,
-        insetX: this.dragGrid?.insetX ?? 0,
-        insetY: this.dragGrid?.insetY ?? 0,
-        padding: contourButtonGroupMargin(session.paintPaddingCells, session.style.strokeWidth),
-      },
-      personCounts: session.personCounts,
-      minContourMembers: session.minContourMembers,
-      isCurrent: () => !this.destroyed && this.contourSession === session,
-    });
-
-    if (this.destroyed || this.contourSession !== session) return;
-    session.floodRingsByDept = ringsByDept;
-    for (const message of diagnostics) this.reportContourDiagnostic(message);
-  }
-
-  /**
-   * An empty contour layer with a silent console is the kind of quiet lie this
-   * repo bans — every reason the flood produced nothing goes to
-   * `getLayoutDiagnostics()`, which the host receives after each render.
-   */
-  private reportContourDiagnostic(message: string): void {
-    this.lastDiagnostics = [...this.lastDiagnostics, message];
-  }
-
-  private async restoreContoursAfterFailedDrag(): Promise<void> {
-    const session = this.contourSession;
-    if (!session) return;
-    session.inputs = session.baseInputs.map((p) => ({ ...p }));
-    session.memberBoxesByDept = cloneMemberBoxes(session.baseMemberBoxesByDept);
-    session.previewGen += 1;
-    this.refreshContourPaint(true);
-  }
-
-  private async previewDragContours(positionId: string, col: number, row: number): Promise<void> {
-    const session = this.contourSession;
-    if (!session || col < 0 || row < 0) return;
-    const prev = session.inputs.find((p) => p.id === positionId);
-    const dCol = col - (prev?.col ?? col);
-    const dRow = row - (prev?.row ?? row);
-    session.inputs = session.inputs.map((p) => (p.id === positionId ? { ...p, col, row } : p));
-    session.memberBoxesByDept = offsetMemberBoxesForGridMove(
-      session.memberBoxesByDept,
-      positionId,
-      dCol,
-      dRow,
-      session.magnet.cellWidth ?? 0,
-      session.magnet.cellHeight ?? 0,
-    );
-    session.previewGen += 1;
-    this.refreshContourPaint(true);
+    this.scene.rememberBox(box);
   }
 
   private bindPersonInteractions(
@@ -853,7 +411,7 @@ export class DiagramRenderer {
       if (snap.col === this.drag.previewCol && snap.row === this.drag.previewRow) return;
       this.drag.previewCol = snap.col;
       this.drag.previewRow = snap.row;
-      void this.previewDragContours(positionId, snap.col, snap.row);
+      this.contours.previewDrag(positionId, snap.col, snap.row);
     });
 
     const endDrag = (e: { pointerId: number }) => {
@@ -868,7 +426,7 @@ export class DiagramRenderer {
       const snap = this.snapPersonDrag(node.x, node.y, config);
       if (snap.col < 0 || snap.row < 0) {
         node.position.set(originX, originY);
-        void this.restoreContoursAfterFailedDrag();
+        this.contours.restoreAfterFailedDrag();
         return;
       }
       options.onPersonDragEnd?.(positionId, snap.col, snap.row);
@@ -998,9 +556,14 @@ export class DiagramRenderer {
           insetX,
           insetY,
         };
-        await this.paintContours(contourInputs, data, theme, config, {
-          ...options,
-          contourMemberBoxesByDept: memberBoxesByDept,
+        await this.contours.paint({
+          inputs: contourInputs,
+          data,
+          theme,
+          config,
+          lod: options.lod ?? 'near',
+          morphMs: options.contourMorphMs,
+          memberBoxesByDept,
         });
         if (!this.isRenderCurrent(epoch)) return;
       }
@@ -1211,9 +774,14 @@ export class DiagramRenderer {
       new Map(data.positions.map((p) => [p.id, p])),
     );
 
-    await this.paintContours(contourInputs, data, theme, config, {
-      ...options,
-      contourMemberBoxesByDept: memberBoxesByDept,
+    await this.contours.paint({
+      inputs: contourInputs,
+      data,
+      theme,
+      config,
+      lod: options.lod ?? 'near',
+      morphMs: options.contourMorphMs,
+      memberBoxesByDept,
     });
 
     this.dragGrid = {
@@ -1487,15 +1055,6 @@ function departmentWrapperPadding(theme: NodeTheme, config: RenderConfig): numbe
     return padding + (card?.labelRow ? (card.labelFontSize ?? 12) + 6 : 0);
   }
   return contourButtonGroupMargin(config.paddingCells ?? 0, theme.department.strokeWidth);
-}
-
-function countPositionsByDept(positions: DiagramData['positions']): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const p of positions) {
-    if (!p.departmentId) continue;
-    map.set(p.departmentId, (map.get(p.departmentId) ?? 0) + 1);
-  }
-  return map;
 }
 
 function resolveStaffZoneStyle(

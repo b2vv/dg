@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Container } from 'pixi.js';
-import { LayerManager } from './DiagramRenderer.js';
+import { LayerManager } from './LayerManager.js';
 
 describe('LayerManager.clear (T75 D3)', () => {
   it('success: destroys removed children', () => {
