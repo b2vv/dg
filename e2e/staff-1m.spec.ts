@@ -32,6 +32,15 @@ test.describe('1M staff scale tab', () => {
     await expect(page.locator('.scene-caption')).toContainText('window');
   });
 
+  test('an index outside tier 2 is reported, not silently re-centred', async ({ page }) => {
+    const search = page.locator('#search-input');
+    // Tier 3 lives past 700 004 — the window cannot centre there.
+    await search.fill('pos-900000');
+    await search.press('Enter');
+    await expect(page.locator('#status')).toContainText(/subordinate tier/, { timeout: 60_000 });
+    await expect(page.getByTestId('node-scale-focus-seat')).toHaveCount(0);
+  });
+
   test('a name query that is not in the window says so instead of lying', async ({ page }) => {
     const search = page.locator('#search-input');
     await search.fill('Nonexistent Person');

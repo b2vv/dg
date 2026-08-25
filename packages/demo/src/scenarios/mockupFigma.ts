@@ -362,7 +362,7 @@ function withLooseSeat(data: DiagramData): DiagramData {
   const loose = staffPosition(
     {
       id: 'pos-loose',
-      title: 'Attached officer',
+      title: 'Seconded specialist',
       organizationId: 'region',
       personId: 'p-sup',
     },
@@ -702,7 +702,7 @@ export function buildMockupStaffFloodData(): DiagramData {
   const extra = staffPosition(
     {
       id: 'pos-cmd-right',
-      title: 'Duty officer',
+      title: 'Shift supervisor',
       organizationId: 'region',
       departmentId: 'exec',
       personId: 'p-2z',

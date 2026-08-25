@@ -56,6 +56,7 @@ import {
 } from '../scenarios/scaleOrgs.js';
 import {
   buildScaleStaffWindow,
+  LEAD_SEATS,
   parseScaleStaffQuery,
   STAFF_SCALE_DEFAULT_FOCUS,
   STAFF_SCALE_TOTAL,
@@ -558,7 +559,7 @@ export class App {
       const caption = document.createElement('p');
       caption.className = 'scene-caption';
       caption.textContent = win
-        ? `1M staff · window ${win.windowSize.toLocaleString('uk-UA')} seats of ${win.total.toLocaleString('uk-UA')} · tier 1 lead org · tier 2 current org · tier 3 ${win.composition.groups} groups + ${win.composition.simpleOrgs} simple orgs · search «pos-500000» to move the window`
+        ? `1M staff · window ${win.windowSize.toLocaleString('uk-UA')} seats of ${win.total.toLocaleString('uk-UA')} · tier 1 lead org · tier 2 current org · tier 3 ${win.composition.groups} groups + ${win.composition.simpleOrgs} simple orgs · «pos-N» moves the window inside tier 2 (${LEAD_SEATS}…${(LEAD_SEATS + win.composition.current - 1).toLocaleString('uk-UA')})`
         : '1M staff · windowed';
       this.mountEl.appendChild(caption);
       return;
@@ -581,7 +582,7 @@ export class App {
   }
 
   /** 1M staff address space — one window materialized around the focus seat. */
-  private ensureStaffScaleWindow(focusIndex = STAFF_SCALE_DEFAULT_FOCUS): ScaleStaffWindow {
+  private rebuildStaffScaleWindow(focusIndex = STAFF_SCALE_DEFAULT_FOCUS): ScaleStaffWindow {
     this.staffScaleWindow = buildScaleStaffWindow({ focusIndex });
     return this.staffScaleWindow;
   }
@@ -757,7 +758,7 @@ export class App {
           },
         };
       case 'staff-1m': {
-        const win = this.staffScaleWindow ?? this.ensureStaffScaleWindow();
+        const win = this.staffScaleWindow ?? this.rebuildStaffScaleWindow();
         return {
           ...base,
           theme: 'dark',
@@ -964,8 +965,15 @@ export class App {
         if (local[0]) await this.diagram.revealPath(local[0].node.positionId ?? local[0].node.id);
         return;
       }
-      this.ensureStaffScaleWindow(index);
+      const win = this.rebuildStaffScaleWindow(index);
       await this.reload();
+      if (!win.focusMaterialized) {
+        // The window only centres inside tier 2 — say so instead of leaving the
+        // camera on a seat that is not the one that was asked for.
+        this.setStatus(
+          `search · pos-${index} is in the ${win.focusTier} tier · the window centres on the current org (pos-${LEAD_SEATS}…${LEAD_SEATS + win.composition.current - 1})`,
+        );
+      }
       return;
     }
 

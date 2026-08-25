@@ -12,8 +12,13 @@ import {
   MOCKUP_MAGNETIC_STYLES,
 } from './mockupFigma.js';
 
+/**
+ * Rule 1 of work/tasks/MOCKUP-styles-review.md — no military / tactical naming
+ * in demo fixtures. The Ukrainian half catches the Figma frames' own labels;
+ * the English half catches titles drifting in from the scale fixtures.
+ */
 const MILITARY_HINT =
-  /ОБТРО|ОБРТРО|тгр|штаб|командир|офіцер|тактичн|військ|Шацьк/i;
+  /ОБТРО|ОБРТРО|тгр|штаб|командир|офіцер|тактичн|військ|Шацьк|\b(officer|commander|battalion|brigade|platoon|squad|tactical|garrison)\b/i;
 
 describe('mockup fixtures (GH Pages safe)', () => {
   it('brandMarkSymbol emits svg data URI', () => {

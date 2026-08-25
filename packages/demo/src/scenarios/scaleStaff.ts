@@ -50,7 +50,7 @@ const NO_DEPARTMENT_EVERY = 17;
 
 const FIRST = ['Avery', 'Jordan', 'Morgan', 'Casey', 'Taylor', 'Jamie', 'Noel', 'Sasha', 'Dana', 'Riley'];
 const LAST = ['Chen', 'Blake', 'Lee', 'Nguyen', 'Brooks', 'Ortiz', 'Farrow', 'Ilves', 'Whitfield', 'Quinn'];
-const ROLE = ['Coordinator', 'Analyst', 'Officer', 'Specialist', 'Lead', 'Planner'];
+const ROLE = ['Coordinator', 'Analyst', 'Adviser', 'Specialist', 'Lead', 'Planner'];
 
 export interface ScaleStaffComposition {
   lead: number;
@@ -60,15 +60,30 @@ export interface ScaleStaffComposition {
   simpleOrgs: number;
 }
 
+/** Which tier a seat index belongs to. */
+export type ScaleStaffTier = 'lead' | 'current' | 'subordinate';
+
 export interface ScaleStaffWindow {
   total: number;
   /** Seats actually materialized (all tiers). */
   windowSize: number;
   focusIndex: number;
+  /** Tier the focus index lands in — the window can only centre on `current`. */
+  focusTier: ScaleStaffTier;
+  /** True when the focus seat is materialized and marked with a testId. */
+  focusMaterialized: boolean;
   startIndex: number;
   buildMs: number;
   composition: ScaleStaffComposition;
   data: DiagramData;
+}
+
+/** Tier of a seat index in the virtual address space. */
+export function tierOfSeat(index: number, total = STAFF_SCALE_TOTAL): ScaleStaffTier {
+  const composition = scaleStaffComposition(total);
+  if (index < composition.lead) return 'lead';
+  if (index < composition.lead + composition.current) return 'current';
+  return 'subordinate';
 }
 
 export function scaleStaffComposition(total = STAFF_SCALE_TOTAL): ScaleStaffComposition {
@@ -178,7 +193,10 @@ export function buildScaleStaffWindow(options: {
     if (i > 0) reportLines.push({ fromId: 'pos-0', toId: id, kind: 'admin' });
   }
 
-  // Tier 2 — window of the current org around the focus seat.
+  // Tier 2 — window of the current org around the focus seat. The window can
+  // only centre inside this tier: a lead or subordinate index still renders,
+  // but `focusMaterialized` reports that no seat carries the focus marker.
+  const focusTier = tierOfSeat(focusIndex, total);
   const currentFocus = Math.max(0, Math.min(focusIndex - composition.lead, composition.current - 1));
   const start = composition.lead + resolveStaffWindowStart(currentFocus, windowSize, composition.current);
   const end = Math.min(composition.lead + composition.current, start + windowSize);
@@ -267,6 +285,8 @@ export function buildScaleStaffWindow(options: {
     total,
     windowSize: positions.length,
     focusIndex,
+    focusTier,
+    focusMaterialized: positions.some((p) => p.testId === 'scale-focus-seat'),
     startIndex: start,
     buildMs: Math.round(t1 - t0),
     composition,

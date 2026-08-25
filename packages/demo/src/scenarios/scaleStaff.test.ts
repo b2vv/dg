@@ -8,6 +8,8 @@ import {
   STAFF_SCALE_TOTAL,
   STAFF_SCALE_WINDOW,
   SUBORDINATE_ORGS,
+  LEAD_SEATS,
+  tierOfSeat,
 } from './scaleStaff.js';
 
 describe('scale staff address space', () => {
@@ -92,5 +94,34 @@ describe('parseScaleStaffQuery', () => {
     expect(parseScaleStaffQuery('Avery Chen')).toBeNull();
     expect(parseScaleStaffQuery(`pos-${STAFF_SCALE_TOTAL}`)).toBeNull();
     expect(parseScaleStaffQuery('')).toBeNull();
+  });
+});
+
+describe('honesty of the focus marker', () => {
+  it('success: a tier-2 index is materialized and marked', () => {
+    const win = buildScaleStaffWindow({ focusIndex: 400_000 });
+    expect(win.focusTier).toBe('current');
+    expect(win.focusMaterialized).toBe(true);
+  });
+
+  it('failure: a tier-3 index cannot be centred, and the window says so', () => {
+    const win = buildScaleStaffWindow({ focusIndex: 900_000 });
+    expect(win.focusTier).toBe('subordinate');
+    // The scene still renders, but nothing claims to be that seat.
+    expect(win.focusMaterialized).toBe(false);
+    expect(win.data.positions.some((p) => p.testId === 'scale-focus-seat')).toBe(false);
+  });
+
+  it('failure: a lead-tier index is reported as lead, not silently re-centred', () => {
+    const win = buildScaleStaffWindow({ focusIndex: 1 });
+    expect(win.focusTier).toBe('lead');
+    expect(win.focusMaterialized).toBe(false);
+  });
+
+  it('success: tierOfSeat splits the address space at the tier borders', () => {
+    expect(tierOfSeat(0)).toBe('lead');
+    expect(tierOfSeat(LEAD_SEATS)).toBe('current');
+    expect(tierOfSeat(LEAD_SEATS + 699_999)).toBe('current');
+    expect(tierOfSeat(LEAD_SEATS + 700_000)).toBe('subordinate');
   });
 });
