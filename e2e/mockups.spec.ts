@@ -114,6 +114,15 @@ test.describe('mockup tabs visual + hierarchy', () => {
     await expect(page.getByTestId('node-mockup-mid')).toBeVisible();
   });
 
+  test('Staff · Flood: Rust cell contours paint without diagnostics', async ({ page }) => {
+    await openMockupTab(page, 'Staff · Flood');
+    await expect(page.getByTestId('node-staff-head')).toBeVisible();
+    await expect(page.getByTestId('node-staff-temp')).toBeVisible();
+    // The flood engine reports through layout diagnostics when wasm is missing.
+    const toast = page.locator('#toast');
+    await expect(toast).not.toContainText(/Contour flood unavailable/);
+  });
+
   test('Staff · Magnetic: dept blobs + org blocks paint', async ({ page }) => {
     await openMockupTab(page, 'Staff · Magnetic');
     // Same seats as Staff · Figma, laid out on the authored grid.

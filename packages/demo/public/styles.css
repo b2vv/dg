@@ -184,7 +184,8 @@ body {
  */
 body[data-active-tab='mockup-orgs-figma'] .zoom-fab,
 body[data-active-tab='mockup-staff-figma'] .zoom-fab,
-body[data-active-tab='mockup-staff-magnetic'] .zoom-fab {
+body[data-active-tab='mockup-staff-magnetic'] .zoom-fab,
+body[data-active-tab='mockup-staff-flood'] .zoom-fab {
   flex-direction: row;
   gap: 5px;
   right: 16px;
@@ -193,7 +194,8 @@ body[data-active-tab='mockup-staff-magnetic'] .zoom-fab {
 
 body[data-active-tab='mockup-orgs-figma'] .zoom-fab button,
 body[data-active-tab='mockup-staff-figma'] .zoom-fab button,
-body[data-active-tab='mockup-staff-magnetic'] .zoom-fab button {
+body[data-active-tab='mockup-staff-magnetic'] .zoom-fab button,
+body[data-active-tab='mockup-staff-flood'] .zoom-fab button {
   border: 0;
   border-radius: 8px;
   background: rgba(18, 18, 18, 0.5);

@@ -4,7 +4,10 @@ import {
   type ContourPositionInput,
   type DeptContourResult,
 } from '../contour/bridge.js';
+import { computeAllContours } from '../contour/bridge.js';
 import { diagramPositionsToContourInputs } from '../contour/config.js';
+import { filterContoursForPaint } from './contourPaintFilter.js';
+import { mapContourPointsToWorld } from './contourWorldTransform.js';
 import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
 import {
   DEFAULT_STAFF_LAYOUT_OPTIONS,
@@ -42,6 +45,7 @@ import { PersonNodeView } from './PersonNode.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
 import { runPointMorph, type PointMorphHandle } from './contourMorph.js';
 import type {
+  ContourEngine,
   DepartmentBlobStyle,
   DepartmentCardStyle,
   NodeTheme,
@@ -141,6 +145,12 @@ interface ContourSession {
   paintPaddingCells: number;
   /** Paint-only: demo Smooth slider → corner arc segments. */
   paintSmoothIterations: number;
+  /** Which geometry paints the contour (T80). */
+  engine: ContourEngine;
+  /** positionId → organizationId; the flood runs per org block (local cells). */
+  orgByPosition: Map<string, string>;
+  /** Rings from the Rust flood, already mapped to world space (`cell-flood`). */
+  floodRingsByDept: Map<string, { x: number; y: number }[][]>;
   memberBoxesByDept: Map<string, ContourMemberBox[]>;
   baseMemberBoxesByDept: Map<string, ContourMemberBox[]>;
   blobsByDept: Map<string, DepartmentBlobView[]>;
@@ -464,6 +474,8 @@ export class DiagramRenderer {
     minContourMembers: number;
     paintPaddingCells: number;
     paintSmoothIterations: number;
+    engine: ContourEngine;
+    orgByPosition: Map<string, string>;
     memberBoxesByDept?: Map<string, ContourMemberBox[]>;
   }): ContourSession {
     this.cancelContourMorphs();
@@ -478,14 +490,16 @@ export class DiagramRenderer {
       blobsByDept: new Map(),
       morphHandles: new Map(),
       previewGen: 0,
+      floodRingsByDept: new Map(),
     };
     return this.contourSession;
   }
 
-  /** Paint rings from magnetic clusters — no Rust L/C geometry. */
+  /** Rings for the current engine: TS button-group by default, else the flood. */
   private buildPaintRingsByDept(): Map<string, { x: number; y: number }[][]> {
     const session = this.contourSession;
     if (!session) return new Map();
+    if (session.engine === 'cell-flood') return session.floodRingsByDept;
 
     // Same painter as the SVG export — canvas and export must not drift apart.
     const painted = paintMagneticGroups({
@@ -610,7 +624,8 @@ export class DiagramRenderer {
     const lod = options.lod ?? 'near';
     const deptNames = new Map(data.departments.map((d) => [d.id, d.name]));
     const personCounts = countPositionsByDept(data.positions);
-    this.beginContourSession({
+    const engine = config.contourEngine ?? defaultRenderConfig.contourEngine ?? 'button-group';
+    const session = this.beginContourSession({
       inputs,
       magnet,
       style: theme.department,
@@ -621,10 +636,77 @@ export class DiagramRenderer {
       minContourMembers: config.minContourMembers ?? defaultRenderConfig.minContourMembers,
       paintPaddingCells: config.paddingCells,
       paintSmoothIterations: config.smoothIterations,
+      engine,
+      orgByPosition: new Map(data.positions.map((p) => [p.id, p.organizationId])),
       memberBoxesByDept: options.contourMemberBoxesByDept,
     });
     if (this.destroyed || !this.contourSession) return;
+    if (engine === 'cell-flood') {
+      await this.loadFloodRings(session, magnet);
+      if (this.destroyed || this.contourSession !== session) return;
+    }
     this.refreshContourPaint(false);
+  }
+
+  /**
+   * `cell-flood`: Rust flood geometry (G1–G8) instead of the TS button-group.
+   *
+   * `gridCell` is **local to one org block**, so the flood runs per block and
+   * each block's rings are mapped with its own origin — feeding every block to
+   * one flood would overlay tier 1 and tier 2 on the same cell grid. Rings come
+   * back in cell units and go through the transform the drag grid uses.
+   */
+  private async loadFloodRings(
+    session: ContourSession,
+    magnet: ContourMagnetConfig,
+  ): Promise<void> {
+    session.floodRingsByDept = new Map();
+    const transform = this.contourWorld;
+    if (!transform) return;
+    const boxById = new Map(
+      [...session.memberBoxesByDept.values()].flat().map((b) => [b.positionId, b]),
+    );
+
+    for (const [, inputs] of groupInputsByOrg(session.inputs, session.orgByPosition)) {
+      const cellById = new Map(inputs.map((p) => [p.id, { gridCell: { col: p.col, row: p.row } }]));
+      const nodes = inputs
+        .map((p) => boxById.get(p.id))
+        .filter((b): b is NonNullable<typeof b> => !!b)
+        .map((b) => ({ id: b.positionId, x: b.x, y: b.y, width: b.width, height: b.height }));
+      const blockTransform = resolveContourWorldTransform(
+        nodes,
+        cellById,
+        transform.cellWidth,
+        transform.cellHeight,
+        transform.pitchX,
+        transform.pitchY,
+      );
+
+      let contours: DeptContourResult[];
+      try {
+        contours = await computeAllContours(inputs, magnet);
+      } catch (err) {
+        // Surfaced through getLayoutDiagnostics — an empty contour layer with a
+        // silent console is exactly the kind of quiet lie this repo bans.
+        this.lastDiagnostics = [
+          ...this.lastDiagnostics,
+          `Contour flood unavailable: ${err instanceof Error ? err.message : String(err)}`,
+        ];
+        return;
+      }
+      if (this.destroyed || this.contourSession !== session) return;
+
+      for (const contour of filterContoursForPaint(
+        contours,
+        session.personCounts,
+        session.minContourMembers,
+      )) {
+        if (contour.points.length < 3) continue;
+        const rings = session.floodRingsByDept.get(contour.departmentId) ?? [];
+        rings.push(mapContourPointsToWorld(contour.points, blockTransform));
+        session.floodRingsByDept.set(contour.departmentId, rings);
+      }
+    }
   }
 
   private async restoreContoursAfterFailedDrag(): Promise<void> {
@@ -1386,6 +1468,21 @@ export class DiagramRenderer {
           : undefined,
     };
   }
+}
+
+/** Flood runs per org block — `gridCell` is local to one block. */
+function groupInputsByOrg(
+  inputs: readonly ContourPositionInput[],
+  orgByPosition: ReadonlyMap<string, string>,
+): Map<string, ContourPositionInput[]> {
+  const byOrg = new Map<string, ContourPositionInput[]>();
+  for (const input of inputs) {
+    const orgId = orgByPosition.get(input.id) ?? '';
+    const list = byOrg.get(orgId) ?? [];
+    list.push(input);
+    byOrg.set(orgId, list);
+  }
+  return byOrg;
 }
 
 function countPositionsByDept(positions: DiagramData['positions']): Map<string, number> {

@@ -394,6 +394,20 @@ export const MAGNETIC_STAFF_LAYOUT = {
 export const MAGNETIC_CELL = { width: 304, height: 120 } as const;
 
 /**
+ * Flood copy: tighter cells so the cell-space contour still hugs the cards —
+ * a wide cell would wrap each seat in a much larger block.
+ */
+export const FLOOD_CELL = { width: 272, height: 68 } as const;
+
+export const FLOOD_STAFF_LAYOUT = {
+  ...FIGMA_STAFF_LAYOUT,
+  horizontalGap: FLOOD_CELL.width - FIGMA_SEAT.width,
+  verticalGap: FLOOD_CELL.height - FIGMA_SEAT.height,
+  refCellWidth: FIGMA_SEAT.width,
+  refCellHeight: FIGMA_SEAT.height,
+} satisfies StaffLayoutOptions;
+
+/**
  * Figma «посади» topology (frame 1264:7906) with civilian names (rule 1 of
  * work/tasks/MOCKUP-styles-review.md): a managing tier holding one command
  * department, and the current tier holding a command department with two
@@ -623,6 +637,61 @@ export function buildMockupStaffMagneticData(): DiagramData {
       const gridCell = cells[p.id];
       return gridCell ? { ...p, gridCell } : p;
     }),
+  };
+}
+
+/**
+ * Flood copy of the Figma «посади» scene — the demo the BA compares against
+ * {@link buildMockupStaffMagneticData}.
+ *
+ * Same people and departments, but the grid deliberately **interleaves**
+ * departments the way a fully-authored `row`/`col` product will: the command
+ * department wraps the supply seat on three sides, so the Rust cell flood has to
+ * produce a C-shape (G5 notch + G6 mouth) instead of a rectangle with a bite.
+ *
+ * ```text
+ *        col 0            col 1            col 2
+ * row 0  command          command          command
+ * row 1  command          supply           command   ← foreign enclosed on 3 sides
+ * row 2  command          people ·1        people ·2
+ * ```
+ */
+export function buildMockupStaffFloodData(): DiagramData {
+  const base = buildMockupStaffFigmaData();
+  const cells: Record<string, { col: number; row: number }> = {
+    // Managing org keeps the plain command block.
+    'pos-hq-head': { col: 1, row: 0 },
+    'pos-hq-1z': { col: 0, row: 1 },
+    'pos-hq-2z': { col: 1, row: 1 },
+    'pos-hq-cos': { col: 2, row: 1 },
+    // Current org — command wraps the supply seat.
+    'pos-head': { col: 1, row: 0 },
+    'pos-1z': { col: 0, row: 0 },
+    'pos-2z': { col: 2, row: 0 },
+    'pos-ops': { col: 0, row: 1 },
+    'pos-sup': { col: 1, row: 1 },
+    'pos-p1': { col: 1, row: 2 },
+    'pos-p2': { col: 2, row: 2 },
+  };
+  const extra = staffPosition(
+    {
+      id: 'pos-cmd-right',
+      title: 'Duty officer',
+      organizationId: 'region',
+      departmentId: 'exec',
+      personId: 'p-2z',
+      gridCell: { col: 2, row: 1 },
+    },
+    FIGMA_SEAT,
+  );
+  const withCells = base.positions.map((p) => {
+    const gridCell = cells[p.id];
+    return gridCell ? { ...p, gridCell } : p;
+  });
+  return {
+    ...base,
+    positions: [...withCells, extra],
+    reportLines: [...base.reportLines, { fromId: 'pos-head', toId: 'pos-cmd-right', kind: 'admin' }],
   };
 }
 

@@ -34,9 +34,12 @@ import {
   buildMockupOrgsGojsData,
   buildMockupStaffFigmaData,
   buildMockupStaffGojsData,
+  buildMockupStaffFloodData,
   buildMockupStaffMagneticData,
   FIGMA_ORG_LAYOUT,
   FIGMA_STAFF_LAYOUT,
+  FLOOD_CELL,
+  FLOOD_STAFF_LAYOUT,
   MAGNETIC_CELL,
   MAGNETIC_STAFF_LAYOUT,
   MOCKUP_FIGMA_STYLES,
@@ -62,6 +65,7 @@ export type DemoTab =
   | 'mockup-orgs-gojs'
   | 'mockup-staff-figma'
   | 'mockup-staff-magnetic'
+  | 'mockup-staff-flood'
   | 'mockup-staff-gojs'
   | 'flat-orgs'
   | 'scale-100k'
@@ -72,6 +76,7 @@ const FIGMA_MOCKUP_TABS: ReadonlySet<DemoTab> = new Set([
   'mockup-orgs-figma',
   'mockup-staff-figma',
   'mockup-staff-magnetic',
+  'mockup-staff-flood',
 ]);
 const GOJS_MOCKUP_TABS: ReadonlySet<DemoTab> = new Set([
   'mockup-orgs-gojs',
@@ -536,6 +541,14 @@ export class App {
       this.mountEl.appendChild(caption);
       return;
     }
+    if (this.tab === 'mockup-staff-flood') {
+      const caption = document.createElement('p');
+      caption.className = 'scene-caption';
+      caption.textContent =
+        'Figma staff · Rust cell flood (G1–G8) · departments interleave, so the command contour becomes a C around the supply seat';
+      this.mountEl.appendChild(caption);
+      return;
+    }
     if (this.tab === 'mockup-staff-gojs') {
       const caption = document.createElement('p');
       caption.className = 'scene-caption';
@@ -692,6 +705,27 @@ export class App {
             minContourMembers: 1,
             cellWidth: MAGNETIC_CELL.width,
             cellHeight: MAGNETIC_CELL.height,
+          },
+        };
+      case 'mockup-staff-flood':
+        return {
+          ...base,
+          theme: 'dark',
+          data: buildMockupStaffFloodData(),
+          styles: MOCKUP_MAGNETIC_STYLES,
+          lodThresholds: MOCKUP_LOD_THRESHOLDS,
+          staffCurrentOrgId: 'region',
+          staffLayout: FLOOD_STAFF_LAYOUT,
+          render: {
+            ...base.render,
+            staffZoneChrome: true,
+            departmentStyle: 'blob',
+            // Same scene as Staff · Magnetic, other geometry: Rust cell flood.
+            contourEngine: 'cell-flood',
+            magnetRadius: VARIANT_B_MAGNET_RADIUS,
+            minContourMembers: 1,
+            cellWidth: FLOOD_CELL.width,
+            cellHeight: FLOOD_CELL.height,
           },
         };
       case 'mockup-staff-gojs':
@@ -939,7 +973,8 @@ export class App {
     const enabled =
       this.tab === 'variant-b' ||
       this.tab === 'mockup-staff-gojs' ||
-      this.tab === 'mockup-staff-magnetic';
+      this.tab === 'mockup-staff-magnetic' ||
+      this.tab === 'mockup-staff-flood';
     for (const id of ['padding-control', 'smooth-control']) {
       const el = document.getElementById(id);
       if (!el) continue;
@@ -978,6 +1013,8 @@ export class App {
         return 'Staff · Figma';
       case 'mockup-staff-magnetic':
         return 'Staff · Magnetic';
+      case 'mockup-staff-flood':
+        return 'Staff · Flood';
       case 'mockup-staff-gojs':
         return 'Staff · GoJS';
       case 'flat-orgs':

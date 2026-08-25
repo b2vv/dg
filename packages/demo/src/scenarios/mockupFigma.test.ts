@@ -5,6 +5,7 @@ import {
   buildMockupOrgsGojsData,
   buildMockupStaffFigmaData,
   buildMockupStaffGojsData,
+  buildMockupStaffFloodData,
   buildMockupStaffMagneticData,
   MOCKUP_FIGMA_STYLES,
   MOCKUP_GOJS_STYLES,
@@ -243,5 +244,39 @@ describe('magnetic staff copy', () => {
     // Seats and connectors stay identical to the Figma tab.
     expect(MOCKUP_MAGNETIC_STYLES.person).toBe(MOCKUP_FIGMA_STYLES.person);
     expect(MOCKUP_MAGNETIC_STYLES.edge).toBe(MOCKUP_FIGMA_STYLES.edge);
+  });
+});
+
+/** Staff · Flood — the C-shape demo the BA compares with Staff · Magnetic. */
+describe('flood staff copy', () => {
+  it('interleaves departments so the command contour must wrap a foreign cell', () => {
+    const data = buildMockupStaffFloodData();
+    const cellOf = (id: string) => data.positions.find((p) => p.id === id)?.gridCell;
+    // Supply sits in the middle of the command block, own cells on three sides.
+    expect(cellOf('pos-sup')).toEqual({ col: 1, row: 1 });
+    expect(cellOf('pos-head')).toEqual({ col: 1, row: 0 });
+    expect(cellOf('pos-ops')).toEqual({ col: 0, row: 1 });
+    expect(cellOf('pos-cmd-right')).toEqual({ col: 2, row: 1 });
+    expect(data.positions.every((p) => p.gridCell)).toBe(true);
+    expect(JSON.stringify(data)).not.toMatch(MILITARY_HINT);
+  });
+
+  it('keeps the Figma people and adds only the seat the C-shape needs', () => {
+    const figma = buildMockupStaffFigmaData();
+    const flood = buildMockupStaffFloodData();
+    const added = flood.positions.filter((p) => !figma.positions.some((f) => f.id === p.id));
+    expect(added.map((p) => p.id)).toEqual(['pos-cmd-right']);
+    expect(flood.departments).toEqual(figma.departments);
+    expect(flood.persons).toEqual(figma.persons);
+  });
+
+  it('cells stay unique inside each org block', () => {
+    const data = buildMockupStaffFloodData();
+    for (const orgId of ['holding', 'region']) {
+      const keys = data.positions
+        .filter((p) => p.organizationId === orgId)
+        .map((p) => `${p.gridCell!.col}:${p.gridCell!.row}`);
+      expect(new Set(keys).size).toBe(keys.length);
+    }
   });
 });

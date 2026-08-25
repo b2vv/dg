@@ -2,7 +2,7 @@
 
 **Status:** ✅ **Approved** (2026-08-23 — «Так поїхали»)  
 **Branch:** `cursor/gojs-migration-tasks-babc`  
-**Demo tabs:** Orgs · Figma / Orgs · GoJS / Staff · Figma / Staff · Magnetic / Staff · GoJS  
+**Demo tabs:** Orgs · Figma / Orgs · GoJS / Staff · Figma / Staff · Magnetic / Staff · Flood / Staff · GoJS  
 **Data:** civilian corporate names only (GH Pages safe)  
 **Contract tests:** `packages/demo/src/scenarios/mockupFigma.test.ts`
 
@@ -149,6 +149,16 @@ row 2   supply           people ·1        people ·2
 Кластери: `exec` = 4 клітини (row 0 + row 1) → один контур; `people` = 2 сусідні → один; `supply` = одна клітина → свій.
 
 **G2/M2 ([T79](./T79-g2-m2-paint-notch.md)).** Paint-шлях лишається button-group рамкою, але чужі картки всередині неї вирізаються коридором — foreign ніколи не під заливкою. У цій сцені seat «Service lead» навмисно стоїть у клітині `(2,0)`, всередині bbox командного відділу, щоб виїмка була видима. Повний cell-space flood (G5–G7) лишається в `contour.rs` для export/tests.
+
+---
+
+## 3c. Staff · Flood (демо для BA)
+
+**Data:** `buildMockupStaffFloodData()` — сцена Staff · Figma із сіткою, що **перемішує відділи**  
+**Render:** `contourEngine: 'cell-flood'`, `departmentStyle: 'blob'`, клітина `272×68`  
+**Сенс:** та сама сцена, що і Staff · Magnetic, але контури рахує Rust `contour.rs` (G1–G8) —
+командний відділ обходить чужу посаду C-подібним контуром, а не прямокутником із виїмкою.
+Деталі й підводні камені: [T80](./T80-contour-engines-ba-demo.md).
 
 ---
 
