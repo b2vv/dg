@@ -54,6 +54,13 @@ import {
   parseScaleOrgQuery,
   type ScaleOrgsWindow,
 } from '../scenarios/scaleOrgs.js';
+import {
+  buildScaleStaffWindow,
+  parseScaleStaffQuery,
+  STAFF_SCALE_DEFAULT_FOCUS,
+  STAFF_SCALE_TOTAL,
+  type ScaleStaffWindow,
+} from '../scenarios/scaleStaff.js';
 import { SAMPLE_MAPPER_JSON, SAMPLE_MAPPER_ROWS } from '../scenarios/sampleMapper.js';
 import { parseJsonFile } from '../utils/json.js';
 import { requireElement, setThemeAttribute, showError } from '../utils/dom.js';
@@ -67,6 +74,7 @@ export type DemoTab =
   | 'mockup-staff-magnetic'
   | 'mockup-staff-flood'
   | 'mockup-staff-gojs'
+  | 'staff-1m'
   | 'flat-orgs'
   | 'scale-100k'
   | 'mapper'
@@ -122,6 +130,7 @@ export class App {
   private flatOrgsData = buildFlatOrgsData(24);
   private scaleParents: Int32Array | null = null;
   private scaleWindow: ScaleOrgsWindow | null = null;
+  private staffScaleWindow: ScaleStaffWindow | null = null;
   private contextMenu: ReactContextMenuHost | null = null;
   private promote: ReactPromoteOverlay | null = null;
   private testAnchors: TestAnchorOverlay | null = null;
@@ -541,6 +550,16 @@ export class App {
       this.mountEl.appendChild(caption);
       return;
     }
+    if (this.tab === 'staff-1m') {
+      const win = this.staffScaleWindow;
+      const caption = document.createElement('p');
+      caption.className = 'scene-caption';
+      caption.textContent = win
+        ? `1M staff · window ${win.windowSize.toLocaleString('uk-UA')} seats of ${win.total.toLocaleString('uk-UA')} · tier 1 lead org · tier 2 current org · tier 3 ${win.composition.groups} groups + ${win.composition.simpleOrgs} simple orgs · search «pos-500000» to move the window`
+        : '1M staff · windowed';
+      this.mountEl.appendChild(caption);
+      return;
+    }
     if (this.tab === 'mockup-staff-flood') {
       const caption = document.createElement('p');
       caption.className = 'scene-caption';
@@ -556,6 +575,12 @@ export class App {
         'GoJS staff · solid zones · row seats 200×56 · dept cards · dark production chrome';
       this.mountEl.appendChild(caption);
     }
+  }
+
+  /** 1M staff address space — one window materialized around the focus seat. */
+  private ensureStaffScaleWindow(focusIndex = STAFF_SCALE_DEFAULT_FOCUS): ScaleStaffWindow {
+    this.staffScaleWindow = buildScaleStaffWindow({ focusIndex });
+    return this.staffScaleWindow;
   }
 
   private ensureScaleWindow(focusIndex = 0): ScaleOrgsWindow {
@@ -728,6 +753,36 @@ export class App {
             cellHeight: FLOOD_CELL.height,
           },
         };
+      case 'staff-1m': {
+        const win = this.staffScaleWindow ?? this.ensureStaffScaleWindow();
+        return {
+          ...base,
+          theme: 'dark',
+          data: win.data,
+          styles: MOCKUP_MAGNETIC_STYLES,
+          // Default LOD bands on purpose: the mockup override pins «near» up to
+          // 0.5, so the first frame drew text for every seat in the window.
+          staffCurrentOrgId: 'current-org',
+          staffExpandedOrgIds: ['sub-0'],
+          staffLayout: {
+            ...MAGNETIC_STAFF_LAYOUT,
+            // Denser than the mockup: a window is a wall of seats, not a scene.
+            horizontalGap: 24,
+            verticalGap: 28,
+            refCellWidth: 248,
+            refCellHeight: 44,
+          },
+          render: {
+            ...base.render,
+            staffZoneChrome: true,
+            departmentStyle: 'blob',
+            magnetRadius: VARIANT_B_MAGNET_RADIUS,
+            minContourMembers: 2,
+            cellWidth: 272,
+            cellHeight: 72,
+          },
+        };
+      }
       case 'mockup-staff-gojs':
         return {
           ...base,
@@ -894,6 +949,23 @@ export class App {
       return;
     }
 
+    if (this.tab === 'staff-1m') {
+      const index = parseScaleStaffQuery(query, STAFF_SCALE_TOTAL);
+      if (index === null) {
+        const local = await this.diagram.search(query);
+        this.setStatus(
+          local.length > 0
+            ? `search · ${local.length} hits in the current window · try pos-500000 to move it`
+            : `search · not in the window · try pos-N (0…${STAFF_SCALE_TOTAL - 1})`,
+        );
+        if (local[0]) await this.diagram.revealPath(local[0].node.positionId ?? local[0].node.id);
+        return;
+      }
+      this.ensureStaffScaleWindow(index);
+      await this.reload();
+      return;
+    }
+
     const hits = await this.diagram.search(query);
     if (!query.trim()) {
       this.setStatus(`${this.tab} · ${this.theme}`);
@@ -1013,6 +1085,8 @@ export class App {
         return 'Staff · Figma';
       case 'mockup-staff-magnetic':
         return 'Staff · Magnetic';
+      case 'staff-1m':
+        return 'Staff · 1M';
       case 'mockup-staff-flood':
         return 'Staff · Flood';
       case 'mockup-staff-gojs':
