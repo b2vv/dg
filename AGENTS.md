@@ -9,6 +9,7 @@ Guidance for coding agents working in **Org Hierarchy SDK** (`b2vv/dg`).
 - `packages/demo` — Rsbuild demo (`npm run dev`)
 - Spec / TDD / standards: `work/SPEC.md`, `work/TDD.md`, `work/CODING_STANDARDS.md`
 - Before implement: [`work/CTO-RESEARCH.md`](./work/CTO-RESEARCH.md) (product, seams, infra, risks). No live P0 — T78 is closed; the open queue is product decisions, see the briefing §7.
+- Public API in use: [`docs/USAGE.md`](./docs/USAGE.md) — what hosts call and what they get back.
 
 ## Commands
 
