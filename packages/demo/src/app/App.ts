@@ -1,4 +1,4 @@
-import type { OrgHierarchyConfig } from '@org-hierarchy/sdk';
+import type { OrgHierarchyCallbacks, OrgHierarchyConfig } from '@org-hierarchy/sdk';
 import {
   OrgHierarchyDiagram,
   defaultLodThresholds,
@@ -76,23 +76,11 @@ import {
 } from './tabs.js';
 import { buildTabConfig } from './tabConfigs.js';
 import { captionForTab } from './captions.js';
+import { installDemoE2eBridge, type DemoE2eBridge } from './e2eBridge.js';
+
+export type { DemoE2eBridge };
 
 export type { ContourControls, DemoTab };
-
-export interface DemoE2eBridge {
-  collapseOrg(orgId: string): Promise<void> | undefined;
-  expandOrg(orgId: string): Promise<void> | undefined;
-  /** Same code path as demo `onNodeClick` for flat orgs / 100k org cards. */
-  clickOrg(orgId: string): void;
-  getScaleWindowStart(): number | null;
-  toggleStaffOrg(orgId: string): Promise<boolean> | undefined;
-  focusTestId(testId: string): Promise<boolean> | undefined;
-  getStaffExpandedOrgIds(): string[];
-  getZoom(): number;
-  getStaffLayoutEdges(): Promise<Array<{ fromId: string; toId: string; kind: string }>>;
-  /** Soft render warnings — a silently empty contour layer must show up here. */
-  getLayoutDiagnostics(): string[];
-}
 
 export class App {
   private diagram: OrgHierarchyDiagram | null = null;
@@ -232,6 +220,30 @@ export class App {
   }
 
   private async reload(): Promise<void> {
+    this.disposeDiagram();
+    const config = this.buildConfig();
+    try {
+      this.setStatus('Loading…');
+      this.diagram = await OrgHierarchyDiagram.create(this.mountEl, {
+        ...config,
+        callbacks: this.diagramCallbacks(),
+      });
+      this.mountOverlays(this.diagram);
+      this.mountZoomFab();
+      this.mountBulkBar();
+      this.setStatus(this.readyStatus());
+      this.fitDiagramView();
+      this.setStatus(`${this.tabLabel()} · zoom ${this.diagram.getZoom().toFixed(2)}`);
+      this.mountSceneCaption();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showError(this.mountEl, msg);
+      this.setStatus(`Error: ${msg}`);
+    }
+  }
+
+  /** Drop the live diagram and everything mounted around it. */
+  private disposeDiagram(): void {
     this.promote?.dispose();
     this.promote = null;
     this.testAnchors?.dispose();
@@ -240,134 +252,119 @@ export class App {
     this.diagram = null;
     this.mountEl.innerHTML = '';
     this.mountEl.removeAttribute('data-testid');
+  }
 
-    const config = this.buildConfig();
-    try {
-      this.setStatus('Loading…');
-      this.diagram = await OrgHierarchyDiagram.create(this.mountEl, {
-        ...config,
-        callbacks: {
-          onSelectionChange: (nodes) => {
-            this.setStatus(
-              nodes.length === 0
-                ? `${this.tab} · 0 selected`
-                : `selection · ${nodes.length} selected`,
-            );
-            this.syncBulkBar(nodes);
-          },
-          onNodeClick: (node) => {
-            this.contextMenu?.close();
-            if (node.kind === 'organization' && (this.tab === 'flat-orgs' || this.tab === 'scale-100k')) {
-              this.handleOrgNodeClick(node.id);
-              return;
-            }
-            if (this.tab === 'staff-tree') {
-              const focus = this.diagram?.getStaffFocus() ?? 'ops';
-              const expanded = this.diagram?.getStaffExpandedOrgIds() ?? [];
-              const exp =
-                expanded.length > 0 ? ` · expanded ${expanded.join(',')}` : '';
-              const n = this.diagram?.getSelections().length ?? 0;
-              this.setStatus(
-                `staff-tree · focus ${focus}${exp} · click ${node.kind}:${node.id} · ${n} selected`,
-              );
-            }
-          },
-          onNodeDoubleClick: (node) => {
-            this.contextMenu?.close();
-            const label =
-              node.kind === 'organization'
-                ? `org:${node.id}`
-                : node.kind === 'person'
-                  ? `person:${node.id}`
-                  : `${node.kind}:${node.id}`;
-            // Host should open sidebar here (GoJS prod emitted but never subscribed — dead wire).
-            this.setStatus(`dblclick ${label} · host opens sidebar`);
-          },
-          onContextMenu: (request) => {
-            // 100k: no expand/collapse on nodes — tree↔matrix via focus path / Collapse all.
-            if (this.tab === 'scale-100k') {
-              request.items = request.items.filter(
-                (i) => i.id !== 'expand' && i.id !== 'collapse',
-              );
-            }
-            this.contextMenu?.handleContextMenu(request);
-            const label =
-              request.node.person?.fullName ??
-              request.node.organization?.name ??
-              request.node.position?.title ??
-              request.node.ref.id;
-            this.setStatus(`context · ${request.node.ref.kind} · ${label}`);
-          },
-          onOrgModeChange: (mode) => {
-            if (this.tab === 'scale-100k' && this.scaleWindow) {
-              const w = this.scaleWindow;
-              this.setStatus(
-                `100k orgs · ${mode} · window ${w.windowSize.toLocaleString('uk-UA')} of ${w.total.toLocaleString('uk-UA')} · focus org-${w.focusIndex}`,
-              );
-              return;
-            }
-            this.setStatus(`${this.tab} · ${mode} · ${this.theme}`);
-          },
-          onLayoutDiagnostics: (messages) => {
-            if (messages.length === 0) return;
-            this.showToast(`Layout: ${messages[0]}${messages.length > 1 ? ` (+${messages.length - 1})` : ''}`);
-          },
-        },
-      });
-      this.promote = createReactPromoteOverlay({
-        diagram: this.diagram,
-        mount: this.mountEl,
-        mode: 'near-selection',
-        component: DemoPromoteCard,
-      });
-      if (this.e2eMode) {
-        this.testAnchors = createTestAnchorOverlay({
-          diagram: this.diagram,
-          mount: this.mountEl,
-          interactive: true,
-        });
-        this.mountEl.setAttribute('data-testid', 'diagram-ready');
-        (window as unknown as { __demoE2e?: DemoE2eBridge }).__demoE2e = {
-          collapseOrg: (orgId: string) => this.diagram?.collapseOrg(orgId),
-          expandOrg: (orgId: string) => this.diagram?.expandOrg(orgId),
-          clickOrg: (orgId: string) => this.handleOrgNodeClick(orgId),
-          getScaleWindowStart: () => this.scaleWindow?.startIndex ?? null,
-          toggleStaffOrg: (orgId: string) => this.diagram?.toggleStaffOrgExpand(orgId),
-          focusTestId: (testId: string) => this.diagram?.focusByTestId(testId),
-          getStaffExpandedOrgIds: () => this.diagram?.getStaffExpandedOrgIds() ?? [],
-          getZoom: () => this.diagram?.getZoom() ?? 0,
-          getLayoutDiagnostics: () => [...(this.diagram?.getLayoutDiagnostics() ?? [])],
-          getStaffLayoutEdges: () => this.getStaffLayoutEdgesForE2e(),
-        };
-      }
-      this.mountZoomFab();
-      this.mountBulkBar();
-      if (this.tab === 'staff-tree') {
-        this.setStatus(`Staff tree · focus ${this.diagram.getStaffFocus() ?? 'ops'}`);
-      } else if (this.tab === 'scale-100k' && this.scaleWindow) {
-        const w = this.scaleWindow;
-        const mode = this.diagram?.getOrgMode() ?? 'row-tree';
+  private diagramCallbacks(): OrgHierarchyCallbacks {
+    return {
+      onSelectionChange: (nodes) => {
         this.setStatus(
-          `100k orgs · ${mode} · window ${w.windowSize.toLocaleString('uk-UA')} of ${w.total.toLocaleString('uk-UA')} · focus org-${w.focusIndex}`,
+          nodes.length === 0
+            ? `${this.tab} · 0 selected`
+            : `selection · ${nodes.length} selected`,
         );
-      } else if (this.tab === 'variant-b') {
-        this.setStatus(
-          `Variant B · padding ${this.contourControls.paddingCells} · smooth ${this.contourControls.smoothIterations}`,
+        this.syncBulkBar(nodes);
+      },
+      onNodeClick: (node) => {
+        this.contextMenu?.close();
+        if (node.kind === 'organization' && (this.tab === 'flat-orgs' || this.tab === 'scale-100k')) {
+          this.handleOrgNodeClick(node.id);
+          return;
+        }
+        if (this.tab === 'staff-tree') {
+          const focus = this.diagram?.getStaffFocus() ?? 'ops';
+          const expanded = this.diagram?.getStaffExpandedOrgIds() ?? [];
+          const exp = expanded.length > 0 ? ` · expanded ${expanded.join(',')}` : '';
+          const n = this.diagram?.getSelections().length ?? 0;
+          this.setStatus(
+            `staff-tree · focus ${focus}${exp} · click ${node.kind}:${node.id} · ${n} selected`,
+          );
+        }
+      },
+      onNodeDoubleClick: (node) => {
+        this.contextMenu?.close();
+        const label =
+          node.kind === 'organization'
+            ? `org:${node.id}`
+            : node.kind === 'person'
+              ? `person:${node.id}`
+              : `${node.kind}:${node.id}`;
+        // Host should open sidebar here (GoJS prod emitted but never subscribed — dead wire).
+        this.setStatus(`dblclick ${label} · host opens sidebar`);
+      },
+      onContextMenu: (request) => {
+        // 100k: no expand/collapse on nodes — tree↔matrix via focus path / Collapse all.
+        if (this.tab === 'scale-100k') {
+          request.items = request.items.filter((i) => i.id !== 'expand' && i.id !== 'collapse');
+        }
+        this.contextMenu?.handleContextMenu(request);
+        const label =
+          request.node.person?.fullName ??
+          request.node.organization?.name ??
+          request.node.position?.title ??
+          request.node.ref.id;
+        this.setStatus(`context · ${request.node.ref.kind} · ${label}`);
+      },
+      onOrgModeChange: (mode) => {
+        if (this.tab === 'scale-100k' && this.scaleWindow) {
+          this.setStatus(this.scaleWindowStatus(mode));
+          return;
+        }
+        this.setStatus(`${this.tab} · ${mode} · ${this.theme}`);
+      },
+      onLayoutDiagnostics: (messages) => {
+        if (messages.length === 0) return;
+        this.showToast(
+          `Layout: ${messages[0]}${messages.length > 1 ? ` (+${messages.length - 1})` : ''}`,
         );
-      } else if (this.tab === 'worker') {
-        this.setStatus('Worker bench · open sidebar to run pooled map');
-      } else if (this.tab === 'mapper') {
-        this.setStatus('Mapper · load sample JSON or upload a file');
-      } else {
-        this.setStatus(`${this.tabLabel()} · zoom ${this.diagram.getZoom().toFixed(2)}`);
-      }
-      this.fitDiagramView();
-      this.setStatus(`${this.tabLabel()} · zoom ${this.diagram!.getZoom().toFixed(2)}`);
-      this.mountSceneCaption();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      showError(this.mountEl, msg);
-      this.setStatus(`Error: ${msg}`);
+      },
+    };
+  }
+
+  /** Promote overlay always; test anchors + the e2e bridge only in `?e2e=1`. */
+  private mountOverlays(diagram: OrgHierarchyDiagram): void {
+    this.promote = createReactPromoteOverlay({
+      diagram,
+      mount: this.mountEl,
+      mode: 'near-selection',
+      component: DemoPromoteCard,
+    });
+    if (!this.e2eMode) return;
+    this.testAnchors = createTestAnchorOverlay({
+      diagram,
+      mount: this.mountEl,
+      interactive: true,
+    });
+    this.mountEl.setAttribute('data-testid', 'diagram-ready');
+    installDemoE2eBridge({
+      diagram,
+      clickOrg: (orgId) => this.handleOrgNodeClick(orgId),
+      scaleWindowStart: () => this.scaleWindow?.startIndex ?? null,
+      config: () => this.buildConfig(),
+    });
+  }
+
+  private scaleWindowStatus(mode: string): string {
+    const w = this.scaleWindow;
+    if (!w) return `100k orgs · ${mode}`;
+    const uk = (n: number) => n.toLocaleString('uk-UA');
+    return `100k orgs · ${mode} · window ${uk(w.windowSize)} of ${uk(w.total)} · focus org-${w.focusIndex}`;
+  }
+
+  /** First status line after a tab mounts — what this scene wants you to try. */
+  private readyStatus(): string {
+    switch (this.tab) {
+      case 'staff-tree':
+        return `Staff tree · focus ${this.diagram?.getStaffFocus() ?? 'ops'}`;
+      case 'scale-100k':
+        return this.scaleWindowStatus(this.diagram?.getOrgMode() ?? 'row-tree');
+      case 'variant-b':
+        return `Variant B · padding ${this.contourControls.paddingCells} · smooth ${this.contourControls.smoothIterations}`;
+      case 'worker':
+        return 'Worker bench · open sidebar to run pooled map';
+      case 'mapper':
+        return 'Mapper · load sample JSON or upload a file';
+      default:
+        return `${this.tabLabel()} · zoom ${this.diagram?.getZoom().toFixed(2) ?? '—'}`;
     }
   }
 
@@ -378,32 +375,6 @@ export class App {
   }
 
   /** E2e: layout staff canvas edges for current tab config (mockup staff tabs). */
-  private async getStaffLayoutEdgesForE2e(): Promise<
-    Array<{ fromId: string; toId: string; kind: string }>
-  > {
-    const cfg = this.buildConfig();
-    const orgId = cfg.staffCurrentOrgId;
-    const data = cfg.data;
-    if (!orgId || !data || typeof data !== 'object' || !('positions' in data)) return [];
-    const diagram = data as DiagramData;
-    const canvas = await layoutStaffCanvas(
-      {
-        organizations: diagram.organizations,
-        positions: diagram.positions,
-        reports: diagram.reportLines,
-        groups: diagram.groups,
-        departments: diagram.departments,
-        persons: diagram.persons,
-      },
-      orgId,
-      {
-        ...cfg.staffLayout,
-        expandedOrgIds: cfg.staffExpandedOrgIds ?? cfg.staffLayout?.expandedOrgIds,
-      },
-    );
-    return canvas.edges.map((e) => ({ fromId: e.fromId, toId: e.toId, kind: e.kind }));
-  }
-
   private zoomDiagram(factor: number): void {
     this.diagram?.zoomBy(factor);
     this.setStatus(`${this.tab} · zoom ${this.diagram?.getZoom().toFixed(2) ?? '—'}`);
