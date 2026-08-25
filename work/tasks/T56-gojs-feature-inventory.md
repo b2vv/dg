@@ -1,7 +1,7 @@
 # T56 — GoJS reverse-engineering: інвентаризація функціоналу
 
 **Пріоритет:** P2 (планування parity / roadmap)  
-**Статус:** draft — **для product selection** (позначайте `[x]` що беремо)  
+**Статус:** draft — ⛔ **для product selection** (позначайте `[x]` що беремо; чек-бокси ставить продукт, не агент)  
 **Джерела:** [gojs.net](https://gojs.net/latest/), samples (orgChartEditor, orgChartStatic, orgChartAssistants), intro/learn, API
 
 ---
