@@ -9,6 +9,11 @@ import { diagramPositionsToContourInputs } from '../contour/config.js';
 import { filterContoursForPaint, NO_DEPARTMENT_ID } from './contourPaintFilter.js';
 import { mapFloodRingToCards, type FloodCardGeometry } from './floodRingCards.js';
 import { contourButtonGroupMargin } from './contourButtonGroup.js';
+import {
+  corridorCellsForFlood,
+  corridorPx,
+  DEFAULT_CORRIDOR_CELLS,
+} from './contourCorridor.js';
 import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
 import {
   DEFAULT_STAFF_LAYOUT_OPTIONS,
@@ -153,6 +158,8 @@ interface ContourSession {
   /** Seat box the flood ring is snapped onto (cells are wider than cards). */
   cardWidth: number;
   cardHeight: number;
+  /** G2 corridor in px for the button-group painter. */
+  corridorPx: number;
   /** Rings from the Rust flood, already mapped to world space (`cell-flood`). */
   floodRingsByDept: Map<string, { x: number; y: number }[][]>;
   memberBoxesByDept: Map<string, ContourMemberBox[]>;
@@ -482,6 +489,7 @@ export class DiagramRenderer {
     orgByPosition: Map<string, string>;
     cardWidth: number;
     cardHeight: number;
+    corridorPx: number;
     memberBoxesByDept?: Map<string, ContourMemberBox[]>;
   }): ContourSession {
     this.cancelContourMorphs();
@@ -518,6 +526,7 @@ export class DiagramRenderer {
       smoothIterations: session.paintSmoothIterations,
       personCounts: session.personCounts,
       minContourMembers: session.minContourMembers,
+      corridorPx: session.corridorPx,
     });
 
     const out = new Map<string, { x: number; y: number }[][]>();
@@ -620,8 +629,12 @@ export class DiagramRenderer {
     options: RenderOptions,
   ): Promise<void> {
     // T77-M01 Option B: paint TS button-group rings only — do not await Rust/worker.
+    const corridorCells = config.corridorCells ?? defaultRenderConfig.corridorCells ?? DEFAULT_CORRIDOR_CELLS;
     const magnet: ContourMagnetConfig = {
       paddingCells: 0,
+      // G2: the flood dilates foreign cells by whole rings; below one cell the
+      // exclusion of the foreign cell itself is already the gap.
+      corridorCells: corridorCellsForFlood(corridorCells),
       cellWidth: config.cellWidth,
       cellHeight: config.cellHeight,
       smoothIterations: 0,
@@ -646,6 +659,16 @@ export class DiagramRenderer {
       orgByPosition: new Map(data.positions.map((p) => [p.id, p.organizationId])),
       cardWidth: theme.person.width,
       cardHeight: theme.person.height,
+      corridorPx: corridorPx(
+        config.corridorCells ?? defaultRenderConfig.corridorCells ?? DEFAULT_CORRIDOR_CELLS,
+        {
+          cellWidth: config.cellWidth,
+          cellHeight: config.cellHeight,
+          cardWidth: theme.person.width,
+          cardHeight: theme.person.height,
+        },
+        contourButtonGroupMargin(config.paddingCells, theme.department.strokeWidth),
+      ),
       memberBoxesByDept: options.contourMemberBoxesByDept,
     });
     if (this.destroyed || !this.contourSession) return;
@@ -670,7 +693,12 @@ export class DiagramRenderer {
   ): Promise<void> {
     session.floodRingsByDept = new Map();
     const transform = this.contourWorld;
-    if (!transform) return;
+    if (!transform) {
+      this.reportContourDiagnostic(
+        'Contour flood skipped: no cell transform — positions need authored gridCell',
+      );
+      return;
+    }
     const boxById = new Map(
       [...session.memberBoxesByDept.values()].flat().map((b) => [b.positionId, b]),
     );
@@ -694,12 +722,9 @@ export class DiagramRenderer {
       try {
         contours = await computeAllContours(inputs, magnet);
       } catch (err) {
-        // Surfaced through getLayoutDiagnostics — an empty contour layer with a
-        // silent console is exactly the kind of quiet lie this repo bans.
-        this.lastDiagnostics = [
-          ...this.lastDiagnostics,
+        this.reportContourDiagnostic(
           `Contour flood unavailable: ${err instanceof Error ? err.message : String(err)}`,
-        ];
+        );
         return;
       }
       if (this.destroyed || this.contourSession !== session) return;
@@ -732,6 +757,15 @@ export class DiagramRenderer {
         session.floodRingsByDept.set(contour.departmentId, rings);
       }
     }
+  }
+
+  /**
+   * An empty contour layer with a silent console is the kind of quiet lie this
+   * repo bans — every reason the flood produced nothing goes to
+   * `getLayoutDiagnostics()`, which the host receives after each render.
+   */
+  private reportContourDiagnostic(message: string): void {
+    this.lastDiagnostics = [...this.lastDiagnostics, message];
   }
 
   private async restoreContoursAfterFailedDrag(): Promise<void> {
@@ -1004,6 +1038,12 @@ export class DiagramRenderer {
       const deptStyle = config.departmentStyle ?? defaultRenderConfig.departmentStyle ?? 'blob';
       if (deptStyle === 'card') {
         this.paintDepartmentCards(data, theme, config, memberBoxesByDept);
+      } else if (contourInputs.length === 0 && canvas.positionNodes.length > 0) {
+        // Blob mode without authored cells paints nothing — say so instead of
+        // leaving the host to wonder where the contours went.
+        this.reportContourDiagnostic(
+          `Contours skipped: ${canvas.positionNodes.length} seats have no gridCell (departmentStyle: 'blob' needs authored coords)`,
+        );
       } else if (contourInputs.length > 0) {
         this.contourWorld = resolveContourWorldTransform(
           canvas.positionNodes,

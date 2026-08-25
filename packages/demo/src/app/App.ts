@@ -120,6 +120,8 @@ export interface DemoE2eBridge {
   getStaffExpandedOrgIds(): string[];
   getZoom(): number;
   getStaffLayoutEdges(): Promise<Array<{ fromId: string; toId: string; kind: string }>>;
+  /** Soft render warnings — a silently empty contour layer must show up here. */
+  getLayoutDiagnostics(): string[];
 }
 
 export class App {
@@ -364,6 +366,7 @@ export class App {
           focusTestId: (testId: string) => this.diagram?.focusByTestId(testId),
           getStaffExpandedOrgIds: () => this.diagram?.getStaffExpandedOrgIds() ?? [],
           getZoom: () => this.diagram?.getZoom() ?? 0,
+          getLayoutDiagnostics: () => [...(this.diagram?.getLayoutDiagnostics() ?? [])],
           getStaffLayoutEdges: () => this.getStaffLayoutEdgesForE2e(),
         };
       }

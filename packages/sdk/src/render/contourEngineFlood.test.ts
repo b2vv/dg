@@ -146,6 +146,36 @@ describe('RenderConfig.contourEngine', () => {
     container.remove();
   });
 
+  it('failure: blob mode without authored cells says why the layer is empty', async () => {
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+    const data = interleavedData();
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: {
+        ...data,
+        // Same scene, coords stripped — a tree-laid-out roster needs a head.
+        positions: data.positions.map(({ gridCell: _gridCell, ...p }, i) => ({
+          ...p,
+          isHead: i === 0,
+        })),
+        reportLines: data.positions
+          .slice(1)
+          .map((p) => ({ fromId: 'P1', toId: p.id, kind: 'admin' as const })),
+      },
+      staffCurrentOrgId: 'org1',
+      useWorker: false,
+      render: { departmentStyle: 'blob', minContourMembers: 1 },
+    });
+
+    expect(blobRings(diagram)).toEqual([]);
+    expect(diagram.getLayoutDiagnostics().join(' ')).toMatch(/Contours skipped: .* no gridCell/);
+
+    diagram.destroy();
+    container.remove();
+  });
+
   it('failure: a broken wasm loader leaves no contours and reports a diagnostic', async () => {
     setContourWasmLoaderForTests(async () => {
       throw new Error('wasm gone');

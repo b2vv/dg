@@ -30,9 +30,14 @@ export interface PolishContourInput {
   /** Every other card on the canvas (other departments and other components). */
   foreignBoxes?: readonly ContourClearBox[];
   strokeWidth: number;
-  /** Demo Padding slider — also the G2 corridor kept around a foreign card. */
+  /** Demo Padding slider — px margin around the component's own cards. */
   paddingCells?: number;
   smoothIterations?: number;
+  /**
+   * G2 gap kept from a foreign card, in px. Defaults to the wash margin, so a
+   * contour never hugs a foreign card tighter than it hugs its own.
+   */
+  corridorPx?: number;
 }
 
 /**
@@ -51,12 +56,11 @@ export function polishContourRings(input: PolishContourInput): ContourPoint[][] 
     const ring = buttonGroupRingFromBoxes(input.memberBoxes, margin, radius, arcSegments);
     return ring.length >= 2 ? [ring] : [];
   }
-  // The wash keeps the same clearance from foreign cards as from its own.
   return notchedRings({
     memberBoxes: input.memberBoxes,
     foreignBoxes: foreign,
     margin,
-    corridor: margin,
+    corridor: Math.max(margin, input.corridorPx ?? margin),
   })
     .map((ring) => filletClosedRing(ring, Math.min(radius, margin), arcSegments))
     .filter((ring) => ring.length >= 2);

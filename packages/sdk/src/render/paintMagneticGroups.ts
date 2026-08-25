@@ -16,6 +16,8 @@ export interface PaintMagneticGroupsArgs {
   smoothIterations: number;
   personCounts: ReadonlyMap<string, number>;
   minContourMembers: number;
+  /** G2 corridor in px; falls back to the wash margin when omitted. */
+  corridorPx?: number;
 }
 
 export interface PaintedMagneticGroup {
@@ -46,6 +48,7 @@ export function paintMagneticGroups(args: PaintMagneticGroupsArgs): PaintedMagne
         strokeWidth: args.strokeWidth,
         paddingCells: args.paddingCells,
         smoothIterations: args.smoothIterations,
+        corridorPx: args.corridorPx,
       });
       for (const ring of rings) out.push({ departmentId: deptId, ring });
     }

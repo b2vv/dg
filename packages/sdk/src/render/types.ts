@@ -1,3 +1,5 @@
+import { DEFAULT_CORRIDOR_CELLS } from './contourCorridor.js';
+
 export type ThemeMode = 'light' | 'dark' | 'auto';
 
 export interface DepartmentBlobStyle {
@@ -206,6 +208,12 @@ export interface RenderConfig {
   /** Contour own-cell merge radius (Manhattan); default 1.5 */
   magnetRadius: number;
   /**
+   * G2 `corridorMin` — the gap a contour keeps from a foreign card, in cells
+   * (`docs/REQUIREMENTS.md` §4.6.1, default 0.5). Both engines read it; see
+   * `render/contourCorridor.ts` for how cells map onto each one.
+   */
+  corridorCells?: number;
+  /**
    * Minimum positions in a department before its contour is painted.
    * Magnetism / membership still compute for every dept; paint only.
    * Use 2 on Variant B so a singleton CEO does not refill the IT notch.
@@ -397,6 +405,7 @@ export const defaultRenderConfig: RenderConfig = {
   /** 0 = orthogonal corners; higher Chaikin = softer “macaroni”. */
   smoothIterations: 0,
   magnetRadius: 1.5,
+  corridorCells: DEFAULT_CORRIDOR_CELLS,
   minContourMembers: 1,
   staffZoneChrome: false,
   departmentStyle: 'blob',

@@ -5,6 +5,7 @@ interface DemoE2eBridge {
   getStaffExpandedOrgIds(): string[];
   focusTestId(testId: string): Promise<boolean> | undefined;
   getStaffLayoutEdges(): Promise<Array<{ fromId: string; toId: string; kind: string }>>;
+  getLayoutDiagnostics(): string[];
 }
 
 const MOCKUP_TABS = [
@@ -118,9 +119,13 @@ test.describe('mockup tabs visual + hierarchy', () => {
     await openMockupTab(page, 'Staff · Flood');
     await expect(page.getByTestId('node-staff-head')).toBeVisible();
     await expect(page.getByTestId('node-staff-temp')).toBeVisible();
-    // The flood engine reports through layout diagnostics when wasm is missing.
-    const toast = page.locator('#toast');
-    await expect(toast).not.toContainText(/Contour flood unavailable/);
+    // Every reason the flood paints nothing lands in layout diagnostics, so an
+    // empty list is the only way this tab can be honest about its contours.
+    const diagnostics = await page.evaluate(() => {
+      const bridge = (window as unknown as { __demoE2e?: DemoE2eBridge }).__demoE2e;
+      return bridge?.getLayoutDiagnostics() ?? ['bridge missing'];
+    });
+    expect(diagnostics.filter((d) => /[Cc]ontour/.test(d))).toEqual([]);
   });
 
   test('Staff · Magnetic: dept blobs + org blocks paint', async ({ page }) => {
