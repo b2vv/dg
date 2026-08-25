@@ -19,6 +19,9 @@ export function expandOrg(
   organizations: DiagramOrganization[],
   orgId: string,
 ): DiagramOrganization[] {
+  // Identity when there is nothing to open: callers use `!==` to decide whether
+  // a re-render is needed, and revealOrgPath walks the whole ancestor path.
+  if (!organizations.some((o) => o.id === orgId && o.collapsed)) return organizations;
   return organizations.map((o) => (o.id === orgId ? { ...o, collapsed: false } : o));
 }
 

@@ -469,7 +469,9 @@ export class OrgHierarchyDiagram {
     }
 
     await instance.applyConfig(config);
-    instance.rebuildSearchIndex();
+    // Same builder as setData: a 100k mount used to block the main thread here
+    // while the worker path sat unused until the first setData.
+    await instance.rebuildSearchIndexForScale();
     instance.host = await PixiHost.create(container);
     instance.host.setOnViewportChange((t) => {
       instance.onViewportTransform(t.scale);
@@ -1259,11 +1261,14 @@ export class OrgHierarchyDiagram {
   async revealPath(nodeId: string): Promise<boolean> {
     const orgId = resolveOrganizationIdForNode(this.data, nodeId);
     if (!orgId) return false;
-    this.data = {
-      ...this.data,
-      organizations: revealOrgPath(this.data.organizations, orgId),
-    };
-    this.callbacks.onOrgModeChange?.(this.getOrgMode());
+    const organizations = revealOrgPath(this.data.organizations, orgId);
+    if (organizations !== this.data.organizations) {
+      // The node box only exists after the reveal is laid out — focusing before
+      // the render silently skipped the pan for anything under a collapsed org.
+      this.data = { ...this.data, organizations };
+      this.callbacks.onOrgModeChange?.(this.getOrgMode());
+      await this.render();
+    }
     await this.focusNode(nodeId);
     return true;
   }

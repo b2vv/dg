@@ -264,3 +264,54 @@ describe('multi-select Set API (T67 Phase 1)', () => {
     );
   });
 });
+
+describe('search top-k selection', () => {
+  /** 400 orgs whose labels sort in reverse insertion order — worst case. */
+  function bigIndex() {
+    const organizations = Array.from({ length: 400 }, (_, i) => ({
+      id: `org-${i}`,
+      name: `Team ${String(400 - i).padStart(3, '0')}`,
+      groupIds: [] as string[],
+    }));
+    return buildSearchIndex({
+      organizations,
+      groups: [],
+      departments: [],
+      persons: [],
+      positions: [],
+      reportLines: [],
+    });
+  }
+
+  it('success: same rows as sorting everything and slicing', () => {
+    const index = bigIndex();
+    const hits = searchIndex(index, 'team', 10);
+    const all = index.entries
+      .filter((e) => e.haystack.includes('team'))
+      .map((e) => e.label)
+      .sort((a, b) => a.localeCompare(b));
+    expect(hits.map((h) => h.label)).toEqual(all.slice(0, 10));
+  });
+
+  it('success: exact-prefix hits come before partial ones', () => {
+    const index = buildSearchIndex({
+      organizations: [
+        { id: 'a', name: 'Ops team', groupIds: [] },
+        { id: 'b', name: 'Team ops', groupIds: [] },
+      ],
+      groups: [],
+      departments: [],
+      persons: [],
+      positions: [],
+      reportLines: [],
+    });
+    const hits = searchIndex(index, 'team', 10);
+    expect(hits[0]?.label).toBe('Team ops');
+    expect(hits[0]?.score).toBe(2);
+    expect(hits[1]?.score).toBe(1);
+  });
+
+  it('failure: limit 0 returns nothing', () => {
+    expect(searchIndex(bigIndex(), 'team', 0)).toEqual([]);
+  });
+});

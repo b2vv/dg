@@ -448,3 +448,60 @@ describe('bulk selection actions (T67 D2)', () => {
     container.remove();
   });
 });
+
+describe('revealPath renders before focusing (search → focus)', () => {
+  function collapsedTree() {
+    return {
+      organizations: [
+        { id: 'root', name: 'Root', groupIds: [], collapsed: false },
+        { id: 'mid', name: 'Mid', groupIds: [], parentOrgId: 'root', collapsed: true },
+        { id: 'leaf', name: 'Leaf', groupIds: [], parentOrgId: 'mid', collapsed: true },
+      ],
+      groups: [],
+      departments: [],
+      persons: [],
+      positions: [],
+      reportLines: [],
+    };
+  }
+
+  it('success: a node under a collapsed org is laid out, then panned to', async () => {
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: collapsedTree(),
+      useWorker: false,
+    });
+
+    const host = (diagram as unknown as { host: { renderer: { getNodeBox(id: string): unknown } } }).host;
+    expect(host.renderer.getNodeBox('leaf')).toBeUndefined();
+
+    expect(await diagram.revealPath('leaf')).toBe(true);
+    // The reveal re-rendered, so the box the pan needs now exists.
+    expect(host.renderer.getNodeBox('leaf')).toBeTruthy();
+    expect(diagram.getData().organizations.find((o) => o.id === 'mid')?.collapsed).toBe(false);
+
+    diagram.destroy();
+    container.remove();
+  });
+
+  it('failure: an already visible node reveals without touching the data', async () => {
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: collapsedTree(),
+      useWorker: false,
+    });
+
+    const before = diagram.getData().organizations;
+    expect(await diagram.revealPath('root')).toBe(true);
+    expect(diagram.getData().organizations).toBe(before);
+
+    diagram.destroy();
+    container.remove();
+  });
+});

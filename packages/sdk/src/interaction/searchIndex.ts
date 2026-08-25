@@ -1,5 +1,6 @@
 import type { DiagramData, DiagramOrganization, DiagramPerson, DiagramPosition } from '../data/types.js';
 import { orgTestId, personTestId, positionTestId } from './nodeTestId.js';
+import { TopKCollector } from './topK.js';
 import type { NodeRef, SearchResult } from './types.js';
 
 export interface SearchIndexEntry {
@@ -185,6 +186,24 @@ export async function buildSearchIndexAsync(
   return mergeSearchIndexes(parts);
 }
 
+/**
+ * One collator for the whole module: `label.localeCompare(other)` builds (or
+ * looks up) a collator on every call, which dominates the cost once a query
+ * matches thousands of entries. Default options keep the previous ordering.
+ */
+const labelCollator = new Intl.Collator();
+
+interface RankedEntry {
+  result: SearchResult;
+  /** Candidate order — keeps ties deterministic, like the old stable sort. */
+  seq: number;
+}
+
+function compareRanked(a: RankedEntry, b: RankedEntry): number {
+  const byLabel = labelCollator.compare(a.result.label, b.result.label);
+  return byLabel !== 0 ? byLabel : a.seq - b.seq;
+}
+
 export function searchIndex(
   index: SearchIndex | null | undefined,
   query: string,
@@ -200,24 +219,26 @@ export function searchIndex(
   if (!index.byChar.has(seed)) return [];
 
   const candidateIdx = index.byChar.get(seed)!;
-  const exact: SearchResult[] = [];
-  const partial: SearchResult[] = [];
+  // Top-k per bucket instead of sorting every match: a query like «о» can match
+  // most of a 100k index while the host asks for fifty rows.
+  const exact = new TopKCollector<RankedEntry>(limit, compareRanked);
+  const partial = new TopKCollector<RankedEntry>(limit, compareRanked);
 
+  let seq = 0;
   for (const i of candidateIdx) {
     const entry = index.entries[i]!;
     const pos = entry.haystack.indexOf(q);
     if (pos < 0) continue;
-    if (pos === 0) {
-      exact.push({ node: entry.node, label: entry.label, score: 2 });
-    } else {
-      partial.push({ node: entry.node, label: entry.label, score: 1 });
-    }
+    const ranked: RankedEntry = {
+      result: { node: entry.node, label: entry.label, score: pos === 0 ? 2 : 1 },
+      seq: seq++,
+    };
+    if (pos === 0) exact.push(ranked);
+    else partial.push(ranked);
   }
 
-  // B4: sort both buckets fully so top-k is stable (order is by label asc within bucket).
-  exact.sort((a, b) => a.label.localeCompare(b.label));
-  partial.sort((a, b) => a.label.localeCompare(b.label));
-
-  const take = Math.max(0, limit - exact.length);
-  return [...exact.slice(0, limit), ...partial.slice(0, take)];
+  const exactHits = exact.drain().map((r) => r.result);
+  const take = Math.max(0, limit - exactHits.length);
+  if (take === 0) return exactHits;
+  return [...exactHits, ...partial.drain().slice(0, take).map((r) => r.result)];
 }
