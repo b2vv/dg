@@ -3,6 +3,7 @@ import { LayerManager } from './LayerManager.js';
 import { SceneRegistry, type NodeWorldBox } from './SceneRegistry.js';
 import { ContourPainter } from './contour/ContourPainter.js';
 import { PersonInteractions, type DragGrid } from './personInteractions.js';
+import { bindOrgCardInteractions } from './orgCardInteractions.js';
 import {
   type ContourMagnetConfig,
   type ContourPositionInput,
@@ -25,12 +26,7 @@ import { siblingOrgGroupBounds } from '../layout/siblingOrgGroups.js';
 import type { OrgLayoutOptions } from '../layout/types.js';
 import { isOrgCollapsed, orgHasChildren } from '../layout/orgMode.js';
 import { DoubleTapTracker } from '../interaction/doubleTap.js';
-import {
-  isPrimaryPointerTap,
-  isSelectionToggleModifier,
-  readSelectionPointerMods,
-  type SelectionPointerMods,
-} from '../interaction/selection.js';
+import type { SelectionPointerMods } from '../interaction/selection.js';
 import type { NodeRef } from '../interaction/types.js';
 import { DepartmentCardView } from './DepartmentCardView.js';
 import { paintDashedFrame } from './dashedStroke.js';
@@ -617,58 +613,18 @@ export class DiagramRenderer {
       });
       this.registerView('organization', card.orgId, view);
       this.registerMediaView(view.resolvedSymbolUrl, view);
-      this.bindStaffOrgCardInteractions(view, card.orgId, options);
+      bindOrgCardInteractions(view, {
+        orgId: card.orgId,
+        doubleTap: this.nodeDoubleTap,
+        handlers: options,
+        // Tier-3 card: expand in place when the host offers it, else drill in.
+        onSingleTap: (orgId) => {
+          if (options.onStaffOrgExpandToggle) options.onStaffOrgExpandToggle(orgId);
+          else options.onStaffOrgDrill?.(orgId);
+        },
+      });
       this.layers.organizations.addChild(view);
     }
-  }
-
-  private bindStaffOrgCardInteractions(
-    view: OrganizationNodeView,
-    orgId: string,
-    options: RenderOptions,
-  ): void {
-    view.on('pointertap', (e) => {
-      if (!isPrimaryPointerTap(e)) return;
-      if (view.activateChromePointer(e)) {
-        this.nodeDoubleTap.reset();
-        e.stopPropagation();
-        return;
-      }
-      e.stopPropagation();
-      const mods = readSelectionPointerMods(e);
-      if (isSelectionToggleModifier(mods)) {
-        this.nodeDoubleTap.reset();
-        options.onOrgClick?.(orgId, mods);
-        return;
-      }
-      if (this.nodeDoubleTap.tap(`org:${orgId}`) === 'double') {
-        options.onOrgDoubleClick?.(orgId);
-        return;
-      }
-      if (options.onStaffOrgExpandToggle) {
-        options.onStaffOrgExpandToggle(orgId);
-      } else {
-        options.onStaffOrgDrill?.(orgId);
-      }
-      options.onOrgClick?.(orgId, mods);
-    });
-    view.on('pointerdown', (e) => {
-      if (view.isChromePointer(e)) {
-        e.stopPropagation();
-        return;
-      }
-      e.stopPropagation();
-    });
-    view.on('rightclick', (e) => {
-      e.stopPropagation();
-      e.preventDefault?.();
-      options.onOrgContextMenu?.(orgId, {
-        clientX: e.clientX,
-        clientY: e.clientY,
-        canvasX: e.global.x,
-        canvasY: e.global.y,
-      });
-    });
   }
 
   /** Seats on the bare cell grid — no tiers, no org cards (mockups, tests). */
@@ -760,8 +716,8 @@ export class DiagramRenderer {
     });
     this.layers.edges.addChild(edgesView);
 
+    const orgById = new Map(data.organizations.map((o) => [o.id, o]));
     if (config.orgSiblingGroupChrome) {
-      const orgById = new Map(data.organizations.map((o) => [o.id, o]));
       const outline = (config.orgSiblingGroupStyle ?? 'zone') === 'outline';
       const zone = theme.staffZone;
       const frame = outline
@@ -785,7 +741,6 @@ export class DiagramRenderer {
       }
     }
 
-    const orgById = new Map(data.organizations.map((o) => [o.id, o]));
     const groupById = new Map(data.groups.map((g) => [g.id, g]));
 
     for (const ln of layout.nodes) {
@@ -814,43 +769,10 @@ export class DiagramRenderer {
         width: ln.width,
         height: ln.height,
       });
-      node.on('pointertap', (e) => {
-        if (!isPrimaryPointerTap(e)) return;
-        if (node.activateChromePointer(e)) {
-          this.nodeDoubleTap.reset();
-          e.stopPropagation();
-          return;
-        }
-        e.stopPropagation();
-        const mods = readSelectionPointerMods(e);
-        if (isSelectionToggleModifier(mods)) {
-          this.nodeDoubleTap.reset();
-          options.onOrgClick?.(org.id, mods);
-          return;
-        }
-        const kind = this.nodeDoubleTap.tap(`org:${org.id}`);
-        if (kind === 'double') {
-          options.onOrgDoubleClick?.(org.id);
-          return;
-        }
-        options.onOrgClick?.(org.id, mods);
-      });
-      node.on('pointerdown', (e) => {
-        if (node.isChromePointer(e)) {
-          e.stopPropagation();
-          return;
-        }
-        e.stopPropagation();
-      });
-      node.on('rightclick', (e) => {
-        e.stopPropagation();
-        e.preventDefault?.();
-        options.onOrgContextMenu?.(org.id, {
-          clientX: e.clientX,
-          clientY: e.clientY,
-          canvasX: e.global.x,
-          canvasY: e.global.y,
-        });
+      bindOrgCardInteractions(node, {
+        orgId: org.id,
+        doubleTap: this.nodeDoubleTap,
+        handlers: options,
       });
       this.layers.organizations.addChild(node);
       this.registerView('organization', org.id, node);
