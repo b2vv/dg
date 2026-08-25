@@ -10,6 +10,6 @@
 
 ## Acceptance
 
-- [x] Merge by id (patch wins) — `mergePartial` / `mergeById` в `index.ts`.
+- [x] Merge by id (patch wins) — `data/mergeData.ts` (`mergePartial` / `mergeById` / `mergeByKey`; винесено з `index.ts` у T82).
 - [x] Повторний chunk — no-throw.
 - [x] Unit: `OrgHierarchyDiagram.interactions.test.ts` — «appendData dedupes by id on repeat chunk (A6)» + append без мапера кидає.

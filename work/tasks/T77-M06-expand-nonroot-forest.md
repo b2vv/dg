@@ -11,4 +11,4 @@
 ## Acceptance
 
 - [x] Expand дитини зберігає гілки — `revealOrgPath` розкриває шлях від кореня, `T78-L3` тримає collapse-семантику.
-- [x] Regression: `layout/flatOrgRootExpand.test.ts` + `e2e/flat-orgs.spec.ts`.
+- [x] Regression: `layout/flatOrgRootExpand.test.ts` — «expanding a non-root org keeps its ancestors and their siblings» (перевіряє саме гілки, а не лише непорожній layout) + `e2e/flat-orgs.spec.ts`.

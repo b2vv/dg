@@ -19,21 +19,31 @@ test.describe('demo audit (T33)', () => {
   test('contour sliders are enabled only where departments are contours', async ({ page }) => {
     await page.goto('/');
     await page.waitForTimeout(2500);
+    // Both sliders, not just Padding — they are enabled and disabled together.
     const disabled = async () =>
-      page.locator('#padding-control').getAttribute('data-disabled');
+      Promise.all([
+        page.locator('#padding-control').getAttribute('data-disabled'),
+        page.locator('#smooth-control').getAttribute('data-disabled'),
+      ]);
+    const openTab = async (name: string) => {
+      await page.getByRole('button', { name, exact: true }).click();
+      await expect(page.locator('#status')).not.toContainText('Loading', { timeout: 60_000 });
+    };
 
     // Variant B paints magnetic contours.
-    expect(await disabled()).toBe('false');
+    expect(await disabled()).toEqual(['false', 'false']);
 
-    // Staff · Figma paints department cards — sliders must go quiet.
-    await page.getByRole('button', { name: 'Staff · Figma', exact: true }).click();
-    await expect(page.locator('#status')).toContainText('Staff', { timeout: 60_000 });
-    expect(await disabled()).toBe('true');
+    // Department cards, not contours — the sliders must go quiet.
+    for (const name of ['Staff · Figma', 'Staff tree']) {
+      await openTab(name);
+      expect(await disabled(), name).toEqual(['true', 'true']);
+    }
 
-    // Staff · Magnetic is contours again.
-    await page.getByRole('button', { name: 'Staff · Magnetic', exact: true }).click();
-    await expect(page.locator('#status')).toContainText('Staff', { timeout: 60_000 });
-    expect(await disabled()).toBe('false');
+    // Every tab whose departments are contours keeps them live.
+    for (const name of ['Staff · Magnetic', 'Staff · Flood', 'Staff · GoJS']) {
+      await openTab(name);
+      expect(await disabled(), name).toEqual(['false', 'false']);
+    }
   });
 
   test('tab state follows the content, and search does not leak between tabs', async ({ page }) => {

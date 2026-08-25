@@ -184,12 +184,12 @@
 
 ## Регресійний чекліст (після фіксів)
 
-- [x] Variant B: own-картки під заливкою, CEO поза нею — `render/variantBNotchPaint.test.ts`, `render/paintMagneticGroups.test.ts`  
+- [x] Variant B: own-картки під заливкою, CEO поза нею — `render/variantBNotchPaint.test.ts`, `render/contour/paintMagneticGroups.test.ts`  
 - [x] Staff tree: інвентар ребер під тестом — `scenarios/mockupEdgeInventory.test.ts`, `scenarios/staffEdgeFallbackCensus.test.ts`  
 - [x] Flat orgs: розкриття кореня лишає дерево — `e2e/flat-orgs.spec.ts`, `layout/flatOrgRootExpand.test.ts`  
 - [ ] Zoom 4×: текст не мильний — **лишається візуальним**: різкість тексту Pixi не читається з DOM, перевіряти на скріншотних бейзлайнах (`e2e/mockups.spec.ts-snapshots/`)  
 - [x] Вкладки: рівно одна active і вона відповідає контенту; запит не переносится між табами — `e2e/demo-audit.spec.ts`  
-- [x] Padding/Smooth: enabled лише там, де відділи — контури (Variant B, Staff · Magnetic / Flood / GoJS) — `e2e/demo-audit.spec.ts`  
+- [x] Padding/Smooth: обидва повзунки enabled лише там, де відділи — контури (Variant B, Staff · Magnetic / Flood / GoJS), і disabled на карткових (Staff · Figma, Staff tree) — `e2e/demo-audit.spec.ts`  
 - [x] Нема 404 у Network на cold load — `e2e/demo-audit.spec.ts`  
 - [x] Один `.zoom-fab` із трьома кнопками — `e2e/demo-audit.spec.ts`
 

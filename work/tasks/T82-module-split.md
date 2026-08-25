@@ -45,7 +45,11 @@
 - `scenarios/mockupSymbols|mockupLayouts|mockupOrgs|mockupStaff|mockupStyles.ts`,
   `mockupFigma.ts` лишається барелем.
 
-**Шари:**
+**Шари й чиста логіка:**
+- `layout/matrixGrid.ts` — `occupantAtCell` і `applyMatrixPlacement` (повертає ще й `ejectedOrgId`,
+  щоб не робити другий прохід `assignMatrixCells` заради патча).
+- `layout/staff/positionExpand.ts` — `victimsForExpand`: ліміт `maxExpandedPositions` як чиста функція.
+
 - `render/contour/` — 35 модулів фарбування контурів (окремо від `src/contour/`, який є
   WASM/worker-мостом без Pixi).
 - Виправлено три залежності «назовні»: `contour/magnetRadius.ts`, `layout/staffEdgeGeometry.ts`,
@@ -53,7 +57,8 @@
 
 ## Чого рефакторинг **не** робив
 
-- Публічний API не змінювався — ті самі експорти, ті самі типи.
+- Публічний API не змінювався — ті самі експорти, ті самі типи (перевірено звіркою набору
+  експортів `index.ts` до і після; `render/index.ts` теж без приросту).
 - Візуальні бейзлайни не перегенеровані (Linux-only, [відкладено](./MOCKUP-styles-review.md)),
   тому єдина свідома візуальна зміна — фаза пунктиру на кутах вакантної картки.
 - Геометрія карток не змінювалась: `personCardContent.ts` — дослівний перенос, і його
@@ -63,10 +68,11 @@
 
 ## Acceptance
 
-- [x] Жоден файл `sdk/src` не перевищує ~1000 рядків; найбільший — `DiagramRenderer` (1006),
-      і це вже тільки збірка сцен.
+- [x] Немає файлів-«god object»: найбільші — фасад `OrgHierarchyDiagram` (1102, широкий
+      публічний API з тонкими методами) і `DiagramRenderer` (928, тільки збірка сцен).
 - [x] Кожен винесений модуль має тест на success **і** failure
       (`mergeData`, `nodeRefs`, `SearchIndexService`, `ContextMenuController`, `SceneRegistry`,
-      `dashedStroke`, `tabConfigs`, `personCardContent`).
-- [x] `npm run typecheck`, 635 sdk + 61 demo unit, 35 e2e — зелені після кожного кроку.
+      `dashedStroke`, `tabConfigs`, `personCardContent`, `ContourPainter`, `personInteractions`,
+      `orgCardInteractions`, `applyMatrixPlacement`, `victimsForExpand`).
+- [x] `npm run typecheck`, 662 sdk + 61 demo unit, 35 e2e (без скріншотних специфікацій — усього їх 41) — зелені після кожного кроку.
 - [x] Публічний API незмінний (барель `index.ts` + `render/index.ts`).
