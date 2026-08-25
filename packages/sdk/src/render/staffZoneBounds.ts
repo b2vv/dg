@@ -16,9 +16,19 @@ export function worldBoundsForTier(
   tier: StaffTierBand,
   positionNodes: readonly StaffNodeBox[],
   orgCards: readonly StaffOrgCard[],
-  options: { margin: number; minWidth?: number; canvasWidth?: number },
+  options: {
+    margin: number;
+    minWidth?: number;
+    canvasWidth?: number;
+    /**
+     * How far a department wrapper (magnetic contour or dept card) sticks out
+     * past its seats. The org block has to sit around the wrappers, not around
+     * the bare cards, or the wash touches — or crosses — the block frame.
+     */
+    contentPadding?: number;
+  },
 ): WorldRect {
-  const pad = Math.max(0, options.margin / 2);
+  const pad = Math.max(0, options.margin / 2) + Math.max(0, options.contentPadding ?? 0);
   const minWidth = options.minWidth ?? 0;
 
   if (tier.kind === 'org-cards') {
@@ -77,13 +87,14 @@ export function enrichStaffTierBands(
   positionNodes: readonly StaffNodeBox[],
   orgCards: readonly StaffOrgCard[],
   organizations: readonly DiagramOrganization[],
-  options: { margin: number; canvasWidth: number },
+  options: { margin: number; canvasWidth: number; contentPadding?: number },
 ): StaffTierBand[] {
   const orgName = new Map(organizations.map((o) => [o.id, o.name]));
   return tiers.map((tier) => {
     const bounds = worldBoundsForTier(tier, positionNodes, orgCards, {
       margin: options.margin,
       canvasWidth: options.canvasWidth,
+      contentPadding: options.contentPadding,
     });
     const label =
       tier.label ??

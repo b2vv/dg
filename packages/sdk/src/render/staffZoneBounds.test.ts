@@ -69,3 +69,23 @@ describe('staffZoneBounds', () => {
     expect(r).toEqual({ x: 10, y: 12, width: 180, height: 64 });
   });
 });
+
+describe('worldBoundsForTier contentPadding (magnetic wrappers)', () => {
+  const tier = { tier: 2 as const, kind: 'staff-block' as const, y: 0, height: 200, organizationId: 'o1' };
+  const nodes = [
+    { id: 'a', organizationId: 'o1', x: 100, y: 20, width: 120, height: 60, tier: 2 as const },
+    { id: 'b', organizationId: 'o1', x: 300, y: 20, width: 120, height: 60, tier: 2 as const },
+  ];
+
+  it('success: the block grows by the wrapper overhang on both sides', () => {
+    const bare = worldBoundsForTier(tier, nodes, [], { margin: 40 });
+    const wrapped = worldBoundsForTier(tier, nodes, [], { margin: 40, contentPadding: 12 });
+    expect(bare.x - wrapped.x).toBe(12);
+    expect(wrapped.width - bare.width).toBe(24);
+  });
+
+  it('failure: no wrapper padding keeps the previous bounds', () => {
+    const bare = worldBoundsForTier(tier, nodes, [], { margin: 40 });
+    expect(worldBoundsForTier(tier, nodes, [], { margin: 40, contentPadding: 0 })).toEqual(bare);
+  });
+});

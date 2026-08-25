@@ -21,6 +21,7 @@ import { resolveMagnetRadius } from '../render/magnetRadius.js';
 import { inferStaffCurrentOrgId } from '../render/inferStaffCurrentOrgId.js';
 import { arrowHeadTriangle, shortenPolylineForArrow } from '../render/staffEdgeArrows.js';
 import { enrichStaffTierBands } from '../render/staffZoneBounds.js';
+import { contourButtonGroupMargin } from '../render/contourButtonGroup.js';
 
 function esc(text: string): string {
   return text
@@ -151,7 +152,12 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
         canvas.positionNodes,
         canvas.orgCards,
         data.organizations,
-        { margin: staffMerged.margin, canvasWidth: canvas.width },
+        {
+          margin: staffMerged.margin,
+          canvasWidth: canvas.width,
+          // Same rule as the canvas: the block wraps the department washes.
+          contentPadding: contourButtonGroupMargin(config.paddingCells ?? 0, DEPT_STROKE_W),
+        },
       );
       parts.push('<g id="zones">');
       for (const tier of tiers) {

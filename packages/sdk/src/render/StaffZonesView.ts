@@ -12,6 +12,8 @@ export interface StaffZonePaintInput {
   style: StaffZoneStyle;
   margin: number;
   canvasWidth: number;
+  /** Department wrapper overhang past the seats (contour wash / dept card). */
+  contentPadding?: number;
   /** Paint org-cards band as well (lighter). Default: staff-block only. */
   includeOrgCardsBand?: boolean;
 }
@@ -30,6 +32,7 @@ export class StaffZonesView extends Container {
       style,
       margin,
       canvasWidth,
+      contentPadding = 0,
       includeOrgCardsBand = false,
     } = input;
 
@@ -39,7 +42,11 @@ export class StaffZonesView extends Container {
         const bounds: WorldRect =
           tier.x !== undefined && tier.width !== undefined
             ? { x: tier.x, y: tier.y, width: tier.width, height: tier.height }
-            : worldBoundsForTier(tier, positionNodes, orgCards, { margin, canvasWidth });
+            : worldBoundsForTier(tier, positionNodes, orgCards, {
+                margin,
+                canvasWidth,
+                contentPadding,
+              });
 
         const g = new Graphics();
         g.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, style.borderRadius);

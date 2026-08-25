@@ -946,12 +946,14 @@ export class DiagramRenderer {
       };
 
       if (config.staffZoneChrome) {
+        // The org block wraps the department wrappers, not the bare seats.
+        const contentPadding = departmentWrapperPadding(theme, config);
         const tiers = enrichStaffTierBands(
           canvas.tiers,
           canvas.positionNodes,
           canvas.orgCards,
           data.organizations,
-          { margin: staffMerged.margin, canvasWidth: canvas.width },
+          { margin: staffMerged.margin, canvasWidth: canvas.width, contentPadding },
         );
         this.layers.zones.addChild(
           StaffZonesView.fromCanvas({
@@ -961,6 +963,7 @@ export class DiagramRenderer {
             style: resolveStaffZoneStyle(theme, resolvedTheme),
             margin: staffMerged.margin,
             canvasWidth: canvas.width,
+            contentPadding,
           }),
         );
       }
@@ -1493,6 +1496,22 @@ export class DiagramRenderer {
           : undefined,
     };
   }
+}
+
+/**
+ * How far a department wrapper reaches past its seats: the magnetic wash margin
+ * for contours, or the card padding plus its label row for `departmentStyle:
+ * 'card'`. Applied on every side — a per-side inset would only matter for the
+ * card's label row, and over-padding the org block is the safe direction.
+ */
+function departmentWrapperPadding(theme: NodeTheme, config: RenderConfig): number {
+  const style = config.departmentStyle ?? defaultRenderConfig.departmentStyle ?? 'blob';
+  if (style === 'card') {
+    const card = theme.departmentCard;
+    const padding = card?.padding ?? 8;
+    return padding + (card?.labelRow ? (card.labelFontSize ?? 12) + 6 : 0);
+  }
+  return contourButtonGroupMargin(config.paddingCells ?? 0, theme.department.strokeWidth);
 }
 
 /** Flood runs per org block — `gridCell` is local to one block. */
