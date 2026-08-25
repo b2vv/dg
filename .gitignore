@@ -3,6 +3,9 @@ dist/
 *.log
 .DS_Store
 
+# personal, not shared with the team
+CLAUDE.local.md
+
 # Playwright
 test-results/
 playwright-report/
