@@ -59,10 +59,7 @@ import {
 import {
   type ContourMemberBox,
 } from './contourClearance.js';
-import { clusterPositionsByDepartment } from './contourCluster.js';
-import { memberBoxesForCluster } from './contourButtonGroup.js';
-import { polishContourRings } from './contourPolish.js';
-import { shouldPaintDeptContour } from './contourPaintFilter.js';
+import { paintMagneticGroups } from './paintMagneticGroups.js';
 import { resolveMagnetRadius } from './magnetRadius.js';
 import { inferStaffCurrentOrgId } from './inferStaffCurrentOrgId.js';
 import { offsetMemberBoxesForGridMove, cloneMemberBoxes } from './offsetMemberBoxes.js';
@@ -490,35 +487,24 @@ export class DiagramRenderer {
     const session = this.contourSession;
     if (!session) return new Map();
 
-    const radius = resolveMagnetRadius(session.magnet.magnetRadius);
-    const deptIds = [...new Set(session.inputs.map((p) => p.departmentId))].sort();
-    const out = new Map<string, { x: number; y: number }[][]>();
-    const allBoxes = [...session.memberBoxesByDept.values()].flat();
+    // Same painter as the SVG export — canvas and export must not drift apart.
+    const painted = paintMagneticGroups({
+      inputs: session.inputs,
+      memberBoxesByDept: session.memberBoxesByDept,
+      departmentIds: [...new Set(session.inputs.map((p) => p.departmentId))].sort(),
+      magnetRadius: resolveMagnetRadius(session.magnet.magnetRadius),
+      strokeWidth: session.style.strokeWidth,
+      paddingCells: session.paintPaddingCells,
+      smoothIterations: session.paintSmoothIterations,
+      personCounts: session.personCounts,
+      minContourMembers: session.minContourMembers,
+    });
 
-    for (const deptId of deptIds) {
-      if (!shouldPaintDeptContour(session.personCounts.get(deptId), session.minContourMembers)) {
-        continue;
-      }
-      const members = session.memberBoxesByDept.get(deptId) ?? [];
-      const clusters = clusterPositionsByDepartment(session.inputs, deptId, radius);
-      const rings: { x: number; y: number }[][] = [];
-      for (const clusterIds of clusters) {
-        const boxes = memberBoxesForCluster(clusterIds, members);
-        // M1/M2: anything outside this component — other departments and other
-        // components of the same one — is foreign and gets notched out.
-        const own = new Set(boxes.map((b) => b.positionId));
-        const foreign = allBoxes.filter((b) => !own.has(b.positionId));
-        rings.push(
-          ...polishContourRings({
-            memberBoxes: boxes,
-            foreignBoxes: foreign,
-            strokeWidth: session.style.strokeWidth,
-            paddingCells: session.paintPaddingCells,
-            smoothIterations: session.paintSmoothIterations,
-          }),
-        );
-      }
-      if (rings.length > 0) out.set(deptId, rings);
+    const out = new Map<string, { x: number; y: number }[][]>();
+    for (const group of painted) {
+      const rings = out.get(group.departmentId) ?? [];
+      rings.push(group.ring);
+      out.set(group.departmentId, rings);
     }
     return out;
   }

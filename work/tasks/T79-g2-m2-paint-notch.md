@@ -39,6 +39,13 @@ Foreign для компоненти = **усі інші картки**, вклю
 - Дірка (foreign, оточений власними картками з усіх боків) не малюється як hole — коридор
   ріжеться найкоротшим шляхом, навіть якщо він зачіпає власну картку.
 
+## Один painter на canvas і export
+
+`DiagramRenderer.buildPaintRingsByDept` раніше дублював петлю `paintMagneticGroups`
+(dept → кластери → member boxes → polish). Тепер рендерер викликає той самий
+`paintMagneticGroups`, що й SVG-export, і лише групує кільця по відділу — виїмки
+не можуть розʼїхатись між полотном і експортом.
+
 ## Демо
 
 Таб **Staff · Magnetic**: seat «Service lead» (відділ Supply service) стоїть у клітині `(2,0)`,
