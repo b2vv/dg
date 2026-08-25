@@ -2,10 +2,11 @@
  * Paint magnetic groups as button-group chrome: one rounded rect around
  * member cards (no cell-flood L/C geometry).
  *
- * T78-L8 / G5–G7: canvas wash is the padded union AABB of the cluster, not a
- * notched flood hull. Cards sitting in the missing corner of an L-shape are
- * visually inside the blob. That is an intentional Option B skip — rust G5–G7
- * notch is not on the paint path. Revisit only if product wants the notch.
+ * This module is the *frame* only: the padded union AABB of a component.
+ * Foreign cards that fall inside that frame are notched out downstream by
+ * `contourNotch` (G2 / M2), so an empty corner of an L-shape still reads as
+ * filled, but a foreign card in it never does. Full cell-space G5–G7 parity
+ * stays in `packages/core/src/contour.rs` (export / tests).
  */
 import type { ContourClearBox, ContourMemberBox } from './contourClearance.js';
 import { CONTOUR_CORNER_RADIUS, filletClosedRing, type ContourPoint } from './contourFillet.js';
@@ -41,7 +42,7 @@ export function contourButtonGroupMargin(
 export function memberBoxesForCluster(
   clusterIds: readonly string[],
   members: readonly ContourMemberBox[],
-): ContourClearBox[] {
+): ContourMemberBox[] {
   const set = new Set(clusterIds);
   return members.filter((m) => set.has(m.positionId));
 }

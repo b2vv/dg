@@ -61,7 +61,7 @@ Point-ring lerp of department blobs while dragging a person across snap cells (G
 _Avoid_: Path-string tween, SVG morph
 
 **Button-group contour**:
-Paint polish that draws each magnetic component as a rounded rect around its member cards (card border-radius).
+Paint polish that draws each magnetic component as a rounded rect around its member cards (card border-radius), with foreign cards notched out of that rect (G2/M2).
 _Avoid_: Orthogonal “noise” wash; dual fillet/L-notch paint paths
 
 **Worker search index**:

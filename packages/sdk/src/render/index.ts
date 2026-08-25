@@ -51,7 +51,17 @@ export {
   maxChordTurn,
   CONTOUR_CORNER_RADIUS,
 } from './contourFillet.js';
-export { polishContourRing } from './contourPolish.js';
+export {
+  polishContourRing,
+  polishContourRings,
+  type PolishContourInput,
+} from './contourPolish.js';
+export {
+  notchedRings,
+  notchRect,
+  subtractRects,
+  type ContourRect,
+} from './contourNotch.js';
 export {
   buttonGroupRingFromBoxes,
   contourButtonGroupMargin,

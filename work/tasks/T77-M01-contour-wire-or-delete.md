@@ -16,6 +16,10 @@ Canvas лишає TS button-group / `buildPaintRingsByDept` (AABB + polish).
 
 Повний purge `contour.rs` / pipeline → [M09](./T77-M09-dead-code-purge.md).
 
+**Оновлення 2026-08-25 ([T79](./T79-g2-m2-paint-notch.md)):** продукт замовив G2/M2 на екрані.
+Рішення B не скасовано — round-trip не повертали; виїмку навколо foreign рахує синхронний
+`render/contourNotch.ts` у world-space. Rust лишається референсом для export/tests.
+
 ## Acceptance
 
 - [x] Зафіксоване рішення B у цьому файлі.

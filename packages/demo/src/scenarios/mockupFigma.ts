@@ -590,10 +590,14 @@ export function buildMockupStaffFigmaData(): DiagramData {
  * Grid (local per org block):
  * ```text
  *        col 0            col 1            col 2
- * row 0                   head
- * row 1  first deputy     deputy           chief of staff
- * row 2  supply           people ·1        people ·2
+ * row 0                   head             supply           ← foreign inside the
+ * row 1  first deputy     deputy           chief of staff      command bbox
+ * row 2                   people ·1        people ·2
  * ```
+ *
+ * The supply seat sits inside the command department's bounding box on purpose:
+ * it is the G2/M2 case — the command contour has to notch around a foreign card
+ * instead of swallowing it.
  */
 export function buildMockupStaffMagneticData(): DiagramData {
   const base = buildMockupStaffFigmaData();
@@ -608,7 +612,8 @@ export function buildMockupStaffMagneticData(): DiagramData {
     'pos-1z': { col: 0, row: 1 },
     'pos-2z': { col: 1, row: 1 },
     'pos-ops': { col: 2, row: 1 },
-    'pos-sup': { col: 0, row: 2 },
+    // Foreign card inside the command component's bbox (G2 / M2 demo).
+    'pos-sup': { col: 2, row: 0 },
     'pos-p1': { col: 1, row: 2 },
     'pos-p2': { col: 2, row: 2 },
   };

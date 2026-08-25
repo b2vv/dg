@@ -61,7 +61,7 @@ import {
 } from './contourClearance.js';
 import { clusterPositionsByDepartment } from './contourCluster.js';
 import { memberBoxesForCluster } from './contourButtonGroup.js';
-import { polishContourRing } from './contourPolish.js';
+import { polishContourRings } from './contourPolish.js';
 import { shouldPaintDeptContour } from './contourPaintFilter.js';
 import { resolveMagnetRadius } from './magnetRadius.js';
 import { inferStaffCurrentOrgId } from './inferStaffCurrentOrgId.js';
@@ -493,6 +493,7 @@ export class DiagramRenderer {
     const radius = resolveMagnetRadius(session.magnet.magnetRadius);
     const deptIds = [...new Set(session.inputs.map((p) => p.departmentId))].sort();
     const out = new Map<string, { x: number; y: number }[][]>();
+    const allBoxes = [...session.memberBoxesByDept.values()].flat();
 
     for (const deptId of deptIds) {
       if (!shouldPaintDeptContour(session.personCounts.get(deptId), session.minContourMembers)) {
@@ -503,13 +504,19 @@ export class DiagramRenderer {
       const rings: { x: number; y: number }[][] = [];
       for (const clusterIds of clusters) {
         const boxes = memberBoxesForCluster(clusterIds, members);
-        const ring = polishContourRing(
-          boxes,
-          session.style.strokeWidth,
-          session.paintPaddingCells,
-          session.paintSmoothIterations,
+        // M1/M2: anything outside this component — other departments and other
+        // components of the same one — is foreign and gets notched out.
+        const own = new Set(boxes.map((b) => b.positionId));
+        const foreign = allBoxes.filter((b) => !own.has(b.positionId));
+        rings.push(
+          ...polishContourRings({
+            memberBoxes: boxes,
+            foreignBoxes: foreign,
+            strokeWidth: session.style.strokeWidth,
+            paddingCells: session.paintPaddingCells,
+            smoothIterations: session.paintSmoothIterations,
+          }),
         );
-        if (ring.length >= 2) rings.push(ring);
       }
       if (rings.length > 0) out.set(deptId, rings);
     }
