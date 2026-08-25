@@ -376,3 +376,75 @@ describe('OrgHierarchyDiagram interactions', () => {
     document.body.removeChild(container);
   });
 });
+
+describe('bulk selection actions (T67 D2)', () => {
+  async function mountOrgs() {
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: makeData(),
+      useWorker: false,
+    });
+    return { container, diagram };
+  }
+
+  const orgRef = (id: string) => ({ kind: 'organization' as const, id, organizationId: id });
+
+  function contextRequest(id: string, itemIds: readonly string[]) {
+    return {
+      node: { ref: orgRef(id) },
+      items: itemIds.map((itemId) => ({ id: itemId, label: itemId })),
+      pointer: { clientX: 0, clientY: 0 },
+    } as unknown as Parameters<OrgHierarchyDiagram['runContextMenuAction']>[1];
+  }
+
+  it('success: bulk-collapse applies to the selection, not to the clicked node', async () => {
+    const { container, diagram } = await mountOrgs();
+    await diagram.expandOrg('root');
+    expect(diagram.getData().organizations.find((o) => o.id === 'root')?.collapsed).toBe(false);
+
+    await diagram.selectMany([orgRef('root')]);
+    await diagram.runContextMenuAction('bulk-collapse', contextRequest('org1', ['bulk-collapse']));
+
+    expect(diagram.getData().organizations.find((o) => o.id === 'root')?.collapsed).toBe(true);
+    diagram.destroy();
+    container.remove();
+  });
+
+  it('success: bulk-clear empties the selection', async () => {
+    const { container, diagram } = await mountOrgs();
+    await diagram.selectMany([orgRef('root'), orgRef('org1')]);
+    expect(diagram.getSelections()).toHaveLength(2);
+
+    await diagram.runContextMenuAction('bulk-clear', contextRequest('root', ['bulk-clear']));
+    expect(diagram.getSelections()).toHaveLength(0);
+    diagram.destroy();
+    container.remove();
+  });
+
+  it('success: bulk-copy-ids writes every selected node as kind:id', async () => {
+    const writeText = vi.fn(async () => {});
+    const original = navigator.clipboard;
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+
+    const { container, diagram } = await mountOrgs();
+    await diagram.selectMany([orgRef('root'), orgRef('org1')]);
+    await diagram.runContextMenuAction('bulk-copy-ids', contextRequest('root', ['bulk-copy-ids']));
+
+    expect(writeText).toHaveBeenCalledWith('organization:root organization:org1');
+    Object.defineProperty(navigator, 'clipboard', { value: original, configurable: true });
+    diagram.destroy();
+    container.remove();
+  });
+
+  it('failure: setOrgsCollapsed with an empty list leaves the data untouched', async () => {
+    const { container, diagram } = await mountOrgs();
+    const before = diagram.getData().organizations;
+    await diagram.setOrgsCollapsed([], true);
+    expect(diagram.getData().organizations).toBe(before);
+    diagram.destroy();
+    container.remove();
+  });
+});

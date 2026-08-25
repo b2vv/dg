@@ -64,7 +64,8 @@ onSelectionChange?(nodes: NodeRef[]): void  // already exists
 
 - [x] Ctrl/Cmd+**Shift**+click додає/знімає з вибору (працює однаково для org / position / person — один шлях `handleNodeSelect`)
 - [x] Bulk-меню на правий клік по вузлу з виділення
-- [x] Host-демо: bulk bar (`data-testid="bulk-bar"`) з `N selected` + Copy ids / Clear
+- [x] Host-демо: bulk bar (`data-testid="bulk-bar"`) з `N selected` + Collapse (для org-набору) / Copy ids / Clear
+- [x] `runContextMenuAction` виконує `bulk-*` (не мертві пункти): expand/collapse по виділенню одним рендером через новий `setOrgsCollapsed`, copy ids, clear
 - [x] `getSelections()` / docs узгоджено; scalar `getSelection()` не ламає hosts
 - [x] Canvas click очищає multi
 - [x] Unit success/failure
@@ -75,7 +76,7 @@ onSelectionChange?(nodes: NodeRef[]): void  // already exists
 
 - Рамкове виділення (окремий follow-up, **лише** якщо продукт підтвердить)
 - Bulk reparent UI (лише callback/patch)
-- Зміна T66 bulk expand (окремо після Set API)
+- Marquee-виділення (Phase 2, лише за запитом продукту)
 
 ## Verify
 

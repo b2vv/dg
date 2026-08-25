@@ -657,14 +657,32 @@ export class OrgHierarchyDiagram {
         await this.focusNode(ref.positionId ?? ref.personId ?? ref.id);
         break;
       case 'copy-id':
-        if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(ref.id);
-        }
+        await this.copyToClipboard(ref.id);
+        break;
+      case 'bulk-expand':
+      case 'bulk-collapse':
+        await this.setOrgsCollapsed(
+          this.selectionStore.list.filter((n) => n.kind === 'organization').map((n) => n.id),
+          item.id === 'bulk-collapse',
+        );
+        break;
+      case 'bulk-copy-ids':
+        await this.copyToClipboard(
+          this.selectionStore.list.map((n) => `${n.kind}:${n.id}`).join(' '),
+        );
+        break;
+      case 'bulk-clear':
+        await this.clearSelection();
         break;
       default:
         break;
     }
     this.lastContextMenu = null;
+  }
+
+  private async copyToClipboard(text: string): Promise<void> {
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return;
+    await navigator.clipboard.writeText(text);
   }
 
   private async applyConfig<TRaw>(config: OrgHierarchyConfig<TRaw>): Promise<void> {
@@ -872,6 +890,24 @@ export class OrgHierarchyDiagram {
     this.callbacks.onOrgModeChange?.(this.getOrgMode());
     await this.render();
     this.panToOrg(orgId, { animate: true });
+  }
+
+  /**
+   * Bulk expand / collapse (T67 D2). One data update and one render for the
+   * whole set — looping {@link expandOrg} would repaint and re-aim the camera
+   * per organization.
+   */
+  async setOrgsCollapsed(orgIds: readonly string[], collapsed: boolean): Promise<void> {
+    if (orgIds.length === 0) return;
+    let organizations = this.data.organizations;
+    for (const orgId of orgIds) {
+      organizations = collapsed
+        ? collapseOrg(organizations, orgId)
+        : revealOrgPath(organizations, orgId);
+    }
+    this.data = { ...this.data, organizations };
+    this.callbacks.onOrgModeChange?.(this.getOrgMode());
+    await this.render();
   }
 
   async collapseAllOrgs(): Promise<void> {

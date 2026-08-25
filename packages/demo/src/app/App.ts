@@ -436,6 +436,9 @@ export class App {
     const kindLabel = kinds.size === 1 ? ` · ${[...kinds][0]}` : '';
     const count = bar.querySelector<HTMLElement>('[data-bulk="count"]');
     if (count) count.textContent = `${nodes.length} selected${kindLabel}`;
+    // Collapse only makes sense for an organization-only set.
+    const orgsOnly = nodes.every((n) => n.kind === 'organization');
+    bar.querySelector<HTMLElement>('[data-bulk="collapse"]')?.toggleAttribute('hidden', !orgsOnly);
   }
 
   private mountBulkBar(): void {
@@ -446,6 +449,7 @@ export class App {
     bar.setAttribute('data-testid', 'bulk-bar');
     bar.innerHTML =
       '<span data-bulk="count">0 selected</span>' +
+      '<button type="button" data-bulk="collapse" hidden>Collapse</button>' +
       '<button type="button" data-bulk="copy">Copy ids</button>' +
       '<button type="button" data-bulk="clear">Clear</button>';
     bar.addEventListener('click', (e) => {
@@ -456,6 +460,12 @@ export class App {
         const ids = nodes.map((n) => `${n.kind}:${n.id}`).join(' ');
         void navigator.clipboard?.writeText(ids);
         this.showToast(`Copied ${nodes.length} ids`);
+        return;
+      }
+      if (action === 'collapse') {
+        const orgIds = nodes.filter((n) => n.kind === 'organization').map((n) => n.id);
+        void this.diagram?.setOrgsCollapsed(orgIds, true);
+        this.showToast(`Collapsed ${orgIds.length} organizations`);
         return;
       }
       if (action === 'clear') void this.diagram?.clearSelection();
