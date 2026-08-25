@@ -2,6 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { LayerManager } from './LayerManager.js';
 import { SceneRegistry, type NodeWorldBox } from './SceneRegistry.js';
 import { ContourPainter } from './contour/ContourPainter.js';
+import { PersonInteractions, type DragGrid } from './personInteractions.js';
 import {
   type ContourMagnetConfig,
   type ContourPositionInput,
@@ -23,7 +24,6 @@ import { computeOrgLayout } from '../layout/rowTreeLayout.js';
 import { siblingOrgGroupBounds } from '../layout/siblingOrgGroups.js';
 import type { OrgLayoutOptions } from '../layout/types.js';
 import { isOrgCollapsed, orgHasChildren } from '../layout/orgMode.js';
-import { snapToGrid, snapWorldToCell } from '../interaction/positionMove.js';
 import { DoubleTapTracker } from '../interaction/doubleTap.js';
 import {
   isPrimaryPointerTap,
@@ -156,37 +156,18 @@ export class DiagramRenderer {
     reportDiagnostic: (message) => this.reportContourDiagnostic(message),
   });
   /** Active grid for person drag snap (staff pitch or bare cell). */
-  private dragGrid: {
-    pitchX: number;
-    pitchY: number;
-    originX: number;
-    originY: number;
-    insetX: number;
-    insetY: number;
-  } | null = null;
-  private drag: {
-    positionId: string;
-    node: PersonNodeView;
-    originX: number;
-    originY: number;
-    grabOffsetX: number;
-    grabOffsetY: number;
-    pointerId: number;
-    moved: boolean;
-    previewCol: number | null;
-    previewRow: number | null;
-    /** T78-L1: per-card grid origin (staff tiers share gridCell indices). */
-    snapGrid: {
-      pitchX: number;
-      pitchY: number;
-      originX: number;
-      originY: number;
-      insetX: number;
-      insetY: number;
-    } | null;
-  } | null = null;
+  private dragGrid: DragGrid | null = null;
   /** Body double-tap tracker (T69); chrome / canvas resets it. */
   private readonly nodeDoubleTap = new DoubleTapTracker();
+  /** Seat-card pointer behaviour, including drag with contour preview. */
+  private readonly personInteractions = new PersonInteractions({
+    personLayer: this.layers.persons,
+    doubleTap: this.nodeDoubleTap,
+    rememberBox: (box) => this.rememberBox(box),
+    dragGrid: () => this.dragGrid,
+    previewDrag: (positionId, col, row) => this.contours.previewDrag(positionId, col, row),
+    restoreContours: () => this.contours.restoreAfterFailedDrag(),
+  });
 
   mount(stage: Container): void {
     stage.addChild(this.layers.root);
@@ -254,10 +235,10 @@ export class DiagramRenderer {
     this.contours.reset();
     this.contourWorld = null;
     this.dragGrid = null;
+    this.personInteractions.reset();
     this.layers.clear();
     this.scene.clear();
     this.lastDiagnostics = [];
-    this.drag = null;
 
     this.layers.root.eventMode = 'static';
     this.layers.root.removeAllListeners('pointertap');
@@ -337,137 +318,6 @@ export class DiagramRenderer {
 
   private rememberBox(box: NodeWorldBox): void {
     this.scene.rememberBox(box);
-  }
-
-  private bindPersonInteractions(
-    node: PersonNodeView,
-    personId: string | undefined,
-    positionId: string,
-    box: NodeWorldBox,
-    config: RenderConfig,
-    options: RenderOptions,
-    gridCell?: { col: number; row: number },
-  ): void {
-    this.rememberBox(box);
-
-    node.on('pointertap', (e) => {
-      if (!isPrimaryPointerTap(e)) return;
-      if (this.drag?.moved) return;
-      if (node.activateChromePointer(e)) {
-        this.nodeDoubleTap.reset();
-        e.stopPropagation();
-        return;
-      }
-      e.stopPropagation();
-      const mods = readSelectionPointerMods(e);
-      // Modifier+click toggles set membership — do not feed double-tap expand (T69).
-      if (isSelectionToggleModifier(mods)) {
-        this.nodeDoubleTap.reset();
-        options.onPersonClick?.(personId, positionId, mods);
-        return;
-      }
-      const kind = this.nodeDoubleTap.tap(`person:${personId ?? ''}:${positionId}`);
-      if (kind === 'double') {
-        if (personId) options.onPersonDoubleClick?.(personId, positionId);
-        return;
-      }
-      options.onPersonClick?.(personId, positionId, mods);
-    });
-
-    node.on('rightclick', (e) => {
-      e.stopPropagation();
-      e.preventDefault?.();
-      options.onPersonContextMenu?.(personId ?? '', positionId, {
-        clientX: e.clientX,
-        clientY: e.clientY,
-        canvasX: e.global.x,
-        canvasY: e.global.y,
-      });
-    });
-
-    node.on('pointerdown', (e) => {
-      if (node.isChromePointer(e)) {
-        e.stopPropagation();
-        return;
-      }
-      const local = this.layers.persons.toLocal(e.global);
-      // T78-L1: origin from THIS card's world + gridCell, not the first staff tier.
-      let snapGrid: typeof this.drag extends null ? never : NonNullable<typeof this.drag>['snapGrid'] =
-        this.dragGrid;
-      if (this.dragGrid && gridCell) {
-        snapGrid = {
-          ...this.dragGrid,
-          originX: node.x - gridCell.col * this.dragGrid.pitchX - this.dragGrid.insetX,
-          originY: node.y - gridCell.row * this.dragGrid.pitchY - this.dragGrid.insetY,
-        };
-      }
-      this.drag = {
-        positionId,
-        node,
-        originX: node.x,
-        originY: node.y,
-        grabOffsetX: local.x - node.x,
-        grabOffsetY: local.y - node.y,
-        pointerId: e.pointerId,
-        moved: false,
-        previewCol: null,
-        previewRow: null,
-        snapGrid,
-      };
-      e.stopPropagation();
-    });
-
-    node.on('globalpointermove', (e) => {
-      if (!this.drag || this.drag.positionId !== positionId) return;
-      if (e.pointerId !== this.drag.pointerId) return;
-      const local = this.layers.persons.toLocal(e.global);
-      const nx = local.x - this.drag.grabOffsetX;
-      const ny = local.y - this.drag.grabOffsetY;
-      if (Math.hypot(nx - this.drag.originX, ny - this.drag.originY) > 4) {
-        this.drag.moved = true;
-      }
-      node.position.set(nx, ny);
-      if (!this.drag.moved) return;
-      const snap = this.snapPersonDrag(nx, ny, config);
-      if (snap.col < 0 || snap.row < 0) return;
-      if (snap.col === this.drag.previewCol && snap.row === this.drag.previewRow) return;
-      this.drag.previewCol = snap.col;
-      this.drag.previewRow = snap.row;
-      this.contours.previewDrag(positionId, snap.col, snap.row);
-    });
-
-    const endDrag = (e: { pointerId: number }) => {
-      if (!this.drag || this.drag.positionId !== positionId) return;
-      if (e.pointerId !== this.drag.pointerId) return;
-      const { originX, originY, moved } = this.drag;
-      this.drag = null;
-      if (!moved) {
-        node.position.set(originX, originY);
-        return;
-      }
-      const snap = this.snapPersonDrag(node.x, node.y, config);
-      if (snap.col < 0 || snap.row < 0) {
-        node.position.set(originX, originY);
-        this.contours.restoreAfterFailedDrag();
-        return;
-      }
-      options.onPersonDragEnd?.(positionId, snap.col, snap.row);
-    };
-
-    node.on('pointerup', endDrag);
-    node.on('pointerupoutside', endDrag);
-  }
-
-  private snapPersonDrag(
-    x: number,
-    y: number,
-    config: RenderConfig,
-  ): { col: number; row: number } {
-    const grid = this.drag?.snapGrid ?? this.dragGrid;
-    if (grid) {
-      return snapWorldToCell(x, y, grid);
-    }
-    return snapToGrid(x, y, config.cellWidth, config.cellHeight);
   }
 
   private async renderStaff(
@@ -723,15 +573,14 @@ export class DiagramRenderer {
         },
       );
       node.position.set(n.x, n.y);
-      this.bindPersonInteractions(
-        node,
-        position.personId,
-        position.id,
-        { id: position.id, kind: 'position', x: n.x, y: n.y, width: n.width, height: n.height },
+      this.personInteractions.bind(node, {
+        personId: position.personId,
+        positionId: position.id,
+        box: { id: position.id, kind: 'position', x: n.x, y: n.y, width: n.width, height: n.height },
         config,
         options,
-        position.gridCell,
-      );
+        gridCell: position.gridCell,
+      });
       this.layers.persons.addChild(node);
       this.registerView('position', position.id, node);
       this.registerMediaView(node.resolvedPhotoUrl, node);
@@ -869,11 +718,10 @@ export class DiagramRenderer {
       const x = position.gridCell.col * config.cellWidth + insetX;
       const y = position.gridCell.row * config.cellHeight + insetY;
       node.position.set(x, y);
-      this.bindPersonInteractions(
-        node,
-        position.personId,
-        position.id,
-        {
+      this.personInteractions.bind(node, {
+        personId: position.personId,
+        positionId: position.id,
+        box: {
           id: position.id,
           kind: 'position',
           x,
@@ -883,8 +731,8 @@ export class DiagramRenderer {
         },
         config,
         options,
-        position.gridCell,
-      );
+        gridCell: position.gridCell,
+      });
       this.layers.persons.addChild(node);
       this.registerView('position', position.id, node);
       this.registerMediaView(node.resolvedPhotoUrl, node);
