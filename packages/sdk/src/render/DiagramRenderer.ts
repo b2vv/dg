@@ -10,6 +10,7 @@ import {
 import { contourSceneInputs, matrixNodeBoxes } from './contourInputs.js';
 import { contourButtonGroupMargin } from './contourButtonGroup.js';
 import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
+import type { StaffCanvasResult } from '../layout/staff/types.js';
 import {
   DEFAULT_STAFF_LAYOUT_OPTIONS,
   type StaffLayoutOptions,
@@ -110,6 +111,26 @@ export interface RenderOptions {
   loadTexture?: import('./nodeMedia.js').NodeTextureLoader;
 }
 
+
+/** Everything the staff scene builders share for one render pass. */
+interface StaffSceneContext {
+  data: DiagramData;
+  theme: NodeTheme;
+  resolvedTheme: 'light' | 'dark';
+  config: RenderConfig;
+  options: RenderOptions;
+  epoch: number;
+}
+
+/** Staff pitch/inset derived from the layout options, resolved once per pass. */
+interface StaffSceneGeometry {
+  positionById: Map<string, DiagramData['positions'][number]>;
+  margin: number;
+  pitchX: number;
+  pitchY: number;
+  insetX: number;
+  insetY: number;
+}
 
 export type { NodeWorldBox };
 
@@ -456,197 +477,240 @@ export class DiagramRenderer {
     options: RenderOptions,
     epoch: number,
   ): Promise<void> {
+    const ctx: StaffSceneContext = { data, theme, resolvedTheme, config, options, epoch };
     const currentOrgId = options.staff?.currentOrgId ?? inferStaffCurrentOrgId(data);
-
     if (currentOrgId && data.organizations.some((o) => o.id === currentOrgId)) {
-      const staffOpts: StaffLayoutOptions = {
-        // Keep staff boxes on the same pitch as contour cells.
-        nodeWidth: theme.person.width,
-        nodeHeight: theme.person.height,
-        refCellWidth: config.cellWidth,
-        refCellHeight: config.cellHeight,
-        ...options.staff?.layout,
-        expandedOrgIds: options.staff?.expandedOrgIds ?? options.staff?.layout?.expandedOrgIds,
-      };
-      const canvas = await layoutStaffCanvas(
-        {
-          organizations: data.organizations,
-          positions: data.positions,
-          reports: data.reportLines,
-          groups: data.groups,
-          departments: data.departments,
-          persons: data.persons,
-        },
-        currentOrgId,
-        staffOpts,
-      );
-      if (!this.isRenderCurrent(epoch)) return;
+      await this.renderStaffCanvas(ctx, currentOrgId);
+      return;
+    }
+    // No focus org: seats fall back to the bare cell grid (mockups, tests).
+    await this.renderPositionGrid(ctx);
+  }
 
-      this.lastDiagnostics = [...canvas.diagnostics];
+  /** SPEC §2.2 three-tier canvas: zones, contours, edges, seats, org cards. */
+  private async renderStaffCanvas(ctx: StaffSceneContext, currentOrgId: string): Promise<void> {
+    const { data, theme, config, options, epoch } = ctx;
+    const staffOpts: StaffLayoutOptions = {
+      // Keep staff boxes on the same pitch as contour cells.
+      nodeWidth: theme.person.width,
+      nodeHeight: theme.person.height,
+      refCellWidth: config.cellWidth,
+      refCellHeight: config.cellHeight,
+      ...options.staff?.layout,
+      expandedOrgIds: options.staff?.expandedOrgIds ?? options.staff?.layout?.expandedOrgIds,
+    };
+    const canvas = await layoutStaffCanvas(
+      {
+        organizations: data.organizations,
+        positions: data.positions,
+        reports: data.reportLines,
+        groups: data.groups,
+        departments: data.departments,
+        persons: data.persons,
+      },
+      currentOrgId,
+      staffOpts,
+    );
+    if (!this.isRenderCurrent(epoch)) return;
 
-      const personById = new Map(data.persons.map((p) => [p.id, p]));
-      const positionById = new Map(data.positions.map((p) => [p.id, p]));
-      const staffMerged = { ...DEFAULT_STAFF_LAYOUT_OPTIONS, ...staffOpts };
-      const pitchX = staffMerged.refCellWidth + staffMerged.horizontalGap;
-      const pitchY = staffMerged.refCellHeight + staffMerged.verticalGap;
-      const insetX = (staffMerged.refCellWidth - theme.person.width) / 2;
-      const insetY = (staffMerged.refCellHeight - theme.person.height) / 2;
-      this.dragGrid = {
-        pitchX,
-        pitchY,
-        originX: 0,
-        originY: 0,
-        insetX,
-        insetY,
-      };
+    this.lastDiagnostics = [...canvas.diagnostics];
 
-      if (config.staffZoneChrome) {
-        // The org block wraps the department wrappers, not the bare seats.
-        const contentPadding = departmentWrapperPadding(theme, config);
-        const tiers = enrichStaffTierBands(
-          canvas.tiers,
-          canvas.positionNodes,
-          canvas.orgCards,
-          data.organizations,
-          { margin: staffMerged.margin, canvasWidth: canvas.width, contentPadding },
-        );
-        this.layers.zones.addChild(
-          StaffZonesView.fromCanvas({
-            tiers,
-            positionNodes: canvas.positionNodes,
-            orgCards: canvas.orgCards,
-            style: resolveStaffZoneStyle(theme, resolvedTheme),
-            margin: staffMerged.margin,
-            canvasWidth: canvas.width,
-            contentPadding,
-          }),
-        );
-      }
+    const staffMerged = { ...DEFAULT_STAFF_LAYOUT_OPTIONS, ...staffOpts };
+    const geom: StaffSceneGeometry = {
+      positionById: new Map(data.positions.map((p) => [p.id, p])),
+      margin: staffMerged.margin,
+      pitchX: staffMerged.refCellWidth + staffMerged.horizontalGap,
+      pitchY: staffMerged.refCellHeight + staffMerged.verticalGap,
+      insetX: (staffMerged.refCellWidth - theme.person.width) / 2,
+      insetY: (staffMerged.refCellHeight - theme.person.height) / 2,
+    };
+    this.dragGrid = {
+      pitchX: geom.pitchX,
+      pitchY: geom.pitchY,
+      originX: 0,
+      originY: 0,
+      insetX: geom.insetX,
+      insetY: geom.insetY,
+    };
 
-      // Contours only for authored grid cells — remapping tree/hybrid world
-      // coords into the cell grid produces crooked “macaroni” blobs.
-      const { inputs: contourInputs, memberBoxesByDept } = contourSceneInputs(
-        canvas.positionNodes,
-        positionById,
-      );
+    if (config.staffZoneChrome) this.paintStaffZones(ctx, canvas, geom);
+    await this.paintStaffDepartments(ctx, canvas, geom);
+    if (!this.isRenderCurrent(epoch)) return;
+    this.paintStaffFrameAndEdges(ctx, canvas, geom);
+    this.addStaffPersonCards(ctx, canvas, geom);
+    this.addStaffOrgCards(ctx, canvas);
+  }
 
-      const deptStyle = config.departmentStyle ?? defaultRenderConfig.departmentStyle ?? 'blob';
-      if (deptStyle === 'card') {
-        this.paintDepartmentCards(data, theme, config, memberBoxesByDept);
-      } else if (contourInputs.length === 0 && canvas.positionNodes.length > 0) {
-        // Blob mode without authored cells paints nothing — say so instead of
-        // leaving the host to wonder where the contours went.
+  private paintStaffZones(
+    ctx: StaffSceneContext,
+    canvas: StaffCanvasResult,
+    geom: StaffSceneGeometry,
+  ): void {
+    const { theme, resolvedTheme, config, data } = ctx;
+    // The org block wraps the department wrappers, not the bare seats.
+    const contentPadding = departmentWrapperPadding(theme, config);
+    const tiers = enrichStaffTierBands(
+      canvas.tiers,
+      canvas.positionNodes,
+      canvas.orgCards,
+      data.organizations,
+      { margin: geom.margin, canvasWidth: canvas.width, contentPadding },
+    );
+    this.layers.zones.addChild(
+      StaffZonesView.fromCanvas({
+        tiers,
+        positionNodes: canvas.positionNodes,
+        orgCards: canvas.orgCards,
+        style: resolveStaffZoneStyle(theme, resolvedTheme),
+        margin: geom.margin,
+        canvasWidth: canvas.width,
+        contentPadding,
+      }),
+    );
+  }
+
+  /**
+   * Contours only for authored grid cells — remapping tree/hybrid world coords
+   * into the cell grid produces crooked “macaroni” blobs.
+   */
+  private async paintStaffDepartments(
+    ctx: StaffSceneContext,
+    canvas: StaffCanvasResult,
+    geom: StaffSceneGeometry,
+  ): Promise<void> {
+    const { data, theme, config, options } = ctx;
+    const { inputs: contourInputs, memberBoxesByDept } = contourSceneInputs(
+      canvas.positionNodes,
+      geom.positionById,
+    );
+
+    const deptStyle = config.departmentStyle ?? defaultRenderConfig.departmentStyle ?? 'blob';
+    if (deptStyle === 'card') {
+      this.paintDepartmentCards(data, theme, config, memberBoxesByDept);
+      return;
+    }
+    if (contourInputs.length === 0) {
+      // Blob mode without authored cells paints nothing — say so instead of
+      // leaving the host to wonder where the contours went.
+      if (canvas.positionNodes.length > 0) {
         this.reportContourDiagnostic(
           `Contours skipped: ${canvas.positionNodes.length} seats have no gridCell (departmentStyle: 'blob' needs authored coords)`,
         );
-      } else if (contourInputs.length > 0) {
-        this.contourWorld = resolveContourWorldTransform(
-          canvas.positionNodes,
-          positionById,
-          config.cellWidth,
-          config.cellHeight,
-          pitchX,
-          pitchY,
-        );
-        this.dragGrid = {
-          pitchX: this.contourWorld.pitchX,
-          pitchY: this.contourWorld.pitchY,
-          originX: this.contourWorld.originX,
-          originY: this.contourWorld.originY,
-          insetX,
-          insetY,
-        };
-        await this.contours.paint({
-          inputs: contourInputs,
-          data,
-          theme,
-          config,
-          lod: options.lod ?? 'near',
-          morphMs: options.contourMorphMs,
-          memberBoxesByDept,
+      }
+      return;
+    }
+
+    this.contourWorld = resolveContourWorldTransform(
+      canvas.positionNodes,
+      geom.positionById,
+      config.cellWidth,
+      config.cellHeight,
+      geom.pitchX,
+      geom.pitchY,
+    );
+    this.dragGrid = {
+      pitchX: this.contourWorld.pitchX,
+      pitchY: this.contourWorld.pitchY,
+      originX: this.contourWorld.originX,
+      originY: this.contourWorld.originY,
+      insetX: geom.insetX,
+      insetY: geom.insetY,
+    };
+    await this.contours.paint({
+      inputs: contourInputs,
+      data,
+      theme,
+      config,
+      lod: options.lod ?? 'near',
+      morphMs: options.contourMorphMs,
+      memberBoxesByDept,
+    });
+  }
+
+  private paintStaffFrameAndEdges(
+    ctx: StaffSceneContext,
+    canvas: StaffCanvasResult,
+    geom: StaffSceneGeometry,
+  ): void {
+    const { theme, resolvedTheme, config, options } = ctx;
+    if (config.dashedGridFrame) {
+      const frame = unionBoxes(
+        canvas.positionNodes.map((n) => ({ x: n.x, y: n.y, width: n.width, height: n.height })),
+        6,
+      );
+      if (frame) {
+        const zoneStyle = resolveStaffZoneStyle(theme, resolvedTheme);
+        paintDashedFrame(this.layers.zones, frame, {
+          color: zoneStyle.stroke,
+          borderRadius: zoneStyle.borderRadius,
         });
-        if (!this.isRenderCurrent(epoch)) return;
       }
+    }
 
-      if (config.dashedGridFrame) {
-        const frame = unionBoxes(
-          canvas.positionNodes.map((n) => ({
-            x: n.x,
-            y: n.y,
-            width: n.width,
-            height: n.height,
-          })),
-          6,
-        );
-        if (frame) {
-          const zoneStyle = resolveStaffZoneStyle(theme, resolvedTheme);
-          paintDashedFrame(this.layers.zones, frame, {
-            color: zoneStyle.stroke,
-            borderRadius: zoneStyle.borderRadius,
-          });
-        }
+    const edgeBoxes = mapStaffEdgeBoxesForLod(
+      mapPositionNodesToStaffEdgeBoxes(canvas.positionNodes, geom.positionById, theme.person),
+      canvas.orgCards.map((c) => ({
+        id: c.orgId,
+        x: c.x,
+        y: c.y,
+        width: c.width,
+        height: c.height,
+      })),
+      options.lod ?? 'near',
+    );
+    this.layers.edges.addChild(
+      StaffEdgesView.fromLayout(canvas.edges, edgeBoxes, {
+        theme: resolvedTheme,
+        edge: theme.edge,
+      }),
+    );
+  }
+
+  private addStaffPersonCards(
+    ctx: StaffSceneContext,
+    canvas: StaffCanvasResult,
+    geom: StaffSceneGeometry,
+  ): void {
+    const { data, theme, config, options } = ctx;
+    const lod = options.lod ?? 'near';
+    const personById = new Map(data.persons.map((p) => [p.id, p]));
+    const staffLayoutOpts = {
+      ...DEFAULT_STAFF_LAYOUT_OPTIONS,
+      ...options.staff?.layout,
+      expandedOrgIds: options.staff?.expandedOrgIds ?? options.staff?.layout?.expandedOrgIds,
+    };
+    const expandedPosIds = new Set(staffLayoutOpts.expandedPositionIds ?? []);
+    const collapsePositions = staffLayoutOpts.collapseUnexpandedPositions === true;
+    const childrenByOrg = new Map<string, Map<string, string[]>>();
+    const childrenFor = (orgId: string) => {
+      let m = childrenByOrg.get(orgId);
+      if (!m) {
+        m = adminChildrenMap(data.positions, data.reportLines, orgId);
+        childrenByOrg.set(orgId, m);
       }
+      return m;
+    };
 
-      const lod = options.lod ?? 'near';
-      const edgeBoxes = mapStaffEdgeBoxesForLod(
-        mapPositionNodesToStaffEdgeBoxes(canvas.positionNodes, positionById, theme.person),
-        canvas.orgCards.map((c) => ({
-          id: c.orgId,
-          x: c.x,
-          y: c.y,
-          width: c.width,
-          height: c.height,
-        })),
+    for (const n of canvas.positionNodes) {
+      const position = geom.positionById.get(n.id);
+      if (!position) continue;
+      const person = position.personId ? personById.get(position.personId) : undefined;
+      const kids = childrenFor(position.organizationId).get(position.id) ?? [];
+      const showExpand = collapsePositions && kids.length > 0 && !!options.onPositionExpandToggle;
+      const node = PersonNodeView.create(
+        person,
+        position,
+        { ...theme.person, width: n.width, height: n.height },
         lod,
-      );
-      this.layers.edges.addChild(
-        StaffEdgesView.fromLayout(canvas.edges, edgeBoxes, {
-          theme: resolvedTheme,
-          edge: theme.edge,
-        }),
-      );
-
-      const staffLayoutOpts = {
-        ...DEFAULT_STAFF_LAYOUT_OPTIONS,
-        ...options.staff?.layout,
-        expandedOrgIds: options.staff?.expandedOrgIds ?? options.staff?.layout?.expandedOrgIds,
-      };
-      const expandedPosIds = new Set(staffLayoutOpts.expandedPositionIds ?? []);
-      const collapsePositions = staffLayoutOpts.collapseUnexpandedPositions === true;
-      const childrenByOrg = new Map<string, Map<string, string[]>>();
-      const childrenFor = (orgId: string) => {
-        let m = childrenByOrg.get(orgId);
-        if (!m) {
-          m = adminChildrenMap(data.positions, data.reportLines, orgId);
-          childrenByOrg.set(orgId, m);
-        }
-        return m;
-      };
-
-      for (const n of canvas.positionNodes) {
-        const position = positionById.get(n.id);
-        if (!position) continue;
-        const person = position.personId ? personById.get(position.personId) : undefined;
-        const personStyle = {
-          ...theme.person,
-          width: n.width,
-          height: n.height,
-        };
-        const kids = childrenFor(position.organizationId).get(position.id) ?? [];
-        const showExpand = collapsePositions && kids.length > 0 && !!options.onPositionExpandToggle;
-        const node = PersonNodeView.create(person, position, personStyle, lod, {
+        {
           loadTexture: options.loadTexture,
           onContextMenu: options.onPersonContextMenu
             ? (pointer) =>
-                options.onPersonContextMenu!(
-                  position.personId ?? '',
-                  position.id,
-                  {
-                    ...pointer,
-                    canvasX: 0,
-                    canvasY: 0,
-                  },
-                )
+                options.onPersonContextMenu!(position.personId ?? '', position.id, {
+                  ...pointer,
+                  canvasX: 0,
+                  canvasY: 0,
+                })
             : undefined,
           expand: showExpand
             ? {
@@ -655,111 +719,111 @@ export class DiagramRenderer {
                 onToggle: () => options.onPositionExpandToggle!(position.id),
               }
             : undefined,
-        });
-        node.position.set(n.x, n.y);
-        this.bindPersonInteractions(
-          node,
-          position.personId,
-          position.id,
-          {
-            id: position.id,
-            kind: 'position',
-            x: n.x,
-            y: n.y,
-            width: n.width,
-            height: n.height,
-          },
-          config,
-          options,
-          position.gridCell,
-        );
-        this.layers.persons.addChild(node);
-        this.registerView('position', position.id, node);
-        this.registerMediaView(node.resolvedPhotoUrl, node);
-      }
-
-      for (const card of canvas.orgCards) {
-        const org = data.organizations.find((o) => o.id === card.orgId);
-        if (!org) continue;
-        const orgStyle = {
-          ...theme.organization,
-          width: card.width,
-          height: card.height,
-        };
-        const gojsVertical = orgStyle.orgCardLayout === 'gojs-vertical';
-        if (gojsVertical && card.expanded) {
-          // C2: expanded sub-org is a positions container — no empty org card chrome.
-          continue;
-        }
-        const view = OrganizationNodeView.create(
-          org,
-          undefined,
-          resolvedTheme,
-          orgStyle,
-          lod,
-          this.orgStaffCardOptions(org, card, options, config),
-        );
-        view.position.set(card.x, card.y);
-        view.eventMode = 'static';
-        view.cursor = 'pointer';
-        this.rememberBox({
-          id: card.orgId,
-          kind: 'organization',
-          x: card.x,
-          y: card.y,
-          width: card.width,
-          height: card.height,
-        });
-        this.registerView('organization', card.orgId, view);
-        this.registerMediaView(view.resolvedSymbolUrl, view);
-        view.on('pointertap', (e) => {
-          if (!isPrimaryPointerTap(e)) return;
-          if (view.activateChromePointer(e)) {
-            this.nodeDoubleTap.reset();
-            e.stopPropagation();
-            return;
-          }
-          e.stopPropagation();
-          const mods = readSelectionPointerMods(e);
-          if (isSelectionToggleModifier(mods)) {
-            this.nodeDoubleTap.reset();
-            options.onOrgClick?.(card.orgId, mods);
-            return;
-          }
-          const kind = this.nodeDoubleTap.tap(`org:${card.orgId}`);
-          if (kind === 'double') {
-            options.onOrgDoubleClick?.(card.orgId);
-            return;
-          }
-          if (options.onStaffOrgExpandToggle) {
-            options.onStaffOrgExpandToggle(card.orgId);
-          } else {
-            options.onStaffOrgDrill?.(card.orgId);
-          }
-          options.onOrgClick?.(card.orgId, mods);
-        });
-        view.on('pointerdown', (e) => {
-          if (view.isChromePointer(e)) {
-            e.stopPropagation();
-            return;
-          }
-          e.stopPropagation();
-        });
-        view.on('rightclick', (e) => {
-          e.stopPropagation();
-          e.preventDefault?.();
-          options.onOrgContextMenu?.(card.orgId, {
-            clientX: e.clientX,
-            clientY: e.clientY,
-            canvasX: e.global.x,
-            canvasY: e.global.y,
-          });
-        });
-        this.layers.organizations.addChild(view);
-      }
-      return;
+        },
+      );
+      node.position.set(n.x, n.y);
+      this.bindPersonInteractions(
+        node,
+        position.personId,
+        position.id,
+        { id: position.id, kind: 'position', x: n.x, y: n.y, width: n.width, height: n.height },
+        config,
+        options,
+        position.gridCell,
+      );
+      this.layers.persons.addChild(node);
+      this.registerView('position', position.id, node);
+      this.registerMediaView(node.resolvedPhotoUrl, node);
     }
+  }
 
+  private addStaffOrgCards(ctx: StaffSceneContext, canvas: StaffCanvasResult): void {
+    const { data, theme, resolvedTheme, config, options } = ctx;
+    for (const card of canvas.orgCards) {
+      const org = data.organizations.find((o) => o.id === card.orgId);
+      if (!org) continue;
+      const orgStyle = { ...theme.organization, width: card.width, height: card.height };
+      // C2: expanded sub-org is a positions container — no empty org card chrome.
+      if (orgStyle.orgCardLayout === 'gojs-vertical' && card.expanded) continue;
+
+      const view = OrganizationNodeView.create(
+        org,
+        undefined,
+        resolvedTheme,
+        orgStyle,
+        options.lod ?? 'near',
+        this.orgStaffCardOptions(org, card, options, config),
+      );
+      view.position.set(card.x, card.y);
+      view.eventMode = 'static';
+      view.cursor = 'pointer';
+      this.rememberBox({
+        id: card.orgId,
+        kind: 'organization',
+        x: card.x,
+        y: card.y,
+        width: card.width,
+        height: card.height,
+      });
+      this.registerView('organization', card.orgId, view);
+      this.registerMediaView(view.resolvedSymbolUrl, view);
+      this.bindStaffOrgCardInteractions(view, card.orgId, options);
+      this.layers.organizations.addChild(view);
+    }
+  }
+
+  private bindStaffOrgCardInteractions(
+    view: OrganizationNodeView,
+    orgId: string,
+    options: RenderOptions,
+  ): void {
+    view.on('pointertap', (e) => {
+      if (!isPrimaryPointerTap(e)) return;
+      if (view.activateChromePointer(e)) {
+        this.nodeDoubleTap.reset();
+        e.stopPropagation();
+        return;
+      }
+      e.stopPropagation();
+      const mods = readSelectionPointerMods(e);
+      if (isSelectionToggleModifier(mods)) {
+        this.nodeDoubleTap.reset();
+        options.onOrgClick?.(orgId, mods);
+        return;
+      }
+      if (this.nodeDoubleTap.tap(`org:${orgId}`) === 'double') {
+        options.onOrgDoubleClick?.(orgId);
+        return;
+      }
+      if (options.onStaffOrgExpandToggle) {
+        options.onStaffOrgExpandToggle(orgId);
+      } else {
+        options.onStaffOrgDrill?.(orgId);
+      }
+      options.onOrgClick?.(orgId, mods);
+    });
+    view.on('pointerdown', (e) => {
+      if (view.isChromePointer(e)) {
+        e.stopPropagation();
+        return;
+      }
+      e.stopPropagation();
+    });
+    view.on('rightclick', (e) => {
+      e.stopPropagation();
+      e.preventDefault?.();
+      options.onOrgContextMenu?.(orgId, {
+        clientX: e.clientX,
+        clientY: e.clientY,
+        canvasX: e.global.x,
+        canvasY: e.global.y,
+      });
+    });
+  }
+
+  /** Seats on the bare cell grid — no tiers, no org cards (mockups, tests). */
+  private async renderPositionGrid(ctx: StaffSceneContext): Promise<void> {
+    const { data, theme, config, options } = ctx;
     const insetX = (config.cellWidth - theme.person.width) / 2;
     const insetY = (config.cellHeight - theme.person.height) / 2;
 
@@ -784,14 +848,7 @@ export class DiagramRenderer {
       memberBoxesByDept,
     });
 
-    this.dragGrid = {
-      pitchX: config.cellWidth,
-      pitchY: config.cellHeight,
-      originX: 0,
-      originY: 0,
-      insetX,
-      insetY,
-    };
+    this.dragGrid = { pitchX: config.cellWidth, pitchY: config.cellHeight, originX: 0, originY: 0, insetX, insetY };
 
     const personById = new Map(data.persons.map((p) => [p.id, p]));
     for (const position of data.positions) {
