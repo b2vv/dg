@@ -5,8 +5,8 @@ import {
   type DeptContourResult,
 } from '../contour/bridge.js';
 import { computeAllContours } from '../contour/bridge.js';
-import { diagramPositionsToContourInputs } from '../contour/config.js';
-import { filterContoursForPaint, NO_DEPARTMENT_ID } from './contourPaintFilter.js';
+import { filterContoursForPaint } from './contourPaintFilter.js';
+import { contourSceneInputs, matrixNodeBoxes } from './contourInputs.js';
 import { mapFloodRingToCards, type FloodCardGeometry } from './floodRingCards.js';
 import { contourButtonGroupMargin } from './contourButtonGroup.js';
 import {
@@ -628,7 +628,8 @@ export class DiagramRenderer {
     config: RenderConfig,
     options: RenderOptions,
   ): Promise<void> {
-    // T77-M01 Option B: paint TS button-group rings only — do not await Rust/worker.
+    // T77-M01 Option B still holds for `button-group`: rings are computed in
+    // TS, no round-trip. `cell-flood` (T80) opts into one await on purpose.
     const corridorCells = config.corridorCells ?? defaultRenderConfig.corridorCells ?? DEFAULT_CORRIDOR_CELLS;
     const magnet: ContourMagnetConfig = {
       paddingCells: 0,
@@ -1004,36 +1005,10 @@ export class DiagramRenderer {
 
       // Contours only for authored grid cells — remapping tree/hybrid world
       // coords into the cell grid produces crooked “macaroni” blobs.
-      // Seats without a department join under NO_DEPARTMENT_ID: they own no
-      // contour, but both engines must see them as foreign cards (M2).
-      const contourInputs: ContourPositionInput[] = canvas.positionNodes
-        .map((n) => positionById.get(n.id))
-        .filter(
-          (p): p is NonNullable<typeof p> & { gridCell: { col: number; row: number } } =>
-            !!p?.gridCell,
-        )
-        .map((p) => ({
-          id: p.id,
-          departmentId: p.departmentId || NO_DEPARTMENT_ID,
-          col: p.gridCell.col,
-          row: p.gridCell.row,
-        }));
-
-      const memberBoxesByDept = new Map<string, ContourMemberBox[]>();
-      for (const n of canvas.positionNodes) {
-        const pos = positionById.get(n.id);
-        if (!pos) continue;
-        const deptId = pos.departmentId || NO_DEPARTMENT_ID;
-        const list = memberBoxesByDept.get(deptId) ?? [];
-        list.push({
-          positionId: n.id,
-          x: n.x,
-          y: n.y,
-          width: n.width,
-          height: n.height,
-        });
-        memberBoxesByDept.set(deptId, list);
-      }
+      const { inputs: contourInputs, memberBoxesByDept } = contourSceneInputs(
+        canvas.positionNodes,
+        positionById,
+      );
 
       const deptStyle = config.departmentStyle ?? defaultRenderConfig.departmentStyle ?? 'blob';
       if (deptStyle === 'card') {
@@ -1260,25 +1235,19 @@ export class DiagramRenderer {
       return;
     }
 
-    const contourInputs = diagramPositionsToContourInputs(data.positions);
     const insetX = (config.cellWidth - theme.person.width) / 2;
     const insetY = (config.cellHeight - theme.person.height) / 2;
 
     // T78-C2: same member AABB path as staff — button-group needs boxes.
-    const memberBoxesByDept = new Map<string, ContourMemberBox[]>();
-    for (const position of data.positions) {
-      if (!position.gridCell) continue;
-      const deptId = position.departmentId || NO_DEPARTMENT_ID;
-      const list = memberBoxesByDept.get(deptId) ?? [];
-      list.push({
-        positionId: position.id,
-        x: position.gridCell.col * config.cellWidth + insetX,
-        y: position.gridCell.row * config.cellHeight + insetY,
-        width: theme.person.width,
-        height: theme.person.height,
-      });
-      memberBoxesByDept.set(deptId, list);
-    }
+    const { inputs: contourInputs, memberBoxesByDept } = contourSceneInputs(
+      matrixNodeBoxes(data.positions, {
+        cellWidth: config.cellWidth,
+        cellHeight: config.cellHeight,
+        cardWidth: theme.person.width,
+        cardHeight: theme.person.height,
+      }),
+      new Map(data.positions.map((p) => [p.id, p])),
+    );
 
     await this.paintContours(contourInputs, data, theme, config, {
       ...options,

@@ -18,7 +18,7 @@ import {
   VARIANT_B_MAGNET_RADIUS,
   VARIANT_B_VERTICAL_GAP,
 } from './types.js';
-import { polishContourRing } from './contourPolish.js';
+import { polishContourRings } from './contourPolish.js';
 
 function ringBounds(ring: readonly { x: number; y: number }[]): {
   minX: number;
@@ -116,14 +116,14 @@ describe('Variant B padding (paint-only button-group)', () => {
       return box;
     });
 
-    const pad0 = polishContourRing(boxes, 0.9, 0);
-    const pad2 = polishContourRing(boxes, 0.9, 2);
+    const pad0 = (polishContourRings({ memberBoxes: boxes, strokeWidth: 0.9, paddingCells: 0 })[0] ?? []);
+    const pad2 = (polishContourRings({ memberBoxes: boxes, strokeWidth: 0.9, paddingCells: 2 })[0] ?? []);
     const w0 = ringBounds(pad0).maxX - ringBounds(pad0).minX;
     const w2 = ringBounds(pad2).maxX - ringBounds(pad2).minX;
     expect(w2).toBeGreaterThan(w0 + 10);
   });
 
   it('failure: padding without member boxes paints nothing', () => {
-    expect(polishContourRing([], 0.9, 2)).toEqual([]);
+    expect((polishContourRings({ memberBoxes: [], strokeWidth: 0.9, paddingCells: 2 })[0] ?? [])).toEqual([]);
   });
 });

@@ -51,17 +51,18 @@ export {
   maxChordTurn,
   CONTOUR_CORNER_RADIUS,
 } from './contourFillet.js';
+export { polishContourRings, type PolishContourInput } from './contourPolish.js';
+export { notchedRings, type ContourRect } from './contourNotch.js';
 export {
-  polishContourRing,
-  polishContourRings,
-  type PolishContourInput,
-} from './contourPolish.js';
+  contourSceneInputs,
+  matrixNodeBoxes,
+  type ContourNodeBox,
+} from './contourInputs.js';
 export {
-  notchedRings,
-  notchRect,
-  subtractRects,
-  type ContourRect,
-} from './contourNotch.js';
+  corridorPx,
+  corridorCellsForFlood,
+  DEFAULT_CORRIDOR_CELLS,
+} from './contourCorridor.js';
 export {
   buttonGroupRingFromBoxes,
   contourButtonGroupMargin,

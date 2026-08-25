@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { diagramPositionsToContourInputs, MAX_SMOOTH_ITERATIONS, toRustConfig } from './config.js';
-import { NO_DEPARTMENT_ID } from '../render/contourPaintFilter.js';
+import { NO_DEPARTMENT_ID } from '../data/types.js';
 
 describe('toRustConfig', () => {
   it('success: smoothIterations above cap clamp to MAX_SMOOTH_ITERATIONS (A9)', () => {

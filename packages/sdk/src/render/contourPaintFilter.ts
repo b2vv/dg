@@ -1,13 +1,6 @@
-/**
- * Reserved department id for staff positions that carry no `departmentId`.
- *
- * Such a seat belongs to no contour, but it is still a card on the canvas: both
- * engines must treat it as **foreign** (M2) instead of ignoring it, or a
- * department wash swallows it. Bucketing it under this id makes it foreign for
- * every real department for free, and paint skips the bucket itself.
- */
-export const NO_DEPARTMENT_ID = '\u0000no-department';
+import { NO_DEPARTMENT_ID } from '../data/types.js';
 
+/** Seats with no department own no contour, so their bucket is never painted. */
 export function isPaintableDepartment(departmentId: string): boolean {
   return departmentId !== NO_DEPARTMENT_ID;
 }

@@ -1,5 +1,4 @@
 import type { DiagramData } from '../data/types.js';
-import { diagramPositionsToContourInputs } from '../contour/config.js';
 import { computeOrgLayout } from '../layout/rowTreeLayout.js';
 import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
 import {
@@ -22,7 +21,7 @@ import { inferStaffCurrentOrgId } from '../render/inferStaffCurrentOrgId.js';
 import { arrowHeadTriangle, shortenPolylineForArrow } from '../render/staffEdgeArrows.js';
 import { enrichStaffTierBands } from '../render/staffZoneBounds.js';
 import { contourButtonGroupMargin } from '../render/contourButtonGroup.js';
-import { NO_DEPARTMENT_ID } from '../render/contourPaintFilter.js';
+import { contourSceneInputs, matrixNodeBoxes } from '../render/contourInputs.js';
 
 function esc(text: string): string {
   return text
@@ -180,35 +179,11 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
     }
 
     const positionById = new Map(data.positions.map((p) => [p.id, p]));
-    // Seats without a department stay in the input as foreign cards (M2).
-    const contourInputs = canvas.positionNodes
-      .map((n) => positionById.get(n.id))
-      .filter(
-        (p): p is NonNullable<typeof p> & { gridCell: { col: number; row: number } } =>
-          !!p?.gridCell,
-      )
-      .map((p) => ({
-        id: p.id,
-        departmentId: p.departmentId || NO_DEPARTMENT_ID,
-        col: p.gridCell.col,
-        row: p.gridCell.row,
-      }));
-
-    const memberBoxesByDept = new Map<string, ContourMemberBox[]>();
-    for (const n of canvas.positionNodes) {
-      const pos = positionById.get(n.id);
-      if (!pos) continue;
-      const deptId = pos.departmentId || NO_DEPARTMENT_ID;
-      const list = memberBoxesByDept.get(deptId) ?? [];
-      list.push({
-        positionId: n.id,
-        x: n.x,
-        y: n.y,
-        width: n.width,
-        height: n.height,
-      });
-      memberBoxesByDept.set(deptId, list);
-    }
+    // One builder for canvas, matrix and export — see render/contourInputs.ts.
+    const { inputs: contourInputs, memberBoxesByDept } = contourSceneInputs(
+      canvas.positionNodes,
+      positionById,
+    );
 
     const deptIds = [...new Set(contourInputs.map((p) => p.departmentId))].sort();
     const personCounts = new Map<string, number>();
@@ -334,24 +309,19 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
     parts.push('</g>');
   } else if (data.positions.some((p) => p.gridCell)) {
     // T78-C3: same TS button-group as canvas (not Rust flood).
-    const inputs = diagramPositionsToContourInputs(data.positions);
     const cardW = PERSON_CARD_WIDTH;
     const cardH = PERSON_CARD_HEIGHT;
     const insetX = (config.cellWidth - cardW) / 2;
     const insetY = (config.cellHeight - cardH) / 2;
-    const memberBoxesByDept = new Map<string, ContourMemberBox[]>();
-    for (const position of data.positions) {
-      if (!position.gridCell || !position.departmentId) continue;
-      const list = memberBoxesByDept.get(position.departmentId) ?? [];
-      list.push({
-        positionId: position.id,
-        x: position.gridCell.col * config.cellWidth + insetX,
-        y: position.gridCell.row * config.cellHeight + insetY,
-        width: cardW,
-        height: cardH,
-      });
-      memberBoxesByDept.set(position.departmentId, list);
-    }
+    const { inputs, memberBoxesByDept } = contourSceneInputs(
+      matrixNodeBoxes(data.positions, {
+        cellWidth: config.cellWidth,
+        cellHeight: config.cellHeight,
+        cardWidth: cardW,
+        cardHeight: cardH,
+      }),
+      new Map(data.positions.map((p) => [p.id, p])),
+    );
     const personCounts = new Map<string, number>();
     for (const p of data.positions) {
       if (!p.departmentId) continue;

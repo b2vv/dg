@@ -198,3 +198,24 @@ export function computeStats(data: DiagramData): Omit<DiagramDataStats, 'duratio
     reportLines: data.reportLines.length,
   };
 }
+
+/**
+ * Reserved department id for a staff position that carries no `departmentId`.
+ *
+ * Such a seat belongs to no department contour, but it is still a card on the
+ * canvas: the magnetism rules must treat it as **foreign** (M2 in
+ * `docs/REQUIREMENTS.md` §4.6.1) rather than as empty grid space a wash may
+ * cover. Bucketing it under this id makes it foreign to every real department
+ * for free; paint skips the bucket itself.
+ *
+ * Lives here — with the data types — because both the contour adapters and the
+ * renderer read it, and dependencies point inward (`work/CODING_STANDARDS.md` §2).
+ */
+export const NO_DEPARTMENT_ID = '\u0000no-department';
+
+/** Department id of a position for contour purposes. */
+export function contourDepartmentId(position: {
+  departmentId?: string;
+}): string {
+  return position.departmentId || NO_DEPARTMENT_ID;
+}
