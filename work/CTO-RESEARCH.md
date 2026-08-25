@@ -210,7 +210,7 @@ GitHub Issues на `b2vv/dg` **порожні**; живий беклог — `wo
 
 | # | Суть | Джерело |
 |---|------|---------|
-| 1 | **`cell-flood` не доходить до експорту**: SVG завжди button-group, `export/` не читає `contourEngine`; T80 про експорт мовчить | `export/svgExport.ts`, [T80](./tasks/T80-contour-engines-ba-demo.md) |
+| 1 | **`cell-flood` не доходить до експорту**: SVG завжди button-group. Уже **не тихо** — `exportDiagram` повідомляє через `ExportOptions.onDiagnostic` (інакше `console.warn`), PNG/PDF вірні (фреймбуфер). Повний фікс (flood у `export/`) свідомо відкладено до рішення BA | `export/exportDiagram.ts`, [T80 §Експорт](./tasks/T80-contour-engines-ba-demo.md) |
 | 2 | **Візуальні бейзлайни застаріли**: 5 знімків `e2e/mockups.spec.ts-snapshots/` + галерея `work/tasks/node-compare/` треба перегенерувати **на Linux**; поки цього нема — жодна візуальна зміна не перевірена картинкою (остання така: фаза пунктиру на кутах вакантної картки) | [MOCKUP-styles-review §Відкладено](./tasks/MOCKUP-styles-review.md) |
 | 3 | Shared module-level contour/search воркери — кілька діаграм на сторінці ділять `configure*` | `contour/worker-bridge.ts`, `interaction/searchWorker.ts` |
 | 4 | Promote-HTML не входить у SVG/PNG/PDF | `react/createReactPromoteOverlay.ts` |
@@ -223,11 +223,11 @@ GitHub Issues на `b2vv/dg` **порожні**; живий беклог — `wo
 | Документ | Що застаріло |
 |----------|----------------|
 | SPEC §2.1 | row-tree як `layout.rs` Reingold–Tilford; matrix «planned». Насправді Ploeg + TS matrix; `layout.rs` видалено |
-| SPEC §3.2 / §3.5 / §9 | псевдокод «WASM path → Pixi» без прапорця рушія |
+| ~~SPEC §3.2 / §3.5 / §9~~ | ✅ виправлено: §3 має врізку про два рушії й про те, що псевдокод описує `cell-flood` |
 | SPEC §8.2 / §11 | promote overlay «не v1» — T26 ✅ |
 | REQUIREMENTS §4.6 / §4.6.1 | описує один спосіб малювання; тепер їх два за `contourEngine`, а G2/M2 з'явилось на фарбі (T79) |
-| TECH_STACK | `createWorkerPipeline`; «dept tetris pack» як live hull |
-| CONTEXT | G-правила як видима поведінка (частково правда лише з T79/T80) |
+| TECH_STACK | `createWorkerPipeline` у прикладах (діаграму шарів виправлено 2026-08-25) |
+| ~~CONTEXT~~ | ✅ виправлено: G5/G6 позначені як геометрія `cell-flood`, не дефолтного painter'а |
 | issue-tracker.md | GitHub Issues як SoT — issues порожні |
 | CODING_STANDARDS | Zod на межі — пакета немає |
 | README | License Private/TBD при публічному репо |
@@ -254,7 +254,7 @@ GitHub Issues на `b2vv/dg` **порожні**; живий беклог — `wo
 **Відкрито, порядок:**
 
 1. **Рішення BA по рушію контуру** (T80) — після нього прибрати непотрібний шлях або описати обидва як продуктову опцію.
-2. **`cell-flood` в експорті** — або рушій читається в `export/`, або в T80 і SPEC чесно написано, що експорт завжди button-group.
+2. ~~**`cell-flood` в експорті**~~ — зроблено частково (2026-08-25): розходження назване в T80, SPEC §3 і повідомляється в рантаймі. Лишається повний фікс — читати рушій у `export/` — і він має сенс лише якщо BA лишить flood.
 3. **Linux-бейзлайни** — перегенерувати знімки й галерею; доти візуальні зміни не підтверджені.
 4. **Документи** — SPEC/CONTEXT/TECH_STACK/REQUIREMENTS під фактичний paint із двома рушіями.
 5. **T61** після макета; **T67 Phase 2** marquee — product go; **T56** після вибору замовника.

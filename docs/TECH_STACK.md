@@ -13,9 +13,9 @@
 ├─────────────────────────────────────────────────────────────┤
 │  @org-hierarchy/sdk — DiagramData, mappers, worker helpers  │
 ├─────────────────────────────────────────────────────────────┤
-│  Web Worker — mapInWorker, WorkerPool, pipeline (2M chunks)  │
+│  Web Worker — mapInWorker, WorkerPool, chunked map           │
 ├─────────────────────────────────────────────────────────────┤
-│  Rust WASM (worker) — layout, dept tetris pack, smooth hull │
+│  Rust WASM — Ploeg row-tree; dept flood (opt-in engine)      │
 ├─────────────────────────────────────────────────────────────┤
 │  Pixi.js — OrganizationNode / PersonNode / DepartmentBlob   │
 └─────────────────────────────────────────────────────────────┘

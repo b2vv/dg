@@ -263,6 +263,18 @@ Expand-in-place (T20) =
 **Референс:** `packages/core/src/contour.rs`  
 **Правила:** `docs/REQUIREMENTS.md` §4.6, §4.6.1
 
+> **Читати перед §3.1–§3.5.** Нижче описано flood-алгоритм у Rust. На екрані він — **не єдиний
+> і не дефолтний**. `RenderConfig.contourEngine` обирає рушій ([T80](./tasks/T80-contour-engines-ba-demo.md)):
+>
+> | `contourEngine` | Геометрія | Де живе |
+> |---|---|---|
+> | `'button-group'` (**default**) | union-find по `magnetRadius` + padded AABB, мінус виїмки під чужі картки (G2/M2, [T79](./tasks/T79-g2-m2-paint-notch.md)) | `render/contour/paintMagneticGroups.ts` + `contourNotch.ts` |
+> | `'cell-flood'` | цей самий Rust flood, поблочно на org, кільця мапляться на бокси карток | `render/contour/floodContourEngine.ts` |
+>
+> **SVG-експорт завжди button-group**, незалежно від рушія (PNG/PDF — з фреймбуфера, тому вірні);
+> розходження повідомляється через `ExportOptions.onDiagnostic`. Псевдокод §3.5 і кроки §3.2 —
+> це `'cell-flood'`, а не те, що ви бачите на дефолтних налаштуваннях.
+
 ### 3.1 Вхід / вихід
 
 ```ts

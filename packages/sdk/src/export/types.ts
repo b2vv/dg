@@ -11,6 +11,11 @@ export interface ExportOptions {
   includeLabels?: boolean;
   /** Target width hint for PNG full export */
   width?: number;
+  /**
+   * Where export warnings go. Absent → `console.warn`, because an export that
+   * silently differs from the canvas is the kind of quiet lie this repo bans.
+   */
+  onDiagnostic?: (message: string) => void;
 }
 
 export class ExportError extends Error {

@@ -35,6 +35,7 @@ export async function exportDiagram(
   }
 
   if (options.format === 'svg') {
+    reportSvgEngineMismatch(ctx.renderConfig, options);
     return buildDiagramSvg({
       data,
       config: ctx.renderConfig,
@@ -80,4 +81,24 @@ export function printDiagram(svg: string): void {
   w.document.close();
   w.focus();
   w.print();
+}
+
+/**
+ * SVG rebuilds department contours with the button-group painter, whatever
+ * `contourEngine` the canvas used — it has no Rust flood in its path. PNG/PDF
+ * are captured from the live Pixi framebuffer, so they show what you saw.
+ *
+ * Say so instead of shipping a picture that quietly differs from the screen.
+ */
+function reportSvgEngineMismatch(config: RenderConfig, options: ExportOptions): void {
+  if ((config.contourEngine ?? 'button-group') === 'button-group') return;
+  const message =
+    `SVG export paints department contours with the button-group painter; ` +
+    `contourEngine: '${config.contourEngine}' is not reproduced. ` +
+    `Use PNG or PDF for a pixel-faithful copy of the canvas.`;
+  if (options.onDiagnostic) {
+    options.onDiagnostic(message);
+    return;
+  }
+  console.warn(`[org-hierarchy] ${message}`);
 }

@@ -310,3 +310,45 @@ describe('printDiagram', () => {
     }
   });
 });
+
+describe('SVG export vs contourEngine (T80 follow-up)', () => {
+  const ctx = (engine: 'button-group' | 'cell-flood') => ({
+    data: variantB(),
+    mounted: true,
+    app: null,
+    renderConfig: { ...defaultRenderConfig, contourEngine: engine },
+  });
+
+  it('failure: cell-flood tells the caller the SVG is not what the canvas painted', async () => {
+    const said: string[] = [];
+    const svg = await exportDiagram(ctx('cell-flood'), {
+      format: 'svg',
+      onDiagnostic: (m) => said.push(m),
+    });
+    expect(typeof svg).toBe('string');
+    expect(said).toHaveLength(1);
+    expect(said[0]).toMatch(/button-group/);
+    expect(said[0]).toMatch(/cell-flood/);
+    // …and points at the formats that are faithful.
+    expect(said[0]).toMatch(/PNG|PDF/);
+  });
+
+  it('success: the default engine exports without a warning', async () => {
+    const said: string[] = [];
+    await exportDiagram(ctx('button-group'), {
+      format: 'svg',
+      onDiagnostic: (m) => said.push(m),
+    });
+    expect(said).toEqual([]);
+  });
+
+  it('success: PNG/PDF come from the live canvas, so no mismatch is reported', async () => {
+    const said: string[] = [];
+    // No Pixi app in a unit test — the raster path refuses, and that refusal is
+    // the point: it must not be preceded by an SVG-only warning.
+    await expect(
+      exportDiagram(ctx('cell-flood'), { format: 'png', onDiagnostic: (m) => said.push(m) }),
+    ).rejects.toThrow();
+    expect(said).toEqual([]);
+  });
+});

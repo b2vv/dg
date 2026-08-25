@@ -30,10 +30,12 @@ _Avoid_: Gravity, sticky layout; forcing one C-blob with inflated radius
 
 **Notch (C-notch)**:
 Rectangular cutout around foreign **inside one component’s bbox** when `preferNotch` is on (G5). Not the Variant B demo shape — Variant B is three IT groups, not one C around CEO.
+**Which engine draws it:** `'cell-flood'` only. The default `'button-group'` painter cuts foreign
+cards out of a padded AABB instead (G2/M2, T79) — same rule, different shape.
 _Avoid_: Indent, bite, pocket; “Variant B = C-sketch”
 
 **Far-side wall (G6)**:
-A contour edge on the open side of foreign with no own beyond — must not be drawn (applies per component).
+A contour edge on the open side of foreign with no own beyond — must not be drawn (applies per component). Same caveat as G5: this is `'cell-flood'` geometry, not the default painter's.
 _Avoid_: Back wall, outer flange
 
 **Row-tree**:
