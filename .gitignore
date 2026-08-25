@@ -14,7 +14,8 @@ blob-report/
 # Rust build artifacts
 packages/core/target/
 
-# WASM pkg is built via `npm run build:wasm` (see packages/sdk/src/wasm/pkg/.gitignore)
+# WASM pkg is committed on purpose (TD05, reversed 2026-08-25): consumers install this
+# repo as a git dependency and have no Rust to build it with.
 worktrees/
 # Added by code-review-graph
 .code-review-graph/

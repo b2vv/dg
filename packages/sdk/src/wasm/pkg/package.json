@@ -1,0 +1,16 @@
+{
+  "name": "org-hierarchy-core",
+  "type": "module",
+  "description": "WASM core for org hierarchy layout",
+  "version": "0.1.0",
+  "files": [
+    "org_hierarchy_core_bg.wasm",
+    "org_hierarchy_core.js",
+    "org_hierarchy_core.d.ts"
+  ],
+  "main": "org_hierarchy_core.js",
+  "types": "org_hierarchy_core.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

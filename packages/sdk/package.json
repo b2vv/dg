@@ -24,23 +24,29 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "scripts": {
-    "build": "rsbuild build && tsc --emitDeclarationOnly --declaration --outDir dist",
+    "build": "tsc && node scripts/copy-wasm.mjs",
     "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
     "dev": "rsbuild dev",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepare": "npm run build"
   },
   "peerDependencies": {
     "react": ">=18",
     "react-dom": ">=18"
   },
   "peerDependenciesMeta": {
-    "react": { "optional": true },
-    "react-dom": { "optional": true }
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@rsbuild/core": "^1.2.0",
@@ -55,5 +61,6 @@
   },
   "dependencies": {
     "pixi.js": "^8.19.0"
-  }
+  },
+  "license": "UNLICENSED"
 }
