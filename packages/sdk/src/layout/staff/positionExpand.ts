@@ -160,3 +160,21 @@ export function adminDescendantIds(
   }
   return out;
 }
+
+/**
+ * Ids that must collapse before one more position may expand, oldest first.
+ *
+ * `maxExpandedPositions` caps how many subtrees stay open at once; with a
+ * finite cap the set is trimmed to `max - 1` so the new expand lands inside it.
+ * A cap of 0 clears the set — the caller still expands, which is the documented
+ * «expandToDepth bypasses the cap» behaviour.
+ */
+export function victimsForExpand(
+  expandedIds: ReadonlySet<string>,
+  max: number,
+): string[] {
+  if (!Number.isFinite(max)) return [];
+  const surplus = expandedIds.size - Math.max(0, max) + 1;
+  if (surplus <= 0) return [];
+  return [...expandedIds].slice(0, Math.min(surplus, expandedIds.size));
+}

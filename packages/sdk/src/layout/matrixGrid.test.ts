@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { DiagramOrganization } from '../data/types.js';
 import {
   assignMatrixCells,
+  occupantAtCell,
   placeOrgAtMatrixCell,
   resolveMatrixDimensions,
 } from './matrixGrid.js';
@@ -128,5 +129,28 @@ describe('placeOrgAtMatrixCell', () => {
   it('failure: out-of-bounds cell is a same-reference no-op (T78-L7)', () => {
     const orgs = [org('a', 0)];
     expect(placeOrgAtMatrixCell(orgs, 'a', 9, 9, { rows: 2, cols: 2 })).toBe(orgs);
+  });
+});
+
+describe('occupantAtCell', () => {
+  const orgs = (): DiagramOrganization[] => [
+    { id: 'a', name: 'A', groupIds: [] },
+    { id: 'b', name: 'B', groupIds: [] },
+    { id: 'c', name: 'C', groupIds: [] },
+    { id: 'd', name: 'D', groupIds: [] },
+  ];
+  const dims = { rows: 2, cols: 2 };
+
+  it('success: reports who sits at a cell, ignoring the mover', () => {
+    const assignment = assignMatrixCells(orgs(), { ...dims, bounded: true });
+    const [firstId, firstCell] = [...assignment][0]!;
+    expect(occupantAtCell(orgs(), firstCell, dims, 'zzz')).toBe(firstId);
+    // The mover never counts as its own occupant.
+    expect(occupantAtCell(orgs(), firstCell, dims, firstId)).not.toBe(firstId);
+  });
+
+  it('failure: a cell outside the grid has no occupant', () => {
+    expect(occupantAtCell(orgs(), { row: 9, col: 9 }, dims, 'a')).toBeUndefined();
+    expect(occupantAtCell([], { row: 0, col: 0 }, dims, 'a')).toBeUndefined();
   });
 });

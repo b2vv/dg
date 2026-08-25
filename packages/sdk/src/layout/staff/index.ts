@@ -29,5 +29,6 @@ export {
   expandIdsForDepth,
   isPositionExpanded,
   positionHasAdminChildren,
+  victimsForExpand,
   visiblePositions,
 } from './positionExpand.js';

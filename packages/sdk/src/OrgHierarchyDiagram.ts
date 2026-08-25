@@ -37,10 +37,11 @@ import {
   expandOrg,
   swapMatrixOrder,
   placeOrgAtMatrixCell,
-  assignMatrixCells,
+  occupantAtCell,
   assignExpandToDepth,
   adminDescendantIds,
   positionHasAdminChildren,
+  victimsForExpand,
   type OrgDisplayMode,
   type OrgLayoutOptions,
   type StaffLayoutOptions,
@@ -565,27 +566,22 @@ export class OrgHierarchyDiagram {
     col: number,
     grid?: { rows: number; cols: number },
   ): Promise<void> {
-    const n = this.data.organizations.length;
-    const side = Math.max(1, Math.ceil(Math.sqrt(n)));
+    const side = Math.max(1, Math.ceil(Math.sqrt(this.data.organizations.length)));
     const dims = grid ?? { rows: side, cols: side };
-    const targetRow = Math.floor(row);
-    const targetCol = Math.floor(col);
+    const cell = { row: Math.floor(row), col: Math.floor(col) };
     const nextOrgs = placeOrgAtMatrixCell(this.data.organizations, orgId, row, col, dims);
     if (nextOrgs === this.data.organizations) return;
 
-    const before = assignMatrixCells(this.data.organizations, { ...dims, bounded: true });
-    let ejectedOrgId: string | undefined;
-    for (const [id, cell] of before) {
-      if (id !== orgId && cell.row === targetRow && cell.col === targetCol) {
-        ejectedOrgId = id;
-        break;
-      }
-    }
-    this.data = {
-      ...this.data,
-      organizations: nextOrgs,
+    // Read the occupant before the move — afterwards it is already ejected.
+    const ejectedOrgId = occupantAtCell(this.data.organizations, cell, dims, orgId);
+    this.data = { ...this.data, organizations: nextOrgs };
+    const patch: LayoutPatch = {
+      type: 'matrix-cell',
+      orgId,
+      row: cell.row,
+      col: cell.col,
+      ejectedOrgId,
     };
-    const patch: LayoutPatch = { type: 'matrix-cell', orgId, row: targetRow, col: targetCol, ejectedOrgId };
     this.callbacks.onLayoutChange?.(patch);
     await this.render();
   }
@@ -692,61 +688,42 @@ export class OrgHierarchyDiagram {
       return false;
     }
 
-    const wasExpanded = this.viewState.staffExpandedPositionIds.has(positionId) || position.expanded === true;
-    if (wasExpanded) {
+    const expandedIds = this.viewState.staffExpandedPositionIds;
+    if (expandedIds.has(positionId) || position.expanded === true) {
       this.setPositionExpandedFlag(positionId, false);
-      this.callbacks.onLayoutChange?.({
-        type: 'position-expand',
-        positionId,
-        expanded: false,
-      });
-      this.callbacks.onPositionExpandChange?.({
-        positionId,
-        expanded: false,
-        changedIds: [positionId],
-      });
+      this.emitPositionExpand(positionId, false, [positionId]);
       await this.render();
       this.panToPosition(positionId, { animate: true });
       return false;
     }
 
-    const max = this.viewState.staffLayout.maxExpandedPositions ?? Number.POSITIVE_INFINITY;
-    const evicted: string[] = [];
-    if (Number.isFinite(max)) {
-      while (this.viewState.staffExpandedPositionIds.size >= max) {
-        const victim = this.viewState.staffExpandedPositionIds.values().next().value as string | undefined;
-        if (victim === undefined) break;
-        this.setPositionExpandedFlag(victim, false);
-        evicted.push(victim);
-      }
-    }
-
+    // Honour maxExpandedPositions: collapse the oldest until the new one fits.
+    const evicted = victimsForExpand(
+      expandedIds,
+      this.viewState.staffLayout.maxExpandedPositions ?? Number.POSITIVE_INFINITY,
+    );
+    for (const id of evicted) this.setPositionExpandedFlag(id, false);
     this.setPositionExpandedFlag(positionId, true);
-    for (const id of evicted) {
-      this.callbacks.onLayoutChange?.({
-        type: 'position-expand',
-        positionId: id,
-        expanded: false,
-      });
-      this.callbacks.onPositionExpandChange?.({
-        positionId: id,
-        expanded: false,
-        changedIds: [id],
-      });
-    }
-    this.callbacks.onLayoutChange?.({
-      type: 'position-expand',
-      positionId,
-      expanded: true,
-    });
-    this.callbacks.onPositionExpandChange?.({
-      positionId,
-      expanded: true,
-      changedIds: [positionId, ...evicted],
-    });
+
+    for (const id of evicted) this.emitPositionExpand(id, false, [id]);
+    this.emitPositionExpand(positionId, true, [positionId, ...evicted]);
     await this.render();
     this.panToPosition(positionId, { animate: true });
     return true;
+  }
+
+  /** Both expand callbacks always fire together — one place, one shape. */
+  private emitPositionExpand(
+    positionId: string,
+    expanded: boolean,
+    changedIds: readonly string[],
+  ): void {
+    this.callbacks.onLayoutChange?.({ type: 'position-expand', positionId, expanded });
+    this.callbacks.onPositionExpandChange?.({
+      positionId,
+      expanded,
+      changedIds: [...changedIds],
+    });
   }
 
   /**

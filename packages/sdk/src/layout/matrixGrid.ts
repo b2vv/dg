@@ -203,6 +203,24 @@ export function assignMatrixCells(
   return assignments;
 }
 
+/**
+ * Which org currently sits at `cell`, ignoring `exceptOrgId`. Callers need it
+ * both to eject the occupant and to report the ejection to the host, so it is
+ * one pass over the assignment, not two.
+ */
+export function occupantAtCell(
+  organizations: DiagramOrganization[],
+  cell: { row: number; col: number },
+  dims: Pick<MatrixDimensions, 'rows' | 'cols'>,
+  exceptOrgId: string,
+): string | undefined {
+  const assignment = assignMatrixCells(organizations, { ...dims, bounded: true });
+  for (const [id, at] of assignment) {
+    if (id !== exceptOrgId && at.row === cell.row && at.col === cell.col) return id;
+  }
+  return undefined;
+}
+
 export function placeOrgAtMatrixCell(
   organizations: DiagramOrganization[],
   orgId: string,
@@ -225,14 +243,12 @@ export function placeOrgAtMatrixCell(
     return organizations;
   }
 
-  const current = assignMatrixCells(organizations, boundedDims);
-  let occupantId: string | undefined;
-  for (const [id, cell] of current) {
-    if (id !== orgId && cell.row === targetRow && cell.col === targetCol) {
-      occupantId = id;
-      break;
-    }
-  }
+  const occupantId = occupantAtCell(
+    organizations,
+    { row: targetRow, col: targetCol },
+    boundedDims,
+    orgId,
+  );
 
   return organizations.map((org) => {
     if (org.id === orgId) {
