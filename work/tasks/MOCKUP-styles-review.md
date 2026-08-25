@@ -199,18 +199,35 @@ row 2   supply           people ·1        people ·2
 
 ---
 
-## Відкладено (не блокує роботу з табами)
+## Перегенеровано на Linux (2026-08-25)
 
-**Візуальні бейзлайни Playwright.** Після редизайну Figma-табів, зміни роутингу ребер і нового таба Staff · Magnetic усі 5 знімків у `e2e/mockups.spec.ts-snapshots/` (`mockup-orgs-figma`, `mockup-orgs-gojs`, `mockup-staff-figma`, `mockup-staff-magnetic`, `mockup-staff-gojs`) застарілі, і `mockup-staff-magnetic-linux.png` ще не існує. Перегенерувати **на Linux** (macOS дає інші шрифти):
+**Візуальні бейзлайни Playwright — зроблено.** Усі 5 знімків у `e2e/mockups.spec.ts-snapshots/`
+перезняті, `mockup-staff-magnetic-linux.png` створено вперше; галерея `work/tasks/node-compare/`
+теж оновлена.
+
+Як саме — щоб повторити:
 
 ```bash
-npx playwright test e2e/mockups.spec.ts --update-snapshots
-npm run compare:nodes   # галерея work/tasks/node-compare/ — теж Linux-артефакт
+docker run --rm --platform=linux/amd64 \
+  -v "$PWD":/src:ro -v /tmp/out:/out \
+  mcr.microsoft.com/playwright:v1.62.1-noble bash -lc '
+    tar -C /src -cf - --exclude=node_modules --exclude=.git . | tar -C /work -xf - && cd /work
+    npm ci && CI=1 npx playwright test e2e/mockups.spec.ts --update-snapshots
+    CI=1 npx playwright test e2e/node-compare.spec.ts --update-snapshots
+    cp -a /work/e2e/mockups.spec.ts-snapshots/. /out/'
 ```
 
-До того часу CI-джоба `e2e` на цих тестах червона; решта (typecheck, unit, решта e2e) зелена.
+Три речі, які роблять результат придатним для CI:
 
----
+- **`--platform=linux/amd64`**, бо CI — `ubuntu-latest` (amd64), а робоча машина arm64; знімки
+  з іншої архітектури можуть не збігтися.
+- **Тег образу = версія Playwright із lock** (`v1.62.1-noble`), інакше Chromium інший.
+- **Rust у контейнер не ставиться**: `wasm32` — портативний артефакт, `packages/sdk/src/wasm/pkg`
+  копіюється з хоста як є.
+
+**Перевірено на детермінізм:** повторний прогін у тому ж контейнері вже **без**
+`--update-snapshots` і з `CI=1` — 16/16 зелені. Тобто знімки стабільні, а не «спійманий кадр».
+
 
 ## Cross-cutting rules (all four)
 
