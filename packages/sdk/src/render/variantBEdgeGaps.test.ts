@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { VARIANT_B_POSITIONS } from '../contour/bridge.js';
 import { resolvePositionAABB } from '../layout/staff/coords.js';
-import { buildStaffEdgeSegments } from './staffEdgeGeometry.js';
+import { buildStaffEdgeSegments } from '../layout/staffEdgeGeometry.js';
 import {
   GRID_CELL_HEIGHT,
   GRID_CELL_WIDTH,

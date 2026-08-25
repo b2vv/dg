@@ -5,7 +5,7 @@ import {
   evictNodeTextureCache,
   loadNodeTexture,
   releaseNodeTextureUrl,
-} from '../render/nodeMedia.js';
+} from './nodeMedia.js';
 import type {
   DiagramMediaFacade,
   MediaPlaceholderKind,

@@ -18,14 +18,14 @@ export {
   staffEdgeEndpoints,
   classifyStaffEdgeRoute,
   polylineHitsBoxInterior,
-} from './staffEdgeGeometry.js';
+} from '../layout/staffEdgeGeometry.js';
 export type {
   StaffEdgeBox,
   StaffEdgeLink,
   StaffEdgeSegment,
   StaffEdgeRouteVia,
   StaffEdgeRoute,
-} from './staffEdgeGeometry.js';
+} from '../layout/staffEdgeGeometry.js';
 export {
   visualPersonEdgeBox,
   visualOrgEdgeBox,
@@ -100,7 +100,7 @@ export {
   nodeTextureUrlOwnerCount,
   isAllowedNodeMediaUrl,
   type NodeTextureLoader,
-} from './nodeMedia.js';
+} from '../media/nodeMedia.js';
 export {
   worldBoxToScreen,
   resolvePromoteIds,

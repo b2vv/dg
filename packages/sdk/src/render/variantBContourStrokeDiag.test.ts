@@ -23,7 +23,7 @@ import {
 import {
   buildStaffEdgeSegments,
   polylineHitsBoxInterior,
-} from './staffEdgeGeometry.js';
+} from '../layout/staffEdgeGeometry.js';
 import {
   GRID_CELL_HEIGHT,
   GRID_CELL_WIDTH,

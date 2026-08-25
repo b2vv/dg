@@ -15,7 +15,7 @@ import {
   nodeTextureUrlOwnerCount,
   acquireNodeTextureUrl,
   releaseNodeTextureUrl,
-} from '../render/nodeMedia.js';
+} from './nodeMedia.js';
 
 describe('mediaCacheKey', () => {
   it('success: always suffixes revision (absent ≡ 0)', () => {

@@ -1,4 +1,4 @@
-import { staffEdgePolylineToSvg, type StaffEdgePoint } from '../render/staffEdgeGeometry.js';
+import { staffEdgePolylineToSvg, type StaffEdgePoint } from './staffEdgeGeometry.js';
 import type { OrgLayoutEdge, OrgLayoutNode } from './types.js';
 
 export type { OrgEdgeStyle } from './types.js';

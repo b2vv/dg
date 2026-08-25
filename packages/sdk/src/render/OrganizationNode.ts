@@ -1,6 +1,6 @@
 import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js';
 import type { DiagramGroup, DiagramOrganization } from '../data/types.js';
-import { loadNodeTexture, type NodeTextureLoader } from './nodeMedia.js';
+import { loadNodeTexture, type NodeTextureLoader } from '../media/nodeMedia.js';
 import { getInactiveOrgSymbolUrl, getOrgSymbolUrl } from './theme.js';
 import { fitContain } from './fitContain.js';
 import { formatOrgPeriodLabel } from './formatPeriodLabel.js';

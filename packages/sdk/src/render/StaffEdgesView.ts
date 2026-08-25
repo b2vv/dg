@@ -4,7 +4,7 @@ import {
   type StaffEdgeBox,
   type StaffEdgeLink,
   type StaffEdgePoint,
-} from './staffEdgeGeometry.js';
+} from '../layout/staffEdgeGeometry.js';
 import {
   arrowHeadTriangle,
   drawEdgeEndDots,

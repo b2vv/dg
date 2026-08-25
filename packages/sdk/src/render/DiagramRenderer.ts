@@ -109,7 +109,7 @@ export interface RenderOptions {
   /** World card AABBs per department (with position id) for button-group paint. */
   contourMemberBoxesByDept?: Map<string, ContourMemberBox[]>;
   /** T74: per-diagram texture loader (`diagram.media.loadTexture`). */
-  loadTexture?: import('./nodeMedia.js').NodeTextureLoader;
+  loadTexture?: import('../media/nodeMedia.js').NodeTextureLoader;
 }
 
 

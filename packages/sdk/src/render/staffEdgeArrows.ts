@@ -1,4 +1,4 @@
-import type { StaffEdgePoint } from './staffEdgeGeometry.js';
+import type { StaffEdgePoint } from '../layout/staffEdgeGeometry.js';
 
 /** Tip + two base corners for a filled arrowhead at `to`, pointing along `from`→`to`. */
 export function arrowHeadTriangle(

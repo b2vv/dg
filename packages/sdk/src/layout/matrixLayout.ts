@@ -2,7 +2,7 @@ import type { DiagramOrganization, DiagramOrgLink } from '../data/types.js';
 import {
   staffEdgePolyline,
   staffEdgePolylineToSvg,
-} from '../render/staffEdgeGeometry.js';
+} from './staffEdgeGeometry.js';
 import { assignMatrixCells, placeOrgAtMatrixCell, resolveMatrixDimensions } from './matrixGrid.js';
 import { buildSpineBusEdgesForForest } from './spineBusEdges.js';
 import {

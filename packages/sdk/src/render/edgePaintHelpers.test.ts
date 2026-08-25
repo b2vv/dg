@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { drawEdgeEndDots, traceRoundedPolyline } from './staffEdgeArrows.js';
 import { roundedRectRing } from './dashedStroke.js';
-import { routerObstacle } from './staffEdgeGeometry.js';
+import { routerObstacle } from '../layout/staffEdgeGeometry.js';
 import { estimateTextWidth } from './orgCardChrome.js';
 
 /** Minimal Graphics stand-in — records the calls the painters emit. */

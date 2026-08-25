@@ -6,7 +6,7 @@ import {
   resolveGojsRowLayoutMetrics,
   resolvePersonLayout,
 } from './personLayout.js';
-import type { StaffEdgeBox } from './staffEdgeGeometry.js';
+import type { StaffEdgeBox } from '../layout/staffEdgeGeometry.js';
 import { personVisualWorldRect } from './personVisualGeometry.js';
 import type { PersonNodeStyle } from './types.js';
 

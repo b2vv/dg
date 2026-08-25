@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Texture } from 'pixi.js';
 import { PersonNodeView } from './PersonNode.js';
-import { configureNodeTextureLoader, clearNodeTextureCache } from './nodeMedia.js';
+import { configureNodeTextureLoader, clearNodeTextureCache } from '../media/nodeMedia.js';
 import { defaultNodeTheme } from './types.js';
 import { figmaRowTextRows } from './personLayout.js';
 import { VACANT_POSITION_LABEL } from './orgCardChrome.js';

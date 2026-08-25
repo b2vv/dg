@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Texture } from 'pixi.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
-import { configureNodeTextureLoader, clearNodeTextureCache } from './nodeMedia.js';
+import { configureNodeTextureLoader, clearNodeTextureCache } from '../media/nodeMedia.js';
 import { defaultNodeTheme } from './types.js';
 
 describe('OrganizationNodeView', () => {

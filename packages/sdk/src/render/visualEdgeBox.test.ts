@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { staffEdgeEndpoints } from './staffEdgeGeometry.js';
+import { staffEdgeEndpoints } from '../layout/staffEdgeGeometry.js';
 import {
   mapPositionNodesToStaffEdgeBoxes,
   mapStaffEdgeBoxesForLod,

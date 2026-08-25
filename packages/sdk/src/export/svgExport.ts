@@ -12,7 +12,7 @@ import {
   PERSON_CARD_HEIGHT,
   PERSON_CARD_WIDTH,
 } from '../render/types.js';
-import { buildStaffEdgeSegments } from '../render/staffEdgeGeometry.js';
+import { buildStaffEdgeSegments } from '../layout/staffEdgeGeometry.js';
 import { mapStaffEdgeBoxesForLod, mapPositionNodesToStaffEdgeBoxes } from '../render/visualEdgeBox.js';
 import { paintMagneticGroups } from '../render/contour/paintMagneticGroups.js';
 import type { ContourMemberBox } from '../render/contour/contourClearance.js';

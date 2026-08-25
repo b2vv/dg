@@ -1,7 +1,7 @@
 import { Container, Graphics, Sprite, Text, type FederatedPointerEvent, type Texture } from 'pixi.js';
 import type { DiagramPerson, DiagramPosition } from '../data/types.js';
 import type { LodLevel } from './lod.js';
-import { loadNodeTexture, type NodeTextureLoader } from './nodeMedia.js';
+import { loadNodeTexture, type NodeTextureLoader } from '../media/nodeMedia.js';
 import { avatarColorFromName, personInitials } from './personInitials.js';
 import { formatOrgPeriodLabel } from './formatPeriodLabel.js';
 import {
