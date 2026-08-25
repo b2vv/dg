@@ -1,6 +1,11 @@
 import type { LodLevel } from './lod.js';
 import type { ViewportTransform } from './Viewport.js';
 import type { NodeKind, NodeRef } from '../interaction/types.js';
+import { nodeEntityKey, parseNodeEntityKey } from '../interaction/nodeKey.js';
+
+// The key format is entity identity, not render geometry — it lives in
+// `interaction/nodeKey.ts` and is re-exported here for existing callers.
+export { nodeEntityKey, parseNodeEntityKey };
 
 export type { PromoteCandidate } from './promoteTypes.js';
 
@@ -16,23 +21,6 @@ export interface ScreenRect {
   top: number;
   width: number;
   height: number;
-}
-
-/** Typed box / promote key so person and position ids never collide. */
-export function nodeEntityKey(kind: NodeKind, id: string): string {
-  return `${kind}:${id}`;
-}
-
-export function parseNodeEntityKey(
-  key: string,
-): { kind: NodeKind; id: string } | null {
-  const i = key.indexOf(':');
-  if (i <= 0) return null;
-  const kind = key.slice(0, i);
-  const id = key.slice(i + 1);
-  if (!id) return null;
-  if (kind !== 'person' && kind !== 'position' && kind !== 'organization') return null;
-  return { kind, id };
 }
 
 /** True when `wanted` names this box — typed `kind:id` or a raw entity id. */
