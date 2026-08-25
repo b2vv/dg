@@ -84,8 +84,8 @@ export function truncatePixiText(label: Text, maxWidth: number): void {
 
 /** GoJS row: avatar left, name/title stacked, timeline chip and count bar. */
 export function layoutGojsRowContent(parts: PersonCardParts, args: GojsRowContentArgs): void {
-const { person, position, style, vacant, gojs, expand } = args;
-const { cardY, cardH, timelineH, countBarH, timelineLabel, countsLabel } = gojs;
+  const { person, position, style, vacant, gojs, expand } = args;
+  const { cardY, timelineLabel } = gojs;
   const avatar = gojsRowAvatar(style, cardY);
   const textX = gojsRowTextX(avatar);
   const maxTextW = Math.max(24, style.width - textX - 12);
@@ -110,94 +110,121 @@ const { cardY, cardH, timelineH, countBarH, timelineLabel, countsLabel } = gojs;
   parts.initialsText.position.set(avatar.cx, avatar.cy);
   parts.initialsText.visible = initials.length > 0;
 
-  // Timeline chip — top-left above card.
-  const showTimeline = !!timelineLabel;
-  parts.periodChip.visible = showTimeline;
-  parts.periodChipLabel.visible = showTimeline;
-  parts.timelineDot.visible = showTimeline;
-  if (showTimeline && timelineLabel) {
-    const fs = style.periodChipFontSize ?? 12;
-    parts.periodChipLabel.text = timelineLabel;
-    parts.periodChipLabel.style.fontSize = fs;
-    parts.periodChipLabel.style.fill = style.periodChipTextColor ?? style.titleColor;
-    parts.periodChipLabel.anchor.set(0, 0.5);
-    truncatePixiText(parts.periodChipLabel, style.width - 24);
-    const padX = 8;
-    const padY = 3;
-    const dotR = 3.5;
-    const textW = timelineLabel.length * fs * 0.58;
-    const chipW = padX * 2 + dotR * 2 + 6 + textW;
-    const chipH = fs + padY * 2;
-    const bx = 0;
-    const by = (timelineH - chipH) / 2;
-    parts.periodChip.clear();
-    parts.periodChip.roundRect(bx, by, chipW, chipH, 4);
-    parts.periodChip.fill({ color: style.periodChipBackground ?? 0x334155 });
-    parts.periodChip.stroke({ color: style.border, width: 1 });
-    parts.timelineDot.clear();
-    parts.timelineDot.circle(bx + padX + dotR, by + chipH / 2, dotR);
-    parts.timelineDot.fill({ color: style.timelineDotColor ?? 0x4ade80 });
-    parts.periodChipLabel.position.set(bx + padX + dotR * 2 + 6, by + chipH / 2);
-  }
-
-  // Pending hourglass — top-right of card (distinct from isKeyPosition name).
-  const showPending = position.pending === true;
-  parts.pendingMarker.visible = showPending;
-  parts.pendingLabel.visible = showPending;
-  if (showPending) {
-    parts.pendingMarker.clear();
-    const sz = 11;
-    const px = style.width - sz - 4;
-    const py = cardY + 4;
-    parts.pendingMarker.roundRect(px, py, sz, sz, 2);
-    parts.pendingMarker.fill({ color: style.pendingColor ?? 0xf59e0b, alpha: 0.15 });
-    parts.pendingLabel.position.set(px + 1, py - 1);
-  }
-
-  // Count bar + expander.
-  const showCounts = !!countsLabel;
-  parts.countBar.visible = showCounts;
-  parts.countBarLabel.visible = showCounts;
-  parts.countExpander.visible = showCounts;
-  if (showCounts && countsLabel) {
-    const barY = cardY + cardH;
-    const barH = countBarH;
-    parts.countBar.clear();
-    parts.countBar.roundRect(0, barY, style.width, barH, 4);
-    parts.countBar.fill({ color: style.countBarBackground ?? style.background });
-    parts.countBar.stroke({ color: style.border, width: 1 });
-    parts.countBarLabel.text = countsLabel;
-    parts.countBarLabel.anchor.set(0.5);
-    parts.countBarLabel.position.set(style.width / 2, barY + barH / 2);
-
-    const brand = style.brandColor ?? 0x2563eb;
-    const exR = 8;
-    const exCx = style.width - 10;
-    const exCy = barY + barH / 2;
-    parts.countExpander.clear();
-    parts.countExpander.circle(exCx, exCy, exR);
-    parts.countExpander.fill({ color: brand });
-    if (expand?.hasChildren) {
-      parts.countExpander.eventMode = 'static';
-      parts.countExpander.cursor = 'pointer';
-      parts.countExpander.hitArea = {
-        contains: (x, y) => {
-          const dx = x - exCx;
-          const dy = y - exCy;
-          return dx * dx + dy * dy <= exR * exR;
-        },
-      };
-      parts.countExpander.removeAllListeners();
-      parts.countExpander.on('pointerdown', (e) => e.stopPropagation());
-      parts.countExpander.on('pointertap', (e) => {
-        e.stopPropagation();
-        expand.onToggle();
-      });
-    }
-  }
+  paintTimelineChip(parts, { style, timelineH: gojs.timelineH, label: timelineLabel });
+  paintPendingMarker(parts, { style, pending: position.pending === true, cardY });
+  paintCountBar(parts, { style, gojs, expand });
 }
 
-/** Figma seat: title over name, both centred against the 40px avatar tile. */
+interface TimelineChipArgs {
+  style: PersonNodeStyle;
+  timelineH: number;
+  label?: string;
+}
+
+/** GoJS row: period chip with a status dot, above the card. */
+function paintTimelineChip(parts: PersonCardParts, args: TimelineChipArgs): void {
+  const { style, timelineH, label } = args;
+  const show = !!label;
+  parts.periodChip.visible = show;
+  parts.periodChipLabel.visible = show;
+  parts.timelineDot.visible = show;
+  if (!show || !label) return;
+
+  const fs = style.periodChipFontSize ?? 12;
+  parts.periodChipLabel.text = label;
+  parts.periodChipLabel.style.fontSize = fs;
+  parts.periodChipLabel.style.fill = style.periodChipTextColor ?? style.titleColor;
+  parts.periodChipLabel.anchor.set(0, 0.5);
+  truncatePixiText(parts.periodChipLabel, style.width - 24);
+
+  const padX = 8;
+  const padY = 3;
+  const dotR = 3.5;
+  const textW = label.length * fs * 0.58;
+  const chipW = padX * 2 + dotR * 2 + 6 + textW;
+  const chipH = fs + padY * 2;
+  const by = (timelineH - chipH) / 2;
+  parts.periodChip.clear();
+  parts.periodChip.roundRect(0, by, chipW, chipH, 4);
+  parts.periodChip.fill({ color: style.periodChipBackground ?? 0x334155 });
+  parts.periodChip.stroke({ color: style.border, width: 1 });
+  parts.timelineDot.clear();
+  parts.timelineDot.circle(padX + dotR, by + chipH / 2, dotR);
+  parts.timelineDot.fill({ color: style.timelineDotColor ?? 0x4ade80 });
+  parts.periodChipLabel.position.set(padX + dotR * 2 + 6, by + chipH / 2);
+}
+
+interface PendingMarkerArgs {
+  style: PersonNodeStyle;
+  pending: boolean;
+  cardY: number;
+}
+
+/** Pending hourglass — top-right of card (distinct from isKeyPosition name). */
+function paintPendingMarker(parts: PersonCardParts, args: PendingMarkerArgs): void {
+  const { style, pending, cardY } = args;
+  parts.pendingMarker.visible = pending;
+  parts.pendingLabel.visible = pending;
+  if (!pending) return;
+  const sz = 11;
+  const px = style.width - sz - 4;
+  const py = cardY + 4;
+  parts.pendingMarker.clear();
+  parts.pendingMarker.roundRect(px, py, sz, sz, 2);
+  parts.pendingMarker.fill({ color: style.pendingColor ?? 0xf59e0b, alpha: 0.15 });
+  parts.pendingLabel.position.set(px + 1, py - 1);
+}
+
+interface CountBarArgs {
+  style: PersonNodeStyle;
+  gojs: GojsRowLayout;
+  expand?: PersonExpandChrome;
+}
+
+/** Subordinate counts under the card; its expander only lives if there are children. */
+function paintCountBar(parts: PersonCardParts, args: CountBarArgs): void {
+  const { style, gojs, expand } = args;
+  const { cardY, cardH, countBarH, countsLabel } = gojs;
+  const show = !!countsLabel;
+  parts.countBar.visible = show;
+  parts.countBarLabel.visible = show;
+  parts.countExpander.visible = show;
+  if (!show || !countsLabel) return;
+
+  const barY = cardY + cardH;
+  parts.countBar.clear();
+  parts.countBar.roundRect(0, barY, style.width, countBarH, 4);
+  parts.countBar.fill({ color: style.countBarBackground ?? style.background });
+  parts.countBar.stroke({ color: style.border, width: 1 });
+  parts.countBarLabel.text = countsLabel;
+  parts.countBarLabel.anchor.set(0.5);
+  parts.countBarLabel.position.set(style.width / 2, barY + countBarH / 2);
+
+  const exR = 8;
+  const exCx = style.width - 10;
+  const exCy = barY + countBarH / 2;
+  parts.countExpander.clear();
+  parts.countExpander.circle(exCx, exCy, exR);
+  parts.countExpander.fill({ color: style.brandColor ?? 0x2563eb });
+  if (!expand?.hasChildren) return;
+
+  parts.countExpander.eventMode = 'static';
+  parts.countExpander.cursor = 'pointer';
+  parts.countExpander.hitArea = {
+    contains: (x, y) => {
+      const dx = x - exCx;
+      const dy = y - exCy;
+      return dx * dx + dy * dy <= exR * exR;
+    },
+  };
+  parts.countExpander.removeAllListeners();
+  parts.countExpander.on('pointerdown', (e) => e.stopPropagation());
+  parts.countExpander.on('pointertap', (e) => {
+    e.stopPropagation();
+    expand.onToggle();
+  });
+}
+
 export function layoutFigmaRowContent(parts: PersonCardParts, args: PersonContentArgs): void {
 const { person, position, style, vacant } = args;
   const avatar = figmaRowAvatar(style);

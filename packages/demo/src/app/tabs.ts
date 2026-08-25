@@ -68,4 +68,10 @@ export interface ContourControls {
   smoothIterations: number;
 }
 
-/** Playwright hooks when `?e2e=1`. */
+/**
+ * Tab ids reach us from `data-tab` in the markup, so they are only as good as
+ * the HTML. Validate here and the switch in `tabConfigs` can stay exhaustive.
+ */
+export function isDemoTab(value: string | undefined): value is DemoTab {
+  return value !== undefined && Object.hasOwn(TAB_META, value);
+}

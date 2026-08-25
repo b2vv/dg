@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { emptyDiagramData } from '@org-hierarchy/sdk';
 import { buildTabConfig, type TabConfigDeps } from './tabConfigs.js';
 import { captionForTab } from './captions.js';
-import { TAB_META, type DemoTab } from './tabs.js';
+import { TAB_META, isDemoTab, type DemoTab } from './tabs.js';
 
 const deps = (): TabConfigDeps => ({
   theme: 'light',
@@ -53,9 +53,13 @@ describe('buildTabConfig', () => {
     }
   });
 
-  it('failure: an unknown tab falls back to the default scene rather than throwing', () => {
-    const config = buildTabConfig('no-such-tab' as DemoTab, deps());
-    expect(config.data).toBeTruthy();
+  it('failure: an unknown tab throws instead of silently shipping another scene', () => {
+    // The markup is the only source of tab ids, so `isDemoTab` guards the click
+    // and this throw is the backstop for a tab added to the union but not here.
+    expect(() => buildTabConfig('no-such-tab' as DemoTab, deps())).toThrow(/unknown tab/);
+    expect(isDemoTab('no-such-tab')).toBe(false);
+    expect(isDemoTab(undefined)).toBe(false);
+    expect(isDemoTab('variant-b')).toBe(true);
   });
 });
 

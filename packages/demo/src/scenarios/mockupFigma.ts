@@ -26,11 +26,3 @@ export {
   MOCKUP_GOJS_STYLES,
   MOCKUP_DARK_STYLES,
 } from './mockupStyles.js';
-
-import { buildMockupOrgsFigmaData } from './mockupOrgs.js';
-import { buildMockupStaffFigmaData } from './mockupStaff.js';
-
-/** @deprecated Use buildMockupOrgsFigmaData */
-export const buildMockupOrgsData = buildMockupOrgsFigmaData;
-/** @deprecated Use buildMockupStaffFigmaData */
-export const buildMockupStaffData = buildMockupStaffFigmaData;

@@ -71,6 +71,7 @@ import {
   GOJS_MOCKUP_TABS,
   MOCKUP_FIT_MIN_SCALE,
   TAB_META,
+  isDemoTab,
   type ContourControls,
   type DemoTab,
 } from './tabs.js';
@@ -125,7 +126,11 @@ export class App {
   private bindToolbar(): void {
     document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const tab = btn.dataset.tab as DemoTab;
+        const tab = btn.dataset.tab;
+        if (!isDemoTab(tab)) {
+          this.setStatus(`Unknown tab in markup: ${tab ?? '(empty)'}`);
+          return;
+        }
         void this.loadTab(tab);
       });
     });

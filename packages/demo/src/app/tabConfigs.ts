@@ -1,4 +1,5 @@
 import type { DiagramData, OrgHierarchyConfig } from '@org-hierarchy/sdk';
+import type { FlatDiagramRow } from '@org-hierarchy/sdk';
 import {
   flatRowsToDiagram,
   recommendWorkerPoolSize,
@@ -290,7 +291,10 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
       };
     }
     case 'mapper':
-      return {
+      // The only tab with a mapper: its config is type-checked against the row
+      // type it actually maps, then widened — `OrgHierarchyConfig` is invariant
+      // in TRaw, so a per-tab mapper cannot be expressed in the shared return.
+      return widenConfig({
         ...base,
         data: SAMPLE_MAPPER_ROWS,
         mappers: { toDiagram: flatRowsToDiagram },
@@ -302,7 +306,7 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
           verticalGap: 44,
           margin: 40,
         },
-      } as OrgHierarchyConfig<unknown>;
+      } satisfies OrgHierarchyConfig<FlatDiagramRow[]>);
     case 'worker':
       return {
         ...base,
@@ -320,6 +324,16 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
         render: { ...base.render, magnetRadius: VARIANT_B_MAGNET_RADIUS, minContourMembers: 2 },
       };
     default:
-      return { ...base, data: buildVariantBData() };
+      return assertNever(tab);
   }
+}
+
+/** A tab that is not in the union means the caller skipped a compile error. */
+function assertNever(tab: never): never {
+  throw new Error(`buildTabConfig: unknown tab ${String(tab)}`);
+}
+
+/** Widen a mapper-typed config to the shared return type (see 'mapper'). */
+function widenConfig<TRaw>(config: OrgHierarchyConfig<TRaw>): OrgHierarchyConfig<unknown> {
+  return config as OrgHierarchyConfig<unknown>;
 }
