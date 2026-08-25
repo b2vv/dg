@@ -1,4 +1,4 @@
-import { computeAllContours, type ContourMagnetConfig, type ContourPositionInput } from '../contour/bridge.js';
+import { computeAllContours, type ContourMagnetConfig, type ContourPositionInput } from '../../contour/bridge.js';
 import type { ContourMemberBox } from './contourClearance.js';
 import type { ContourPoint } from './contourFillet.js';
 import { filterContoursForPaint } from './contourPaintFilter.js';

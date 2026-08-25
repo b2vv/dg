@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { contourSceneInputs, matrixNodeBoxes } from './contourInputs.js';
-import { NO_DEPARTMENT_ID } from '../data/types.js';
+import { NO_DEPARTMENT_ID } from '../../data/types.js';
 
 const node = (id: string, x = 0, y = 0) => ({ id, x, y, width: 100, height: 50 });
 

@@ -1,7 +1,7 @@
 import { Container, Graphics, Text } from 'pixi.js';
-import { parseSvgPath } from './svgPath.js';
-import { simplifyPolyline, type LodLevel } from './lod.js';
-import type { DepartmentBlobStyle } from './types.js';
+import { parseSvgPath } from '../svgPath.js';
+import { simplifyPolyline, type LodLevel } from '../lod.js';
+import type { DepartmentBlobStyle } from '../types.js';
 
 /**
  * Department membership blob: fill stays under cards; stroke Graphics is

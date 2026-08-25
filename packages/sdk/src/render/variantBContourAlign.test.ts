@@ -21,7 +21,7 @@ import { resolvePositionAABB } from '../layout/staff/coords.js';
 import {
   mapContourPointsToWorld,
   resolveContourWorldTransform,
-} from './contourWorldTransform.js';
+} from './contour/contourWorldTransform.js';
 
 function pointInPoly(x: number, y: number, pts: { x: number; y: number }[]): boolean {
   let inside = false;

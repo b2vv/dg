@@ -1,6 +1,6 @@
 import { contourDepartmentId } from '../data/types.js';
 import type { ContourMagnetConfig } from './bridge.js';
-import { resolveMagnetRadius } from '../render/magnetRadius.js';
+import { resolveMagnetRadius } from '../render/contour/magnetRadius.js';
 
 /** Chaikin cap (A9). Values above this are clamped; 18+ iterations OOM. */
 export const MAX_SMOOTH_ITERATIONS = 8;

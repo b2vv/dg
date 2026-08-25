@@ -2,12 +2,12 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { OrgHierarchyDiagram } from '../index.js';
+import { OrgHierarchyDiagram } from '../../index.js';
 import { DepartmentBlobView } from './DepartmentBlob.js';
-import { resetContourWasmForTests, setContourWasmLoaderForTests } from '../contour/bridge.js';
+import { resetContourWasmForTests, setContourWasmLoaderForTests } from '../../contour/bridge.js';
 import { contourButtonGroupMargin } from './contourButtonGroup.js';
-import { defaultNodeTheme } from './types.js';
-import type { DiagramData } from '../data/types.js';
+import { defaultNodeTheme } from '../types.js';
+import type { DiagramData } from '../../data/types.js';
 
 /**
  * Two departments interleaved on one grid: IT wraps the CEO cell, so a flood
@@ -93,11 +93,11 @@ describe('RenderConfig.contourEngine', () => {
   beforeAll(() => {
     const wasmPath = join(
       dirname(fileURLToPath(import.meta.url)),
-      '../wasm/pkg/org_hierarchy_core_bg.wasm',
+      '../../wasm/pkg/org_hierarchy_core_bg.wasm',
     );
     const bytes = readFileSync(wasmPath);
     setContourWasmLoaderForTests(async () => {
-      const mod = await import('../wasm/pkg/org_hierarchy_core.js');
+      const mod = await import('../../wasm/pkg/org_hierarchy_core.js');
       await mod.default({ module_or_path: bytes });
       return mod as never;
     });
@@ -137,7 +137,7 @@ describe('RenderConfig.contourEngine', () => {
   });
 
   it('success: button-group stays the default and needs no wasm round-trip', async () => {
-    const spy = vi.spyOn(await import('../contour/bridge.js'), 'computeAllContours');
+    const spy = vi.spyOn(await import('../../contour/bridge.js'), 'computeAllContours');
     const { container, diagram } = await mount('button-group');
     expect(blobRings(diagram).length).toBeGreaterThan(0);
     expect(spy).not.toHaveBeenCalled();

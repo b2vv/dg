@@ -1,5 +1,5 @@
-import { contourDepartmentId } from '../data/types.js';
-import type { ContourPositionInput } from '../contour/bridge.js';
+import { contourDepartmentId } from '../../data/types.js';
+import type { ContourPositionInput } from '../../contour/bridge.js';
 import type { ContourMemberBox } from './contourClearance.js';
 
 /** Laid-out card box a contour input is derived from. */

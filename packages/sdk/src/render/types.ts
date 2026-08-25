@@ -1,4 +1,4 @@
-import { DEFAULT_CORRIDOR_CELLS } from './contourCorridor.js';
+import { DEFAULT_CORRIDOR_CELLS } from './contour/contourCorridor.js';
 
 export type ThemeMode = 'light' | 'dark' | 'auto';
 

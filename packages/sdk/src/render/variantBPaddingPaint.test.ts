@@ -18,7 +18,7 @@ import {
   VARIANT_B_MAGNET_RADIUS,
   VARIANT_B_VERTICAL_GAP,
 } from './types.js';
-import { polishContourRings } from './contourPolish.js';
+import { polishContourRings } from './contour/contourPolish.js';
 
 function ringBounds(ring: readonly { x: number; y: number }[]): {
   minX: number;

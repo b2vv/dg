@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { VARIANT_B_POSITIONS } from '../contour/bridge.js';
+import { VARIANT_B_POSITIONS } from '../../contour/bridge.js';
 import { clusterPositionIds, clusterPositionsByDepartment } from './contourCluster.js';
 
 describe('clusterPositionIds', () => {

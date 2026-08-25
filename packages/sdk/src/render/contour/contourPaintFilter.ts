@@ -1,4 +1,4 @@
-import { NO_DEPARTMENT_ID } from '../data/types.js';
+import { NO_DEPARTMENT_ID } from '../../data/types.js';
 
 /** Seats with no department own no contour, so their bucket is never painted. */
 export function isPaintableDepartment(departmentId: string): boolean {

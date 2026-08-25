@@ -1,14 +1,14 @@
 import { Container, Graphics } from 'pixi.js';
 import { LayerManager } from './LayerManager.js';
 import { SceneRegistry, type NodeWorldBox } from './SceneRegistry.js';
-import { ContourPainter } from './ContourPainter.js';
+import { ContourPainter } from './contour/ContourPainter.js';
 import {
   type ContourMagnetConfig,
   type ContourPositionInput,
   type DeptContourResult,
 } from '../contour/bridge.js';
-import { contourSceneInputs, matrixNodeBoxes } from './contourInputs.js';
-import { contourButtonGroupMargin } from './contourButtonGroup.js';
+import { contourSceneInputs, matrixNodeBoxes } from './contour/contourInputs.js';
+import { contourButtonGroupMargin } from './contour/contourButtonGroup.js';
 import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
 import type { StaffCanvasResult } from '../layout/staff/types.js';
 import {
@@ -53,10 +53,10 @@ import { mapStaffEdgeBoxesForLod, mapPositionNodesToStaffEdgeBoxes } from './vis
 import {
   resolveContourWorldTransform,
   type ContourWorldTransform,
-} from './contourWorldTransform.js';
+} from './contour/contourWorldTransform.js';
 import {
   type ContourMemberBox,
-} from './contourClearance.js';
+} from './contour/contourClearance.js';
 import { inferStaffCurrentOrgId } from './inferStaffCurrentOrgId.js';
 
 export type ContourComputer = (

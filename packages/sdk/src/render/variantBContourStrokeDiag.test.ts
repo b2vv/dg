@@ -15,11 +15,11 @@ import { resolvePositionAABB } from '../layout/staff/coords.js';
 import {
   contourCardClearanceMargin,
   nudgeContourClearOfBoxes,
-} from './contourClearance.js';
+} from './contour/contourClearance.js';
 import {
   mapContourPointsToWorld,
   resolveContourWorldTransform,
-} from './contourWorldTransform.js';
+} from './contour/contourWorldTransform.js';
 import {
   buildStaffEdgeSegments,
   polylineHitsBoxInterior,

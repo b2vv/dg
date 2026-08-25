@@ -12,17 +12,17 @@ import { runPointMorph, type PointMorphHandle } from './contourMorph.js';
 import { paintMagneticGroups } from './paintMagneticGroups.js';
 import { resolveMagnetRadius } from './magnetRadius.js';
 import { cloneMemberBoxes, offsetMemberBoxesForGridMove } from './offsetMemberBoxes.js';
-import { defaultRenderConfig } from './types.js';
+import { defaultRenderConfig } from '../types.js';
 import type {
   ContourEngine,
   DepartmentBlobStyle,
   NodeTheme,
   RenderConfig,
-} from './types.js';
-import type { ContourMagnetConfig, ContourPositionInput } from '../contour/bridge.js';
+} from '../types.js';
+import type { ContourMagnetConfig, ContourPositionInput } from '../../contour/bridge.js';
 import type { ContourMemberBox } from './contourClearance.js';
-import type { LodLevel } from './lod.js';
-import type { DiagramData } from '../data/types.js';
+import type { LodLevel } from '../lod.js';
+import type { DiagramData } from '../../data/types.js';
 
 const DEFAULT_MORPH_MS = 160;
 

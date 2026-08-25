@@ -1,4 +1,4 @@
-import { easeOutCubic } from './contourMorph.js';
+import { easeOutCubic } from './contour/contourMorph.js';
 
 export interface ViewportTransform {
   x: number;

@@ -14,14 +14,14 @@ import {
 } from '../render/types.js';
 import { buildStaffEdgeSegments } from '../render/staffEdgeGeometry.js';
 import { mapStaffEdgeBoxesForLod, mapPositionNodesToStaffEdgeBoxes } from '../render/visualEdgeBox.js';
-import { paintMagneticGroups } from '../render/paintMagneticGroups.js';
-import type { ContourMemberBox } from '../render/contourClearance.js';
-import { resolveMagnetRadius } from '../render/magnetRadius.js';
+import { paintMagneticGroups } from '../render/contour/paintMagneticGroups.js';
+import type { ContourMemberBox } from '../render/contour/contourClearance.js';
+import { resolveMagnetRadius } from '../render/contour/magnetRadius.js';
 import { inferStaffCurrentOrgId } from '../render/inferStaffCurrentOrgId.js';
 import { arrowHeadTriangle, shortenPolylineForArrow } from '../render/staffEdgeArrows.js';
 import { enrichStaffTierBands } from '../render/staffZoneBounds.js';
-import { contourButtonGroupMargin } from '../render/contourButtonGroup.js';
-import { contourSceneInputs, matrixNodeBoxes } from '../render/contourInputs.js';
+import { contourButtonGroupMargin } from '../render/contour/contourButtonGroup.js';
+import { contourSceneInputs, matrixNodeBoxes } from '../render/contour/contourInputs.js';
 
 function esc(text: string): string {
   return text

@@ -6,7 +6,7 @@ export { Viewport } from './Viewport.js';
 export type { ViewportTransform, ViewportOptions, CameraMotionOptions } from './Viewport.js';
 export { resolveLodLevel, simplifyPolyline, defaultLodThresholds } from './lod.js';
 export type { LodLevel, LodThresholds } from './lod.js';
-export { DepartmentBlobView } from './DepartmentBlob.js';
+export { DepartmentBlobView } from './contour/DepartmentBlob.js';
 export { PersonNodeView } from './PersonNode.js';
 export { personInitials, avatarColorFromName } from './personInitials.js';
 export { OrganizationNodeView } from './OrganizationNode.js';
@@ -45,44 +45,44 @@ export {
   nudgeContourClearOfBoxes,
   contourCardClearanceMargin,
   CONTOUR_OWN_PADDING_PX,
-} from './contourClearance.js';
-export type { ContourClearBox } from './contourClearance.js';
+} from './contour/contourClearance.js';
+export type { ContourClearBox } from './contour/contourClearance.js';
 export {
   filletClosedRing,
   maxChordTurn,
   CONTOUR_CORNER_RADIUS,
-} from './contourFillet.js';
-export { polishContourRings, type PolishContourInput } from './contourPolish.js';
-export { notchedRings, type ContourRect } from './contourNotch.js';
+} from './contour/contourFillet.js';
+export { polishContourRings, type PolishContourInput } from './contour/contourPolish.js';
+export { notchedRings, type ContourRect } from './contour/contourNotch.js';
 export {
   contourSceneInputs,
   matrixNodeBoxes,
   type ContourNodeBox,
-} from './contourInputs.js';
+} from './contour/contourInputs.js';
 export {
   corridorPx,
   corridorCellsForFlood,
   DEFAULT_CORRIDOR_CELLS,
-} from './contourCorridor.js';
+} from './contour/contourCorridor.js';
 export {
   buttonGroupRingFromBoxes,
   contourButtonGroupMargin,
   memberBoxesForCluster,
-} from './contourButtonGroup.js';
-export { clusterPositionIds, clusterPositionsByDepartment } from './contourCluster.js';
-export { paintMagneticGroups } from './paintMagneticGroups.js';
+} from './contour/contourButtonGroup.js';
+export { clusterPositionIds, clusterPositionsByDepartment } from './contour/contourCluster.js';
+export { paintMagneticGroups } from './contour/paintMagneticGroups.js';
 export {
   shouldPaintDeptContour,
   filterContoursForPaint,
-} from './contourPaintFilter.js';
+} from './contour/contourPaintFilter.js';
 export { parseSvgPath } from './svgPath.js';
 export {
   resampleClosedRing,
   lerpClosedRings,
   runPointMorph,
   easeOutCubic,
-} from './contourMorph.js';
-export type { MorphPoint } from './contourMorph.js';
+} from './contour/contourMorph.js';
+export type { MorphPoint } from './contour/contourMorph.js';
 export {
   resolveTheme,
   getOrgSymbolUrl,

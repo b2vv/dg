@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DepartmentBlobView } from './DepartmentBlob.js';
-import { defaultNodeTheme } from './types.js';
+import { defaultNodeTheme } from '../types.js';
 
 describe('DepartmentBlobView', () => {
   it('success: fromPath creates container with graphics for valid path', () => {

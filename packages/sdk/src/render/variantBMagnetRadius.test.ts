@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { VARIANT_B_POSITIONS } from '../contour/bridge.js';
-import { clusterPositionsByDepartment } from './contourCluster.js';
-import { ContourConfigError, resolveMagnetRadius } from './magnetRadius.js';
-import { paintMagneticGroups } from './paintMagneticGroups.js';
-import type { ContourMemberBox } from './contourClearance.js';
+import { clusterPositionsByDepartment } from './contour/contourCluster.js';
+import { ContourConfigError, resolveMagnetRadius } from './contour/magnetRadius.js';
+import { paintMagneticGroups } from './contour/paintMagneticGroups.js';
+import type { ContourMemberBox } from './contour/contourClearance.js';
 import {
   PERSON_CARD_HEIGHT,
   PERSON_CARD_WIDTH,

@@ -7,9 +7,9 @@ import {
   setContourWasmLoaderForTests,
   VARIANT_B_POSITIONS,
 } from '../contour/bridge.js';
-import { filterContoursForPaint } from './contourPaintFilter.js';
-import { paintMagneticGroups } from './paintMagneticGroups.js';
-import type { ContourMemberBox } from './contourClearance.js';
+import { filterContoursForPaint } from './contour/contourPaintFilter.js';
+import { paintMagneticGroups } from './contour/paintMagneticGroups.js';
+import type { ContourMemberBox } from './contour/contourClearance.js';
 import {
   PERSON_CARD_HEIGHT,
   PERSON_CARD_WIDTH,
