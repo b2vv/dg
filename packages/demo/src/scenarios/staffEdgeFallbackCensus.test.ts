@@ -22,7 +22,7 @@ import {
   buildMockupStaffFigmaData,
   buildMockupStaffGojsData,
   buildMockupStaffMagneticData,
-} from './mockupFigma.js';
+} from './mockups.js';
 import { buildStaffTreeData } from './staffTree.js';
 
 interface RouteCensus {

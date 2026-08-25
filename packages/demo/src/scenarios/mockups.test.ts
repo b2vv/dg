@@ -10,7 +10,7 @@ import {
   MOCKUP_FIGMA_STYLES,
   MOCKUP_GOJS_STYLES,
   MOCKUP_MAGNETIC_STYLES,
-} from './mockupFigma.js';
+} from './mockups.js';
 
 /**
  * Rule 1 of work/tasks/MOCKUP-styles-review.md — no military / tactical naming

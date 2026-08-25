@@ -50,7 +50,7 @@ Mockup tabs now pass `lodThresholds: { midMax: 0.5 }` so fitView zoom ~0.55 rend
 
 ### Isolated vs diagram — same data
 
-Both sides use the same `mockupFigma.ts` fixture; isolated page imports `MOCKUP_*_STYLES` directly.
+Both sides use the same `mockups.ts` fixture; isolated page imports `MOCKUP_*_STYLES` directly.
 
 ## Live isolated page
 

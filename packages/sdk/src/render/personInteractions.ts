@@ -9,6 +9,7 @@ import {
 } from '../interaction/selection.js';
 import type { ContextMenuPointer } from '../interaction/contextMenuPayload.js';
 import type { PersonNodeView } from './PersonNode.js';
+import { bindCardContextMenu } from './cardContextMenu.js';
 import type { NodeWorldBox } from './SceneRegistry.js';
 import type { RenderConfig } from './types.js';
 
@@ -117,16 +118,9 @@ export class PersonInteractions {
       options.onPersonClick?.(personId, positionId, mods);
     });
 
-    node.on('rightclick', (e) => {
-      e.stopPropagation();
-      e.preventDefault?.();
-      options.onPersonContextMenu?.(personId ?? '', positionId, {
-        clientX: e.clientX,
-        clientY: e.clientY,
-        canvasX: e.global.x,
-        canvasY: e.global.y,
-      });
-    });
+    bindCardContextMenu(node, (pointer) =>
+      options.onPersonContextMenu?.(personId ?? '', positionId, pointer),
+    );
 
     node.on('pointerdown', (e) => {
       if (node.isChromePointer(e)) {

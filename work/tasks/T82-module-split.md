@@ -14,7 +14,7 @@
 | `sdk/src/index.ts` | 1683 | 277 (барель) + `OrgHierarchyDiagram.ts` 1125 |
 | `sdk/src/render/DiagramRenderer.ts` | 1541 | 1006 |
 | `demo/src/app/App.ts` | 1144 | 760 |
-| `demo/src/scenarios/mockupFigma.ts` | 953 | 36 (барель) + 5 модулів |
+| `demo/src/scenarios/mockups.ts` (був `mockupFigma.ts`) | 953 | 36 (барель) + 5 модулів |
 | `sdk/src/render/PersonNode.ts` | 953 | 656 + `personCardContent.ts` 359 |
 
 `index.ts` одночасно був публічним барелем, фасадом і купою data-хелперів —
@@ -43,7 +43,7 @@
 **Demo:**
 - `app/tabs.ts` (union + `TAB_META`), `app/tabConfigs.ts` (`buildTabConfig`), `app/captions.ts`.
 - `scenarios/mockupSymbols|mockupLayouts|mockupOrgs|mockupStaff|mockupStyles.ts`,
-  `mockupFigma.ts` лишається барелем.
+  барель — `mockups.ts` (перейменований із `mockupFigma.ts`: він обслуговує і GoJS-фікстури).
 
 **Шари й чиста логіка:**
 - `layout/matrixGrid.ts` — `occupantAtCell` і `applyMatrixPlacement` (повертає ще й `ejectedOrgId`,

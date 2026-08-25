@@ -45,7 +45,7 @@ import {
   MOCKUP_FIGMA_STYLES,
   MOCKUP_GOJS_STYLES,
   MOCKUP_MAGNETIC_STYLES,
-} from '../scenarios/mockupFigma.js';
+} from '../scenarios/mockups.js';
 import {
   SCALE_ORG_TOTAL,
   SCALE_ORG_WINDOW,
@@ -70,6 +70,7 @@ import {
   FIGMA_MOCKUP_TABS,
   GOJS_MOCKUP_TABS,
   MOCKUP_FIT_MIN_SCALE,
+  ORG_TREE_TABS,
   TAB_META,
   isDemoTab,
   type ContourControls,
@@ -143,9 +144,7 @@ export class App {
     });
 
     requireElement('collapse-all').addEventListener('click', () => {
-      if (this.tab === 'flat-orgs' || this.tab === 'scale-100k') {
-        void this.diagram?.collapseAllOrgs();
-      }
+      if (ORG_TREE_TABS.has(this.tab)) void this.diagram?.collapseAllOrgs();
     });
 
     requireElement('export-png').addEventListener('click', () => {
@@ -175,12 +174,12 @@ export class App {
     padding.addEventListener('input', () => {
       this.contourControls.paddingCells = Number(padding.value);
       this.syncContourControlLabels();
-      if (this.tab === 'variant-b') void this.reload();
+      if (TAB_META[this.tab].reloadsOnContourSlider) void this.reload();
     });
     smooth.addEventListener('input', () => {
       this.contourControls.smoothIterations = Number(smooth.value);
       this.syncContourControlLabels();
-      if (this.tab === 'variant-b') void this.reload();
+      if (TAB_META[this.tab].reloadsOnContourSlider) void this.reload();
     });
 
     requireElement('json-file').addEventListener('change', (e) => {
@@ -271,7 +270,7 @@ export class App {
       },
       onNodeClick: (node) => {
         this.contextMenu?.close();
-        if (node.kind === 'organization' && (this.tab === 'flat-orgs' || this.tab === 'scale-100k')) {
+        if (node.kind === 'organization' && ORG_TREE_TABS.has(this.tab)) {
           this.handleOrgNodeClick(node.id);
           return;
         }

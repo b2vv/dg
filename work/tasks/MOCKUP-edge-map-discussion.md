@@ -184,8 +184,8 @@ flowchart TB
 | Джерело | Текст |
 |---|---|
 | **MOCKUP-styles-review.md §3** | «Edges: solid admin; **dotted cross-org (deputy → unit manager)**» |
-| **mockupFigma.ts** | `reportLines` без `dotted` |
-| **mockupFigma.test.ts** | явно: `no cross-tier dotted edge` |
+| **mockups.ts** | `reportLines` без `dotted` |
+| **mockups.test.ts** | явно: `no cross-tier dotted edge` |
 | **Скрін** | dotted немає |
 
 **Питання:** повертаємо `{ fromId: 'pos-1z', toId: 'pos-u-h', kind: 'dotted' }` як decorative edge (SPEC: не впливає на layout)?

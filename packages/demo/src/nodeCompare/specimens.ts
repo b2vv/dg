@@ -10,7 +10,7 @@ import {
   buildMockupStaffFigmaData,
   MOCKUP_FIGMA_STYLES,
   MOCKUP_GOJS_STYLES,
-} from '../scenarios/mockupFigma.js';
+} from '../scenarios/mockups.js';
 
 type DiagramGroup = DiagramData['groups'][number];
 type OrgStyle = typeof MOCKUP_FIGMA_STYLES.organization | typeof MOCKUP_GOJS_STYLES.organization;

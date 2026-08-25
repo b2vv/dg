@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { layoutStaffCanvas } from '@org-hierarchy/sdk';
-import { buildMockupStaffFigmaData, FIGMA_STAFF_LAYOUT } from './mockupFigma.js';
+import { buildMockupStaffFigmaData, FIGMA_STAFF_LAYOUT } from './mockups.js';
 
 /** Canonical staff mockup edge inventory — see MOCKUP-edge-map-discussion.md */
 describe('mockup staff edge inventory', () => {

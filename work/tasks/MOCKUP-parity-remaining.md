@@ -13,7 +13,7 @@
 | G1 | Staff mid LOD on mockup zoom | `lodThresholds.midMax = 0.5` on all mockup tabs |
 | G2 | Dotted deputy → unit manager | `reportLines` `pos-1z → pos-u-h` |
 | G3 | Cross-org dotted not painted | `layoutStaffCanvas` appends matrix/dotted across orgs |
-| G4 | Contract test vs style doc | `mockupFigma.test.ts` requires dotted |
+| G4 | Contract test vs style doc | `mockups.test.ts` requires dotted |
 | G5 | Edge map unapproved | [MOCKUP-edge-map-discussion.md](./MOCKUP-edge-map-discussion.md) locked |
 | G6 | Staff e2e snapshots | Regenerated via `test:e2e --update-snapshots` |
 | G7 | Node compare LOD drift | Fixed with G1; gallery in `node-compare/` |

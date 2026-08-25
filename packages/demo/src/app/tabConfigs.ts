@@ -25,7 +25,7 @@ import {
   MOCKUP_FIGMA_STYLES,
   MOCKUP_GOJS_STYLES,
   MOCKUP_MAGNETIC_STYLES,
-} from '../scenarios/mockupFigma.js';
+} from '../scenarios/mockups.js';
 import type { ScaleOrgsWindow } from '../scenarios/scaleOrgs.js';
 import type { ScaleStaffWindow } from '../scenarios/scaleStaff.js';
 import { SAMPLE_MAPPER_ROWS } from '../scenarios/sampleMapper.js';

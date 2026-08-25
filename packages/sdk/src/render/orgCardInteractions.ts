@@ -7,6 +7,7 @@ import {
 } from '../interaction/selection.js';
 import type { ContextMenuPointer } from '../interaction/contextMenuPayload.js';
 import type { OrganizationNodeView } from './OrganizationNode.js';
+import { bindCardContextMenu } from './cardContextMenu.js';
 
 /** Pointer callbacks an org card can fire (subset of RenderOptions). */
 export interface OrgCardHandlers {
@@ -72,14 +73,5 @@ export function bindOrgCardInteractions(
     e.stopPropagation();
   });
 
-  view.on('rightclick', (e) => {
-    e.stopPropagation();
-    e.preventDefault?.();
-    handlers.onOrgContextMenu?.(orgId, {
-      clientX: e.clientX,
-      clientY: e.clientY,
-      canvasX: e.global.x,
-      canvasY: e.global.y,
-    });
-  });
+  bindCardContextMenu(view, (pointer) => handlers.onOrgContextMenu?.(orgId, pointer));
 }

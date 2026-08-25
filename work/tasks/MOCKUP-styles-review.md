@@ -4,7 +4,7 @@
 **Branch:** `cursor/gojs-migration-tasks-babc`  
 **Demo tabs:** Orgs · Figma / Orgs · GoJS / Staff · Figma / Staff · Magnetic / Staff · Flood / Staff · GoJS  
 **Data:** civilian corporate names only (GH Pages safe)  
-**Contract tests:** `packages/demo/src/scenarios/mockupFigma.test.ts`
+**Contract tests:** `packages/demo/src/scenarios/mockups.test.ts`
 
 Tokens use hex for readability (`0x2a323c` → `#2a323c`).
 

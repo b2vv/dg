@@ -3,6 +3,7 @@ import { isDiagramData, mergePartial } from './data/mergeData.js';
 import type { DiagramMappers } from './mappers/types.js';
 import { configureContourWorker } from './contour/worker-bridge.js';
 import { PixiHost } from './render/PixiHost.js';
+import type { DiagramRenderer } from './render/DiagramRenderer.js';
 import { MediaService, type DiagramMediaFacade, type MediaPlaceholderRegistry } from './media/index.js';
 import {
   resolveThemedMediaFromOrganization,
@@ -242,7 +243,7 @@ export class OrgHierarchyDiagram {
       {
         prefetchThemeKeys: config.prefetchMediaThemeKeys,
         onInvalidateViews: async (urls) => {
-          await instance.host?.renderer.refreshMediaUrls(urls);
+          await instance.renderer?.refreshMediaUrls(urls);
         },
         resolveNodeUrls: (ref) => instance.resolveMediaUrlsForRef(ref),
       },
@@ -257,6 +258,11 @@ export class OrgHierarchyDiagram {
       throw new Error('OrgHierarchyDiagram: media service not initialized');
     }
     return this.mediaService;
+  }
+
+  /** The renderer of the mounted host, or null before mount / after destroy. */
+  private get renderer(): DiagramRenderer | null {
+    return this.host?.renderer ?? null;
   }
 
   private notifyPromoteSync(): void {
@@ -548,7 +554,7 @@ export class OrgHierarchyDiagram {
    * no box — it is collapsed away or not laid out yet.
    */
   private panToNode(nodeId: string, motion?: CameraMotionOptions): boolean {
-    const box = this.host?.renderer.getNodeBox(nodeId);
+    const box = this.renderer?.getNodeBox(nodeId);
     if (!box) return false;
     this.host?.panTo(box.x + box.width / 2, box.y + box.height / 2, motion);
     return true;
@@ -811,7 +817,7 @@ export class OrgHierarchyDiagram {
 
   /** Soft layout warnings from the last render (anchor overlap, skipped expands, …). */
   getLayoutDiagnostics(): readonly string[] {
-    return this.host?.renderer.getLayoutDiagnostics() ?? [];
+    return this.renderer?.getLayoutDiagnostics() ?? [];
   }
 
   /** Replace selection with one node (or clear). */
@@ -841,7 +847,7 @@ export class OrgHierarchyDiagram {
   /** T75 D1: selection chrome only — keeps nodeViews alive. */
   private repaintSelection(): void {
     if (!this.host || this.destroyed) return;
-    this.host.renderer.repaintSelection(this.selectionStore.list);
+    this.renderer?.repaintSelection(this.selectionStore.list);
     this.notifyPromoteSync();
   }
 
@@ -889,7 +895,7 @@ export class OrgHierarchyDiagram {
 
   /** DOM anchor candidates synced to rendered node bounds (T55). */
   listTestAnchors(): TestAnchorCandidate[] {
-    const boxes = this.host?.renderer.listNodeBoxes() ?? [];
+    const boxes = this.renderer?.listNodeBoxes() ?? [];
     const out: TestAnchorCandidate[] = [];
     const seen = new Set<string>();
     for (const box of boxes) {
@@ -956,7 +962,7 @@ export class OrgHierarchyDiagram {
    * When `ids` omitted, returns all remembered boxes that resolve to a node.
    */
   listPromoteCandidates(ids?: readonly string[]): PromoteCandidate[] {
-    const boxes = this.host?.renderer.listNodeBoxes() ?? [];
+    const boxes = this.renderer?.listNodeBoxes() ?? [];
     const wanted = ids ? new Set(ids) : null;
     const out: PromoteCandidate[] = [];
     const seen = new Set<string>();
@@ -978,7 +984,7 @@ export class OrgHierarchyDiagram {
 
   /** Hide Pixi views for promoted ids (HTML overlay owns the chrome). */
   setPromotedNodeIds(ids: readonly string[]): void {
-    this.host?.renderer.setPromotedNodeIds(ids);
+    this.renderer?.setPromotedNodeIds(ids);
   }
 
   setZoom(scale: number): void {

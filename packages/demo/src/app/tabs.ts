@@ -24,10 +24,14 @@ export interface DemoTabMeta {
   label: string;
   family?: 'figma' | 'gojs';
   contourControls?: boolean;
+  /** Scene is an org tree: «Collapse all» and org-card click apply. */
+  orgTree?: boolean;
+  /** Slider input rebuilds the scene (the others read the value on next load). */
+  reloadsOnContourSlider?: boolean;
 }
 
 export const TAB_META: Record<DemoTab, DemoTabMeta> = {
-  'variant-b': { label: 'Variant B', contourControls: true },
+  'variant-b': { label: 'Variant B', contourControls: true, reloadsOnContourSlider: true },
   'staff-tree': { label: 'Staff tree' },
   'mockup-orgs-figma': { label: 'Orgs · Figma', family: 'figma' },
   'mockup-orgs-gojs': { label: 'Orgs · GoJS', family: 'gojs' },
@@ -36,8 +40,8 @@ export const TAB_META: Record<DemoTab, DemoTabMeta> = {
   'mockup-staff-flood': { label: 'Staff · Flood', family: 'figma', contourControls: true },
   'mockup-staff-gojs': { label: 'Staff · GoJS', family: 'gojs', contourControls: true },
   'staff-1m': { label: 'Staff · 1M' },
-  'flat-orgs': { label: 'Flat orgs' },
-  'scale-100k': { label: '100k orgs' },
+  'flat-orgs': { label: 'Flat orgs', orgTree: true },
+  'scale-100k': { label: '100k orgs', orgTree: true },
   mapper: { label: 'Mapper' },
   worker: { label: 'Worker' },
 };
@@ -50,6 +54,11 @@ export function tabsInFamily(family: DemoTabMeta['family']): ReadonlySet<DemoTab
 
 export const FIGMA_MOCKUP_TABS = tabsInFamily('figma');
 export const GOJS_MOCKUP_TABS = tabsInFamily('gojs');
+/** Org-tree scenes — see {@link DemoTabMeta.orgTree}. */
+export const ORG_TREE_TABS: ReadonlySet<DemoTab> = new Set(
+  (Object.keys(TAB_META) as DemoTab[]).filter((tab) => TAB_META[tab].orgTree),
+);
+
 export const ALL_MOCKUP_TABS: ReadonlySet<DemoTab> = new Set([
   ...FIGMA_MOCKUP_TABS,
   ...GOJS_MOCKUP_TABS,
