@@ -24,4 +24,4 @@ Canvas лишає TS button-group / `buildPaintRingsByDept` (AABB + polish).
 
 - [x] Зафіксоване рішення B у цьому файлі.
 - [x] Немає «compute then ignore» у `DiagramRenderer`.
-- [ ] SPEC/status узгоджені з тим, що реально на екрані (follow-up docs).
+- [x] SPEC/status узгоджені: `T79` описує G2/M2 на paint-шляху, `T80` — другий рушій `cell-flood` і межі рішення B, `MOCKUP-styles-review` — що саме малює кожен таб.

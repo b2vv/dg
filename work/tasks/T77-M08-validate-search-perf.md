@@ -6,6 +6,6 @@
 
 ## Acceptance
 
-- [ ] `byId` будується один раз на validate (TS + Rust).
-- [ ] Search: early `[]` коли char відсутній у індексі; не сортувати всі hits перед `limit` (top-k / heap).
-- [ ] Bench або тест на 4k orgs без секундного validate.
+- [x] `byId` будується один раз на виклик `validateOrgHierarchy`; tri-color DFS із `done` дає O(n).
+- [x] Search: `candidatesFor` повертає `null` (→ `[]`), коли біграма/символ відсутні; top-k через `TopKCollector`, повного сортування немає.
+- [x] `layout/orgTreeValidatePerf.test.ts` — 20k ланцюгом і 20k сиблінгами < 500 ms, цикл у глибині все одно ловиться.

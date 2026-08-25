@@ -11,7 +11,7 @@
 
 ## Acceptance
 
-- [ ] pointerdown зберігає grab offset; move = pointer − offset.
-- [ ] `moved` лише якщо delta pointer (або node) > порогу **до** центрування.
-- [ ] Snap використовує той самий pitch/origin, що staff layout (`contourWorld` / staff geom).
-- [ ] Unit: click-without-move не викликає `onPersonDragEnd`; snap col/row стабільні на pitch≠cell.
+- [x] pointerdown зберігає `grabOffsetX/Y`; move рахує `local − offset`.
+- [x] `moved` лише коли зсув ноди > 4 px від origin.
+- [x] Snap іде через `drag.snapGrid` / `dragGrid` (pitch + origin + inset), не через `cellWidth`.
+- [x] Unit: `render/personDrag.contract.test.ts` — клік без руху не дає drop і повертає ноду в origin; `snapWorldToCell` тримає col/row на pitch≠cell і збивається, якщо підставити cell замість pitch.

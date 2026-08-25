@@ -10,5 +10,5 @@
 
 ## Acceptance
 
-- [ ] Expand child org зберігає sibling/ancestor гілки (або явне documented single-root mode).
-- [ ] Regression test на multi-org tree expand.
+- [x] Expand дитини зберігає гілки — `revealOrgPath` розкриває шлях від кореня, `T78-L3` тримає collapse-семантику.
+- [x] Regression: `layout/flatOrgRootExpand.test.ts` + `e2e/flat-orgs.spec.ts`.

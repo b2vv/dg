@@ -10,6 +10,6 @@
 
 ## Acceptance
 
-- [ ] Після кожного `await` у `init` — check `destroyed`; teardown якщо так.
-- [ ] Повторний `destroy()` ідемпотентний (вже є).
-- [ ] Test: destroy mid-init не лишає живий `Application`.
+- [x] Після кожного `await` у `create` — `if (host.destroyed) throw 'PixiHost destroyed during create'` з teardown.
+- [x] Повторний `destroy()` ідемпотентний.
+- [x] Test: `PixiHost.test.ts` — «abort during Application.init rejects and leaves no canvas».

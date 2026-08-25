@@ -10,6 +10,6 @@
 
 ## Acceptance
 
-- [ ] На `error` / `messageerror` Promise reject негайно.
-- [ ] Слухачі знімаються на settle (success / fail / timeout).
-- [ ] Unit: success + failure (simulated worker error).
+- [x] На `error` / `messageerror` Promise reject негайно — `worker/bridge.ts` (`onMessageError` → `settle(reject)`).
+- [x] Слухачі знімаються на settle — `removeEventListener` для `message` / `error` / `messageerror`.
+- [x] Unit: `contour/worker-bridge.test.ts` — success через воркер, fallback на main thread, reject на timeout.

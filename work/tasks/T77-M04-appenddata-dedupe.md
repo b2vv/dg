@@ -10,6 +10,6 @@
 
 ## Acceptance
 
-- [ ] Merge by id (patch wins) для orgs/persons/positions/depts/groups/reportLines/orgLinks.
-- [ ] Повторний той самий chunk — no-throw, діаграма жива.
-- [ ] Unit: success (dedupe) + failure (invalid mapper лишається).
+- [x] Merge by id (patch wins) — `mergePartial` / `mergeById` в `index.ts`.
+- [x] Повторний chunk — no-throw.
+- [x] Unit: `OrgHierarchyDiagram.interactions.test.ts` — «appendData dedupes by id on repeat chunk (A6)» + append без мапера кидає.

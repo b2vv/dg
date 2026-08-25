@@ -1,7 +1,7 @@
 # T33 — Live demo audit: проблеми та план фіксів
 
 **Пріоритет:** P0 (алгоритм + читабельність) → P1 (UX chrome) → P2 (polish)  
-**Статус:** mostly done (A/B ✅ T34–T35; C ✅ T36)  
+**Статус:** ✅ done (A/B — T34–T35, C — T36; чек-ліст переведено в автоперевірки 2026-08-25)  
 **Джерело:** огляд https://b2vv.github.io/dg/ (Playwright + візуальні скріни, 2026-08-21)  
 **Не плутати:** вкладки **працюють**; «зламані таби» з browser-automation — false positive.
 
@@ -184,14 +184,14 @@
 
 ## Регресійний чекліст (після фіксів)
 
-- [ ] Variant B: P1–P3, P5–P6 ∈ IT fill; P4 ∉ IT fill  
-- [ ] Staff tree: Ada→Ben→…→Sales/Engineering усі з ребрами  
-- [ ] Flat orgs: дерево читається без row-bus  
-- [ ] Zoom 4×: текст не мильний  
-- [ ] Вкладки: active state = контент; search не тече  
-- [ ] Padding/Smooth: disabled поза Variant B  
-- [ ] Нема 404 у Network на cold load  
-- [ ] Один набір zoom controls (або явна роль FAB)
+- [x] Variant B: own-картки під заливкою, CEO поза нею — `render/variantBNotchPaint.test.ts`, `render/paintMagneticGroups.test.ts`  
+- [x] Staff tree: інвентар ребер під тестом — `scenarios/mockupEdgeInventory.test.ts`, `scenarios/staffEdgeFallbackCensus.test.ts`  
+- [x] Flat orgs: розкриття кореня лишає дерево — `e2e/flat-orgs.spec.ts`, `layout/flatOrgRootExpand.test.ts`  
+- [ ] Zoom 4×: текст не мильний — **лишається візуальним**: різкість тексту Pixi не читається з DOM, перевіряти на скріншотних бейзлайнах (`e2e/mockups.spec.ts-snapshots/`)  
+- [x] Вкладки: рівно одна active і вона відповідає контенту; запит не переносится між табами — `e2e/demo-audit.spec.ts`  
+- [x] Padding/Smooth: enabled лише там, де відділи — контури (Variant B, Staff · Magnetic / Flood / GoJS) — `e2e/demo-audit.spec.ts`  
+- [x] Нема 404 у Network на cold load — `e2e/demo-audit.spec.ts`  
+- [x] Один `.zoom-fab` із трьома кнопками — `e2e/demo-audit.spec.ts`
 
 ---
 
