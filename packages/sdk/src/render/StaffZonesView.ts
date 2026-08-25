@@ -3,7 +3,7 @@ import type { StaffTierBand } from '../layout/staff/types.js';
 import type { StaffZoneStyle } from './types.js';
 import { worldBoundsForTier, type WorldRect } from './staffZoneBounds.js';
 import type { StaffNodeBox, StaffOrgCard } from '../layout/staff/types.js';
-import { paintDashedFrame } from './DepartmentCardView.js';
+import { paintDashedFrame } from './dashedStroke.js';
 
 export interface StaffZonePaintInput {
   tiers: readonly StaffTierBand[];

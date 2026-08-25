@@ -32,7 +32,8 @@ import {
   type SelectionPointerMods,
 } from '../interaction/selection.js';
 import type { NodeRef } from '../interaction/types.js';
-import { DepartmentCardView, paintDashedFrame } from './DepartmentCardView.js';
+import { DepartmentCardView } from './DepartmentCardView.js';
+import { paintDashedFrame } from './dashedStroke.js';
 import { StaffZonesView } from './StaffZonesView.js';
 import { enrichStaffTierBands, unionBoxes } from './staffZoneBounds.js';
 import { OrgEdgesView } from './OrgEdgesView.js';

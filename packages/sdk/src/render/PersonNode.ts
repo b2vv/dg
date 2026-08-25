@@ -33,6 +33,7 @@ import {
   type ResolvedPersonLayout,
 } from './personLayout.js';
 import { personVisualLocalRect } from './personVisualGeometry.js';
+import { roundedRectRing, strokeDashedRing } from './dashedStroke.js';
 
 /** Prefer ThemedMedia, then legacy photoUrl (T74). */
 export function resolvePersonPhotoUrl(person: DiagramPerson | undefined): string | undefined {
@@ -391,7 +392,7 @@ export class PersonNodeView extends Container {
       }
     }
     if (detached) {
-      this.strokeDashedRoundRect(0, cardY, width, cardH, borderRadius, stroke, style.borderWidth);
+      this.strokeDashedRoundRect(0, cardY, width, cardH, stroke, style.borderWidth);
     }
 
     if (lod === 'near' && layout === 'gojs-row') {
@@ -428,46 +429,22 @@ export class PersonNodeView extends Container {
   }
 
   /** Detached seat — [5,3] dashed overlay on card border. */
+  /**
+   * Vacant seats get a dashed border. Square corners on purpose — the dashes
+   * are inset by half the stroke so they sit inside the card bounds, and the
+   * card's own radius is drawn by the fill underneath.
+   */
   private strokeDashedRoundRect(
     x: number,
     y: number,
     w: number,
     h: number,
-    _r: number,
     color: number,
     lineWidth: number,
   ): void {
-    const dash = 5;
-    const gap = 3;
     const inset = lineWidth / 2;
-    const left = x + inset;
-    const top = y + inset;
-    const right = x + w - inset;
-    const bottom = y + h - inset;
-    const edges: Array<[number, number, number, number]> = [
-      [left, top, right, top],
-      [right, top, right, bottom],
-      [right, bottom, left, bottom],
-      [left, bottom, left, top],
-    ];
-    for (const [x0, y0, x1, y1] of edges) {
-      const dx = x1 - x0;
-      const dy = y1 - y0;
-      const len = Math.hypot(dx, dy) || 1;
-      const ux = dx / len;
-      const uy = dy / len;
-      let t = 0;
-      let draw = true;
-      while (t < len) {
-        const seg = Math.min(draw ? dash : gap, len - t);
-        if (draw) {
-          this.card.moveTo(x0 + ux * t, y0 + uy * t);
-          this.card.lineTo(x0 + ux * (t + seg), y0 + uy * (t + seg));
-        }
-        t += seg;
-        draw = !draw;
-      }
-    }
+    const rect = { x: x + inset, y: y + inset, width: w - lineWidth, height: h - lineWidth };
+    strokeDashedRing(this.card, roundedRectRing(rect, 0), 5, 3);
     this.card.stroke({ color, width: lineWidth });
   }
 

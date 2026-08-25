@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { drawEdgeEndDots, traceRoundedPolyline } from './staffEdgeArrows.js';
-import { roundedRectRing } from './DepartmentCardView.js';
+import { roundedRectRing } from './dashedStroke.js';
 import { routerObstacle } from './staffEdgeGeometry.js';
 import { estimateTextWidth } from './orgCardChrome.js';
 
