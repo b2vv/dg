@@ -20,9 +20,8 @@
 | `computeFloodContours` | `render/contour/floodContourEngine.ts` | сам flood, поблочно по org, з мапінгом кілець на бокси карток |
 | `contourSceneInputs` | `render/contour/contourInputs.ts` | входи + `memberBoxesByDept`; **вже викликається в обох гілках** svgExport |
 | `resolveContourWorldTransform` | `render/contour/contourWorldTransform.ts` | pitch/origin для cell-space → world |
-| `contourButtonGroupMargin` | `render/contour/contourButtonGroup.ts` | padding кілець; уже імпортований у svgExport |
-| `ExportOptions.onDiagnostic` | `export/types.ts` | канал повідомлень; доданий у попередній сесії |
-| `DEFAULT_STAFF_LAYOUT_OPTIONS` | `layout/staff/types.ts` | pitch = refCell + gap, як у рендерері |
+| `ExportOptions.onDiagnostic` | `export/types.ts` | канал повідомлень назовні; всередину його ще треба прокинути (крок 1) |
+| `corridorCellsForFlood`, `contourButtonGroupMargin` | `render/contour/` | склад `magnet` і `cards` — беруться дослівно як у `ContourPainter` |
 
 **Нове (мінімум):**
 
@@ -36,45 +35,67 @@
 
 ## Кроки
 
-1. **`resolveExportContourRings`** (staff-гілка): при `contourEngine==='cell-flood'` побудувати
-   `transform` через `resolveContourWorldTransform(canvas.positionNodes, positionById, cellW, cellH, pitchX, pitchY)`
-   і викликати `computeFloodContours`; діагностики з нього — назовні. Інакше — теперішній
-   `paintMagneticGroups`.
-2. **Grid-гілка**: при `'cell-flood'` лишити `paintMagneticGroups` і додати діагностику
-   «flood недоступний для сітки — так само й на канвасі» (дзеркалимо канвас, рішення GATE 1 №3).
-3. **`exportDiagram`**: `reportSvgEngineMismatch` більше не спрацьовує від самого факту
-   `cell-flood`; повідомляються **реальні** причини заміни, які повернув крок 1/2.
-4. **Порожній результат flood** (WASM впав, кілець нема) → fallback на `paintMagneticGroups`
-   + діагностика з причиною. Експорт не падає ніколи.
+1. **Канал діагностик наскрізь** (передумова кроків 2–3, без неї їм нізвідки брати дані):
+   `SvgExportInput` отримує `onDiagnostic?: (m: string) => void`, `buildDiagramSvg` кличе його,
+   `exportDiagram` прокидає туди `options.onDiagnostic`. Сьогодні `buildDiagramSvg` повертає лише
+   `Promise<string>` — каналу немає взагалі.
+2. **`resolveExportContourRings`** — одна функція, яка інкапсулює **і вибір рушія, і виклик
+   малювальника, і фолбек**, і яку кличуть обидві контурні гілки; вона ж поглинає ~30 рядків,
+   що зараз дубльовані між staff і grid (`personCounts`, `deptIds`, виклик painter'а, збірка `d`).
+   Входи flood беруться **дослівно як у `ContourPainter.paint`**, інакше геометрія розійдеться
+   з екраном навіть при успішному flood:
+   - `magnet`: `paddingCells: 0`, `corridorCells: corridorCellsForFlood(config.corridorCells ?? DEFAULT_CORRIDOR_CELLS)`,
+     `smoothIterations: 0`, `magnetRadius: resolveMagnetRadius(config.magnetRadius)`, `cellWidth/Height` з `config`;
+   - `transform`: `resolveContourWorldTransform(canvas.positionNodes, positionById, config.cellWidth, config.cellHeight, pitchX, pitchY)`,
+     де `pitchX = staffMerged.refCellWidth + staffMerged.horizontalGap` (і аналогічно Y) — **зі
+     `staffMerged`, а не з `DEFAULT_STAFF_LAYOUT_OPTIONS`**, інакше кастомні gap'и хоста ламають збіг;
+   - `cards`: `cardWidth/Height` — ті самі `staffMerged.nodeWidth/nodeHeight`, що годують
+     `layoutStaffCanvas` (а **не** `PERSON_CARD_WIDTH` із grid-гілки), `insetX/Y = (config.cellWidth − cardWidth)/2`,
+     `padding = contourButtonGroupMargin(config.paddingCells ?? 0, DEPT_STROKE_W)`;
+   - `orgByPosition`, `memberBoxes`, `personCounts`, `minContourMembers` — з уже наявних у гілці значень.
+3. **Grid-гілка**: `resolveExportContourRings` для неї завжди повертає button-group і один рядок
+   діагностики «flood недоступний для сітки — так само й на канвасі» (GATE 1 №3).
+4. **`exportDiagram`**: `reportSvgEngineMismatch` більше не спрацьовує від самого факту
+   `cell-flood`; назовні йдуть **реальні** причини, які повернули кроки 2–3.
 5. **Документи**: `docs/USAGE.md` §6/§10 — прибрати «SVG завжди button-group», описати поведінку
    й деградацію; `T80` — розділ «Експорт бачить лише button-group» переписати на фактичний стан;
    `work/CTO-RESEARCH.md` — ризик №1 закрити.
 6. **Версія + CHANGELOG** (рішення GATE 1 №4).
 
+### Семантика часткової відмови (BLOCKING від лінзи edge cases)
+
+`computeFloodContours` ловить помилку **всередині** циклу по org-блоках, тож можливий стан
+«кільця для блоку 1 є, блок 2 впав». Канвас у цьому разі малює те, що встигло, і **не підставляє**
+button-group для блоку, що впав. Тому:
+
+- **SVG дзеркалить канвас**: скільки блоків дав flood — стільки й у файлі; блок, що впав, лишається
+  без контуру; причина йде в `onDiagnostic`.
+- **Фолбек на button-group** спрацьовує лише коли flood не дав **нічого** і при цьому діагностики
+  непорожні. Порожні кільця з **порожніми** діагностиками — це легітимний B3
+  (`minContourMembers` відсік усе), і там заміни рушія немає й повідомлення теж.
+- ⚠️ Пункт чекає підтвердження продукту: він переписує F1 і F4 (див. нижче).
+
 ## Сайд-ефекти
 
-- **Швидкість SVG-експорту** для `cell-flood`: додається WASM-прохід на кожен org-блок. Для сцен
-  масштабу демо це десятки мс; для 1M-вікна не міряно — і **не міряно взагалі ніде**, тому в
-  ризиках нижче це названо, а не приховано.
+- **Швидкість SVG-експорту** для `cell-flood`: додається WASM-прохід на кожен org-блок. Скільки
+  це коштує — **не міряно** (ні тут, ні деінде: перф SDK не виміряний узагалі), тож числа не наводжу.
 - **PNG/PDF** не зачіпаються (фреймбуфер).
 - **`print()`** іде через ту саму гілку → отримує flood автоматично; окремих змін не треба.
-- **Тести**, що асертять поточний SVG на дефолтному рушії, мають лишитись зеленими **без правок** —
-  це і є перевірка A2.
+- **A2 перевіряє фікстура H2, знята ДО зміни коду.** Наявні тести асертять підрядки
+  (`contains path d=`), а не побайтову рівність, тож їхня зеленість A2 **не доводить**; знята після
+  рефакторингу фікстура була б циркулярною.
 
 ## План міграції
 
-Споживачів поки нема (git-залежність, хост ще не підключений), тож міграція — документальна:
-
-1. `CHANGELOG.md` фіксує зміну поведінки `export({format:'svg'})` при `contourEngine:'cell-flood'`.
-2. `docs/USAGE.md` втрачає застереження; натомість зʼявляється рядок про деградацію.
-3. Хостам на дефолтному рушії робити **нічого** — вихід побайтово той самий (A2).
+Споживачів немає (git-залежність, хост ще не підключений), тож міграція — це кроки 5–6:
+`CHANGELOG.md` фіксує зміну поведінки, `docs/USAGE.md` втрачає застереження. Хостам на дефолтному
+рушії робити нічого — вихід не змінюється (A2/H2).
 
 ## Rollback
 
-Одна точка відкату: `resolveExportContourRings` завжди повертає button-group. Технічно —
-revert коміту кроку 1, або конфіг: діаграма з `contourEngine:'button-group'` поводиться як
-раніше. Незворотного немає: файли на диску в користувача — його, ми не мігруємо дані й не
-чіпаємо формат.
+Одна точка відкату: `resolveExportContourRings` завжди повертає button-group — або revert коміту,
+або `contourEngine:'button-group'` у конфізі хоста. Незворотного немає: даних не мігруємо, формат
+файлу не чіпаємо.
 
 ## Конституція (`.claude/standards.md` §Конституція)
 
@@ -93,20 +114,23 @@ revert коміту кроку 1, або конфіг: діаграма з `cont
 
 | # | Сценарій | Передумова | Дія користувача | Очікуваний спостережуваний результат | Чим перевіряється |
 |---|---|---|---|---|---|
-| **H1** | Flood доїжджає до SVG | staff-сцена, `contourEngine:'cell-flood'` | `export({format:'svg'})` | у SVG рівно стільки `<path data-dept>`, скільки кілець дав би `computeFloodContours` для цієї ж сцени, і кожен `d` збігається з ними з точністю до 0.5 px | unit `packages/sdk/src/export/export.test.ts` |
+| **H1** | Flood доїжджає до SVG | staff-сцена, `contourEngine:'cell-flood'` | `export({format:'svg'})` | у SVG рівно стільки `<path data-dept>`, скільки кілець дав `computeFloodContours` для цієї ж сцени, і кожен `d` побудований саме з них (точна рівність) | unit `packages/sdk/src/export/export.test.ts` |
 | **H2** | Дефолт не змінився | та сама сцена, `contourEngine` не задано | `export({format:'svg'})` | рядок SVG **побайтово** дорівнює тому, що функція повертала до зміни (зафіксований у тесті) | unit `export.test.ts` |
 | **H3** | Кнопка в демо | таб «Staff · Flood», `?e2e=1` | клік `#export-svg` | завантажений файл містить `<path data-dept` у кількості > 0, і статус показує `export` | e2e `e2e/integration-paths.spec.ts` |
-| **H4** | Друк іде тим самим шляхом | staff-сцена, `cell-flood` | `print()` | у переданому в друк SVG ті самі `data-dept`-шляхи, що й у `export({format:'svg'})` | unit `export.test.ts` |
 | **B1** | Сцена без відділів | посади без `departmentId` | `export({format:'svg'})` | у SVG є `<g id="departments">` без жодного `<path data-dept>`; помилки немає | unit `export.test.ts` |
 | **B2** | Один відділ, одна посада | 1 посада з `gridCell`, `minContourMembers:1`, `cell-flood` | `export({format:'svg'})` | рівно один `<path data-dept="…">` | unit `export.test.ts` |
 | **B3** | `minContourMembers` відсікає | 1 посада у відділі, `minContourMembers:2`, `cell-flood` | `export({format:'svg'})` | жодного `<path data-dept>`; діагностики про заміну рушія **немає** (це не відмова, а налаштування) | unit `export.test.ts` |
 | **B4** | Піддерево | `scope:'subtree'`, корінь із 1 з 3 відділів, `cell-flood` | `export({format:'svg', scope:'subtree', subtreeRootId})` | `data-dept` присутні **лише** для відділів піддерева | unit `export.test.ts` |
-| **F1** | WASM недоступний | `cell-flood`, flood-лоадер кидає | `export({format:'svg'})` | SVG усе одно повертається і містить button-group-шляхи; `onDiagnostic` отримав рівно одне повідомлення, у якому названо причину заміни | unit `export.test.ts` |
+| **F1** | WASM недоступний | `cell-flood`, flood-лоадер кидає для **всіх** блоків | `export({format:'svg'})` | SVG повертається; шар відділів порожній **або** button-group — за рішенням продукту нижче; `onDiagnostic` отримав рівно одне повідомлення з причиною | unit `export.test.ts` |
+| **F5** | Частковий flood | 2 org-блоки, другий кидає | `export({format:'svg'})` | у SVG є контури **лише** першого блоку — рівно як на канвасі; `onDiagnostic` назвав блок, що впав | unit `export.test.ts` |
 | **F2** | Сітка без staff-фокуса | сцена лише з `gridCell`, без `staffCurrentOrgId`, `cell-flood` | `export({format:'svg'})` | button-group-шляхи + одне повідомлення, що flood недоступний для сітки так само, як на канвасі | unit `export.test.ts` |
 | **F3** | Зайвих попереджень немає | дефолтний рушій | `export({format:'svg'})` | `onDiagnostic` не викликано жодного разу | unit `export.test.ts` |
-| **F4** | Порожній результат flood | `cell-flood`, flood повернув 0 кілець при ≥1 очікуваному відділі | `export({format:'svg'})` | button-group-шляхи + повідомлення з причиною; порожнього шару відділів **не** буває мовчки | unit `export.test.ts` |
+| **F4** | Порожній результат flood | `cell-flood`, 0 кілець **і** непорожні діагностики | `export({format:'svg'})` | шар відділів порожній або button-group (те саме рішення, що й F1) + повідомлення з причиною; мовчки порожньо не буває | unit `export.test.ts` |
+| **B5** | Піддерево без посад | `scope:'subtree'`, корінь без штату | `export({format:'svg', scope:'subtree'})` | малюється org-hierarchy-гілка; шару відділів немає, `contourEngine` не застосовується, `onDiagnostic` мовчить (це інша гілка рендера, а не відмова рушія) | unit `export.test.ts` |
 | **M1** | Око: SVG проти екрана | таб «Staff · Flood» | експортувати SVG і відкрити поруч із канвасом | контури в файлі повторюють контури на екрані (та сама C-подібна форма навколо чужої картки) | **вручну** — 1 ручний рядок |
 
-**Ручних рядків: 1** (M1). Решта 12 — автоматичні: 11 unit + 1 e2e.
+**Ручних рядків: 1** (M1). Решта 13 — автоматичні: 12 unit + 1 e2e. H4 (друк) прибрано як
+тавтологію: `print()` буквально викликає `export({format:'svg'})`, тож рядок не міг би впасти
+незалежно від H1.
 
 Кожен таск нижче посилається на номери рядків, які він закриває.
