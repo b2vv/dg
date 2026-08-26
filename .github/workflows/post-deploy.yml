@@ -12,9 +12,8 @@ on:
   workflow_dispatch:
     inputs:
       url:
-        description: 'Deployment to smoke (defaults to GitHub Pages)'
+        description: 'Deployment to smoke (empty → default from playwright.prod.config.ts)'
         required: false
-        default: 'https://b2vv.github.io/dg/'
 
 permissions:
   contents: read
@@ -41,7 +40,9 @@ jobs:
 
       - name: Smoke the deployed demo
         env:
-          PROD_URL: ${{ github.event.inputs.url || 'https://b2vv.github.io/dg/' }}
+          # Порожнє значення лишає дефолт конфігу — щоб адреса Pages жила
+          # в одному місці, а не в трьох.
+          PROD_URL: ${{ github.event.inputs.url }}
         run: npm run test:prod
 
       - name: Upload trace on failure

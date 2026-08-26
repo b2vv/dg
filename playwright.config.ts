@@ -2,6 +2,10 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
+  // Prod-smoke ходить у живий деплой і має власний конфіг (`test:prod`).
+  // Без цього рядка він біг і тут — проти локального preview, тобто перевіряв
+  // не те, заради чого писався, і дублював локальну сюїту.
+  testIgnore: '**/prod-smoke.spec.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

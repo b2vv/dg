@@ -13,35 +13,42 @@ permissions:
   contents: read
   pull-requests: write
   issues: write
-  id-token: write
 
 concurrency:
   group: ai-review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
+  # `secrets` is unavailable in a job-level `if`, so the check lives here and is
+  # published as an output. Gating the review jobs on it makes them **skipped**
+  # when the key is missing — a per-step check would leave them green, and a
+  # green «review passed» that reviewed nothing is worse than no check at all.
+  preflight:
+    name: API key present?
+    runs-on: ubuntu-latest
+    outputs:
+      has_key: ${{ steps.check.outputs.has_key }}
+    steps:
+      - id: check
+        env:
+          HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' && 'true' || 'false' }}
+        run: |
+          echo "has_key=$HAS_KEY" >> "$GITHUB_OUTPUT"
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "::notice title=AI review skipped::ANTHROPIC_API_KEY is not set in repo secrets. Add it with: gh secret set ANTHROPIC_API_KEY"
+          fi
+
   standards:
     name: Pass 1 — standards
     runs-on: ubuntu-latest
-    # `secrets` is not available in a job-level `if`, so it is mapped to env
-    # here and checked per step. Without the key the job reports what is
-    # missing instead of failing the PR.
-    env:
-      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' && 'true' || 'false' }}
+    needs: preflight
+    if: needs.preflight.outputs.has_key == 'true'
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: No API key — say so and stop
-        if: env.HAS_KEY != 'true'
-        run: |
-          echo "::notice title=AI review skipped::ANTHROPIC_API_KEY is not set in repo secrets."
-          echo "Add it with: gh secret set ANTHROPIC_API_KEY"
-          echo "Until then this workflow reports skipped rather than passing silently."
-
       - uses: anthropics/claude-code-action@v1
-        if: env.HAS_KEY == 'true'
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
@@ -89,19 +96,14 @@ jobs:
   spec-and-edges:
     name: Pass 2 — spec, edges, safety
     runs-on: ubuntu-latest
-    env:
-      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' && 'true' || 'false' }}
+    needs: preflight
+    if: needs.preflight.outputs.has_key == 'true'
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: No API key — say so and stop
-        if: env.HAS_KEY != 'true'
-        run: echo "::notice title=AI review skipped::ANTHROPIC_API_KEY is not set in repo secrets."
-
       - uses: anthropics/claude-code-action@v1
-        if: env.HAS_KEY == 'true'
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
