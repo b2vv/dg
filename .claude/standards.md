@@ -129,8 +129,10 @@ CI (`.github/workflows/ci.yml`) — три job: `rust` (cargo test), `sdk` (buil
 ⚠️ **Архітектурний факт (оновлено 2026-08-26):** контур має **два рушії** за
 `RenderConfig.contourEngine`. Default `'button-group'` — TS (`render/contour/paintMagneticGroups.ts`
 + виїмки G2/M2). `'cell-flood'` — Rust flood із `contour.rs`, поблочно на org
-(`render/contour/floodContourEngine.ts`). **SVG-експорт завжди button-group** і про розходження
-повідомляє через `ExportOptions.onDiagnostic`; PNG/PDF беруться з фреймбуфера й вірні завжди.
+(`render/contour/floodContourEngine.ts`). **Експорт малює тим самим рушієм, що й канвас**
+(2026-08-26, гілка `cursor/flood-export-svg`): SVG рахує flood тими самими входами, PNG/PDF
+беруться з фреймбуфера. Коли flood не може відпрацювати — шар відділів порожній, як на екрані,
+а причина йде в `ExportOptions.onDiagnostic`.
 Плануючи «поправити контур», спершу з'ясуй, у якому з рушіїв і чи не треба правити обидва
 (`work/CTO-RESEARCH.md`; [T80](../work/tasks/T80-contour-engines-ba-demo.md)).
 

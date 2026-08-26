@@ -161,7 +161,7 @@ button-group для блоку, що впав. Тому:
 | **B3** | `minContourMembers` відсікає | 1 посада у відділі, `minContourMembers:2`, `cell-flood` | `export({format:'svg'})` | жодного `<path data-dept>`; діагностики про заміну рушія **немає** (це не відмова, а налаштування) | unit `export.test.ts` |
 | **B4** | Піддерево | `scope:'subtree'`, корінь із 1 з 3 відділів, `cell-flood` | `export({format:'svg', scope:'subtree', subtreeRootId})` | `data-dept` присутні **лише** для відділів піддерева | unit `export.test.ts` |
 | **F1** | WASM недоступний | `cell-flood`, flood-лоадер кидає для **всіх** блоків | `export({format:'svg'})` | SVG повертається; `<g id="departments">` є, але **жодного** `<path data-dept>`; `onDiagnostic` отримав рівно одне повідомлення з причиною | unit `export.test.ts` |
-| **F5** | Частковий flood | 2 org-блоки, другий кидає | `export({format:'svg'})` | у SVG є контури **лише** першого блоку — рівно як на канвасі; `onDiagnostic` назвав блок, що впав | unit `export.test.ts` |
+| **F5** | Частковий flood | 2 org-блоки, другий кидає | `export({format:'svg'})` | у SVG лишаються контури блоків, що встигли; блоки **після** невдалого не рахуються (як і на канвасі — це та сама функція); `onDiagnostic` називає org-блок і причину | unit `export.test.ts` |
 | **F2** | Сітка без staff-фокуса | сцена лише з `gridCell`, без `staffCurrentOrgId`, `cell-flood` | `export({format:'svg'})` | жодного `<path data-dept>` + одне повідомлення, що flood недоступний для сітки так само, як на канвасі | unit `export.test.ts` |
 | **F3** | Зайвих попереджень немає | дефолтний рушій | `export({format:'svg'})` | `onDiagnostic` не викликано жодного разу | unit `export.test.ts` |
 | **F4** | Порожній результат flood | `cell-flood`, 0 кілець **і** непорожні діагностики | `export({format:'svg'})` | шар відділів порожній + повідомлення з причиною; мовчки порожньо не буває | unit `export.test.ts` |
@@ -171,6 +171,13 @@ button-group для блоку, що впав. Тому:
 **Ручних рядків: 1** (M1). Решта 13 — автоматичні: 12 unit + 1 e2e. H4 (друк) прибрано як
 тавтологію: `print()` буквально викликає `export({format:'svg'})`, тож рядок не міг би впасти
 незалежно від H1.
+
+> **Виправлено після рев'ю (2026-08-26).** Spec-вісь показала, що цей підрахунок був брехнею:
+> F5 не мав тесту взагалі, хоча рахувався серед автоматичних, а діагностика не називала блок,
+> як вимагає рядок. Тест написано (`partial flood keeps what worked`), діагностику виправлено
+> (`floodContourEngine.ts` тепер друкує org-блок і причину). Пастка в самому тесті: міст кличе
+> `computeAllContours` (camelCase) — підміна `compute_all_contours` мовчки не спрацьовувала, і
+> тест «проходив», нічого не перевіряючи; спіймано перевіркою `expect(calls).toBeGreaterThan(1)`.
 
 Кожен таск нижче посилається на номери рядків, які він закриває.
 

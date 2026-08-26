@@ -321,13 +321,89 @@ describe('SVG degrades honestly when the flood cannot run (T5 / F1, F4)', () => 
   });
 });
 
+describe('partial flood keeps what worked (T6 / F5)', () => {
+  afterEach(() => {
+    resetContourWasmForTests();
+    setContourWasmLoaderForTests(null);
+  });
+
+  /**
+   * Дві org з розкладеними посадами: керівна (ярус 1) і поточна (ярус 2) — саме так
+   * на канвасі виникає більш ніж один org-блок, а `gridCell` у кожного свій.
+   */
+  function twoOrgs() {
+    const base = variantB();
+    return {
+      ...base,
+      organizations: [
+        { id: 'hq', name: 'Managing', groupIds: [] },
+        { id: 'org1', name: 'Current', groupIds: [], parentOrgId: 'hq' },
+      ],
+      persons: [...base.persons, { id: 'hq-person', fullName: 'Hq Head' }],
+      positions: [
+        ...base.positions,
+        {
+          id: 'hq-head',
+          title: 'Managing head',
+          organizationId: 'hq',
+          departmentId: 'CEO',
+          groupIds: [],
+          personId: 'hq-person',
+          status: 'filled' as const,
+          isTemporary: false,
+          isHead: true,
+          gridCell: { col: 0, row: 0 },
+        },
+      ],
+    };
+  }
+
+  it('failure: the second org block throws — the first keeps its rings and the block is named', async () => {
+    const real = await import('../wasm/pkg/org_hierarchy_core.js');
+    let calls = 0;
+    resetContourWasmForTests();
+    setContourWasmLoaderForTests(async () => ({
+      ...(real as unknown as Record<string, unknown>),
+      // Міст кличе саме `computeAllContours` (camelCase) — підміна snake_case
+      // мовчки не спрацювала б, і тест «проходив» би, нічого не перевіряючи.
+      computeAllContours: (...args: unknown[]) => {
+        calls += 1;
+        if (calls > 1) throw new Error('block boom');
+        return (real as unknown as { computeAllContours: (...a: unknown[]) => unknown })
+          .computeAllContours(...args);
+      },
+    }) as never);
+
+    const said: string[] = [];
+    const svg = await buildDiagramSvg({
+      data: twoOrgs(),
+      currentOrgId: 'org1',
+      config: { contourEngine: 'cell-flood', minContourMembers: 1 },
+      onDiagnostic: (m) => said.push(m),
+    });
+
+    // Сцена мусить дати більш ніж один org-блок, інакше тест нічого не перевіряє.
+    expect(calls).toBeGreaterThan(1);
+    // Те, що встигло, лишилось на місці — так само, як на канвасі.
+    expect([...svg.matchAll(/data-dept="/g)].length).toBeGreaterThan(0);
+    // І сказано, ЯКИЙ блок впав: «контур зник» без адреси — не діагностика.
+    expect(said).toHaveLength(1);
+    expect(said[0]).toMatch(/org block/i);
+    expect(said[0]).toMatch(/block boom/);
+  });
+});
+
 describe('boundaries of the export contour layer (T6 / B1–B5)', () => {
   const deptCount = (svg: string) => [...svg.matchAll(/data-dept="/g)].length;
   const floodCfg = { contourEngine: 'cell-flood' as const, minContourMembers: 1 };
 
   it('B1 — a scene whose seats have no department paints an empty layer, no error', async () => {
-    const data = variantB();
-    for (const p of data.positions) delete (p as { departmentId?: string }).departmentId;
+    const base = variantB();
+    // Без `as`: будуємо посади без відділу, а не зрізаємо поле з готових.
+    const data = {
+      ...base,
+      positions: base.positions.map(({ departmentId: _dropped, ...rest }) => rest),
+    };
 
     const said: string[] = [];
     const svg = await buildDiagramSvg({
