@@ -133,10 +133,10 @@ GoJS там працює, бо він на Canvas2D. Ми зараз на WebGL 
 
 Порядок ходів — за співвідношенням «ціна / виграш»:
 
-1. **`preference` як опція SDK** з автовизначенням софтверного GL — `T83`. Мала зміна,
-   найбільший виграш. Сигнал перевірено: `UNMASKED_RENDERER_WEBGL` віддає
-   `…SwiftShader driver` без GPU і `ANGLE Metal Renderer: Apple M2 Max` з GPU — класи
-   розрізняються надійно.
+1. **Дві опції в `app.init`** — `preference: ['webgl','canvas']` + `failIfMajorPerformanceCaveat: true`
+   (`T83`). Свій детектор не потрібен: `autoDetectRenderer` уже вміє падати на канвас, і цей
+   атрибут змушує **браузер** відмовити в WebGL, коли рендер був би програмним. Перевірено —
+   без GPU сцена їде на Canvas2D, з GPU лишається на WebGL.
 2. **Render-on-demand** — `autoStart: false` + явний `app.render()` на зміну сцени й на
    pan/zoom — `T84`. Більша зміна, бо треба знайти всі місця, що рухають стейдж повз наш конвеєр.
 3. **`resolution: 1` для зеро-клієнта** — рядок конфігу.
