@@ -90,6 +90,8 @@ export class App {
   private theme: 'light' | 'dark' = 'light';
   private contourControls: ContourControls = { paddingCells: 1, smoothIterations: 2 };
   private flatOrgsData = buildFlatOrgsData(24);
+  /** Set once the user loads rows on the Mapper tab; cleared when they leave it. */
+  private mapperData: DiagramData | null = null;
   private scaleParents: Int32Array | null = null;
   private scaleWindow: ScaleOrgsWindow | null = null;
   private staffScaleWindow: ScaleStaffWindow | null = null;
@@ -203,6 +205,9 @@ export class App {
   }
 
   private async loadTab(tab: DemoTab): Promise<void> {
+    // Leaving the Mapper tab drops what the user loaded — coming back should
+    // show the sample again, not a stale scene.
+    if (tab !== 'mapper') this.mapperData = null;
     this.tab = tab;
     document.querySelectorAll('[data-tab]').forEach((el) => {
       el.classList.toggle('active', (el as HTMLElement).dataset.tab === tab);
@@ -490,6 +495,7 @@ export class App {
       theme: this.theme,
       contourControls: this.contourControls,
       flatOrgsData: this.flatOrgsData,
+      mapperData: this.mapperData,
       scaleOrgsWindow: () => this.scaleWindow ?? this.ensureScaleWindow(0),
       scaleStaffWindow: () => this.staffScaleWindow ?? this.rebuildStaffScaleWindow(),
     });
@@ -625,19 +631,14 @@ export class App {
       return;
     }
 
-    this.tab = 'mapper';
-    this.diagram?.destroy();
-    this.mountEl.innerHTML = '';
-
     const pooled = await mapFlatRowsInPool(parsed.data, {
       poolSize: recommendWorkerPoolSize(),
     });
-    this.diagram = await OrgHierarchyDiagram.create(this.mountEl, {
-      data: pooled.data,
-      theme: this.theme,
-      useWorker: true,
-      workerPoolSize: recommendWorkerPoolSize(),
-    });
+    // Go through the normal tab path: mounting by hand here used to drop the
+    // callbacks, the promote overlay and the e2e anchors on the floor.
+    this.mapperData = pooled.data;
+    this.tab = 'mapper';
+    await this.reload();
     const via = pooled.usedWorker ? `pool×${pooled.poolSize}` : 'main';
     this.setStatus(
       `mapper · ${parsed.data.length} rows · ${via} · ${pooled.chunkCount} chunks · ${Math.round(pooled.totalDurationMs)}ms`,

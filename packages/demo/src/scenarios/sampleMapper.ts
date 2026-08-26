@@ -26,6 +26,10 @@ export const SAMPLE_MAPPER_ROWS: FlatDiagramRow[] = [
     departmentId: 'dept-it',
     personId: 'person-2',
     status: 'filled',
+    // Staff layout resolves the head as «the one seat without an admin parent».
+    // Without this line org-it has two parentless seats and the tab throws.
+    reportToId: 'pos-1',
+    reportKind: 'admin',
   },
   {
     id: 'pos-3',

@@ -36,6 +36,8 @@ export interface TabConfigDeps {
   theme: 'light' | 'dark';
   contourControls: ContourControls;
   flatOrgsData: DiagramData;
+  /** Rows loaded through the pooled mapper, if the user loaded any (tab «Mapper»). */
+  mapperData?: DiagramData | null;
   /** Materialized window for the 100k-org tab (built on first use). */
   scaleOrgsWindow(): ScaleOrgsWindow;
   /** Materialized window for the 1M-seat tab (built on first use). */
@@ -290,7 +292,13 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
         },
       };
     }
-    case 'mapper':
+    case 'mapper': {
+      // Already-mapped rows (pooled worker path) win over the built-in sample —
+      // otherwise «Load sample JSON» would have to rebuild the scene by hand and
+      // would lose the callbacks and overlays that `reload()` sets up.
+      if (deps.mapperData) {
+        return { ...base, data: deps.mapperData, staffCurrentOrgId: 'org-it' };
+      }
       // The only tab with a mapper: its config is type-checked against the row
       // type it actually maps, then widened — `OrgHierarchyConfig` is invariant
       // in TRaw, so a per-tab mapper cannot be expressed in the shared return.
@@ -307,6 +315,7 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
           margin: 40,
         },
       } satisfies OrgHierarchyConfig<FlatDiagramRow[]>);
+    }
     case 'worker':
       return {
         ...base,
