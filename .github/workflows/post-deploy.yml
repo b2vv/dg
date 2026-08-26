@@ -1,0 +1,53 @@
+name: Post-deploy smoke
+
+# Work does not end at deploy. This re-runs the key scenarios against the LIVE
+# Pages build — the only place a stale bundle, a broken /dg/ asset path, or real
+# volume and latency can show up. Nothing is built here: the job hits the
+# deployed URL, so it stays fast.
+
+on:
+  workflow_run:
+    workflows: ['Deploy demo (GitHub Pages)']
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Deployment to smoke (defaults to GitHub Pages)'
+        required: false
+        default: 'https://b2vv.github.io/dg/'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Smoke the live build
+    runs-on: ubuntu-latest
+    # A failed deploy has nothing to smoke; saying so beats smoking the previous build.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Smoke the deployed demo
+        env:
+          PROD_URL: ${{ github.event.inputs.url || 'https://b2vv.github.io/dg/' }}
+        run: npm run test:prod
+
+      - name: Upload trace on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-deploy-trace
+          path: test-results/
+          retention-days: 7

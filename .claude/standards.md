@@ -45,9 +45,19 @@
 | `npm run test:verify` | усі чотири вище одним прогоном |
 | `npm run test:rust` | `cargo test` у `packages/core` |
 | `npm run build:wasm` | wasm-pack build + експорт TS-типів |
+| `npm run test:prod` | **post-deploy smoke по живому деплою** (`playwright.prod.config.ts`, без webServer; ціль — `PROD_URL`, дефолт Pages) |
 
 CI (`.github/workflows/ci.yml`) — три job: `rust` (cargo test), `sdk` (build:wasm → typecheck → test),
 `e2e` (build:wasm → playwright). Тригер: push у `main`/`master`/`cursor/**` і будь-який PR.
+
+Ще два workflow:
+
+- **`ai-review.yml`** — два **незалежні** рев'юєри на кожен PR, окремими job'ами (окремі раннери =
+  окремі контексти): `standards` судить за цим маніфестом, `spec-and-edges` — за спекою, межами
+  й граничними даними, і ставить тріаж-лейбл. Жоден не бачив, як писався код.
+  ⚠️ Вимагає секрет `ANTHROPIC_API_KEY`; поки його немає — job чесно рапортує `skipped`,
+  а не проходить мовчки.
+- **`post-deploy.yml`** — smoke по живому Pages після успішного деплою (`workflow_run`) або вручну.
 
 ### Чого гейти НЕ ловлять (виміряно 2026-08-26)
 
@@ -98,7 +108,23 @@ CI (`.github/workflows/ci.yml`) — три job: `rust` (cargo test), `sdk` (buil
 | Геометрія, контури, row-tree (Ploeg), алгоритми розкладки | `packages/core` (Rust → WASM) |
 | Pixi-рендер, воркери, експорт SVG/PNG/PDF, React context menu | `packages/sdk` |
 | Демо-застосунок (Rsbuild) | `packages/demo` |
-| Типи, що перетинають WASM-межу | `packages/core/bindings` → `packages/sdk/src/wasm/pkg` |
+| Типи, що перетинають WASM-межу | `ts-rs` з `packages/core/src/types.rs` → **`packages/sdk/src/wasm/generated/rust-types.ts`** (у git, 6 типів), споживач один — `packages/sdk/src/wasm/layoutBridge.ts` |
+
+### Rust і TS — один репо, і вони знають одне про одного
+
+- **Один git.** `packages/core` не сабмодуль і не окремий репо: 9 файлів під тим самим версійним
+  контролем, `packages/core/target/` у `.gitignore`. Тож CRG індексує обидві половини, а PR
+  природно містить зміни по обидва боки межі.
+- **Канал знання односторонній і згенерований.** `ts-rs` (feature `ts-export`) експортує типи
+  з `packages/core/src/types.rs` у `packages/sdk/src/wasm/generated/rust-types.ts`; файл **у git**,
+  генерується `npm run build:wasm` (`cargo test export_rust_types --features ts-export`).
+  Rust про TS не знає нічого — знання тече лише в один бік.
+- ⚠️ `packages/core/bindings/` **порожня й нікуди не веде** — залишок; не приймай її за канал.
+- 🔴 **Наслідок для рев'ю:** розділення мірника по мовах (стовпчик «діє на») стосується **стилю**,
+  а не **межі**. Зміна в `types.rs` без перегенерації `rust-types.ts` — і TS компілюється проти
+  застарілого контракту; жоден мовний мірник цього не спіймає, бо порушення не всередині мови,
+  а між ними. Тому межа судиться окремим рядком Конституції, а не мірником. Якщо дифф чіпає
+  `types.rs` — перевір, чи змінився `rust-types.ts` разом із ним.
 
 ⚠️ **Архітектурний факт:** на канвасі dept-контур малює **TS** (`paintMagneticGroups`), а не Rust
 flood із `contour.rs`. WASM-гілка лишилась для SVG-grid, публічного API й тестів
@@ -115,7 +141,27 @@ flood із `contour.rs`. WASM-гілка лишилась для SVG-grid, пу�
 ## Артефакти
 
 - `work/reports/<topic>/` — `spec.md`, `plan.md`, `tasks.md`, звіт.
-- `work/tasks/` — детальні T-задачі (наскрізна нумерація).
-- `work/AGENDA.md` — черга ходів (`cto-agenda`), перезбирається.
+- `work/tasks/` — детальні T-задачі (наскрізна нумерація). **Задачі агента пишуться сюди**, не в чат.
+
+### Життєвий цикл задачі — `work/`
+
+Розкладка **за станом**, не за темою:
+
+| Тека | Що там | Куди далі |
+|---|---|---|
+| `work/tasks/` | T-задачі: і не початі, і в роботі | закрито → `work/archive/` |
+| `work/tech-debt/` | борг і критики (`TD*`, `CRITIQUE-*`, `REVIEW-*`, `D*`) | пункт закрито → викреслюється на місці |
+| `work/archive/` | завершені задачі — **вказівники, не копії** | назавжди |
+
+- **Завершене переїжджає в `work/archive/`, а не видаляється** — інакше зникає слід рішення.
+- ⚠️ **Кореневий `/archive/` — це не архів задач.** Там legacy-**код** (`legacy-ts/`,
+  `legacy-web-rspack/`). Однакове ім'я, різні речі; кореневий уже в `## Не мірник`.
+- ⚠️ У dg **немає окремої теки «в роботі»** — стан задачі читається з неї самої, а не з її
+  розташування. Тому статус у T-файлі має бути явним, інакше «почато» від «не почато» не відрізнити.
+- `work/AGENDA.md` — черга ходів (`cto-agenda`), перезбирається, не дописується.
+- `e2e/prod-smoke.spec.ts` + `playwright.prod.config.ts` — сценарії, які перепроходить
+  `post-deploy-check`. ⚠️ Шляхи там **base-relative** (без провідного слеша): провідний слеш
+  скидає базу `/dg/` і б'є в корінь домену, який віддає 404. Через це хелпери `e2e/demoBridge.ts`
+  (вони роблять `goto('/?e2e=1')`) для деплою в підпапку непридатні.
 - Жива нота — Obsidian vault `diagram-hierarchy`, MCP `127.0.0.1:27143` (`CLAUDE.local.md` п.2);
   fallback `work/reports/<topic>/_wip-<topic>.md`.

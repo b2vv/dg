@@ -26,6 +26,32 @@ npm run dev
 
 Matt Pocock skills live in `.agents/skills/` (see `skills-lock.json`). Update with `npx skills update`.
 
+⚠️ The Pocock set is **TypeScript**. It judges `packages/sdk` and `packages/demo`; it has no
+subject matter in `packages/core` (Rust), so a Pocock finding on a `.rs` file is wrong by
+construction.
+
+### Standards manifest — read before reviewing or planning
+
+[`.claude/standards.md`](./.claude/standards.md) is the yardstick: which docs are a standard and
+**which are not**, what each one governs and **on which paths**, the machine gates, and the
+measured list of what those gates miss. Global skills (`code-review`, `spec-flow`) read it instead
+of guessing, so no per-repo copy of them is needed. Format:
+`~/.agents/rules/repo-standards-manifest.md`.
+
+Two facts it records that shape every review here: this repo has **no lint of any kind** (no
+ESLint, no oxlint, no clippy, no formatter), and `packages/core` has **no documented Rust
+standard** — CI runs `cargo test` only. So TS style is checked by hand, and Rust is judged by
+general engineering practice alone.
+
+### Pipeline
+
+research → plan → critique → defense → tests-first → implement → review → report → post-deploy.
+Skills: `cto-research` (briefing, freshness gate) · `cto-agenda` (what to do next) ·
+`spec-flow` (SDD cycle, gates delegated) · `plan-critique` · `plan-defense` · `acceptance-spec` ·
+`tdd` · `code-review`. Parallel work uses the durable ledger and 4-status protocol
+(`~/.agents/rules/subagent-orchestration-ledger.md`); who may judge whose artifact is
+`~/.agents/rules/multi-model-roles.md`.
+
 ### Knowledge graph (CRG)
 
 `code-review-graph` is wired for this repo: `.mcp.json` starts the MCP server, `.claude/settings.json`

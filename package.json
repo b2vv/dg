@@ -18,7 +18,8 @@
     "compare:nodes": "playwright test e2e/node-compare.spec.ts",
     "test:verify": "npm run typecheck && npm test && npm run test:e2e && npm run compare:nodes",
     "test:rust": "cd packages/core && cargo test",
-    "typecheck": "npm run typecheck -w @org-hierarchy/sdk && npm run build:types -w @org-hierarchy/sdk && npm run typecheck -w @org-hierarchy/demo"
+    "typecheck": "npm run typecheck -w @org-hierarchy/sdk && npm run build:types -w @org-hierarchy/sdk && npm run typecheck -w @org-hierarchy/demo",
+    "test:prod": "playwright test --config playwright.prod.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0"
