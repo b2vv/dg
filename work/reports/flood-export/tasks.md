@@ -21,7 +21,7 @@
 **Зроблено 2026-08-26:** snapshot `default-engine-svg` (4.7 КБ) + тест на чутливість самої фікстури.
 Перевірено, що вона **вміє падати**: зсув контуру на 1 px ламає її; код повернуто.
 
-## T2 — Канал діагностик наскрізь
+## T2 ✅ — Канал діагностик наскрізь
 
 **Файли:** `packages/sdk/src/export/svgExport.ts` (тип `SvgExportInput`), `packages/sdk/src/export/exportDiagram.ts`
 **Робимо:** `SvgExportInput.onDiagnostic?: (message: string) => void`; `buildDiagramSvg` кличе його;
@@ -31,6 +31,11 @@
 **Готово, коли:** тест: `buildDiagramSvg` з `onDiagnostic` отримує рядок від штучної гілки; без
 `onDiagnostic` не падає.
 **Закриває:** передумова для `F1`–`F5`; сам по собі рядків не закриває.
+**Зроблено 2026-08-26:** `SvgExportInput.onDiagnostic`; `exportDiagram` прокидає його через
+`reportExportDiagnostic` (без обробника — `console.warn`). Старий `reportSvgEngineMismatch`
+прибрано: він судив за фактом рушія, а не за тим, що сталося. Щоб ланцюг T2→T5 не лишав комміта
+з тихою підміною, SVG-шлях **тимчасово** сам каже, що flood ще не рахує; T3 замінить це справжнім
+проходом.
 
 ## T3 — `resolveExportContourRings`
 

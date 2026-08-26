@@ -50,6 +50,12 @@ export interface SvgExportInput {
   staffLayout?: StaffLayoutOptions;
   /** Person seat theme for edge ports (must match live diagram `nodeTheme.person`). */
   personTheme?: Partial<PersonNodeStyle>;
+  /**
+   * Why the picture is not what the caller might expect — a skipped contour
+   * engine, an empty department layer. Without this channel the SVG path has
+   * no way to say anything: it returns a string and nothing else.
+   */
+  onDiagnostic?: (message: string) => void;
 }
 
 function resolveFocusedStaffOrgId(
@@ -102,6 +108,15 @@ async function paintOrgHierarchySvg(
 
 export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
   const config = { ...defaultRenderConfig, ...input.config };
+  const report = (message: string) => input.onDiagnostic?.(message);
+  // T3 замінить це справжнім flood-проходом. Доти шлях чесно каже, що намалював
+  // не тим рушієм, якого просили, — мовчазна підміна тут заборонена.
+  if ((config.contourEngine ?? 'button-group') === 'cell-flood') {
+    report(
+      'SVG export still paints department contours with the button-group painter; ' +
+        "contourEngine: 'cell-flood' is not computed here yet.",
+    );
+  }
   const bg = input.background ?? '#f8fafc';
   const includeLabels = input.includeLabels !== false;
   const data = input.data;
