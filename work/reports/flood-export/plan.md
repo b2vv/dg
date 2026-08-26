@@ -53,8 +53,12 @@
      `layoutStaffCanvas` (а **не** `PERSON_CARD_WIDTH` із grid-гілки), `insetX/Y = (config.cellWidth − cardWidth)/2`,
      `padding = contourButtonGroupMargin(config.paddingCells ?? 0, DEPT_STROKE_W)`;
    - `orgByPosition`, `memberBoxes`, `personCounts`, `minContourMembers` — з уже наявних у гілці значень.
-3. **Grid-гілка**: `resolveExportContourRings` для неї завжди повертає button-group і один рядок
-   діагностики «flood недоступний для сітки — так само й на канвасі» (GATE 1 №3).
+3. **Grid-гілка**: при `'cell-flood'` шар відділів лишається **порожнім** + один рядок діагностики
+   «flood потребує cell-transform, якого на сітці немає — так само й на канвасі».
+   ⚠️ Це **уточнює рішення GATE 1 №3**: там було написано «лишається button-group», але перевірка
+   коду показала, що канвас у цій сцені не малює button-group — він не малює **нічого**
+   (`contourWorld` ставиться лише в `renderStaffCanvas`, `ContourPainter.loadFloodRings` без
+   трансформи віддає порожньо + діагностику). Дзеркалити означає теж нічого не малювати.
 4. **`exportDiagram`**: `reportSvgEngineMismatch` більше не спрацьовує від самого факту
    `cell-flood`; назовні йдуть **реальні** причини, які повернули кроки 2–3.
 5. **Документи**: `docs/USAGE.md` §6/§10 — прибрати «SVG завжди button-group», описати поведінку
@@ -70,10 +74,13 @@ button-group для блоку, що впав. Тому:
 
 - **SVG дзеркалить канвас**: скільки блоків дав flood — стільки й у файлі; блок, що впав, лишається
   без контуру; причина йде в `onDiagnostic`.
-- **Фолбек на button-group** спрацьовує лише коли flood не дав **нічого** і при цьому діагностики
-  непорожні. Порожні кільця з **порожніми** діагностиками — це легітимний B3
-  (`minContourMembers` відсік усе), і там заміни рушія немає й повідомлення теж.
-- ⚠️ Пункт чекає підтвердження продукту: він переписує F1 і F4 (див. нижче).
+- **Фолбеку на button-group немає взагалі.** Рішення продукту (2026-08-26): коли flood не дав
+  нічого — шар відділів у SVG **порожній**, як і на екрані, а `onDiagnostic` каже чому.
+  Підстановка іншого рушія показала б у файлі те, чого користувач не бачив, — саме та хвороба,
+  яку ця тема лікує.
+- **Правило одним рядком:** SVG **ніколи** не малює рушієм, якого не використав канвас.
+- Порожні кільця з **порожніми** діагностиками — легітимний B3 (`minContourMembers` відсік усе):
+  там немає ні заміни, ні повідомлення.
 
 ## Сайд-ефекти
 
@@ -121,11 +128,11 @@ button-group для блоку, що впав. Тому:
 | **B2** | Один відділ, одна посада | 1 посада з `gridCell`, `minContourMembers:1`, `cell-flood` | `export({format:'svg'})` | рівно один `<path data-dept="…">` | unit `export.test.ts` |
 | **B3** | `minContourMembers` відсікає | 1 посада у відділі, `minContourMembers:2`, `cell-flood` | `export({format:'svg'})` | жодного `<path data-dept>`; діагностики про заміну рушія **немає** (це не відмова, а налаштування) | unit `export.test.ts` |
 | **B4** | Піддерево | `scope:'subtree'`, корінь із 1 з 3 відділів, `cell-flood` | `export({format:'svg', scope:'subtree', subtreeRootId})` | `data-dept` присутні **лише** для відділів піддерева | unit `export.test.ts` |
-| **F1** | WASM недоступний | `cell-flood`, flood-лоадер кидає для **всіх** блоків | `export({format:'svg'})` | SVG повертається; шар відділів порожній **або** button-group — за рішенням продукту нижче; `onDiagnostic` отримав рівно одне повідомлення з причиною | unit `export.test.ts` |
+| **F1** | WASM недоступний | `cell-flood`, flood-лоадер кидає для **всіх** блоків | `export({format:'svg'})` | SVG повертається; `<g id="departments">` є, але **жодного** `<path data-dept>`; `onDiagnostic` отримав рівно одне повідомлення з причиною | unit `export.test.ts` |
 | **F5** | Частковий flood | 2 org-блоки, другий кидає | `export({format:'svg'})` | у SVG є контури **лише** першого блоку — рівно як на канвасі; `onDiagnostic` назвав блок, що впав | unit `export.test.ts` |
-| **F2** | Сітка без staff-фокуса | сцена лише з `gridCell`, без `staffCurrentOrgId`, `cell-flood` | `export({format:'svg'})` | button-group-шляхи + одне повідомлення, що flood недоступний для сітки так само, як на канвасі | unit `export.test.ts` |
+| **F2** | Сітка без staff-фокуса | сцена лише з `gridCell`, без `staffCurrentOrgId`, `cell-flood` | `export({format:'svg'})` | жодного `<path data-dept>` + одне повідомлення, що flood недоступний для сітки так само, як на канвасі | unit `export.test.ts` |
 | **F3** | Зайвих попереджень немає | дефолтний рушій | `export({format:'svg'})` | `onDiagnostic` не викликано жодного разу | unit `export.test.ts` |
-| **F4** | Порожній результат flood | `cell-flood`, 0 кілець **і** непорожні діагностики | `export({format:'svg'})` | шар відділів порожній або button-group (те саме рішення, що й F1) + повідомлення з причиною; мовчки порожньо не буває | unit `export.test.ts` |
+| **F4** | Порожній результат flood | `cell-flood`, 0 кілець **і** непорожні діагностики | `export({format:'svg'})` | шар відділів порожній + повідомлення з причиною; мовчки порожньо не буває | unit `export.test.ts` |
 | **B5** | Піддерево без посад | `scope:'subtree'`, корінь без штату | `export({format:'svg', scope:'subtree'})` | малюється org-hierarchy-гілка; шару відділів немає, `contourEngine` не застосовується, `onDiagnostic` мовчить (це інша гілка рендера, а не відмова рушія) | unit `export.test.ts` |
 | **M1** | Око: SVG проти екрана | таб «Staff · Flood» | експортувати SVG і відкрити поруч із канвасом | контури в файлі повторюють контури на екрані (та сама C-подібна форма навколо чужої картки) | **вручну** — 1 ручний рядок |
 
