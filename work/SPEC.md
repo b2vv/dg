@@ -271,9 +271,10 @@ Expand-in-place (T20) =
 > | `'button-group'` (**default**) | union-find по `magnetRadius` + padded AABB, мінус виїмки під чужі картки (G2/M2, [T79](./tasks/T79-g2-m2-paint-notch.md)) | `render/contour/paintMagneticGroups.ts` + `contourNotch.ts` |
 > | `'cell-flood'` | цей самий Rust flood, поблочно на org, кільця мапляться на бокси карток | `render/contour/floodContourEngine.ts` |
 >
-> **SVG-експорт завжди button-group**, незалежно від рушія (PNG/PDF — з фреймбуфера, тому вірні);
-> розходження повідомляється через `ExportOptions.onDiagnostic`. Псевдокод §3.5 і кроки §3.2 —
-> це `'cell-flood'`, а не те, що ви бачите на дефолтних налаштуваннях.
+> **Експорт малює тим самим рушієм, що й канвас** (2026-08-26): SVG рахує flood тими самими
+> входами, PNG/PDF беруться з фреймбуфера. Коли flood не може відпрацювати — шар відділів
+> порожній, як на екрані, а причина йде в `ExportOptions.onDiagnostic`. Псевдокод §3.5 і кроки
+> §3.2 — це `'cell-flood'`, а не те, що ви бачите на дефолтних налаштуваннях.
 
 ### 3.1 Вхід / вихід
 

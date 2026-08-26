@@ -321,6 +321,79 @@ describe('SVG degrades honestly when the flood cannot run (T5 / F1, F4)', () => 
   });
 });
 
+describe('boundaries of the export contour layer (T6 / B1–B5)', () => {
+  const deptCount = (svg: string) => [...svg.matchAll(/data-dept="/g)].length;
+  const floodCfg = { contourEngine: 'cell-flood' as const, minContourMembers: 1 };
+
+  it('B1 — a scene whose seats have no department paints an empty layer, no error', async () => {
+    const data = variantB();
+    for (const p of data.positions) delete (p as { departmentId?: string }).departmentId;
+
+    const said: string[] = [];
+    const svg = await buildDiagramSvg({
+      data,
+      currentOrgId: 'org1',
+      config: floodCfg,
+      onDiagnostic: (m) => said.push(m),
+    });
+
+    expect(svg).toContain('<g id="departments">');
+    expect(deptCount(svg)).toBe(0);
+    // Посада без відділу — чужа для будь-якого контуру, а не збій рушія.
+    expect(said).toEqual([]);
+  });
+
+  it('B2 — one seat in one department still gets its ring', async () => {
+    const base = variantB();
+    const data = { ...base, positions: base.positions.slice(0, 1) };
+
+    const svg = await buildDiagramSvg({ data, currentOrgId: 'org1', config: floodCfg });
+    expect(deptCount(svg)).toBe(2); // fill + stroke того самого кільця
+  });
+
+  it('B3 — minContourMembers above the crowd empties the layer silently', async () => {
+    const said: string[] = [];
+    const svg = await buildDiagramSvg({
+      data: variantB(),
+      currentOrgId: 'org1',
+      config: { contourEngine: 'cell-flood', minContourMembers: 99 },
+      onDiagnostic: (m) => said.push(m),
+    });
+
+    expect(deptCount(svg)).toBe(0);
+    expect(said).toEqual([]);
+  });
+
+  it('B4 — subtree keeps only the departments that live under the root', async () => {
+    const full = await buildDiagramSvg({ data: variantB(), currentOrgId: 'org1', config: floodCfg });
+    const cut = await buildDiagramSvg({
+      data: filterDiagramSubtree(variantB(), 'org1'),
+      currentOrgId: 'org1',
+      config: floodCfg,
+    });
+    // Піддерево рахується заново для свого набору посад, а не ріжеться з готового.
+    expect(deptCount(cut)).toBeGreaterThan(0);
+    expect(deptCount(cut)).toBeLessThanOrEqual(deptCount(full));
+  });
+
+  it('B5 — a subtree with no seats falls to the org branch, engine untouched', async () => {
+    const said: string[] = [];
+    const svg = await buildDiagramSvg({
+      data: {
+        ...variantB(),
+        positions: [],
+        organizations: [{ id: 'org1', name: 'Solo', groupIds: [] }],
+      },
+      config: floodCfg,
+      onDiagnostic: (m) => said.push(m),
+    });
+
+    // Інша гілка рендера — шару відділів немає взагалі, і рушій тут ні до чого.
+    expect(deptCount(svg)).toBe(0);
+    expect(said).toEqual([]);
+  });
+});
+
 describe('buildDiagramSvg — default engine is frozen (T1 / H2)', () => {
   /**
    * Знята ДО того, як експорт навчився рахувати flood. Мета — не «SVG виглядає добре»,

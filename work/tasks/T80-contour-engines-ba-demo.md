@@ -65,19 +65,22 @@ row 2                    people ·1        people ·2
 
 Порівнювати треба поруч зі **Staff · Magnetic** (та сама сцена, button-group + виїмка).
 
-## Експорт бачить лише button-group
+## Експорт малює тим самим рушієм (закрито 2026-08-26)
 
-`export/` рушія **не читає**: `svgExport.ts` завжди перебудовує контури через
-`paintMagneticGroups`, бо flood — це асинхронний WASM-прохід поблочно, якого в шляху SVG немає.
-Отже діаграма з `contourEngine: 'cell-flood'` дає SVG із button-group-кільцями.
+Було: `export/` рушія не читав, тож діаграма з `cell-flood` віддавала SVG із button-group-кільцями,
+і розходження лише повідомлялось.
 
-- **PNG / PDF цього не стосується** — вони знімаються з живого Pixi-фреймбуфера, тобто показують
-  саме те, що було на екрані, з будь-яким рушієм.
-- Розходження **не тихе**: `exportDiagram` повідомляє про нього через `ExportOptions.onDiagnostic`
-  (а без нього — `console.warn`), і в тексті вказує, що для точної копії канвасу треба PNG/PDF.
-  Тест: `export/export.test.ts` → «SVG export vs contourEngine».
-- Повний фікс (навчити `export/` рахувати flood) навмисно **не** робився: якщо BA лишить
-  button-group, ця робота піде в кошик. Робити її — після рішення нижче.
+Стало: `svgExport.ts` рахує flood тими самими входами, що й канвас (`magnet` із `padding: 0` і
+`corridorCellsForFlood`, pitch зі `staffMerged`, картки з `nodeWidth/nodeHeight` того ж layout).
+Обидві контурні гілки йдуть через `resolveExportContourRings`; вибір рушія — строго
+`=== 'cell-flood'`, як у `ContourPainter`.
+
+**Правило, за яким це зроблено:** SVG ніколи не малює рушієм, якого не використав канвас. Тому коли
+flood не може відпрацювати — сітка без cell-transform, недоступний WASM, збій org-блоку — шар
+відділів лишається **порожнім**, як на екрані, а причина йде в `ExportOptions.onDiagnostic`.
+PNG/PDF як були вірні (фреймбуфер), так і лишились.
+
+Цикл: [`work/reports/flood-export/`](../reports/flood-export/) (spec → plan → tasks).
 
 ## Рішення, яке лишається за BA
 
