@@ -445,28 +445,22 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
       }),
       new Map(data.positions.map((p) => [p.id, p])),
     );
-    const personCounts = new Map<string, number>();
-    for (const p of data.positions) {
-      if (!p.departmentId) continue;
-      personCounts.set(p.departmentId, (personCounts.get(p.departmentId) ?? 0) + 1);
-    }
-    const deptIds = [...new Set(inputs.map((p) => p.departmentId))].sort();
-    const paintedRings = paintMagneticGroups({
+    // Сітка не має cell-transform (канвас ставить його лише в staff-сцені), тож
+    // `transform: null` — і резолвер сам вирішить: дефолт малює, flood лишає порожньо.
+    const deptRings = await resolveExportContourRings({
       inputs,
       memberBoxesByDept,
-      departmentIds: deptIds,
-      magnetRadius: resolveMagnetRadius(config.magnetRadius),
-      strokeWidth: DEPT_STROKE_W,
-      paddingCells: config.paddingCells ?? 0,
-      smoothIterations: config.smoothIterations ?? 0,
-      personCounts,
-      minContourMembers: config.minContourMembers ?? 1,
+      personCounts: countPositionsByDept(data.positions),
+      orgByPosition: new Map(data.positions.map((p) => [p.id, p.organizationId])),
+      config,
+      cards: { cardWidth: cardW, cardHeight: cardH },
+      transform: null,
+      report,
     });
     parts.push('<g id="departments">');
-    for (const g of paintedRings) {
-      const d = g.ring.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x} ${p.y}`).join(' ');
+    for (const ring of deptRings) {
       parts.push(
-        `<path d="${d} Z" fill="${DEPT_FILL}" fill-opacity="${DEPT_FILL_ALPHA}" stroke="${DEPT_STROKE}" stroke-width="${DEPT_STROKE_W}" stroke-linejoin="round" stroke-linecap="round" data-dept="${esc(g.departmentId)}"/>`,
+        `<path d="${ring.d} Z" fill="${DEPT_FILL}" fill-opacity="${DEPT_FILL_ALPHA}" stroke="${DEPT_STROKE}" stroke-width="${DEPT_STROKE_W}" stroke-linejoin="round" stroke-linecap="round" data-dept="${esc(ring.departmentId)}"/>`,
       );
     }
     parts.push('</g>');

@@ -4,6 +4,7 @@ import { assertExportOptions, ExportError } from './types.js';
 import { filterDiagramSubtree } from './subtree.js';
 import { buildDiagramSvg } from './svgExport.js';
 import { exportDiagram, printDiagram } from './exportDiagram.js';
+import { resetContourWasmForTests, setContourWasmLoaderForTests } from '../contour/bridge.js';
 import { rgbImageToPdf, solidRgb } from './pdfExport.js';
 import { extractPngFromPixi, setCanvasToBlobImpl } from './pngExport.js';
 import type { Application } from 'pixi.js';
@@ -239,6 +240,84 @@ describe('SVG paints with the engine the canvas uses (T3 / H1)', () => {
       config: { contourEngine: 'cell-flood', minContourMembers: 1 },
     });
     expect(flood).toMatchSnapshot('cell-flood-svg');
+  });
+});
+
+describe('SVG never paints with an engine the canvas did not use (T4 / F2, F3)', () => {
+  /** Сцена лише з `gridCell`, без staff-фокуса — та сама, де канвас не має cell-transform. */
+  const gridOnly = () => ({ ...variantB(), organizations: [] });
+  const deptPaths = (svg: string) => [...svg.matchAll(/data-dept="/g)].length;
+
+  it('failure: grid scene + cell-flood leaves the layer empty and says why', async () => {
+    const said: string[] = [];
+    const svg = await buildDiagramSvg({
+      data: gridOnly(),
+      config: { contourEngine: 'cell-flood', minContourMembers: 1 },
+      onDiagnostic: (m) => said.push(m),
+    });
+
+    expect(svg).toContain('<g id="departments">');
+    // Канвас у цій сцені теж не малює нічого — підставити button-group означало б
+    // показати у файлі те, чого на екрані не було.
+    expect(deptPaths(svg)).toBe(0);
+    expect(said).toHaveLength(1);
+    expect(said[0]).toMatch(/grid|transform/i);
+  });
+
+  it('success: the same grid scene on the default engine paints and stays silent', async () => {
+    const said: string[] = [];
+    const svg = await buildDiagramSvg({
+      data: gridOnly(),
+      config: { minContourMembers: 1 },
+      onDiagnostic: (m) => said.push(m),
+    });
+
+    expect(deptPaths(svg)).toBeGreaterThan(0);
+    expect(said).toEqual([]);
+  });
+});
+
+describe('SVG degrades honestly when the flood cannot run (T5 / F1, F4)', () => {
+  afterEach(() => {
+    resetContourWasmForTests();
+    setContourWasmLoaderForTests(null);
+  });
+
+  it('failure: a broken wasm loader leaves the layer empty and reports the reason', async () => {
+    resetContourWasmForTests();
+    setContourWasmLoaderForTests(async () => {
+      throw new Error('wasm not built');
+    });
+
+    const said: string[] = [];
+    const svg = await buildDiagramSvg({
+      data: variantB(),
+      currentOrgId: 'org1',
+      config: { contourEngine: 'cell-flood', minContourMembers: 1 },
+      onDiagnostic: (m) => said.push(m),
+    });
+
+    // Експорт не падає…
+    expect(svg.startsWith('<?xml')).toBe(true);
+    // …шар відділів порожній, як і на канвасі без WASM…
+    expect([...svg.matchAll(/data-dept="/g)]).toHaveLength(0);
+    // …і причина названа, а не проковтнута.
+    expect(said.length).toBeGreaterThan(0);
+    expect(said.join(' ')).toMatch(/wasm|flood/i);
+  });
+
+  it('success: minContourMembers filtering everything is not a failure — no complaint', async () => {
+    const said: string[] = [];
+    const svg = await buildDiagramSvg({
+      data: variantB(),
+      currentOrgId: 'org1',
+      // Жоден відділ не набирає 99 членів — шар порожній за налаштуванням, не через збій.
+      config: { contourEngine: 'cell-flood', minContourMembers: 99 },
+      onDiagnostic: (m) => said.push(m),
+    });
+
+    expect([...svg.matchAll(/data-dept="/g)]).toHaveLength(0);
+    expect(said).toEqual([]);
   });
 });
 
