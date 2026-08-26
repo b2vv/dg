@@ -1,7 +1,6 @@
 import type { DiagramData } from './data/types.js';
 import { isDiagramData, mergePartial } from './data/mergeData.js';
 import type { DiagramMappers } from './mappers/types.js';
-import { configureContourWorker } from './contour/worker-bridge.js';
 import { PixiHost } from './render/PixiHost.js';
 import type { DiagramRenderer } from './render/DiagramRenderer.js';
 import { MediaService, type DiagramMediaFacade, type MediaPlaceholderRegistry } from './media/index.js';
@@ -62,7 +61,6 @@ import {
   resolveTestIdInData,
   type TestAnchorCandidate,
 } from './interaction/index.js';
-import { configureSearchWorker } from './interaction/searchWorker.js';
 import {
   SearchIndexService,
   knownSearchIds,
@@ -199,16 +197,13 @@ export class OrgHierarchyDiagram {
       instance.viewState.lodThresholds = config.lodThresholds;
     }
 
+    // No module-level `configure*` here on purpose: it is process-wide, so a
+    // second diagram used to terminate the first one's worker and take over its
+    // factory. Each diagram now owns its workers — the search one through
+    // `SearchIndexService`, the pool below, and the contour path through
+    // `createContourWorkerClient` when a host opts into it.
     const workerFactory = config.workerFactory ?? createTransformWorker;
     instance.workerFactory = workerFactory;
-    configureContourWorker({
-      workerFactory,
-      fallbackToMainThread: true,
-    });
-    configureSearchWorker({
-      workerFactory,
-      fallbackToMainThread: true,
-    });
 
     const poolSize = config.workerPoolSize ?? 0;
     if (poolSize > 0) {
@@ -802,6 +797,9 @@ export class OrgHierarchyDiagram {
   }
 
   async search(query: string): Promise<SearchResult[]> {
+    // A destroyed diagram has no scene to focus a hit on; answering with stale
+    // rows would just invite the caller to act on a dead instance.
+    if (this.destroyed) return [];
     return this.searchService.query(query);
   }
 
@@ -1092,6 +1090,7 @@ export class OrgHierarchyDiagram {
     this.promoteSyncListeners.clear();
     void this.mediaService?.destroy();
     this.mediaService = null;
+    this.searchService.dispose();
     this.workerPool?.dispose();
     this.workerPool = null;
     this.host?.destroy();

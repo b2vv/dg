@@ -212,7 +212,7 @@ GitHub Issues на `b2vv/dg` **порожні**; живий беклог — `wo
 |---|------|---------|
 | 1 | **`cell-flood` не доходить до експорту**: SVG завжди button-group. Уже **не тихо** — `exportDiagram` повідомляє через `ExportOptions.onDiagnostic` (інакше `console.warn`), PNG/PDF вірні (фреймбуфер). Повний фікс (flood у `export/`) свідомо відкладено до рішення BA | `export/exportDiagram.ts`, [T80 §Експорт](./tasks/T80-contour-engines-ba-demo.md) |
 | 2 | ~~Візуальні бейзлайни застаріли~~ — **закрито 2026-08-25**: усі 5 знімків перезняті в контейнері `playwright:v1.62.1-noble` під `linux/amd64` (як CI), галерея `node-compare` теж; повторний прогін без `--update-snapshots` дав 16/16 | [MOCKUP-styles-review §Перегенеровано](./tasks/MOCKUP-styles-review.md) |
-| 3 | Shared module-level contour/search воркери — кілька діаграм на сторінці ділять `configure*` | `contour/worker-bridge.ts`, `interaction/searchWorker.ts` |
+| 3 | ~~Shared module-level воркери~~ — **закрито 2026-08-26**: `worker/WorkerChannel.ts`, кожна діаграма має власний канал і звільняє його на `destroy()`; модульні `configure*` лишились для прямих викликів | `worker/WorkerChannel.ts`, `render/twoDiagrams.contract.test.ts` |
 | 4 | Promote-HTML не входить у SVG/PNG/PDF | `react/createReactPromoteOverlay.ts` |
 | 5 | Немає e2e на export / D&D / mapper / promote | `e2e/` |
 

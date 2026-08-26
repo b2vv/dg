@@ -8,7 +8,7 @@ import {
 } from './searchIndex.js';
 import type { SearchResult } from './types.js';
 import { nodeEntityKey } from './nodeKey.js';
-import { buildSearchIndexForScale } from './searchWorker.js';
+import { createSearchWorkerClient } from './searchWorker.js';
 
 /** Prefer the chunked / worker build once org+position count exceeds this. */
 const ASYNC_THRESHOLD = 10_000;
@@ -26,6 +26,8 @@ export interface SearchScaleOptions {
  */
 export class SearchIndexService {
   private index: SearchIndex | null = null;
+  /** This diagram's own worker — not the module-level one two diagrams shared. */
+  private client: ReturnType<typeof createSearchWorkerClient> | null = null;
 
   constructor(private readonly scale: () => SearchScaleOptions) {}
 
@@ -45,7 +47,9 @@ export class SearchIndexService {
       this.rebuild(data);
       return;
     }
-    this.index = await buildSearchIndexForScale(data, this.scale());
+    const { useWorker, pool, workerFactory } = this.scale();
+    this.client ??= createSearchWorkerClient({ workerFactory, fallbackToMainThread: true });
+    this.index = await this.client.buildForScale(data, { useWorker, pool });
   }
 
   /**
@@ -75,6 +79,12 @@ export class SearchIndexService {
         reportLines: [],
       }),
     ]);
+  }
+
+  /** Terminate the worker this service owns. Safe to call twice. */
+  dispose(): void {
+    this.client?.dispose();
+    this.client = null;
   }
 
   query(query: string): SearchResult[] {

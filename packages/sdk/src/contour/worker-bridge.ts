@@ -6,8 +6,8 @@ import type {
 } from './bridge.js';
 import { computeAllContours, computeDeptContour } from './bridge.js';
 import { toRustConfig } from './config.js';
-import { mapInWorker } from '../worker/bridge.js';
 import { createTransformWorker } from '../worker/createWorker.js';
+import { WorkerChannel, type WorkerChannelOptions } from '../worker/WorkerChannel.js';
 import {
   computeHandlerKeys,
   type ComputeAllContoursPayload,
@@ -26,30 +26,31 @@ const DEFAULT_OPTIONS: Required<ContourWorkerOptions> = {
   fallbackToMainThread: true,
 };
 
-let options: Required<ContourWorkerOptions> = { ...DEFAULT_OPTIONS };
-let sharedWorker: Worker | null = null;
+/**
+ * Process-wide channel for hosts that call the module functions directly.
+ * A host running two diagrams should build its own {@link createContourWorkerClient}
+ * instead — this one is shared, and configuring it drops its worker.
+ */
+const defaultChannel = new WorkerChannel(DEFAULT_OPTIONS);
 
 export function configureContourWorker(opts: ContourWorkerOptions): void {
-  options = { ...DEFAULT_OPTIONS, ...opts };
-  if (sharedWorker) {
-    sharedWorker.terminate();
-    sharedWorker = null;
-  }
+  defaultChannel.reconfigure(DEFAULT_OPTIONS, opts as WorkerChannelOptions);
 }
 
 export function resetContourWorkerForTests(): void {
-  options = { ...DEFAULT_OPTIONS };
-  if (sharedWorker) {
-    sharedWorker.terminate();
-    sharedWorker = null;
-  }
+  defaultChannel.reconfigure(DEFAULT_OPTIONS);
 }
 
-function getWorker(): Worker {
-  if (!sharedWorker) {
-    sharedWorker = options.workerFactory();
-  }
-  return sharedWorker;
+/** An isolated contour worker: own factory, own worker, own lifetime. */
+export function createContourWorkerClient(opts?: ContourWorkerOptions) {
+  const channel = new WorkerChannel(DEFAULT_OPTIONS, opts as WorkerChannelOptions);
+  return {
+    computeDeptContour: (departmentId: string, positions: ContourPositionInput[], config?: ContourMagnetConfig) =>
+      runDeptContour(channel, departmentId, positions, config),
+    computeAllContours: (positions: ContourPositionInput[], config?: ContourMagnetConfig) =>
+      runAllContours(channel, positions, config),
+    dispose: () => channel.dispose(),
+  };
 }
 
 export async function computeDeptContourInWorker(
@@ -57,43 +58,43 @@ export async function computeDeptContourInWorker(
   positions: ContourPositionInput[],
   config?: ContourMagnetConfig,
 ): Promise<DeptContourResult[]> {
+  return runDeptContour(defaultChannel, departmentId, positions, config);
+}
+
+async function runDeptContour(
+  channel: WorkerChannel,
+  departmentId: string,
+  positions: ContourPositionInput[],
+  config?: ContourMagnetConfig,
+): Promise<DeptContourResult[]> {
   const payload: ComputeDeptContourPayload = { departmentId, positions, config };
-  try {
-    const raw = await mapInWorker<
-      ComputeDeptContourPayload,
-      DeptContourResult[] | DeptContourResult
-    >(getWorker(), computeHandlerKeys.computeDeptContour, payload, undefined, options.timeoutMs);
-    return Array.isArray(raw) ? raw : [raw];
-  } catch (err) {
-    if (options.fallbackToMainThread) {
-      return computeDeptContour(departmentId, positions, config);
-    }
-    throw err;
-  }
+  const raw = await channel.run<ComputeDeptContourPayload, DeptContourResult[] | DeptContourResult>(
+    computeHandlerKeys.computeDeptContour,
+    payload,
+    () => computeDeptContour(departmentId, positions, config),
+  );
+  return Array.isArray(raw) ? raw : [raw];
 }
 
 export async function computeAllContoursInWorker(
   positions: ContourPositionInput[],
   config?: ContourMagnetConfig,
 ): Promise<DeptContourResult[]> {
-  if (positions.length === 0) {
-    return [];
-  }
+  return runAllContours(defaultChannel, positions, config);
+}
+
+async function runAllContours(
+  channel: WorkerChannel,
+  positions: ContourPositionInput[],
+  config?: ContourMagnetConfig,
+): Promise<DeptContourResult[]> {
+  if (positions.length === 0) return [];
   const payload: ComputeAllContoursPayload = { positions, config };
-  try {
-    return await mapInWorker<ComputeAllContoursPayload, DeptContourResult[]>(
-      getWorker(),
-      computeHandlerKeys.computeAllContours,
-      payload,
-      undefined,
-      options.timeoutMs,
-    );
-  } catch (err) {
-    if (options.fallbackToMainThread) {
-      return computeAllContours(positions, config);
-    }
-    throw err;
-  }
+  return channel.run<ComputeAllContoursPayload, DeptContourResult[]>(
+    computeHandlerKeys.computeAllContours,
+    payload,
+    () => computeAllContours(positions, config),
+  );
 }
 
 /** Re-export for advanced hosts */
