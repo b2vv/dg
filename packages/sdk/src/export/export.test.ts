@@ -189,6 +189,59 @@ describe('filterDiagramSubtree', () => {
   });
 });
 
+describe('SVG paints with the engine the canvas uses (T3 / H1)', () => {
+  const staff = () => ({ data: variantB(), currentOrgId: 'org1' });
+  const ringsOf = (svg: string) =>
+    [...svg.matchAll(/<path d="([^"]+)"[^>]*data-dept="([^"]+)"/g)].map((m) => ({
+      dept: m[2]!,
+      points: m[1]!.split(/(?=[ML])/).length,
+    }));
+
+  it('success: cell-flood gives different geometry than button-group for the same scene', async () => {
+    const said: string[] = [];
+    const flood = await buildDiagramSvg({
+      ...staff(),
+      config: { contourEngine: 'cell-flood', minContourMembers: 1 },
+      onDiagnostic: (m) => said.push(m),
+    });
+    const button = await buildDiagramSvg({
+      ...staff(),
+      config: { minContourMembers: 1 },
+    });
+
+    expect(flood).not.toBe(button);
+    // Рушій справді відпрацював — жодних скарг про пропущений flood.
+    expect(said).toEqual([]);
+  });
+
+  it('success: the rings carry the flood fingerprint, not the button-group one', async () => {
+    const flood = await buildDiagramSvg({
+      ...staff(),
+      config: { contourEngine: 'cell-flood', minContourMembers: 1 },
+    });
+    const button = await buildDiagramSvg({
+      ...staff(),
+      config: { minContourMembers: 1 },
+    });
+
+    // Variant B — три окремі групи IT плюс CEO (CONTEXT.md: не одна C навколо CEO),
+    // тож обидва рушії дають однакову кількість кілець…
+    expect(ringsOf(flood).length).toBe(ringsOf(button).length);
+    // …але різну форму: flood мапить кільце на бокси карток (прямокутник, 4 вершини),
+    // button-group полірує кути. Якщо експорт мовчки візьме не той рушій — тут і впаде.
+    expect(new Set(ringsOf(flood).map((r) => r.points))).toEqual(new Set([4]));
+    expect(new Set(ringsOf(button).map((r) => r.points))).toEqual(new Set([12]));
+  });
+
+  it('success: flood geometry is frozen for review', async () => {
+    const flood = await buildDiagramSvg({
+      ...staff(),
+      config: { contourEngine: 'cell-flood', minContourMembers: 1 },
+    });
+    expect(flood).toMatchSnapshot('cell-flood-svg');
+  });
+});
+
 describe('buildDiagramSvg — default engine is frozen (T1 / H2)', () => {
   /**
    * Знята ДО того, як експорт навчився рахувати flood. Мета — не «SVG виглядає добре»,
@@ -342,17 +395,16 @@ describe('SVG export vs contourEngine (T80 follow-up)', () => {
     renderConfig: { ...defaultRenderConfig, contourEngine: engine },
   });
 
-  it('failure: cell-flood says so through the SVG path, not from the wrapper (T2)', async () => {
+  it('success: cell-flood on a staff scene exports without a single complaint (T3)', async () => {
     const said: string[] = [];
     const svg = await exportDiagram(ctx('cell-flood'), {
       format: 'svg',
       onDiagnostic: (m) => said.push(m),
     });
     expect(typeof svg).toBe('string');
-    // Канал іде наскрізь: повідомляє сам SVG-шлях, а не обгортка над ним.
-    expect(said).toHaveLength(1);
-    expect(said[0]).toMatch(/button-group/);
-    expect(said[0]).toMatch(/cell-flood/);
+    // Рушій відпрацював — скаржитись нема на що. Повідомлення тут означало б,
+    // що ми знову малюємо не тим, чим просили.
+    expect(said).toEqual([]);
   });
 
   it('success: the default engine exports without a warning', async () => {

@@ -1,5 +1,60 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`SVG paints with the engine the canvas uses (T3 / H1) > success: flood geometry is frozen for review > cell-flood-svg 1`] = `
+"<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="634" viewBox="0 0 800 634">
+<rect width="100%" height="100%" fill="#f8fafc"/>
+<g id="departments">
+<path d="M156 216 L304 216 L304 384 L156 384 Z" fill="#dbeafe" fill-opacity="0.28" stroke="none" data-dept="CEO"/>
+<path d="M-4 28 L464 28 L464 196 L-4 196 Z" fill="#dbeafe" fill-opacity="0.28" stroke="none" data-dept="IT"/>
+<path d="M-4 404 L144 404 L144 572 L-4 572 Z" fill="#dbeafe" fill-opacity="0.28" stroke="none" data-dept="IT"/>
+<path d="M316 404 L464 404 L464 572 L316 572 Z" fill="#dbeafe" fill-opacity="0.28" stroke="none" data-dept="IT"/>
+</g>
+<g id="edges">
+</g>
+<g id="persons">
+<g data-position="P1" transform="translate(2,34)">
+<rect width="136" height="156" rx="10" fill="#fff" stroke="#94a3b8"/>
+<text x="8" y="86" font-size="12" fill="#0f172a">Person P1</text>
+<text x="8" y="112" font-size="11" fill="#64748b">P1</text>
+</g>
+<g data-position="P2" transform="translate(162,34)">
+<rect width="136" height="156" rx="10" fill="#fff" stroke="#94a3b8"/>
+<text x="8" y="86" font-size="12" fill="#0f172a">Person P2</text>
+<text x="8" y="112" font-size="11" fill="#64748b">P2</text>
+</g>
+<g data-position="P3" transform="translate(322,34)">
+<rect width="136" height="156" rx="10" fill="#fff" stroke="#94a3b8"/>
+<text x="8" y="86" font-size="12" fill="#0f172a">Person P3</text>
+<text x="8" y="112" font-size="11" fill="#64748b">P3</text>
+</g>
+<g data-position="P4" transform="translate(162,222)">
+<rect width="136" height="156" rx="10" fill="#fff" stroke="#94a3b8"/>
+<text x="8" y="86" font-size="12" fill="#0f172a">Person P4</text>
+<text x="8" y="112" font-size="11" fill="#64748b">P4</text>
+</g>
+<g data-position="P5" transform="translate(2,410)">
+<rect width="136" height="156" rx="10" fill="#fff" stroke="#94a3b8"/>
+<text x="8" y="86" font-size="12" fill="#0f172a">Person P5</text>
+<text x="8" y="112" font-size="11" fill="#64748b">P5</text>
+</g>
+<g data-position="P6" transform="translate(322,410)">
+<rect width="136" height="156" rx="10" fill="#fff" stroke="#94a3b8"/>
+<text x="8" y="86" font-size="12" fill="#0f172a">Person P6</text>
+<text x="8" y="112" font-size="11" fill="#64748b">P6</text>
+</g>
+</g>
+<g id="department-strokes">
+<path d="M156 216 L304 216 L304 384 L156 384 Z" fill="none" stroke="#93c5fd" stroke-width="0.9" stroke-linejoin="round" stroke-linecap="round" data-dept="CEO"/>
+<path d="M-4 28 L464 28 L464 196 L-4 196 Z" fill="none" stroke="#93c5fd" stroke-width="0.9" stroke-linejoin="round" stroke-linecap="round" data-dept="IT"/>
+<path d="M-4 404 L144 404 L144 572 L-4 572 Z" fill="none" stroke="#93c5fd" stroke-width="0.9" stroke-linejoin="round" stroke-linecap="round" data-dept="IT"/>
+<path d="M316 404 L464 404 L464 572 L316 572 Z" fill="none" stroke="#93c5fd" stroke-width="0.9" stroke-linejoin="round" stroke-linecap="round" data-dept="IT"/>
+</g>
+<g id="org-cards">
+</g>
+</svg>"
+`;
+
 exports[`buildDiagramSvg — default engine is frozen (T1 / H2) > success: byte-for-byte stable output for the button-group engine > default-engine-svg 1`] = `
 "<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="634" viewBox="0 0 800 634">
