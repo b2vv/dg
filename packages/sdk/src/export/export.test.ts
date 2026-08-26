@@ -189,6 +189,29 @@ describe('filterDiagramSubtree', () => {
   });
 });
 
+describe('buildDiagramSvg — default engine is frozen (T1 / H2)', () => {
+  /**
+   * Знята ДО того, як експорт навчився рахувати flood. Мета — не «SVG виглядає добре»,
+   * а «дефолтний рушій не зачепило»: будь-який зсув геометрії, порядку шарів чи атрибутів
+   * ламає цей тест. Знята після рефакторингу, вона перевіряла б сама себе.
+   */
+  it('success: byte-for-byte stable output for the button-group engine', async () => {
+    const svg = await buildDiagramSvg({ data: variantB(), currentOrgId: 'org1' });
+    expect(svg).toMatchSnapshot('default-engine-svg');
+  });
+
+  it('failure: the snapshot is sensitive — a changed knob changes the bytes', async () => {
+    const base = await buildDiagramSvg({ data: variantB(), currentOrgId: 'org1' });
+    const shifted = await buildDiagramSvg({
+      data: variantB(),
+      currentOrgId: 'org1',
+      config: { paddingCells: 2 },
+    });
+    // Якби фікстура була нечутлива, вона б і справжню регресію пропустила.
+    expect(shifted).not.toBe(base);
+  });
+});
+
 describe('buildDiagramSvg', () => {
   it('success: includes person groups', async () => {
     const svg = await buildDiagramSvg({ data: variantB(), currentOrgId: 'org1' });

@@ -1,0 +1,56 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildDiagramSvg — default engine is frozen (T1 / H2) > success: byte-for-byte stable output for the button-group engine > default-engine-svg 1`] = `
+"<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="634" viewBox="0 0 800 634">
+<rect width="100%" height="100%" fill="#f8fafc"/>
+<g id="departments">
+<path d="M156 222 L157.7573593128807 217.7573593128807 L162 216 L298 216 L302.24264068711926 217.7573593128807 L304 222 L304 378 L302.24264068711926 382.24264068711926 L298 384 L162 384 L157.7573593128807 382.24264068711926 L156 378 Z" fill="#dbeafe" fill-opacity="0.28" stroke="none" data-dept="CEO"/>
+<path d="M-4 34 L-2.2426406871192857 29.757359312880716 L1.9999999999999991 28 L458 28 L462.24264068711926 29.757359312880716 L464 34 L464 190 L462.24264068711926 194.2426406871193 L458 196 L1.9999999999999991 196 L-2.2426406871192857 194.2426406871193 L-4 190 Z" fill="#dbeafe" fill-opacity="0.28" stroke="none" data-dept="IT"/>
+<path d="M-4 410 L-2.2426406871192857 405.75735931288074 L1.9999999999999991 404 L138 404 L142.2426406871193 405.75735931288074 L144 410 L144 566 L142.2426406871193 570.2426406871193 L138 572 L1.9999999999999991 572 L-2.2426406871192857 570.2426406871193 L-4 566 Z" fill="#dbeafe" fill-opacity="0.28" stroke="none" data-dept="IT"/>
+<path d="M316 410 L317.75735931288074 405.75735931288074 L322 404 L458 404 L462.24264068711926 405.75735931288074 L464 410 L464 566 L462.24264068711926 570.2426406871193 L458 572 L322 572 L317.75735931288074 570.2426406871193 L316 566 Z" fill="#dbeafe" fill-opacity="0.28" stroke="none" data-dept="IT"/>
+</g>
+<g id="edges">
+</g>
+<g id="persons">
+<g data-position="P1" transform="translate(2,34)">
+<rect width="136" height="156" rx="10" fill="#fff" stroke="#94a3b8"/>
+<text x="8" y="86" font-size="12" fill="#0f172a">Person P1</text>
+<text x="8" y="112" font-size="11" fill="#64748b">P1</text>
+</g>
+<g data-position="P2" transform="translate(162,34)">
+<rect width="136" height="156" rx="10" fill="#fff" stroke="#94a3b8"/>
+<text x="8" y="86" font-size="12" fill="#0f172a">Person P2</text>
+<text x="8" y="112" font-size="11" fill="#64748b">P2</text>
+</g>
+<g data-position="P3" transform="translate(322,34)">
+<rect width="136" height="156" rx="10" fill="#fff" stroke="#94a3b8"/>
+<text x="8" y="86" font-size="12" fill="#0f172a">Person P3</text>
+<text x="8" y="112" font-size="11" fill="#64748b">P3</text>
+</g>
+<g data-position="P4" transform="translate(162,222)">
+<rect width="136" height="156" rx="10" fill="#fff" stroke="#94a3b8"/>
+<text x="8" y="86" font-size="12" fill="#0f172a">Person P4</text>
+<text x="8" y="112" font-size="11" fill="#64748b">P4</text>
+</g>
+<g data-position="P5" transform="translate(2,410)">
+<rect width="136" height="156" rx="10" fill="#fff" stroke="#94a3b8"/>
+<text x="8" y="86" font-size="12" fill="#0f172a">Person P5</text>
+<text x="8" y="112" font-size="11" fill="#64748b">P5</text>
+</g>
+<g data-position="P6" transform="translate(322,410)">
+<rect width="136" height="156" rx="10" fill="#fff" stroke="#94a3b8"/>
+<text x="8" y="86" font-size="12" fill="#0f172a">Person P6</text>
+<text x="8" y="112" font-size="11" fill="#64748b">P6</text>
+</g>
+</g>
+<g id="department-strokes">
+<path d="M156 222 L157.7573593128807 217.7573593128807 L162 216 L298 216 L302.24264068711926 217.7573593128807 L304 222 L304 378 L302.24264068711926 382.24264068711926 L298 384 L162 384 L157.7573593128807 382.24264068711926 L156 378 Z" fill="none" stroke="#93c5fd" stroke-width="0.9" stroke-linejoin="round" stroke-linecap="round" data-dept="CEO"/>
+<path d="M-4 34 L-2.2426406871192857 29.757359312880716 L1.9999999999999991 28 L458 28 L462.24264068711926 29.757359312880716 L464 34 L464 190 L462.24264068711926 194.2426406871193 L458 196 L1.9999999999999991 196 L-2.2426406871192857 194.2426406871193 L-4 190 Z" fill="none" stroke="#93c5fd" stroke-width="0.9" stroke-linejoin="round" stroke-linecap="round" data-dept="IT"/>
+<path d="M-4 410 L-2.2426406871192857 405.75735931288074 L1.9999999999999991 404 L138 404 L142.2426406871193 405.75735931288074 L144 410 L144 566 L142.2426406871193 570.2426406871193 L138 572 L1.9999999999999991 572 L-2.2426406871192857 570.2426406871193 L-4 566 Z" fill="none" stroke="#93c5fd" stroke-width="0.9" stroke-linejoin="round" stroke-linecap="round" data-dept="IT"/>
+<path d="M316 410 L317.75735931288074 405.75735931288074 L322 404 L458 404 L462.24264068711926 405.75735931288074 L464 410 L464 566 L462.24264068711926 570.2426406871193 L458 572 L322 572 L317.75735931288074 570.2426406871193 L316 566 Z" fill="none" stroke="#93c5fd" stroke-width="0.9" stroke-linejoin="round" stroke-linecap="round" data-dept="IT"/>
+</g>
+<g id="org-cards">
+</g>
+</svg>"
+`;
