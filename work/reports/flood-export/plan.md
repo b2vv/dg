@@ -88,4 +88,25 @@ revert коміту кроку 1, або конфіг: діаграма з `cont
 
 ## Приймальні сценарії
 
-_Заповнюється делегуванням `acceptance-spec` — таблиця лягає сюди до тасків._
+Три групи — happy path, межі, відмови. Результат кожного рядка сформульований так, щоб двоє
+людей однаково сказали, збігся він чи ні.
+
+| # | Сценарій | Передумова | Дія користувача | Очікуваний спостережуваний результат | Чим перевіряється |
+|---|---|---|---|---|---|
+| **H1** | Flood доїжджає до SVG | staff-сцена, `contourEngine:'cell-flood'` | `export({format:'svg'})` | у SVG рівно стільки `<path data-dept>`, скільки кілець дав би `computeFloodContours` для цієї ж сцени, і кожен `d` збігається з ними з точністю до 0.5 px | unit `packages/sdk/src/export/export.test.ts` |
+| **H2** | Дефолт не змінився | та сама сцена, `contourEngine` не задано | `export({format:'svg'})` | рядок SVG **побайтово** дорівнює тому, що функція повертала до зміни (зафіксований у тесті) | unit `export.test.ts` |
+| **H3** | Кнопка в демо | таб «Staff · Flood», `?e2e=1` | клік `#export-svg` | завантажений файл містить `<path data-dept` у кількості > 0, і статус показує `export` | e2e `e2e/integration-paths.spec.ts` |
+| **H4** | Друк іде тим самим шляхом | staff-сцена, `cell-flood` | `print()` | у переданому в друк SVG ті самі `data-dept`-шляхи, що й у `export({format:'svg'})` | unit `export.test.ts` |
+| **B1** | Сцена без відділів | посади без `departmentId` | `export({format:'svg'})` | у SVG є `<g id="departments">` без жодного `<path data-dept>`; помилки немає | unit `export.test.ts` |
+| **B2** | Один відділ, одна посада | 1 посада з `gridCell`, `minContourMembers:1`, `cell-flood` | `export({format:'svg'})` | рівно один `<path data-dept="…">` | unit `export.test.ts` |
+| **B3** | `minContourMembers` відсікає | 1 посада у відділі, `minContourMembers:2`, `cell-flood` | `export({format:'svg'})` | жодного `<path data-dept>`; діагностики про заміну рушія **немає** (це не відмова, а налаштування) | unit `export.test.ts` |
+| **B4** | Піддерево | `scope:'subtree'`, корінь із 1 з 3 відділів, `cell-flood` | `export({format:'svg', scope:'subtree', subtreeRootId})` | `data-dept` присутні **лише** для відділів піддерева | unit `export.test.ts` |
+| **F1** | WASM недоступний | `cell-flood`, flood-лоадер кидає | `export({format:'svg'})` | SVG усе одно повертається і містить button-group-шляхи; `onDiagnostic` отримав рівно одне повідомлення, у якому названо причину заміни | unit `export.test.ts` |
+| **F2** | Сітка без staff-фокуса | сцена лише з `gridCell`, без `staffCurrentOrgId`, `cell-flood` | `export({format:'svg'})` | button-group-шляхи + одне повідомлення, що flood недоступний для сітки так само, як на канвасі | unit `export.test.ts` |
+| **F3** | Зайвих попереджень немає | дефолтний рушій | `export({format:'svg'})` | `onDiagnostic` не викликано жодного разу | unit `export.test.ts` |
+| **F4** | Порожній результат flood | `cell-flood`, flood повернув 0 кілець при ≥1 очікуваному відділі | `export({format:'svg'})` | button-group-шляхи + повідомлення з причиною; порожнього шару відділів **не** буває мовчки | unit `export.test.ts` |
+| **M1** | Око: SVG проти екрана | таб «Staff · Flood» | експортувати SVG і відкрити поруч із канвасом | контури в файлі повторюють контури на екрані (та сама C-подібна форма навколо чужої картки) | **вручну** — 1 ручний рядок |
+
+**Ручних рядків: 1** (M1). Решта 12 — автоматичні: 11 unit + 1 e2e.
+
+Кожен таск нижче посилається на номери рядків, які він закриває.
