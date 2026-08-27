@@ -28,7 +28,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc && node scripts/copy-wasm.mjs",
+    "build": "tsc && node scripts/copy-wasm.mjs && node scripts/check-package.mjs",
     "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
     "dev": "rsbuild dev",
     "typecheck": "tsc --noEmit",
