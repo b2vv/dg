@@ -109,12 +109,32 @@ function createGlMock() {
   };
 }
 
+/**
+ * jsdom implements no 2D context, and the list of methods Pixi's Canvas2D
+ * renderer reaches for is not knowable up front — it cost two CI rounds to learn
+ * that `resetTransform` follows `CanvasRenderingContext2D`. Unknown methods
+ * therefore answer with a no-op rather than throwing; the explicit properties
+ * above still carry the values anything reads.
+ */
+function permissive2dMock(): CanvasRenderingContext2D {
+  const base = create2dMock() as Record<string | symbol, unknown>;
+  const made = new Map<string | symbol, unknown>();
+  return new Proxy(base, {
+    get(target, key) {
+      if (key in target) return target[key];
+      if (!made.has(key)) made.set(key, vi.fn());
+      return made.get(key);
+    },
+    has: () => true,
+  }) as unknown as CanvasRenderingContext2D;
+}
+
 HTMLCanvasElement.prototype.getContext = function getContext(
   type: string,
   ..._args: unknown[]
 ) {
   if (type === '2d') {
-    return create2dMock() as unknown as CanvasRenderingContext2D;
+    return permissive2dMock();
   }
   if (type === 'webgl' || type === 'webgl2' || type === 'experimental-webgl') {
     return createGlMock() as unknown as WebGLRenderingContext;
