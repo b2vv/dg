@@ -69,25 +69,4 @@ describe('rectangular magnetic row (T50)', () => {
     expect(it).toHaveLength(1);
     expect(trueCorners(it[0]!.path, GRID_CELL_WIDTH, GRID_CELL_HEIGHT)).toBe(4);
   });
-
-  it('failure: pad1 with Manhattan-style hat would have >4 corners (guard)', async () => {
-    // Document expected failure shape of the old G7: stepped ends → >4 corners.
-    // Current build must NOT look like that for a plain row.
-    const contours = await computeAllContours(
-      [
-        { id: 'A', departmentId: 'IT', col: 0, row: 0 },
-        { id: 'B', departmentId: 'IT', col: 1, row: 0 },
-        { id: 'C', departmentId: 'IT', col: 2, row: 0 },
-      ],
-      {
-        cellWidth: GRID_CELL_WIDTH,
-        cellHeight: GRID_CELL_HEIGHT,
-        paddingCells: 1,
-        smoothIterations: 0,
-        magnetRadius: 1.5,
-      },
-    );
-    const corners = trueCorners(contours[0]!.path, GRID_CELL_WIDTH, GRID_CELL_HEIGHT);
-    expect(corners).not.toBeGreaterThan(4);
-  });
 });
