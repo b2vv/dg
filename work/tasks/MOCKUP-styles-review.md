@@ -207,6 +207,27 @@ row 2   supply           people ·1        people ·2
 
 Як саме — щоб повторити:
 
+> 🔴 **Виправлено 2026-08-27.** Ця процедура генерувала бейзлайни в образі
+> `mcr.microsoft.com/playwright`, а CI бігає на **голому ubuntu** з
+> `npx playwright install --with-deps`. Набори шрифтів різні, тож знімки розходились і за
+> розміром (тулбар переносить рядки інакше → зсув монтування), і за вмістом (~8% пікселів).
+> Через це e2e на `main` був червоний. Нижче — процедура **в середовищі, ідентичному раннеру**.
+
+```bash
+docker run --rm --platform=linux/amd64 \
+  -v "$PWD":/src:ro -v /tmp/out:/out \
+  ubuntu:24.04 bash -lc '
+    apt-get update -qq && apt-get install -y -qq curl ca-certificates tar
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y -qq nodejs
+    mkdir -p /work && tar -C /src -cf - --exclude=node_modules --exclude=.git --exclude=target . | tar -C /work -xf - && cd /work
+    npm ci && npx playwright install chromium --with-deps
+    CI=1 npx playwright test e2e/mockups.spec.ts --update-snapshots
+    CI=1 npx playwright test e2e/mockups.spec.ts        # повторний прогін = доказ відтворюваності
+    cp -a /work/e2e/mockups.spec.ts-snapshots/. /out/'
+```
+
+<details><summary>Стара процедура (образ Playwright) — не використовувати</summary>
+
 ```bash
 docker run --rm --platform=linux/amd64 \
   -v "$PWD":/src:ro -v /tmp/out:/out \
@@ -216,6 +237,8 @@ docker run --rm --platform=linux/amd64 \
     CI=1 npx playwright test e2e/node-compare.spec.ts --update-snapshots
     cp -a /work/e2e/mockups.spec.ts-snapshots/. /out/'
 ```
+
+</details>
 
 Три речі, які роблять результат придатним для CI:
 
