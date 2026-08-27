@@ -35,8 +35,8 @@ export async function exportDiagram(
   }
 
   if (options.format === 'svg') {
-    reportSvgEngineMismatch(ctx.renderConfig, options);
     return buildDiagramSvg({
+      onDiagnostic: (message) => reportExportDiagnostic(message, options),
       data,
       config: ctx.renderConfig,
       background: options.background ?? ctx.background,
@@ -84,18 +84,11 @@ export function printDiagram(svg: string): void {
 }
 
 /**
- * SVG rebuilds department contours with the button-group painter, whatever
- * `contourEngine` the canvas used — it has no Rust flood in its path. PNG/PDF
- * are captured from the live Pixi framebuffer, so they show what you saw.
- *
- * Say so instead of shipping a picture that quietly differs from the screen.
+ * Where an export warning goes: the caller's channel, or the console. An export
+ * that quietly differs from the canvas is the kind of silent lie this repo bans,
+ * so «nobody passed a handler» must not mean «say nothing».
  */
-function reportSvgEngineMismatch(config: RenderConfig, options: ExportOptions): void {
-  if ((config.contourEngine ?? 'button-group') === 'button-group') return;
-  const message =
-    `SVG export paints department contours with the button-group painter; ` +
-    `contourEngine: '${config.contourEngine}' is not reproduced. ` +
-    `Use PNG or PDF for a pixel-faithful copy of the canvas.`;
+function reportExportDiagnostic(message: string, options: ExportOptions): void {
   if (options.onDiagnostic) {
     options.onDiagnostic(message);
     return;

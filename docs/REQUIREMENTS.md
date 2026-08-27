@@ -325,6 +325,13 @@ P3 │              ← пряма вертикаль P3→P6 як internal edge
 
 **Магнетизм** — правила, за якими own cells **того ж dept** злипаються в компоненти, а контур кожної компоненти «притягується» до своїх pos і **відштовхується** від чужих, утворюючи зовнішній полігон без internal edges.
 
+> **Який рушій це малює.** Правила нижче — спільна мова для обох рушіїв, але геометрія різна:
+> `'button-group'` (default) реалізує G1/G2/M2 через AABB з виїмками під чужі картки
+> ([T79](../work/tasks/T79-g2-m2-paint-notch.md)), `'cell-flood'` — через полігональний flood
+> у Rust (G5 notch, G6 far-side, G7 peel). Перевіряючи «чи виконується G-правило», спершу
+> з'ясуй, у якому рушії — інакше тест перевірятиме не те, що на екрані
+> (`work/CTO-RESEARCH.md`, архітектурний факт №1).
+
 ---
 
 #### A. Терміни
@@ -450,7 +457,12 @@ Demo Variant B: `VARIANT_B_MAGNET_RADIUS = 1.5` (`packages/sdk`).
 | **D&D person** | зміна **примітивних координат** у dept/org ієрархії |
 | **Block shift** | зсув **блоку посад** на рівень вище / нижче |
 
-**Контури dept:** union grid cells → polygon (membership) → paint polish: **завжди button-group rounded rect** навколо карток компоненти. Без ортогонального «шуму» і без окремого L/C fillet-шляху.
+**Контури dept:** union grid cells → polygon (membership) → paint polish. Рушій обирає
+`RenderConfig.contourEngine` (оновлено 2026-08-26, [T80](../work/tasks/T80-contour-engines-ba-demo.md)):
+`'button-group'` (**default**) — rounded rect навколо карток компоненти, без ортогонального «шуму»
+і без окремого L/C fillet-шляху; `'cell-flood'` — Rust-flood G1–G8 поблочно на org. **Обидва живуть
+у продукті як опція**, поки BA не обере один. Експорт SVG малює тим самим рушієм, що й канвас;
+PNG/PDF беруться з фреймбуфера.
 
 **LOD:** при віддаленні dept blob = simplified polygon + count badge; person nodes collapse to dots.
 

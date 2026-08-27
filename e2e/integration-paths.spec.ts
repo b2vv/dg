@@ -59,6 +59,20 @@ test.describe('host integration paths', () => {
     await expect(page.locator('#status')).toContainText('export');
   });
 
+  test('export: the Flood tab exports contours, not a silent button-group copy', async ({ page }) => {
+    await openTab(page, 'Staff · Flood');
+
+    const download = page.waitForEvent('download');
+    await page.locator('#export-svg').click();
+    const file = await download;
+    const svgText = await (await import('node:fs/promises')).readFile((await file.path())!, 'utf8');
+
+    // Контури в файлі є — тобто рушій сцени доїхав до експорту, а не був підмінений.
+    const deptPaths = [...svgText.matchAll(/data-dept="/g)].length;
+    expect(deptPaths).toBeGreaterThan(0);
+    await expect(page.locator('#status')).toContainText('export');
+  });
+
   test('drag & drop: a seat card lands on the next cell and stays there', async ({ page }) => {
     await openTab(page, 'Variant B');
     await letPointerReachCanvas(page);

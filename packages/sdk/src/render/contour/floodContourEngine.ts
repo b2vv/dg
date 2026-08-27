@@ -82,17 +82,21 @@ export async function computeFloodContours(
   const ringsByDept = new Map<string, ContourPoint[][]>();
   const boxById = new Map(input.memberBoxes.map((b) => [b.positionId, b]));
 
-  for (const [, blockInputs] of groupInputsByOrg(input.inputs, input.orgByPosition)) {
+  for (const [orgId, blockInputs] of groupInputsByOrg(input.inputs, input.orgByPosition)) {
     const blockTransform = blockTransformFor(blockInputs, boxById, input.transform);
 
     let contours;
     try {
       contours = await computeAllContours([...blockInputs], input.magnet);
     } catch (err) {
+      // Кільця блоків, що вже відпрацювали, лишаються — і на канвасі, і в SVG буде
+      // видно саме їх. Блок називаємо: «контур зник» без адреси не діагностика.
       return {
         ringsByDept,
         diagnostics: [
-          `Contour flood unavailable: ${err instanceof Error ? err.message : String(err)}`,
+          `Contour flood unavailable for org block '${orgId}': ` +
+            `${err instanceof Error ? err.message : String(err)}. ` +
+            `Blocks after it were not attempted; earlier blocks keep their contours.`,
         ],
       };
     }

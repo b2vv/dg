@@ -1,6 +1,6 @@
 {
   "name": "@org-hierarchy/sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Org hierarchy diagram SDK — data, mappers, worker helpers",
   "type": "module",
   "main": "./dist/index.js",

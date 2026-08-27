@@ -129,7 +129,7 @@ Pipeline у `contour.rs`: cluster → flood → G5 notch → G6 far-side → G7 
 |------|-----------|-----|
 | **Canvas, default** | union-find Manhattan ≤ `magnetRadius` + padded AABB ring, **мінус виїмки під чужі картки (G2/M2)** | [`render/contour/paintMagneticGroups.ts`](../packages/sdk/src/render/contour/paintMagneticGroups.ts) + [`contourNotch.ts`](../packages/sdk/src/render/contour/contourNotch.ts) (T79) |
 | **Canvas, `cell-flood`** | Rust polyomino flood G1–G8 **по кожному org-блоку окремо**, кільця мапляться на бокси карток | [`floodContourEngine.ts`](../packages/sdk/src/render/contour/floodContourEngine.ts) + [`floodRingCards.ts`](../packages/sdk/src/render/contour/floodRingCards.ts) (T80) |
-| **SVG export** | завжди button-group, рушія не читає | [`export/svgExport.ts`](../packages/sdk/src/export/svgExport.ts) |
+| **SVG export** | той самий рушій, що й канвас (`resolveExportContourRings`); flood не зміг — шар порожній + діагностика | [`export/svgExport.ts`](../packages/sdk/src/export/svgExport.ts) |
 
 `gridCell` у flood — **локальна для org-блоку**, тому flood ганяється поблочно і кожен блок мапиться своїм origin; один спільний flood наклав би ярус 1 на ярус 2 (T80). Коридор G2 — `RenderConfig.corridorCells` (default 0.5 клітини, [`render/contour/contourCorridor.ts`](../packages/sdk/src/render/contour/contourCorridor.ts)), і flood, який нічого не намалював, зобов'язаний сказати чому через `getLayoutDiagnostics()`.
 
@@ -210,7 +210,7 @@ GitHub Issues на `b2vv/dg` **порожні**; живий беклог — `wo
 
 | # | Суть | Джерело |
 |---|------|---------|
-| 1 | **`cell-flood` не доходить до експорту**: SVG завжди button-group. Уже **не тихо** — `exportDiagram` повідомляє через `ExportOptions.onDiagnostic` (інакше `console.warn`), PNG/PDF вірні (фреймбуфер). Повний фікс (flood у `export/`) свідомо відкладено до рішення BA | `export/exportDiagram.ts`, [T80 §Експорт](./tasks/T80-contour-engines-ba-demo.md) |
+| 1 | ~~`cell-flood` не доходить до експорту~~ — **закрито 2026-08-26**: SVG рахує flood тими самими входами, що й канвас; коли рушій не може відпрацювати, шар порожній + причина в `onDiagnostic`. Правило: SVG ніколи не малює рушієм, якого не використав канвас | `export/svgExport.ts`, [T80](./tasks/T80-contour-engines-ba-demo.md), [цикл](./reports/flood-export/) |
 | 2 | ~~Візуальні бейзлайни застаріли~~ — **закрито 2026-08-25**: усі 5 знімків перезняті в контейнері `playwright:v1.62.1-noble` під `linux/amd64` (як CI), галерея `node-compare` теж; повторний прогін без `--update-snapshots` дав 16/16 | [MOCKUP-styles-review §Перегенеровано](./tasks/MOCKUP-styles-review.md) |
 | 3 | ~~Shared module-level воркери~~ — **закрито 2026-08-26**: `worker/WorkerChannel.ts`, кожна діаграма має власний канал і звільняє його на `destroy()`; модульні `configure*` лишились для прямих викликів | `worker/WorkerChannel.ts`, `render/twoDiagrams.contract.test.ts` |
 | 4 | Promote-HTML не входить у SVG/PNG/PDF | `react/createReactPromoteOverlay.ts` |

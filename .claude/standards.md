@@ -126,10 +126,15 @@ CI (`.github/workflows/ci.yml`) — три job: `rust` (cargo test), `sdk` (buil
   а між ними. Тому межа судиться окремим рядком Конституції, а не мірником. Якщо дифф чіпає
   `types.rs` — перевір, чи змінився `rust-types.ts` разом із ним.
 
-⚠️ **Архітектурний факт:** на канвасі dept-контур малює **TS** (`paintMagneticGroups`), а не Rust
-flood із `contour.rs`. WASM-гілка лишилась для SVG-grid, публічного API й тестів
-(`work/CTO-RESEARCH.md`; `work/tech-debt/CRITIQUE-dg_9352d52.md` C1–C3). Плануючи «поправити
-контур», спершу з'ясуй, у якій із двох гілок.
+⚠️ **Архітектурний факт (оновлено 2026-08-26):** контур має **два рушії** за
+`RenderConfig.contourEngine`. Default `'button-group'` — TS (`render/contour/paintMagneticGroups.ts`
++ виїмки G2/M2). `'cell-flood'` — Rust flood із `contour.rs`, поблочно на org
+(`render/contour/floodContourEngine.ts`). **Експорт малює тим самим рушієм, що й канвас**
+(2026-08-26, гілка `cursor/flood-export-svg`): SVG рахує flood тими самими входами, PNG/PDF
+беруться з фреймбуфера. Коли flood не може відпрацювати — шар відділів порожній, як на екрані,
+а причина йде в `ExportOptions.onDiagnostic`.
+Плануючи «поправити контур», спершу з'ясуй, у якому з рушіїв і чи не треба правити обидва
+(`work/CTO-RESEARCH.md`; [T80](../work/tasks/T80-contour-engines-ba-demo.md)).
 
 ## Гілки й PR
 
