@@ -15,7 +15,11 @@ export default defineConfig({
   reporter: process.env.CI ? 'github' : 'list',
   timeout: 120_000,
   use: {
-    baseURL: process.env.PROD_URL ?? 'https://b2vv.github.io/dg/',
+    // `||`, not `??`: the workflow sets PROD_URL from a dispatch input, and an
+    // automatic run has no inputs — so the variable arrives defined and empty.
+    // `??` accepted that empty string as a URL and every scheduled smoke died on
+    // "Cannot navigate to invalid URL", looking like a broken deploy for weeks.
+    baseURL: process.env.PROD_URL || 'https://b2vv.github.io/dg/',
     trace: 'retain-on-failure',
     ...devices['Desktop Chrome'],
   },
