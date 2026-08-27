@@ -13,6 +13,7 @@
     "dev": "npm run dev -w @org-hierarchy/demo",
     "test": "npm run test -w @org-hierarchy/sdk && npm run test -w @org-hierarchy/demo",
     "test:contract": "npm run test -w @org-hierarchy/sdk -- --run nodeInteractions.contract selection.test",
+    "test:e2e:software-gl": "SOFTWARE_GL=1 playwright test e2e/renderer-choice.spec.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "compare:nodes": "playwright test e2e/node-compare.spec.ts",

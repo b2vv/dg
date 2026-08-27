@@ -83,3 +83,12 @@ jobs:
 
       - name: E2E smoke
         run: npm run test:e2e
+
+      # The renderer rows have a branch that only exists where the browser
+      # refuses a WebGL context it would have to emulate — the state of a
+      # terminal without a GPU. A normal runner grants that context, so without
+      # this second pass the branch that matters for T83 is never executed.
+      - name: E2E on an emulated GPU (renderer choice)
+        env:
+          SOFTWARE_GL: '1'
+        run: npx playwright test e2e/renderer-choice.spec.ts

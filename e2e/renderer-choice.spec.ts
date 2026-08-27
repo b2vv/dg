@@ -9,6 +9,11 @@ import { expect, test, type Page } from '@playwright/test';
  * test that hard-coded 'webgl' here would be testing the runner, not the SDK.
  * What is invariant: a pinned engine is honoured, and the engine the SDK reports
  * matches the context the canvas actually has.
+ *
+ * Two of the rows have a second branch that only exists where the browser refuses
+ * a software WebGL context. Run them there with:
+ *
+ *   SOFTWARE_GL=1 npx playwright test e2e/renderer-choice.spec.ts
  */
 
 async function open(page: Page, query = ''): Promise<void> {
@@ -20,6 +25,18 @@ async function open(page: Page, query = ''): Promise<void> {
 
 function bridge(page: Page) {
   return {
+    probe: (renderer?: string) =>
+      page.evaluate((r) => {
+        const b = (
+          window as unknown as {
+            __demoE2e?: {
+              probeSecondDiagram(x?: string): Promise<{ kind: string | null; error: string | null }>;
+            };
+          }
+        ).__demoE2e;
+        if (!b) throw new Error('__demoE2e missing — load with ?e2e=1');
+        return b.probeSecondDiagram(r);
+      }, renderer),
     kind: () =>
       page.evaluate(() => {
         const b = (window as unknown as { __demoE2e?: { getRendererKind(): string | null } })
@@ -41,6 +58,20 @@ function bridge(page: Page) {
 const sceneUsesWebgl = (page: Page) =>
   page.evaluate(() => !!document.querySelector('#diagram-mount canvas')?.getContext('webgl2'));
 
+/**
+ * What the browser itself says, asked without touching our code or Pixi's cache:
+ * does it grant a WebGL context it would not have to emulate? This is the
+ * independent source of truth the engine assertions are measured against — using
+ * `getRendererKind()` for both sides would only prove the SDK agrees with itself.
+ */
+const browserGrantsRealWebgl = (page: Page) =>
+  page.evaluate(
+    () =>
+      !!document
+        .createElement('canvas')
+        .getContext('webgl2', { failIfMajorPerformanceCaveat: true }),
+  );
+
 test.describe('renderer choice (T83)', () => {
   test('row 2: a host that pins canvas gets canvas, and no WebGL context exists', async ({
     page,
@@ -56,6 +87,43 @@ test.describe('renderer choice (T83)', () => {
     await open(page);
     const [kind, webgl] = await Promise.all([bridge(page).kind(), sceneUsesWebgl(page)]);
     expect(kind).toBe(webgl ? 'webgl' : 'canvas');
+  });
+
+  test('row 5: two diagrams, and each gets the engine its own config asked for', async ({
+    page,
+  }) => {
+    await open(page);
+    const pinned = await bridge(page).probe('canvas');
+    expect(pinned).toEqual({ kind: 'canvas', error: null });
+
+    // The auto neighbour must land where the *browser's* verdict points, not
+    // wherever the pinned one went.
+    const auto = await bridge(page).probe(undefined);
+    const expected = (await browserGrantsRealWebgl(page)) ? 'webgl' : 'canvas';
+    expect(auto.kind).toBe(expected);
+
+    // …and the pinned one is unmoved by the neighbour that came after it.
+    expect(await bridge(page).probe('canvas')).toEqual({ kind: 'canvas', error: null });
+  });
+
+  test('row 6: a pinned webgl never silently appears where webgl was refused', async ({
+    page,
+  }) => {
+    await open(page);
+    const auto = await bridge(page).probe(undefined);
+    const pinnedWebgl = await bridge(page).probe('webgl');
+
+    if (auto.kind === 'canvas') {
+      // The page's WebGL verdict is cached by Pixi and ignores the flag a later
+      // mount passes, so a pinned 'webgl' cannot get WebGL here. What it must
+      // never do is report 'webgl' anyway — it has to fail out loud.
+      expect(pinnedWebgl.kind).not.toBe('webgl');
+      expect(pinnedWebgl.error).toContain("renderer 'webgl'");
+    } else {
+      // Where WebGL is genuinely available, pinning it is simply honoured.
+      expect(pinnedWebgl.kind).toBe('webgl');
+      expect(pinnedWebgl.error).toBeNull();
+    }
   });
 
   test('row 12: the engine line survives a second render of the same diagram', async ({
