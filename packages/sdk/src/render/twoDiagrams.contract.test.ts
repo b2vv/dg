@@ -86,6 +86,33 @@ describe('two diagrams on one page', () => {
     document.body.removeChild(elB);
   });
 
+  it('success: a diagram pinned to canvas keeps that engine next to an auto neighbour', async () => {
+    const elA = mount();
+    const elB = mount();
+
+    const pinned = await OrgHierarchyDiagram.create(elA, {
+      data: data('pinned'),
+      renderer: 'canvas',
+      workerFactory: silentWorkerFactory().factory,
+    });
+    const auto = await OrgHierarchyDiagram.create(elB, {
+      data: data('auto'),
+      workerFactory: silentWorkerFactory().factory,
+    });
+
+    expect(pinned.getRendererKind()).toBe('canvas');
+    // The neighbour's engine is the environment's business — jsdom has no real
+    // WebGL, so asserting 'webgl' here would only be asserting the mock. What
+    // this contract owns is that the pinned one is not moved by the neighbour.
+    expect(auto.getRendererKind()).not.toBeNull();
+    expect(pinned.getRendererKind()).toBe('canvas');
+
+    pinned.destroy();
+    auto.destroy();
+    document.body.removeChild(elA);
+    document.body.removeChild(elB);
+  });
+
   it('failure: destroy releases this diagram only, and twice is safe', async () => {
     const el = mount();
     const w = silentWorkerFactory();
@@ -98,6 +125,58 @@ describe('two diagrams on one page', () => {
     diagram.destroy();
     expect(() => diagram.destroy()).not.toThrow();
     expect(await diagram.search('Ada')).toEqual([]);
+    document.body.removeChild(el);
+  });
+});
+
+/**
+ * jsdom mocks a WebGL context without `getContextAttributes`, so Pixi's
+ * `isWebGLSupported` says no — which makes `renderer: 'webgl'` the real,
+ * unmocked way to reach a rejected mount here.
+ */
+describe('a mount that fails', () => {
+  it('failure: rejecting on a pinned engine still releases the workers it already made', async () => {
+    const el = mount();
+    const w = silentWorkerFactory();
+
+    await expect(
+      OrgHierarchyDiagram.create(el, {
+        data: data('doomed'),
+        renderer: 'webgl',
+        workerFactory: w.factory,
+        workerPoolSize: 1,
+      }),
+    ).rejects.toThrow(/webgl/i);
+
+    // Nobody holds the instance, so nobody can call destroy() on it — if create
+    // does not clean up after itself, every retry leaks another worker.
+    // Counting matters: the pool and the search index both draw from this
+    // factory, so a single terminate would hide one of them leaking.
+    expect(w.factory.mock.calls.length).toBeGreaterThan(0);
+    expect(w.terminate.mock.calls.length).toBe(w.factory.mock.calls.length);
+
+    document.body.removeChild(el);
+  });
+
+  it('failure: three attempts release three sets of workers, not one', async () => {
+    const el = mount();
+    const factories = [silentWorkerFactory(), silentWorkerFactory(), silentWorkerFactory()];
+
+    for (const w of factories) {
+      await expect(
+        OrgHierarchyDiagram.create(el, {
+          data: data('retry'),
+          renderer: 'webgl',
+          workerFactory: w.factory,
+          workerPoolSize: 1,
+        }),
+      ).rejects.toThrow(/renderer 'webgl'/);
+    }
+
+    for (const w of factories) {
+      expect(w.terminate.mock.calls.length).toBe(w.factory.mock.calls.length);
+    }
+
     document.body.removeChild(el);
   });
 });

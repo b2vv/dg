@@ -90,4 +90,32 @@ describe('layout diagnostics', () => {
     diagram.destroy();
     document.body.removeChild(container);
   });
+
+  it('success: the engine that drew the scene is named, and survives a second render', async () => {
+    const container = document.createElement('div');
+    container.style.width = '600px';
+    container.style.height = '400px';
+    document.body.appendChild(container);
+
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: overlappingStaffData(),
+      useWorker: false,
+      staffCurrentOrgId: 'org1',
+      renderer: 'canvas',
+    });
+
+    const named = (messages: readonly string[]) =>
+      messages.some((d) => d.includes('Renderer: canvas') && d.includes('canvas'));
+
+    expect(named(diagram.getLayoutDiagnostics())).toBe(true);
+
+    // DiagramRenderer overwrites its diagnostics on every render, so a line
+    // written once at mount would vanish here — silently, which is the failure
+    // this test exists for.
+    await diagram.setTheme('dark');
+    expect(named(diagram.getLayoutDiagnostics())).toBe(true);
+
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
 });

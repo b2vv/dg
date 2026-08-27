@@ -100,6 +100,11 @@ export class App {
   private testAnchors: TestAnchorOverlay | null = null;
   private readonly e2eMode =
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('e2e');
+  /** `?renderer=canvas|webgl|auto` — lets e2e pin the engine the way a host would. */
+  private readonly rendererParam =
+    typeof window === 'undefined'
+      ? null
+      : new URLSearchParams(window.location.search).get('renderer');
 
   private readonly mountEl: HTMLElement;
   private readonly statusEl: HTMLElement;
@@ -235,6 +240,12 @@ export class App {
       this.setStatus('Loading…');
       this.diagram = await OrgHierarchyDiagram.create(this.mountEl, {
         ...config,
+        // Forwarded unvalidated on purpose: the demo stands in for an untyped
+        // host here, and the SDK owns normalising anything it does not know
+        // (resolveRendererPreference) — validating twice would hide that path.
+        ...(this.rendererParam
+          ? { renderer: this.rendererParam as OrgHierarchyConfig['renderer'] }
+          : {}),
         callbacks: this.diagramCallbacks(),
       });
       this.mountOverlays(this.diagram);
@@ -321,9 +332,12 @@ export class App {
         this.setStatus(`${this.tab} · ${mode} · ${this.theme}`);
       },
       onLayoutDiagnostics: (messages) => {
-        if (messages.length === 0) return;
+        // The `Renderer: …` line is always present (T83) and is not a warning.
+        // Toasting it would bury every real warning behind a "+N".
+        const warnings = messages.filter((m) => !m.startsWith('Renderer: '));
+        if (warnings.length === 0) return;
         this.showToast(
-          `Layout: ${messages[0]}${messages.length > 1 ? ` (+${messages.length - 1})` : ''}`,
+          `Layout: ${warnings[0]}${warnings.length > 1 ? ` (+${warnings.length - 1})` : ''}`,
         );
       },
     };

@@ -205,7 +205,30 @@ row 2   supply           people ·1        people ·2
 перезняті, `mockup-staff-magnetic-linux.png` створено вперше; галерея `work/tasks/node-compare/`
 теж оновлена.
 
-Як саме — щоб повторити:
+> 🔴 **Ця процедура НЕ дає бейзлайнів, придатних для CI (з'ясовано 2026-08-27).**
+> Знімки, згенеровані нею, розходяться з тим, що бачить раннер GitHub:
+> `Expected an image 1280px by 773px, received 1280px by 780px`, а де розміри збігаються —
+> ~8% пікселів. Через це `e2e` на `main` червоний (щонайменше з `4dbb5f8`).
+>
+> Перевірено, що справа **не в образі**: прогін у `ubuntu:24.04` рівно тими кроками, що й CI
+> (`npm ci` → `npx playwright install chromium --with-deps`), дає **байт-у-байт ті самі**
+> файли, що й образ `mcr.microsoft.com/playwright`. Тобто розходиться саме раннер GitHub —
+> ймовірні причини: власний набір шрифтів у їхньому образі та нативний amd64 проти
+> QEMU-емуляції під Docker на Apple Silicon.
+>
+> **Робочий шлях — брати знімки з самого раннера.** Job `Playwright e2e` тепер при падінні
+> вивантажує `test-results/` артефактом `playwright-actual`, тож потрібні файли можна забрати:
+>
+> ```bash
+> gh run download <RUN_ID> -n playwright-actual -D /tmp/actual
+> # кожен `<name>-actual.png` кладеться бейзлайном як `<name>-linux.png`
+> find /tmp/actual -name 'mockup-orgs-figma-actual.png' | head -1
+> ```
+>
+> Спроби (`retry1`, `retry2`) можна брати будь-яку: перевірено, що між ними **нуль різних
+> пікселів** — раннер детермінований, а байтова різниця файлів лише в метаданих PNG.
+
+Як саме — щоб повторити (локально відтворювано, для CI **непридатно**):
 
 ```bash
 docker run --rm --platform=linux/amd64 \

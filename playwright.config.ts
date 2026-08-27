@@ -16,6 +16,15 @@ export default defineConfig({
     baseURL: 'http://127.0.0.1:4173',
     trace: 'on-first-retry',
     ...devices['Desktop Chrome'],
+    // SOFTWARE_GL=1 runs the whole suite on an emulated GPU — the state a
+    // thin/zero client is in. Only there does the browser refuse a WebGL context
+    // it would have to emulate, which is the one condition under which T83's
+    // acceptance row 6 (a pinned 'webgl' must fail rather than appear silently)
+    // has anything to observe. Off by default: it is slower and it is not the
+    // environment CI represents.
+    launchOptions: process.env.SOFTWARE_GL
+      ? { args: ['--use-gl=swiftshader', '--disable-gpu'] }
+      : {},
   },
   webServer: {
     command: 'npm run build:demo && npm run preview -w @org-hierarchy/demo -- --port 4173',

@@ -1,4 +1,9 @@
-import { layoutStaffCanvas, type DiagramData, type OrgHierarchyConfig } from '@org-hierarchy/sdk';
+import {
+  layoutStaffCanvas,
+  OrgHierarchyDiagram as OrgHierarchyDiagramClass,
+  type DiagramData,
+  type OrgHierarchyConfig,
+} from '@org-hierarchy/sdk';
 import type { OrgHierarchyDiagram } from '@org-hierarchy/sdk';
 
 /**
@@ -18,6 +23,15 @@ export interface DemoE2eBridge {
   getStaffLayoutEdges(): Promise<Array<{ fromId: string; toId: string; kind: string }>>;
   /** Soft render warnings — a silently empty contour layer must show up here. */
   getLayoutDiagnostics(): string[];
+  /** Engine that drew the scene (T83): 'webgl' | 'canvas' | null. */
+  getRendererKind(): 'webgl' | 'canvas' | null;
+  /**
+   * Mount a throwaway second diagram with the given engine and report what it
+   * got (T83, acceptance rows 5 and 6). A second diagram is the only way to
+   * observe that Pixi's WebGL verdict belongs to the page rather than to one
+   * diagram — the demo itself only ever mounts one.
+   */
+  probeSecondDiagram(renderer?: string): Promise<{ kind: string | null; error: string | null }>;
 }
 
 export interface E2eBridgeDeps {
@@ -43,7 +57,9 @@ export function installDemoE2eBridge(deps: E2eBridgeDeps): void {
     getStaffExpandedOrgIds: () => diagram.getStaffExpandedOrgIds(),
     getZoom: () => diagram.getZoom(),
     getLayoutDiagnostics: () => [...diagram.getLayoutDiagnostics()],
+    getRendererKind: () => diagram.getRendererKind(),
     getStaffLayoutEdges: () => staffLayoutEdgesFor(deps.config()),
+    probeSecondDiagram: (renderer) => probeSecondDiagram(renderer),
   };
   (window as unknown as { __demoE2e?: DemoE2eBridge }).__demoE2e = bridge;
 }
@@ -72,4 +88,46 @@ cfg: OrgHierarchyConfig<unknown>,
     },
   );
   return canvas.edges.map((e) => ({ fromId: e.fromId, toId: e.toId, kind: e.kind }));
+}
+
+/** Smallest diagram that still mounts — this probe is about the engine, not the scene. */
+function probeData(): DiagramData {
+  return {
+    organizations: [{ id: 'probe-org', name: 'Probe', groupIds: [] }],
+    groups: [],
+    departments: [],
+    persons: [{ id: 'probe-per', fullName: 'Probe Person' }],
+    positions: [
+      {
+        id: 'probe-pos',
+        organizationId: 'probe-org',
+        title: 'Head',
+        personId: 'probe-per',
+        isHead: true,
+      },
+    ],
+    reportLines: [],
+  } as unknown as DiagramData;
+}
+
+async function probeSecondDiagram(
+  renderer?: string,
+): Promise<{ kind: string | null; error: string | null }> {
+  const host = document.createElement('div');
+  host.style.cssText = 'position:absolute;left:-10000px;width:400px;height:300px';
+  document.body.appendChild(host);
+  try {
+    const probe = await OrgHierarchyDiagramClass.create(host, {
+      data: probeData(),
+      useWorker: false,
+      renderer: renderer as OrgHierarchyConfig['renderer'],
+    });
+    const kind = probe.getRendererKind();
+    probe.destroy();
+    return { kind, error: null };
+  } catch (e) {
+    return { kind: null, error: e instanceof Error ? e.message : String(e) };
+  } finally {
+    host.remove();
+  }
 }
