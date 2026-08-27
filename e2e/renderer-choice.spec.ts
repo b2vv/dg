@@ -167,10 +167,15 @@ test.describe('renderer choice (T83)', () => {
     // Canvas2D draws sub-pixel strokes as one solid pixel where WebGL fades them,
     // so at this zoom the two engines genuinely differ. This baseline exists to
     // make that difference a recorded fact instead of a surprise in the field.
+    // Height 480, not "as much as fits": the clip is truncated to whatever the
+    // page has left below the mount, and that differs by a few pixels between
+    // the Playwright docker image and a plain CI runner (different fonts wrap
+    // the toolbar differently). A clip that fits in both is the same picture in
+    // both; one that asks for more is a different size and fails on size alone.
     await expect(page).toHaveScreenshot('staff-1m-canvas-zoomed-out.png', {
       maxDiffPixelRatio: 0.04,
       animations: 'disabled',
-      clip: { x: Math.round(box!.x), y: Math.round(box!.y), width: 1200, height: 700 },
+      clip: { x: Math.round(box!.x), y: Math.round(box!.y), width: 1200, height: 480 },
     });
   });
 
