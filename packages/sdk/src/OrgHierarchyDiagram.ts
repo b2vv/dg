@@ -1,7 +1,7 @@
 import type { DiagramData } from './data/types.js';
 import { isDiagramData, mergePartial } from './data/mergeData.js';
 import type { DiagramMappers } from './mappers/types.js';
-import { PixiHost } from './render/PixiHost.js';
+import { PixiHost, type RendererKindPreference } from './render/PixiHost.js';
 import type { DiagramRenderer } from './render/DiagramRenderer.js';
 import { MediaService, type DiagramMediaFacade, type MediaPlaceholderRegistry } from './media/index.js';
 import {
@@ -111,6 +111,12 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
   mediaPlaceholders?: MediaPlaceholderRegistry;
   /** Theme keys to prefetch besides active (T74 M4). */
   prefetchMediaThemeKeys?: readonly string[];
+  /**
+   * Which engine draws the scene (T83). Default `'auto'`: the browser refuses a
+   * WebGL context it would emulate in software, and Pixi falls to Canvas2D.
+   * `'canvas'` is the only guarantee; `'auto'` is best-effort.
+   */
+  renderer?: RendererKindPreference;
 }
 
 /** Embed SDK — Pixi render + data/mappers + worker contour */
@@ -214,7 +220,7 @@ export class OrgHierarchyDiagram {
     // Same builder as setData: a 100k mount used to block the main thread here
     // while the worker path sat unused until the first setData.
     await instance.searchService.rebuildForScale(instance.data);
-    instance.host = await PixiHost.create(container);
+    instance.host = await PixiHost.create(container, { renderer: config.renderer });
     instance.host.setOnViewportChange((t) => {
       instance.onViewportTransform(t.scale);
       instance.notifyPromoteSync();
@@ -811,6 +817,11 @@ export class OrgHierarchyDiagram {
   /** Full multi-select set (T67 Phase 1). Order = selection order. */
   getSelections(): readonly NodeRef[] {
     return this.selectionStore.list;
+  }
+
+  /** Engine that drew the scene, or `null` before mount / after destroy (T83). */
+  getRendererKind(): 'webgl' | 'canvas' | null {
+    return this.host?.getRendererKind() ?? null;
   }
 
   /** Soft layout warnings from the last render (anchor overlap, skipped expands, …). */

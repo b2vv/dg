@@ -86,6 +86,33 @@ describe('two diagrams on one page', () => {
     document.body.removeChild(elB);
   });
 
+  it('success: a diagram pinned to canvas keeps that engine next to an auto neighbour', async () => {
+    const elA = mount();
+    const elB = mount();
+
+    const pinned = await OrgHierarchyDiagram.create(elA, {
+      data: data('pinned'),
+      renderer: 'canvas',
+      workerFactory: silentWorkerFactory().factory,
+    });
+    const auto = await OrgHierarchyDiagram.create(elB, {
+      data: data('auto'),
+      workerFactory: silentWorkerFactory().factory,
+    });
+
+    expect(pinned.getRendererKind()).toBe('canvas');
+    // The neighbour's engine is the environment's business — jsdom has no real
+    // WebGL, so asserting 'webgl' here would only be asserting the mock. What
+    // this contract owns is that the pinned one is not moved by the neighbour.
+    expect(auto.getRendererKind()).not.toBeNull();
+    expect(pinned.getRendererKind()).toBe('canvas');
+
+    pinned.destroy();
+    auto.destroy();
+    document.body.removeChild(elA);
+    document.body.removeChild(elB);
+  });
+
   it('failure: destroy releases this diagram only, and twice is safe', async () => {
     const el = mount();
     const w = silentWorkerFactory();

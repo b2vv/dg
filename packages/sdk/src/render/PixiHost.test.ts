@@ -81,6 +81,21 @@ describe('PixiHost create/destroy (A4)', () => {
     }
   });
 
+  it('success: a pinned canvas host reports canvas, and null once destroyed', async () => {
+    const container = document.createElement('div');
+    container.style.width = '400px';
+    container.style.height = '300px';
+    document.body.appendChild(container);
+
+    const host = await PixiHost.create(container, { renderer: 'canvas' });
+    expect(host.getRendererKind()).toBe('canvas');
+    host.destroy();
+    // Support asks "which engine drew this?" after the fact — a throw there
+    // would be the worst answer, so the lifecycle state is a value.
+    expect(host.getRendererKind()).toBeNull();
+    document.body.removeChild(container);
+  });
+
   it('success: create then destroy clears application', async () => {
     const container = document.createElement('div');
     container.style.width = '400px';

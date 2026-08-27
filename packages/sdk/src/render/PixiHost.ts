@@ -1,4 +1,4 @@
-import { Application, Rectangle } from 'pixi.js';
+import { Application, Rectangle, RendererType } from 'pixi.js';
 import { DiagramRenderer } from './DiagramRenderer.js';
 import { Viewport, type ViewportTransform, type CameraMotionOptions } from './Viewport.js';
 
@@ -49,6 +49,8 @@ export interface PixiHostOptions {
   resolution?: number;
   /** Abort in-flight `create` / `init` (React StrictMode, route change). */
   signal?: AbortSignal;
+  /** Which engine draws the scene. Default `'auto'` — see {@link resolveRendererPreference}. */
+  renderer?: RendererKindPreference;
 }
 
 /** Crisp canvas text/sprites under browser zoom / retina (capped at 3×). */
@@ -148,6 +150,16 @@ export class PixiHost {
     this.viewport?.setOnChange(handler);
   }
 
+  /**
+   * Which engine actually drew the scene, or `null` before the mount finishes
+   * and after `destroy()` — symmetric with the other post-mount getters.
+   */
+  getRendererKind(): 'webgl' | 'canvas' | null {
+    const type = this.app?.renderer?.type;
+    if (type == null) return null;
+    return type === RendererType.CANVAS ? 'canvas' : 'webgl';
+  }
+
   /** Update WebGL clear color (theme toggle). */
   setBackground(color: number): void {
     if (!this.app) return;
@@ -161,7 +173,10 @@ export class PixiHost {
     this.lastResolution = resolvePixiResolution(options.resolution);
 
     const app = new Application();
+    const rendererChoice = resolveRendererPreference(options.renderer);
     await app.init({
+      preference: [...rendererChoice.preference],
+      failIfMajorPerformanceCaveat: rendererChoice.failIfMajorPerformanceCaveat,
       width,
       height,
       background: options.background ?? 0xf8fafc,

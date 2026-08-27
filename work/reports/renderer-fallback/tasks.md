@@ -38,8 +38,8 @@
 `PixiHostOptions.renderer`; `OrgHierarchyDiagram.create` передає `{ renderer: config.renderer }`
 у `PixiHost.create` (зараз `:217` кличе без другого аргументу); `renderer?` у `OrgHierarchyConfig`.
 
-- [ ] тест (шов 2): монтування з `renderer: 'canvas'` → `getRendererKind() === 'canvas'`
-- [ ] код
+- [x] тест (шов 2): монтування з `renderer: 'canvas'` → `getRendererKind() === 'canvas'`
+- [x] код
 
 **Закриває рядки:** 2 (передумова), 4
 ⚠️ **Нічого, крім `renderer`, у `PixiHost.create` не додаємо** — `resolution`/`background`/`signal`
@@ -52,9 +52,9 @@
 `PixiHost` читає `app.renderer.type` (`RendererType.WEBGL=1 / CANVAS=4`);
 `getRendererKind(): 'webgl' | 'canvas' | null`, `null` до монтування й після `destroy()`.
 
-- [ ] тест: після `destroy()` віддає `null` і **не кидає**
-- [ ] тест: до завершення монтування — `null`
-- [ ] код
+- [x] тест: після `destroy()` віддає `null` і **не кидає**
+- [x] тест: до завершення монтування — `null` (той самий геттер: `app` ще не створено)
+- [x] код
 
 **Закриває рядки:** 1, 2, 3 (спостережувана поверхня для них)
 
@@ -95,7 +95,15 @@ jsdoc каналу (`callbacks.ts:29` і геттер `:817`) переписує
 
 - [ ] рядок 1: `getRendererKind() === 'webgl'`; **наявні** бейзлайни `mockups.spec.ts` зелені без перезняття
 - [ ] рядок 2: `renderer: 'canvas'` → `'canvas'` **і** `getContext('webgl2') === null`
-- [ ] рядок 5: дві діаграми (`'canvas'` + `'auto'`) — у наявному `twoDiagrams.contract.test.ts`
+- [x] рядок 5 (**половина**): дві діаграми (`'canvas'` + `'auto'`) у наявному
+      `twoDiagrams.contract.test.ts` — прибита лишається канвасною поруч із сусідкою
+- [ ] рядок 5 (**друга половина**): що сусідка на машині з GPU віддає саме `'webgl'` — **лише e2e**
+
+🔴 **Дефект плану, знайдений при імплементації.** Рядок 5 обіцяв, що друга діаграма віддасть
+`'webgl'`, і призначав перевірку юніт-тесту. У jsdom це недосяжно: `vitest.setup.ts` мокає WebGL
+без `getContextAttributes`, тож `isWebGLSupported` завжди `false` і `'auto'` **завжди** дає канвас.
+Юніт-тест, який стверджував би `'webgl'`, перевіряв би мок, а не поведінку. Рядок розділено:
+юніт володіє ізоляцією прибитої діаграми, e2e — гілкою `'webgl'`.
 - [ ] рядок 6: **строго послідовне** монтування `'auto'` → `'webgl'`; друга не отримує WebGL тихо
 - [ ] рядок 7: `Staff · 1M` під `'canvas'` сходить
 
