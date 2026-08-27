@@ -98,6 +98,25 @@ describe('PixiHost create/destroy (A4)', () => {
     document.body.removeChild(container);
   });
 
+  it('failure: the shared ticker does not run — nothing paints unless asked', async () => {
+    const container = document.createElement('div');
+    container.style.width = '400px';
+    container.style.height = '300px';
+    document.body.appendChild(container);
+
+    const host = await PixiHost.create(container);
+    const app = host.getApplication()!;
+
+    // jsdom starves requestAnimationFrame, so a paint counter here would read
+    // zero whether or not the ticker runs — it cannot prove idle cost. What it
+    // can prove is that the loop is not armed; the CPU number lives in the
+    // browser measurement recorded in work/reports/zero-client/report.md.
+    expect(app.ticker.started).toBe(false);
+
+    host.destroy();
+    document.body.removeChild(container);
+  });
+
   it('success: create then destroy clears application', async () => {
     const container = document.createElement('div');
     container.style.width = '400px';

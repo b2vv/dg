@@ -45,6 +45,7 @@ function harness(grid: DragGrid | null = GRID) {
   const previews: Array<[string, number, number]> = [];
   const restores: number[] = [];
   const boxes: string[] = [];
+  const paints: number[] = [];
   const interactions = new PersonInteractions({
     personLayer,
     doubleTap: new DoubleTapTracker(),
@@ -52,8 +53,9 @@ function harness(grid: DragGrid | null = GRID) {
     dragGrid: () => grid,
     previewDrag: (id, col, row) => previews.push([id, col, row]),
     restoreContours: () => restores.push(1),
+    requestPaint: () => paints.push(1),
   });
-  return { interactions, previews, restores, boxes };
+  return { interactions, previews, restores, boxes, paints };
 }
 
 const bindArgs = (options: Record<string, unknown>) => ({
@@ -103,6 +105,10 @@ describe('PersonInteractions', () => {
 
     expect(h.previews).toEqual([['pos1', 1, 0]]);
     expect(onPersonDragEnd).toHaveBeenCalledWith('pos1', 1, 0);
+
+    // Nothing paints by itself since T84: a card that moved and never asked for
+    // a paint would slide only inside the scene graph, not on screen.
+    expect(h.paints.length).toBeGreaterThan(0);
   });
 
   it('failure: a drop outside the grid restores the contours and returns the card', () => {

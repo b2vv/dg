@@ -58,6 +58,8 @@ export interface PersonInteractionDeps {
   dragGrid(): DragGrid | null;
   previewDrag(positionId: string, col: number, row: number): void;
   restoreContours(): void;
+  /** Nothing paints on its own any more — a moved card has to ask. */
+  requestPaint(): void;
 }
 
 interface DragState {
@@ -164,6 +166,7 @@ export class PersonInteractions {
         this.drag.moved = true;
       }
       node.position.set(nx, ny);
+      this.deps.requestPaint();
       if (!this.drag.moved) return;
       const snap = this.snapTo(nx, ny, config);
       if (snap.col < 0 || snap.row < 0) return;
@@ -180,12 +183,14 @@ export class PersonInteractions {
       this.drag = null;
       if (!moved) {
         node.position.set(originX, originY);
+        this.deps.requestPaint();
         return;
       }
       const snap = this.snapTo(node.x, node.y, config);
       if (snap.col < 0 || snap.row < 0) {
         node.position.set(originX, originY);
         this.deps.restoreContours();
+        this.deps.requestPaint();
         return;
       }
       options.onPersonDragEnd?.(positionId, snap.col, snap.row);
