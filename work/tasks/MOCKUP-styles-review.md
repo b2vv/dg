@@ -205,28 +205,22 @@ row 2   supply           people ·1        people ·2
 перезняті, `mockup-staff-magnetic-linux.png` створено вперше; галерея `work/tasks/node-compare/`
 теж оновлена.
 
-Як саме — щоб повторити:
+> 🔴 **Ця процедура НЕ дає бейзлайнів, придатних для CI (з'ясовано 2026-08-27).**
+> Знімки, згенеровані нею, розходяться з тим, що бачить раннер GitHub:
+> `Expected an image 1280px by 773px, received 1280px by 780px`, а де розміри збігаються —
+> ~8% пікселів. Через це `e2e` на `main` червоний (щонайменше з `4dbb5f8`).
+>
+> Перевірено, що справа **не в образі**: прогін у `ubuntu:24.04` рівно тими кроками, що й CI
+> (`npm ci` → `npx playwright install chromium --with-deps`), дає **байт-у-байт ті самі**
+> файли, що й образ `mcr.microsoft.com/playwright`. Тобто розходиться саме раннер GitHub —
+> ймовірні причини: власний набір шрифтів у їхньому образі та нативний amd64 проти
+> QEMU-емуляції під Docker на Apple Silicon.
+>
+> **Робочий шлях лишається один:** генерувати знімки **на самому раннері** — окремий
+> workflow із `--update-snapshots`, який віддає теку знімків артефактом. Поки цього немає,
+> будь-який локальний перезнім лише відтворює наявні файли.
 
-> 🔴 **Виправлено 2026-08-27.** Ця процедура генерувала бейзлайни в образі
-> `mcr.microsoft.com/playwright`, а CI бігає на **голому ubuntu** з
-> `npx playwright install --with-deps`. Набори шрифтів різні, тож знімки розходились і за
-> розміром (тулбар переносить рядки інакше → зсув монтування), і за вмістом (~8% пікселів).
-> Через це e2e на `main` був червоний. Нижче — процедура **в середовищі, ідентичному раннеру**.
-
-```bash
-docker run --rm --platform=linux/amd64 \
-  -v "$PWD":/src:ro -v /tmp/out:/out \
-  ubuntu:24.04 bash -lc '
-    apt-get update -qq && apt-get install -y -qq curl ca-certificates tar
-    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y -qq nodejs
-    mkdir -p /work && tar -C /src -cf - --exclude=node_modules --exclude=.git --exclude=target . | tar -C /work -xf - && cd /work
-    npm ci && npx playwright install chromium --with-deps
-    CI=1 npx playwright test e2e/mockups.spec.ts --update-snapshots
-    CI=1 npx playwright test e2e/mockups.spec.ts        # повторний прогін = доказ відтворюваності
-    cp -a /work/e2e/mockups.spec.ts-snapshots/. /out/'
-```
-
-<details><summary>Стара процедура (образ Playwright) — не використовувати</summary>
+Як саме — щоб повторити (локально відтворювано, для CI **непридатно**):
 
 ```bash
 docker run --rm --platform=linux/amd64 \
@@ -237,8 +231,6 @@ docker run --rm --platform=linux/amd64 \
     CI=1 npx playwright test e2e/node-compare.spec.ts --update-snapshots
     cp -a /work/e2e/mockups.spec.ts-snapshots/. /out/'
 ```
-
-</details>
 
 Три речі, які роблять результат придатним для CI:
 
