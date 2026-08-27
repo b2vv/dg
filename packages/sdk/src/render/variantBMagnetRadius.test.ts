@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { VARIANT_B_POSITIONS } from '../contour/bridge.js';
 import { clusterPositionsByDepartment } from './contour/contourCluster.js';
 import { ContourConfigError, resolveMagnetRadius } from '../contour/magnetRadius.js';

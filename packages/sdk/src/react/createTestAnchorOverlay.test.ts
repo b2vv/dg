@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, rstest } from '@rstest/core';
 import { createTestAnchorOverlay, type TestAnchorOverlayDiagram } from './createTestAnchorOverlay.js';
 import type { TestAnchorCandidate } from '../interaction/nodeTestId.js';
 
@@ -13,8 +13,8 @@ function makeDiagram(overrides: Partial<TestAnchorOverlayDiagram> = {}): TestAnc
   return {
     getViewport: () => ({ x: 0, y: 0, scale: 1 }),
     listTestAnchors: () => [anchor],
-    focusByTestId: vi.fn(async () => true),
-    openContextMenu: vi.fn(),
+    focusByTestId: rstest.fn(async () => true),
+    openContextMenu: rstest.fn(),
     subscribePromoteSync: (listener) => {
       listener();
       return () => {

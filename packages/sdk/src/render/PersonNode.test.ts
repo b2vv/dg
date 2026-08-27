@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, rstest } from '@rstest/core';
 import { Texture } from 'pixi.js';
 import { PersonNodeView } from './PersonNode.js';
 import { configureNodeTextureLoader, clearNodeTextureCache } from '../media/nodeMedia.js';
@@ -201,7 +201,7 @@ describe('PersonNodeView', () => {
   });
 
   it('success: expand chrome shows when hasChildren', async () => {
-    const onToggle = vi.fn();
+    const onToggle = rstest.fn();
     const view = PersonNodeView.create(
       { id: 'p1', fullName: 'Lead' },
       {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { isPrimaryPointerTap } from './selection.js';
 
 describe('isPrimaryPointerTap (CTX-5)', () => {

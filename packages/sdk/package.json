@@ -32,8 +32,8 @@
     "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
     "dev": "rsbuild dev",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "rstest run",
+    "test:watch": "rstest --watch",
     "prepare": "npm run build"
   },
   "peerDependencies": {
@@ -51,13 +51,13 @@
   "devDependencies": {
     "@rsbuild/core": "^1.2.0",
     "@rsbuild/plugin-type-check": "^1.2.0",
+    "@rstest/core": "^0.11.10",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "jsdom": "^25.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "typescript": "^7.0.2",
-    "vitest": "^3.2.7"
+    "typescript": "^7.0.2"
   },
   "dependencies": {
     "pixi.js": "^8.19.0"

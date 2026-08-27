@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import { SelectionStore } from './SelectionStore.js';
 import type { NodeRef } from '../interaction/types.js';
 
@@ -6,7 +6,7 @@ const org = (id: string): NodeRef => ({ kind: 'organization', id, organizationId
 
 describe('SelectionStore (T76)', () => {
   it('success: replace and toggle notify onChange', () => {
-    const onChange = vi.fn();
+    const onChange = rstest.fn();
     const store = new SelectionStore(onChange);
     expect(store.replace(org('a'))).toBe(true);
     expect(store.list.map((n) => n.id)).toEqual(['a']);
@@ -20,7 +20,7 @@ describe('SelectionStore (T76)', () => {
   });
 
   it('failure: no-op replace does not notify', () => {
-    const onChange = vi.fn();
+    const onChange = rstest.fn();
     const store = new SelectionStore(onChange);
     store.replace(org('a'));
     onChange.mockClear();

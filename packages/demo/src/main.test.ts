@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { App } from './app/App.js';
 import { buildVariantBData } from './scenarios/variantB.js';
 

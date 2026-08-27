@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { formatOrgCountsBadge, VACANT_POSITION_LABEL } from './orgCardChrome.js';
 
 describe('formatOrgCountsBadge', () => {

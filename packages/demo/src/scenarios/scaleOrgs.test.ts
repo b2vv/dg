@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { collapseAllOrgs, detectOrgMode } from '@org-hierarchy/sdk';
 import {
   SCALE_ORG_TOTAL,

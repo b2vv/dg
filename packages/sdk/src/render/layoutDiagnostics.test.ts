@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import { DiagramRenderer } from './DiagramRenderer.js';
 import { defaultNodeTheme, defaultRenderConfig } from './types.js';
 import type { DiagramData } from '../data/types.js';
@@ -72,7 +72,7 @@ describe('layout diagnostics', () => {
     Object.defineProperty(container, 'clientHeight', { value: 600 });
     document.body.appendChild(container);
 
-    const onLayoutDiagnostics = vi.fn();
+    const onLayoutDiagnostics = rstest.fn();
     const diagram = await OrgHierarchyDiagram.create(container, {
       data: overlappingStaffData(),
       theme: 'light',

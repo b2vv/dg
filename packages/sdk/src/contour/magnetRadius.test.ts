@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { ContourConfigError, resolveMagnetRadius } from './magnetRadius.js';
 
 describe('resolveMagnetRadius (T78-T4)', () => {

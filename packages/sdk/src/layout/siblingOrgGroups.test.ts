@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { siblingOrgGroupBounds } from './siblingOrgGroups.js';
 import type { DiagramOrganization } from '../data/types.js';
 import type { OrgLayoutNode } from './types.js';

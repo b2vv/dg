@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { Application } from 'pixi.js';
 import { PixiHost, resolvePixiResolution, resolveRendererPreference } from './PixiHost.js';
 

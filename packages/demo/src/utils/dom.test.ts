@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { parseJsonText, ParseJsonError } from './json.js';
 import { requireElement, setThemeAttribute, getThemeFromDocument } from './dom.js';
 

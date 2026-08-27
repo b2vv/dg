@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { buildVariantBData } from '../scenarios/variantB.js';
 import { computeDeptContour, VARIANT_B_POSITIONS } from '@org-hierarchy/sdk';
 

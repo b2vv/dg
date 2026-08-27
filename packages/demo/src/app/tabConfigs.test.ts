@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { emptyDiagramData } from '@org-hierarchy/sdk';
 import { buildTabConfig, type TabConfigDeps } from './tabConfigs.js';
 import { captionForTab } from './captions.js';

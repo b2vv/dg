@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, rstest } from '@rstest/core';
 import { act, createElement } from 'react';
 import {
   createReactPromoteOverlay,
@@ -31,14 +31,14 @@ function makeDiagram(overrides: Partial<PromoteOverlayDiagram> = {}): PromoteOve
     getViewport: () => ({ x: 0, y: 0, scale: 1 }),
     getLodLevel: () => 'near',
     getSelection: () => ({ id: 'pos1', kind: 'position', positionId: 'pos1', personId: 'p1' }),
-    select: vi.fn(async () => undefined),
+    select: rstest.fn(async () => undefined),
     listPromoteCandidates: (ids) => {
       if (ids && (ids.length === 0 || !ids.some((id) => id === 'pos1' || id === 'position:pos1'))) {
         return [];
       }
       return [candidate];
     },
-    setPromotedNodeIds: vi.fn(),
+    setPromotedNodeIds: rstest.fn(),
     subscribePromoteSync: (listener) => {
       return () => {
         void listener;

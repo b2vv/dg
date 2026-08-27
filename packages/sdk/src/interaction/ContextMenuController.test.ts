@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import { emptyDiagramData } from '../data/types.js';
 import { ContextMenuController, type ContextMenuCommands } from './ContextMenuController.js';
 import type { NodeRef } from './types.js';
@@ -15,17 +15,17 @@ const orgRef = (id: string): NodeRef => ({ kind: 'organization', id, organizatio
 
 function harness(options?: {
   selection?: NodeRef[];
-  onContextMenu?: Parameters<typeof vi.fn>[0];
+  onContextMenu?: Parameters<typeof rstest.fn>[0];
 }) {
   const commands = {
-    expandOrg: vi.fn(async () => {}),
-    collapseOrg: vi.fn(async () => {}),
-    focusNode: vi.fn(async () => {}),
-    setOrgsCollapsed: vi.fn(async () => {}),
-    clearSelection: vi.fn(async () => {}),
+    expandOrg: rstest.fn(async () => {}),
+    collapseOrg: rstest.fn(async () => {}),
+    focusNode: rstest.fn(async () => {}),
+    setOrgsCollapsed: rstest.fn(async () => {}),
+    clearSelection: rstest.fn(async () => {}),
   } satisfies ContextMenuCommands;
   const copied: string[] = [];
-  const onContextMenuAction = vi.fn();
+  const onContextMenuAction = rstest.fn();
   const controller = new ContextMenuController({
     data: () => data,
     selection: () => options?.selection ?? [],

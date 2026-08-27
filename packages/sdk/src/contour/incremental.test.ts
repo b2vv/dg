@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import type { ContourPositionInput, DeptContourResult } from './bridge.js';
 import { createIncrementalContourComputer } from './incremental.js';
 
@@ -17,11 +17,11 @@ function fakeResult(dept: string, tag: string): DeptContourResult {
 
 describe('createIncrementalContourComputer', () => {
   it('success: second identical call recomputes nothing', async () => {
-    const computeAll = vi.fn(async (positions: ContourPositionInput[]) => {
+    const computeAll = rstest.fn(async (positions: ContourPositionInput[]) => {
       const depts = [...new Set(positions.map((p) => p.departmentId))];
       return depts.map((d) => fakeResult(d, 'all'));
     });
-    const computeDept = vi.fn(async (id: string) => [fakeResult(id, 'dept')]);
+    const computeDept = rstest.fn(async (id: string) => [fakeResult(id, 'dept')]);
     const computer = createIncrementalContourComputer(computeAll, computeDept);
 
     const positions = [
@@ -42,11 +42,11 @@ describe('createIncrementalContourComputer', () => {
   });
 
   it('success: moving one dept dirties neighbors, not far depts', async () => {
-    const computeAll = vi.fn(async (positions: ContourPositionInput[]) => {
+    const computeAll = rstest.fn(async (positions: ContourPositionInput[]) => {
       const depts = [...new Set(positions.map((p) => p.departmentId))];
       return depts.map((d) => fakeResult(d, 'all'));
     });
-    const computeDept = vi.fn(async (id: string) => [fakeResult(id, `dept-${id}`)]);
+    const computeDept = rstest.fn(async (id: string) => [fakeResult(id, `dept-${id}`)]);
     const computer = createIncrementalContourComputer(computeAll, computeDept);
 
     const cfg = { magnetRadius: 2 };
@@ -73,11 +73,11 @@ describe('createIncrementalContourComputer', () => {
   });
 
   it('success: foreign neighbor move dirties the occupant dept (G6/G7)', async () => {
-    const computeAll = vi.fn(async (positions: ContourPositionInput[]) => {
+    const computeAll = rstest.fn(async (positions: ContourPositionInput[]) => {
       const depts = [...new Set(positions.map((p) => p.departmentId))];
       return depts.map((d) => fakeResult(d, 'all'));
     });
-    const computeDept = vi.fn(async (id: string) => [fakeResult(id, `dept-${id}`)]);
+    const computeDept = rstest.fn(async (id: string) => [fakeResult(id, `dept-${id}`)]);
     const computer = createIncrementalContourComputer(computeAll, computeDept);
 
     const cfg = { magnetRadius: 2 };
@@ -102,11 +102,11 @@ describe('createIncrementalContourComputer', () => {
   });
 
   it('success: far-away dept move does not dirty local contours', async () => {
-    const computeAll = vi.fn(async (positions: ContourPositionInput[]) => {
+    const computeAll = rstest.fn(async (positions: ContourPositionInput[]) => {
       const depts = [...new Set(positions.map((p) => p.departmentId))];
       return depts.map((d) => fakeResult(d, 'all'));
     });
-    const computeDept = vi.fn(async (id: string) => [fakeResult(id, `dept-${id}`)]);
+    const computeDept = rstest.fn(async (id: string) => [fakeResult(id, `dept-${id}`)]);
     const computer = createIncrementalContourComputer(computeAll, computeDept);
 
     const cfg = { magnetRadius: 2 };
@@ -131,8 +131,8 @@ describe('createIncrementalContourComputer', () => {
   });
 
   it('failure: config change invalidates cache (full recompute)', async () => {
-    const computeAll = vi.fn(async () => [fakeResult('IT', 'all')]);
-    const computeDept = vi.fn(async (id: string) => [fakeResult(id, 'dept')]);
+    const computeAll = rstest.fn(async () => [fakeResult('IT', 'all')]);
+    const computeDept = rstest.fn(async (id: string) => [fakeResult(id, 'dept')]);
     const computer = createIncrementalContourComputer(computeAll, computeDept);
     const positions = [pos('P1', 'IT', 0, 0)];
 

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import {
   adaptChunkSize,
   recommendChunkSize,
@@ -51,7 +51,7 @@ describe('mapArrayInPool facade', () => {
     const factory = () => {
       let onMessage: (ev: MessageEvent) => void = () => {};
       return {
-        postMessage: vi.fn((req: { id: string; mapperKey?: string; payload: unknown }) => {
+        postMessage: rstest.fn((req: { id: string; mapperKey?: string; payload: unknown }) => {
           queueMicrotask(() => {
             const chunk = req.payload as number[];
             onMessage({
@@ -64,11 +64,11 @@ describe('mapArrayInPool facade', () => {
             } as MessageEvent);
           });
         }),
-        addEventListener: vi.fn((event: string, fn: (ev: MessageEvent) => void) => {
+        addEventListener: rstest.fn((event: string, fn: (ev: MessageEvent) => void) => {
           if (event === 'message') onMessage = fn;
         }),
-        removeEventListener: vi.fn(),
-        terminate: vi.fn(),
+        removeEventListener: rstest.fn(),
+        terminate: rstest.fn(),
       } as unknown as Worker;
     };
 
@@ -139,18 +139,18 @@ describe('mapFlatRowsInPool', () => {
     const badFactory = () => {
       let onMessage: (ev: MessageEvent) => void = () => {};
       return {
-        postMessage: vi.fn((req: { id: string }) => {
+        postMessage: rstest.fn((req: { id: string }) => {
           queueMicrotask(() => {
             onMessage({
               data: { id: req.id, ok: false, error: 'boom' },
             } as MessageEvent);
           });
         }),
-        addEventListener: vi.fn((event: string, fn: (ev: MessageEvent) => void) => {
+        addEventListener: rstest.fn((event: string, fn: (ev: MessageEvent) => void) => {
           if (event === 'message') onMessage = fn;
         }),
-        removeEventListener: vi.fn(),
-        terminate: vi.fn(),
+        removeEventListener: rstest.fn(),
+        terminate: rstest.fn(),
       } as unknown as Worker;
     };
 

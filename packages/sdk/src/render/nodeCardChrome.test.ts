@@ -1,11 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import { Container, Rectangle, type FederatedPointerEvent } from 'pixi.js';
 import { attachIconButton, attachMenuButton, hitChromePointer, pointerClientCoords } from './nodeCardChrome.js';
 
 describe('nodeCardChrome', () => {
   it('success: menu button has hitArea and fires on pointertap', () => {
     const host = new Container();
-    const onMenu = vi.fn();
+    const onMenu = rstest.fn();
     const btn = attachMenuButton(host, 200, 4, onMenu, 160);
     expect(btn.hitArea).toBeInstanceOf(Rectangle);
     expect((btn.hitArea as Rectangle).width).toBe(22);
@@ -16,7 +16,7 @@ describe('nodeCardChrome', () => {
 
   it('success: expand icon button fires on pointertap', () => {
     const host = new Container();
-    const onTap = vi.fn();
+    const onTap = rstest.fn();
     const btn = attachIconButton(host, 10, 4, '+', 'Expand', onTap);
     expect(btn.hitArea).toBeInstanceOf(Rectangle);
     btn.emit('pointertap', { stopPropagation: () => {} });

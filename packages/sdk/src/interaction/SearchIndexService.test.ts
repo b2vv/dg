@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { emptyDiagramData, type DiagramData } from '../data/types.js';
 import { SearchIndexService, knownSearchIds, patchUpdatesKnownEntities } from './SearchIndexService.js';
 

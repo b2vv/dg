@@ -1,5 +1,5 @@
 import { Graphics, Text } from 'pixi.js';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import {
   layoutCompactContent,
   layoutFigmaRowContent,
@@ -66,7 +66,7 @@ describe('personCardContent', () => {
   it('success: the GoJS count bar only reacts when the seat has children', () => {
     const s = style({ personLayout: 'gojs-row', width: 220, height: 120 });
     const gojs = { ...resolveGojsRowLayoutMetrics(position, s), countsLabel: '3 / 12' };
-    const onToggle = vi.fn();
+    const onToggle = rstest.fn();
 
     const withKids = parts();
     layoutGojsRowContent(withKids, {

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import { OrgHierarchyDiagram } from '../index.js';
 import { DiagramRenderer } from './DiagramRenderer.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
@@ -70,8 +70,8 @@ function tapEvent(
 
 describe('onNodeDoubleClick (T69)', () => {
   it('success: two body taps → one onNodeClick + one onNodeDoubleClick', async () => {
-    const onNodeClick = vi.fn();
-    const onNodeDoubleClick = vi.fn();
+    const onNodeClick = rstest.fn();
+    const onNodeDoubleClick = rstest.fn();
     const container = document.createElement('div');
     container.style.width = '800px';
     container.style.height = '600px';
@@ -107,8 +107,8 @@ describe('onNodeDoubleClick (T69)', () => {
   });
 
   it('success: person double-tap uses same NodeRef shape as click', async () => {
-    const onNodeClick = vi.fn();
-    const onNodeDoubleClick = vi.fn();
+    const onNodeClick = rstest.fn();
+    const onNodeDoubleClick = rstest.fn();
     const container = document.createElement('div');
     container.style.width = '800px';
     container.style.height = '600px';
@@ -143,10 +143,10 @@ describe('onNodeDoubleClick (T69)', () => {
   });
 
   it('success: chrome hit still expands — no onNodeDoubleClick', async () => {
-    const onExpand = vi.fn();
-    const onCollapse = vi.fn();
-    const onOrgClick = vi.fn();
-    const onOrgDoubleClick = vi.fn();
+    const onExpand = rstest.fn();
+    const onCollapse = rstest.fn();
+    const onOrgClick = rstest.fn();
+    const onOrgDoubleClick = rstest.fn();
     const renderer = new DiagramRenderer();
 
     await renderer.render(orgOnlyData(), defaultNodeTheme, 'light', undefined, {
@@ -190,9 +190,9 @@ describe('onNodeDoubleClick (T69)', () => {
   });
 
   it('success: second body tap skips staff expand toggle', async () => {
-    const onOrgClick = vi.fn();
-    const onOrgDoubleClick = vi.fn();
-    const onStaffOrgExpandToggle = vi.fn();
+    const onOrgClick = rstest.fn();
+    const onOrgDoubleClick = rstest.fn();
+    const onStaffOrgExpandToggle = rstest.fn();
     const renderer = new DiagramRenderer();
 
     const data = {
@@ -264,9 +264,9 @@ describe('onNodeDoubleClick (T69)', () => {
   });
 
   it('success: ctrl/cmd click toggles multi-select and does not fire onNodeDoubleClick', async () => {
-    const onNodeClick = vi.fn();
-    const onNodeDoubleClick = vi.fn();
-    const onSelectionChange = vi.fn();
+    const onNodeClick = rstest.fn();
+    const onNodeDoubleClick = rstest.fn();
+    const onSelectionChange = rstest.fn();
     const container = document.createElement('div');
     container.style.width = '800px';
     container.style.height = '600px';
@@ -300,8 +300,8 @@ describe('onNodeDoubleClick (T69)', () => {
   });
 
   it('success: right-click pointertap does not fire onNodeClick (context menu stays open)', async () => {
-    const onNodeClick = vi.fn();
-    const onContextMenu = vi.fn();
+    const onNodeClick = rstest.fn();
+    const onContextMenu = rstest.fn();
     const container = document.createElement('div');
     container.style.width = '800px';
     container.style.height = '600px';

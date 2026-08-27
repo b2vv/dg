@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { contourSceneInputs, matrixNodeBoxes } from './contourInputs.js';
 import { NO_DEPARTMENT_ID } from '../../data/types.js';
 

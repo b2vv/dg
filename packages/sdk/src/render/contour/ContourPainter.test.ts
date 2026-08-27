@@ -1,5 +1,5 @@
 import { Container } from 'pixi.js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { ContourPainter, type ContourPaintRequest } from './ContourPainter.js';
 import { DepartmentBlobView } from './DepartmentBlob.js';
 import { defaultNodeTheme, defaultRenderConfig } from '../types.js';

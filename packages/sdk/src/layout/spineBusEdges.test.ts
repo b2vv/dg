@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { computeMatrixLayout } from './matrixLayout.js';
 import { buildSpineBusPaths } from './spineBusEdges.js';
 import type { DiagramOrganization } from '../data/types.js';

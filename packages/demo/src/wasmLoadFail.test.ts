@@ -1,11 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, rstest } from '@rstest/core';
 import { showError } from './utils/dom.js';
 import { WasmLoadError } from '@org-hierarchy/sdk';
 
 describe('demo WASM load failure', () => {
   afterEach(() => {
     document.body.innerHTML = '';
-    vi.restoreAllMocks();
+    rstest.restoreAllMocks();
   });
 
   it('failure: WASM load error is shown in mount (not blank page)', () => {

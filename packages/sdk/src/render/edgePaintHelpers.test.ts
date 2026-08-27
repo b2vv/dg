@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { drawEdgeEndDots, traceRoundedPolyline } from './staffEdgeArrows.js';
 import { roundedRectRing } from './dashedStroke.js';
 import { routerObstacle } from '../layout/staffEdgeGeometry.js';

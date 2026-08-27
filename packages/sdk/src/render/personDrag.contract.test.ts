@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import { OrgHierarchyDiagram } from '../index.js';
 import { PersonNodeView } from './PersonNode.js';
 import { snapWorldToCell } from '../interaction/positionMove.js';
@@ -69,7 +69,7 @@ async function mountDraggable(onPersonDragEnd: () => void) {
 
 describe('person drag contract (T77-M05)', () => {
   it('failure: a click without movement never reports a drop', async () => {
-    const onPersonDragEnd = vi.fn();
+    const onPersonDragEnd = rstest.fn();
     const { container, diagram, node } = await mountDraggable(onPersonDragEnd);
 
     const start = { x: node.x + 10, y: node.y + 10 };
@@ -84,7 +84,7 @@ describe('person drag contract (T77-M05)', () => {
   });
 
   it('success: the node returns to its origin after a click', async () => {
-    const { container, diagram, node } = await mountDraggable(vi.fn());
+    const { container, diagram, node } = await mountDraggable(rstest.fn());
     const originX = node.x;
     const originY = node.y;
 

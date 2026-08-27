@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { layoutStaffCanvas } from '@org-hierarchy/sdk';
 import { buildMockupStaffFigmaData, FIGMA_STAFF_LAYOUT } from './mockups.js';
 

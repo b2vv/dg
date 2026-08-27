@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import { WorkerChannel, WORKER_CHANNEL_DEFAULTS } from './WorkerChannel.js';
 
 /** Worker stand-in: answers the first message, or never answers at all. */
@@ -30,7 +30,7 @@ const defaults = { ...WORKER_CHANNEL_DEFAULTS, timeoutMs: 50 };
 describe('WorkerChannel', () => {
   it('success: builds its worker once and reuses it', async () => {
     const worker = fakeWorker();
-    const factory = vi.fn(() => worker as unknown as Worker);
+    const factory = rstest.fn(() => worker as unknown as Worker);
     const channel = new WorkerChannel({ ...defaults, workerFactory: factory });
 
     expect(await channel.run('k', 1, () => 'fallback')).toBe('from-worker');
