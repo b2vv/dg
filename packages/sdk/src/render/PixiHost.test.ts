@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Application } from 'pixi.js';
-import { PixiHost, resolvePixiResolution } from './PixiHost.js';
+import { PixiHost, resolvePixiResolution, resolveRendererPreference } from './PixiHost.js';
 
 describe('resolvePixiResolution', () => {
   it('success: uses explicit positive resolution capped at 3', () => {
@@ -12,6 +12,42 @@ describe('resolvePixiResolution', () => {
     expect(resolvePixiResolution(0)).toBeGreaterThan(0);
     expect(resolvePixiResolution(Number.NaN)).toBeGreaterThan(0);
     expect(resolvePixiResolution(-1)).toBeGreaterThan(0);
+  });
+});
+
+describe('resolveRendererPreference', () => {
+  it('success: auto asks for webgl-then-canvas and lets the browser refuse software webgl', () => {
+    expect(resolveRendererPreference('auto')).toEqual({
+      preference: ['webgl', 'canvas'],
+      failIfMajorPerformanceCaveat: true,
+    });
+  });
+
+  it('success: an absent option is auto, and says nothing about it', () => {
+    expect(resolveRendererPreference(undefined)).toEqual(resolveRendererPreference('auto'));
+    expect(resolveRendererPreference(undefined).diagnostic).toBeUndefined();
+  });
+
+  it('failure: an unknown value behaves as auto and names both values', () => {
+    const resolved = resolveRendererPreference('vulkan' as never);
+    expect(resolved.preference).toEqual(['webgl', 'canvas']);
+    expect(resolved.failIfMajorPerformanceCaveat).toBe(true);
+    expect(resolved.diagnostic).toContain('vulkan');
+    expect(resolved.diagnostic).toContain('auto');
+  });
+
+  it('success: canvas is the guarantee — webgl is never attempted', () => {
+    expect(resolveRendererPreference('canvas')).toEqual({
+      preference: ['canvas'],
+      failIfMajorPerformanceCaveat: false,
+    });
+  });
+
+  it('success: webgl pins the engine and accepts a software context', () => {
+    expect(resolveRendererPreference('webgl')).toEqual({
+      preference: ['webgl'],
+      failIfMajorPerformanceCaveat: false,
+    });
   });
 });
 
