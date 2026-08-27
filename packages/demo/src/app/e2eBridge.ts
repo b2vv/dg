@@ -18,6 +18,8 @@ export interface DemoE2eBridge {
   getStaffLayoutEdges(): Promise<Array<{ fromId: string; toId: string; kind: string }>>;
   /** Soft render warnings — a silently empty contour layer must show up here. */
   getLayoutDiagnostics(): string[];
+  /** Engine that drew the scene (T83): 'webgl' | 'canvas' | null. */
+  getRendererKind(): 'webgl' | 'canvas' | null;
 }
 
 export interface E2eBridgeDeps {
@@ -43,6 +45,7 @@ export function installDemoE2eBridge(deps: E2eBridgeDeps): void {
     getStaffExpandedOrgIds: () => diagram.getStaffExpandedOrgIds(),
     getZoom: () => diagram.getZoom(),
     getLayoutDiagnostics: () => [...diagram.getLayoutDiagnostics()],
+    getRendererKind: () => diagram.getRendererKind(),
     getStaffLayoutEdges: () => staffLayoutEdgesFor(deps.config()),
   };
   (window as unknown as { __demoE2e?: DemoE2eBridge }).__demoE2e = bridge;
