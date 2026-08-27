@@ -13,7 +13,9 @@ import { expect, test, type Page } from '@playwright/test';
 
 async function open(page: Page, query = ''): Promise<void> {
   await page.goto(`?e2e=1${query}`);
-  await page.getByTestId('diagram-ready').waitFor({ timeout: 120_000 });
+  // No explicit waitFor timeout: the per-test budget in playwright.config.ts is
+  // 60s, so a larger number here would only ever be decoration.
+  await page.getByTestId('diagram-ready').waitFor();
 }
 
 function bridge(page: Page) {
@@ -35,8 +37,9 @@ function bridge(page: Page) {
   };
 }
 
+/** The diagram's own canvas — not the first one the page happens to contain. */
 const sceneUsesWebgl = (page: Page) =>
-  page.evaluate(() => !!document.querySelector('canvas')?.getContext('webgl2'));
+  page.evaluate(() => !!document.querySelector('#diagram-mount canvas')?.getContext('webgl2'));
 
 test.describe('renderer choice (T83)', () => {
   test('row 2: a host that pins canvas gets canvas, and no WebGL context exists', async ({
@@ -55,15 +58,22 @@ test.describe('renderer choice (T83)', () => {
     expect(kind).toBe(webgl ? 'webgl' : 'canvas');
   });
 
-  test('row 12: the engine line survives a second render', async ({ page }) => {
+  test('row 12: the engine line survives a second render of the same diagram', async ({
+    page,
+  }) => {
     await open(page, '&renderer=canvas');
+    // Flat orgs is an org-tree scene, so "Collapse all" re-renders the diagram
+    // that is already mounted. Switching tabs would not do: the demo disposes
+    // and re-creates on tab change, which is a fresh mount and would prove
+    // nothing about a line surviving DiagramRenderer replacing its own list.
+    await page.getByRole('button', { name: 'Flat orgs', exact: true }).click();
+    await page.getByTestId('diagram-ready').waitFor();
+
     const named = (lines: string[]) => lines.some((l) => l.startsWith('Renderer: canvas'));
     expect(named(await bridge(page).diagnostics())).toBe(true);
 
-    // Switching tabs rebuilds the scene; the renderer's own diagnostics list is
-    // replaced wholesale on every render, which is what could drop this line.
-    await page.getByRole('button', { name: 'Staff · Magnetic', exact: true }).click();
-    await page.getByTestId('diagram-ready').waitFor({ timeout: 120_000 });
+    await page.locator('#collapse-all').click();
+    await page.waitForTimeout(500);
     expect(named(await bridge(page).diagnostics())).toBe(true);
   });
 
@@ -76,9 +86,10 @@ test.describe('renderer choice (T83)', () => {
   });
 
   test('row 8: zoomed out on canvas, hairlines are a recorded fact', async ({ page }) => {
+    test.setTimeout(180_000);
     await open(page, '&renderer=canvas');
     await page.getByRole('button', { name: 'Staff · 1M', exact: true }).click();
-    await page.getByTestId('diagram-ready').waitFor({ timeout: 300_000 });
+    await page.getByTestId('diagram-ready').waitFor();
     await page.locator('[data-zoom="fit"]').click();
     await page.waitForTimeout(600);
 
@@ -96,9 +107,11 @@ test.describe('renderer choice (T83)', () => {
   });
 
   test('row 7: the heaviest scene comes up on canvas', async ({ page }) => {
+    // The 1M window genuinely needs more than the 60s default on a cold runner.
+    test.setTimeout(180_000);
     await open(page, '&renderer=canvas');
     await page.getByRole('button', { name: 'Staff · 1M', exact: true }).click();
-    await page.getByTestId('diagram-ready').waitFor({ timeout: 300_000 });
+    await page.getByTestId('diagram-ready').waitFor({ timeout: 120_000 });
     expect(await bridge(page).kind()).toBe('canvas');
   });
 });

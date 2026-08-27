@@ -127,7 +127,8 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
 export class OrgHierarchyDiagram {
   private readonly dataStore = new DataStore();
   private host: PixiHost | null = null;
-  private rendererPreference: string = 'auto';
+  /** What the host asked for, kept verbatim for the diagnostic line. */
+  private rendererPreference: RendererKindPreference = 'auto';
   /** Set only when the host asked for an engine we do not know (T83). */
   private rendererDiagnostic: string | null = null;
   private stylesPartial: Partial<NodeTheme> | undefined;
@@ -227,7 +228,7 @@ export class OrgHierarchyDiagram {
     // Same builder as setData: a 100k mount used to block the main thread here
     // while the worker path sat unused until the first setData.
     await instance.searchService.rebuildForScale(instance.data);
-    instance.rendererPreference = String(config.renderer ?? 'auto');
+    instance.rendererPreference = config.renderer ?? 'auto';
     instance.rendererDiagnostic = resolveRendererPreference(config.renderer).diagnostic ?? null;
     try {
       instance.host = await PixiHost.create(container, { renderer: config.renderer });
@@ -857,7 +858,7 @@ export class OrgHierarchyDiagram {
     if (!fromRenderer) return [];
     const kind = this.getRendererKind();
     if (!kind) return fromRenderer;
-    const engine = `Renderer: ${kind} (requested: ${this.rendererPreference})`;
+    const engine = `Renderer: ${kind} (requested: ${String(this.rendererPreference)})`;
     return this.rendererDiagnostic
       ? [engine, this.rendererDiagnostic, ...fromRenderer]
       : [engine, ...fromRenderer];

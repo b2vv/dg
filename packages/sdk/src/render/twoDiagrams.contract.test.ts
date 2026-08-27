@@ -150,7 +150,10 @@ describe('a mount that fails', () => {
 
     // Nobody holds the instance, so nobody can call destroy() on it — if create
     // does not clean up after itself, every retry leaks another worker.
-    expect(w.terminate).toHaveBeenCalled();
+    // Counting matters: the pool and the search index both draw from this
+    // factory, so a single terminate would hide one of them leaking.
+    expect(w.factory.mock.calls.length).toBeGreaterThan(0);
+    expect(w.terminate.mock.calls.length).toBe(w.factory.mock.calls.length);
 
     document.body.removeChild(el);
   });
@@ -170,7 +173,9 @@ describe('a mount that fails', () => {
       ).rejects.toThrow(/renderer 'webgl'/);
     }
 
-    for (const w of factories) expect(w.terminate).toHaveBeenCalled();
+    for (const w of factories) {
+      expect(w.terminate.mock.calls.length).toBe(w.factory.mock.calls.length);
+    }
 
     document.body.removeChild(el);
   });

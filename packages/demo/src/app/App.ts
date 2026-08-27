@@ -240,6 +240,9 @@ export class App {
       this.setStatus('Loading…');
       this.diagram = await OrgHierarchyDiagram.create(this.mountEl, {
         ...config,
+        // Forwarded unvalidated on purpose: the demo stands in for an untyped
+        // host here, and the SDK owns normalising anything it does not know
+        // (resolveRendererPreference) — validating twice would hide that path.
         ...(this.rendererParam
           ? { renderer: this.rendererParam as OrgHierarchyConfig['renderer'] }
           : {}),

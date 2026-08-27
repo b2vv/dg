@@ -29,6 +29,8 @@ describe('resolveRendererPreference', () => {
   });
 
   it('failure: an unknown value behaves as auto and names both values', () => {
+    // `as never` on purpose: this is the untyped-host path, and the type system
+    // is exactly what such a host does not have.
     const resolved = resolveRendererPreference('vulkan' as never);
     expect(resolved.preference).toEqual(['webgl', 'canvas']);
     expect(resolved.failIfMajorPerformanceCaveat).toBe(true);
