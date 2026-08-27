@@ -83,3 +83,25 @@ jobs:
 
       - name: E2E smoke
         run: npm run test:e2e
+
+      # The renderer rows have a branch that only exists where the browser
+      # refuses a WebGL context it would have to emulate — the state of a
+      # terminal without a GPU. A normal runner grants that context, so without
+      # this second pass the branch that matters for T83 is never executed.
+      - name: E2E on an emulated GPU (renderer choice)
+        env:
+          SOFTWARE_GL: '1'
+        run: npx playwright test e2e/renderer-choice.spec.ts
+
+      # Visual baselines cannot be produced anywhere but here: a local container
+      # renders identically to itself and differently from this runner (fonts,
+      # and native amd64 vs emulated). On failure the runner's own `-actual.png`
+      # files are the only correct source for new baselines, so they have to
+      # leave the machine.
+      - name: Upload what the runner actually drew
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-actual
+          path: test-results/
+          retention-days: 7

@@ -1,6 +1,45 @@
-import { Application, Rectangle } from 'pixi.js';
+import { Application, Rectangle, RendererType } from 'pixi.js';
 import { DiagramRenderer } from './DiagramRenderer.js';
 import { Viewport, type ViewportTransform, type CameraMotionOptions } from './Viewport.js';
+
+/**
+ * Which engine draws the scene. `'auto'` lets the browser decide: Pixi walks
+ * webgl → canvas, and `failIfMajorPerformanceCaveat` makes the browser refuse a
+ * WebGL context it would have to emulate in software.
+ */
+export type RendererKindPreference = 'auto' | 'webgl' | 'canvas';
+
+/** The two `app.init` options a {@link RendererKindPreference} resolves to. */
+export interface ResolvedRendererPreference {
+  preference: ReadonlyArray<'webgl' | 'canvas'>;
+  failIfMajorPerformanceCaveat: boolean;
+  /** Set only when the requested value was not one we know — see the fallback below. */
+  diagnostic?: string;
+}
+
+/**
+ * `'auto'` is best-effort, not a guarantee: the same Chromium refused a software
+ * WebGL context under `--use-gl=swiftshader` on macOS and handed one out in a
+ * GPU-less Linux container. Hosts that need certainty pass `'canvas'`.
+ */
+export function resolveRendererPreference(value?: unknown): ResolvedRendererPreference {
+  const auto: ResolvedRendererPreference = {
+    preference: ['webgl', 'canvas'],
+    failIfMajorPerformanceCaveat: true,
+  };
+  if (value === 'canvas') {
+    return { preference: ['canvas'], failIfMajorPerformanceCaveat: false };
+  }
+  if (value === 'webgl') {
+    // A single-entry array is a blocklist: canvas is excluded, so an environment
+    // without WebGL rejects the mount instead of quietly drawing on canvas.
+    return { preference: ['webgl'], failIfMajorPerformanceCaveat: false };
+  }
+  if (value === 'auto' || value === undefined) return auto;
+  // A host on untyped JS can pass anything. Falling back silently would leave
+  // "why is this diagram on canvas?" unanswerable, so the substitution is spoken.
+  return { ...auto, diagnostic: `Unknown renderer '${String(value)}' — using 'auto' instead.` };
+}
 
 export interface PixiHostOptions {
   background?: number;
@@ -10,6 +49,8 @@ export interface PixiHostOptions {
   resolution?: number;
   /** Abort in-flight `create` / `init` (React StrictMode, route change). */
   signal?: AbortSignal;
+  /** Which engine draws the scene. Default `'auto'` — see {@link resolveRendererPreference}. */
+  renderer?: RendererKindPreference;
 }
 
 /** Crisp canvas text/sprites under browser zoom / retina (capped at 3×). */
@@ -109,6 +150,16 @@ export class PixiHost {
     this.viewport?.setOnChange(handler);
   }
 
+  /**
+   * Which engine actually drew the scene, or `null` before the mount finishes
+   * and after `destroy()` — symmetric with the other post-mount getters.
+   */
+  getRendererKind(): 'webgl' | 'canvas' | null {
+    const type = this.app?.renderer?.type;
+    if (type == null) return null;
+    return type === RendererType.CANVAS ? 'canvas' : 'webgl';
+  }
+
   /** Update WebGL clear color (theme toggle). */
   setBackground(color: number): void {
     if (!this.app) return;
@@ -122,7 +173,10 @@ export class PixiHost {
     this.lastResolution = resolvePixiResolution(options.resolution);
 
     const app = new Application();
+    const rendererChoice = resolveRendererPreference(options.renderer);
     await app.init({
+      preference: [...rendererChoice.preference],
+      failIfMajorPerformanceCaveat: rendererChoice.failIfMajorPerformanceCaveat,
       width,
       height,
       background: options.background ?? 0xf8fafc,

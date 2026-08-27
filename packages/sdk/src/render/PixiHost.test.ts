@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Application } from 'pixi.js';
-import { PixiHost, resolvePixiResolution } from './PixiHost.js';
+import { PixiHost, resolvePixiResolution, resolveRendererPreference } from './PixiHost.js';
 
 describe('resolvePixiResolution', () => {
   it('success: uses explicit positive resolution capped at 3', () => {
@@ -12,6 +12,44 @@ describe('resolvePixiResolution', () => {
     expect(resolvePixiResolution(0)).toBeGreaterThan(0);
     expect(resolvePixiResolution(Number.NaN)).toBeGreaterThan(0);
     expect(resolvePixiResolution(-1)).toBeGreaterThan(0);
+  });
+});
+
+describe('resolveRendererPreference', () => {
+  it('success: auto asks for webgl-then-canvas and lets the browser refuse software webgl', () => {
+    expect(resolveRendererPreference('auto')).toEqual({
+      preference: ['webgl', 'canvas'],
+      failIfMajorPerformanceCaveat: true,
+    });
+  });
+
+  it('success: an absent option is auto, and says nothing about it', () => {
+    expect(resolveRendererPreference(undefined)).toEqual(resolveRendererPreference('auto'));
+    expect(resolveRendererPreference(undefined).diagnostic).toBeUndefined();
+  });
+
+  it('failure: an unknown value behaves as auto and names both values', () => {
+    // `as never` on purpose: this is the untyped-host path, and the type system
+    // is exactly what such a host does not have.
+    const resolved = resolveRendererPreference('vulkan' as never);
+    expect(resolved.preference).toEqual(['webgl', 'canvas']);
+    expect(resolved.failIfMajorPerformanceCaveat).toBe(true);
+    expect(resolved.diagnostic).toContain('vulkan');
+    expect(resolved.diagnostic).toContain('auto');
+  });
+
+  it('success: canvas is the guarantee — webgl is never attempted', () => {
+    expect(resolveRendererPreference('canvas')).toEqual({
+      preference: ['canvas'],
+      failIfMajorPerformanceCaveat: false,
+    });
+  });
+
+  it('success: webgl pins the engine and accepts a software context', () => {
+    expect(resolveRendererPreference('webgl')).toEqual({
+      preference: ['webgl'],
+      failIfMajorPerformanceCaveat: false,
+    });
   });
 });
 
@@ -43,6 +81,21 @@ describe('PixiHost create/destroy (A4)', () => {
       Application.prototype.init = originalInit;
       document.body.removeChild(container);
     }
+  });
+
+  it('success: a pinned canvas host reports canvas, and null once destroyed', async () => {
+    const container = document.createElement('div');
+    container.style.width = '400px';
+    container.style.height = '300px';
+    document.body.appendChild(container);
+
+    const host = await PixiHost.create(container, { renderer: 'canvas' });
+    expect(host.getRendererKind()).toBe('canvas');
+    host.destroy();
+    // Support asks "which engine drew this?" after the fact — a throw there
+    // would be the worst answer, so the lifecycle state is a value.
+    expect(host.getRendererKind()).toBeNull();
+    document.body.removeChild(container);
   });
 
   it('success: create then destroy clears application', async () => {
