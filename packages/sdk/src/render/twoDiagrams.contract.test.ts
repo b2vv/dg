@@ -128,3 +128,50 @@ describe('two diagrams on one page', () => {
     document.body.removeChild(el);
   });
 });
+
+/**
+ * jsdom mocks a WebGL context without `getContextAttributes`, so Pixi's
+ * `isWebGLSupported` says no — which makes `renderer: 'webgl'` the real,
+ * unmocked way to reach a rejected mount here.
+ */
+describe('a mount that fails', () => {
+  it('failure: rejecting on a pinned engine still releases the workers it already made', async () => {
+    const el = mount();
+    const w = silentWorkerFactory();
+
+    await expect(
+      OrgHierarchyDiagram.create(el, {
+        data: data('doomed'),
+        renderer: 'webgl',
+        workerFactory: w.factory,
+        workerPoolSize: 1,
+      }),
+    ).rejects.toThrow(/webgl/i);
+
+    // Nobody holds the instance, so nobody can call destroy() on it — if create
+    // does not clean up after itself, every retry leaks another worker.
+    expect(w.terminate).toHaveBeenCalled();
+
+    document.body.removeChild(el);
+  });
+
+  it('failure: three attempts release three sets of workers, not one', async () => {
+    const el = mount();
+    const factories = [silentWorkerFactory(), silentWorkerFactory(), silentWorkerFactory()];
+
+    for (const w of factories) {
+      await expect(
+        OrgHierarchyDiagram.create(el, {
+          data: data('retry'),
+          renderer: 'webgl',
+          workerFactory: w.factory,
+          workerPoolSize: 1,
+        }),
+      ).rejects.toThrow(/renderer 'webgl'/);
+    }
+
+    for (const w of factories) expect(w.terminate).toHaveBeenCalled();
+
+    document.body.removeChild(el);
+  });
+});

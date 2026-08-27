@@ -1,7 +1,11 @@
 import type { DiagramData } from './data/types.js';
 import { isDiagramData, mergePartial } from './data/mergeData.js';
 import type { DiagramMappers } from './mappers/types.js';
-import { PixiHost, type RendererKindPreference } from './render/PixiHost.js';
+import {
+  PixiHost,
+  resolveRendererPreference,
+  type RendererKindPreference,
+} from './render/PixiHost.js';
 import type { DiagramRenderer } from './render/DiagramRenderer.js';
 import { MediaService, type DiagramMediaFacade, type MediaPlaceholderRegistry } from './media/index.js';
 import {
@@ -123,6 +127,9 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
 export class OrgHierarchyDiagram {
   private readonly dataStore = new DataStore();
   private host: PixiHost | null = null;
+  private rendererPreference: string = 'auto';
+  /** Set only when the host asked for an engine we do not know (T83). */
+  private rendererDiagnostic: string | null = null;
   private stylesPartial: Partial<NodeTheme> | undefined;
   private nodeTheme = mergeTheme();
   private renderConfig: RenderConfig = { ...defaultRenderConfig };
@@ -220,7 +227,20 @@ export class OrgHierarchyDiagram {
     // Same builder as setData: a 100k mount used to block the main thread here
     // while the worker path sat unused until the first setData.
     await instance.searchService.rebuildForScale(instance.data);
-    instance.host = await PixiHost.create(container, { renderer: config.renderer });
+    instance.rendererPreference = String(config.renderer ?? 'auto');
+    instance.rendererDiagnostic = resolveRendererPreference(config.renderer).diagnostic ?? null;
+    try {
+      instance.host = await PixiHost.create(container, { renderer: config.renderer });
+    } catch (cause) {
+      // The workers and the search index are already alive by now, and the
+      // caller never receives the instance — so nobody else can release them.
+      instance.destroy();
+      throw new Error(
+        `OrgHierarchyDiagram: could not mount with renderer '${instance.rendererPreference}'. ` +
+          `${cause instanceof Error ? cause.message : String(cause)}`,
+        { cause },
+      );
+    }
     instance.host.setOnViewportChange((t) => {
       instance.onViewportTransform(t.scale);
       instance.notifyPromoteSync();
@@ -824,9 +844,23 @@ export class OrgHierarchyDiagram {
     return this.host?.getRendererKind() ?? null;
   }
 
-  /** Soft layout warnings from the last render (anchor overlap, skipped expands, …). */
+  /**
+   * Diagnostics for the last render, including the engine that drew it.
+   *
+   * The engine line is added here rather than inside `DiagramRenderer`: the
+   * renderer overwrites its own list on every render, so a line written once at
+   * mount would disappear after the first frame — and it is a property of the
+   * host, not of the scene.
+   */
   getLayoutDiagnostics(): readonly string[] {
-    return this.renderer?.getLayoutDiagnostics() ?? [];
+    const fromRenderer = this.renderer?.getLayoutDiagnostics();
+    if (!fromRenderer) return [];
+    const kind = this.getRendererKind();
+    if (!kind) return fromRenderer;
+    const engine = `Renderer: ${kind} (requested: ${this.rendererPreference})`;
+    return this.rendererDiagnostic
+      ? [engine, this.rendererDiagnostic, ...fromRenderer]
+      : [engine, ...fromRenderer];
   }
 
   /** Replace selection with one node (or clear). */

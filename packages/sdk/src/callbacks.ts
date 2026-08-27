@@ -26,8 +26,9 @@ export interface OrgHierarchyCallbacks {
   /** Fired after setData / create mapping completes */
   onDataMapped?(stats: { orgs: number; persons: number; positions: number; ms: number }): void;
   /**
-   * Soft layout warnings from the last render (anchor overlap, skipped expands, etc.).
-   * Empty array when layout is clean.
+   * Diagnostics for the last render: the engine that drew it, plus soft layout
+   * warnings (anchor overlap, skipped expands, etc.). Never empty once mounted —
+   * the engine line is always present.
    */
   onLayoutDiagnostics?(messages: readonly string[]): void;
   /** T66: after position expand/collapse / expandToDepth batch. */
