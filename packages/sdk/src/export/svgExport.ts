@@ -202,8 +202,7 @@ async function paintOrgHierarchySvg(
       `<path d="${esc(e.path)}" fill="none" stroke="${EDGE_STROKE}" stroke-width="${EDGE_W}" stroke-linecap="round" stroke-linejoin="round"/>`,
     );
   }
-  parts.push('</g>');
-  parts.push('<g id="org-cards">');
+  parts.push('</g>', '<g id="org-cards">');
   for (const n of layout.nodes) {
     const org = orgById.get(n.orgId);
     parts.push(
@@ -416,9 +415,7 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
         `<path d="${ring.d} Z" fill="none" stroke="${DEPT_STROKE}" stroke-width="${DEPT_STROKE_W}" stroke-linejoin="round" stroke-linecap="round" data-dept="${esc(ring.departmentId)}"/>`,
       );
     }
-    parts.push('</g>');
-
-    parts.push('<g id="org-cards">');
+    parts.push('</g>', '<g id="org-cards">');
     for (const card of canvas.orgCards) {
       parts.push(
         `<g data-org="${esc(card.orgId)}" transform="translate(${card.x},${card.y})">`,

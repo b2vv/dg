@@ -39,7 +39,6 @@ import {
   collapseAllOrgs,
   collapseOrg,
   detectOrgMode,
-  expandOrg,
   swapMatrixOrder,
   applyMatrixPlacement,
   assignExpandToDepth,

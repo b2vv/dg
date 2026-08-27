@@ -30,7 +30,7 @@ export function rgbImageToPdf(
   const imageId = 5;
   const content = `q\n${width} 0 0 ${height} 0 0 cm\n/Im0 Do\nQ\n`;
 
-  push(encoder.encode('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n'));
+  push(encoder.encode('%PDF-1.4\n%\u00E2\u00E3\u00CF\u00D3\n'));
 
   writeObj(
     catalogId,

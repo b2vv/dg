@@ -285,7 +285,7 @@ export function buildScaleStaffWindow(options: {
   focusIndex?: number;
   expandedOrgId?: string;
 } = {}): ScaleStaffWindow {
-  const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const t0 = typeof performance === 'undefined' ? Date.now() : performance.now();
   const total = options.total ?? STAFF_SCALE_TOTAL;
   const composition = scaleStaffComposition(total);
   const windowSize = Math.min(options.windowSize ?? STAFF_SCALE_WINDOW, composition.current);
@@ -308,7 +308,7 @@ export function buildScaleStaffWindow(options: {
   const positions = tiers.flatMap((t) => t.positions);
   const { organizations: subOrgs, groups } = subordinateOrgs();
 
-  const t1 = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const t1 = typeof performance === 'undefined' ? Date.now() : performance.now();
   return {
     total,
     windowSize: positions.length,

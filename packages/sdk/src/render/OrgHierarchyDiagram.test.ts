@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { OrgHierarchyDiagram } from '../index.js';
 import { VARIANT_B_POSITIONS } from '../contour/bridge.js';
 
@@ -10,7 +10,7 @@ function makeVariantBDiagram() {
       { id: 'IT', name: 'IT', organizationId: 'org1' },
       { id: 'CEO', name: 'CEO', organizationId: 'org1' },
     ],
-    persons: VARIANT_B_POSITIONS.map((p, i) => ({
+    persons: VARIANT_B_POSITIONS.map((p) => ({
       id: `person-${p.id}`,
       fullName: p.id,
     })),

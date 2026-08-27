@@ -33,7 +33,6 @@ import {
   layoutGojsPortraitContent,
   layoutGojsRowContent,
   layoutPeriodChip,
-  truncatePixiText,
   type GojsRowLayout,
   type PersonCardParts,
 } from './personCardContent.js';

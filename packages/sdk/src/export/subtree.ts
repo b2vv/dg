@@ -12,7 +12,7 @@ export function filterDiagramSubtree(data: DiagramData, rootOrgId: string): Diag
 
   const keep = new Set<string>();
   const stack = [rootOrgId];
-  while (stack.length) {
+  while (stack.length > 0) {
     const id = stack.pop()!;
     if (keep.has(id)) continue;
     keep.add(id);

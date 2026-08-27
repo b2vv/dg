@@ -8,7 +8,6 @@ import {
   gojsRowAvatar,
   GOJS_ROW_COUNT_BAR_H,
   GOJS_ROW_TIMELINE_H,
-  gojsPortraitAvatar,
   isExplicitLayout,
   resolveGojsRowLayoutMetrics,
   resolvePersonLayout,

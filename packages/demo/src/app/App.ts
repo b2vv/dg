@@ -1,18 +1,11 @@
 import type { OrgHierarchyCallbacks, OrgHierarchyConfig } from '@org-hierarchy/sdk';
 import {
   OrgHierarchyDiagram,
-  defaultLodThresholds,
-  flatRowsToDiagram,
-  layoutStaffCanvas,
   mapFlatRowsInPool,
   mapArrayItems,
   recommendWorkerPoolSize,
-  VARIANT_B_HORIZONTAL_GAP,
-  VARIANT_B_VERTICAL_GAP,
-  VARIANT_B_MAGNET_RADIUS,
   type DiagramData,
   type FlatDiagramRow,
-  type LodThresholds,
 } from '@org-hierarchy/sdk';
 import {
   createReactContextMenuHost,
@@ -26,26 +19,7 @@ import {
   type PromoteSlotProps,
 } from '@org-hierarchy/sdk/react';
 import { createElement } from 'react';
-import { buildVariantBData } from '../scenarios/variantB.js';
 import { buildFlatOrgsData } from '../scenarios/flatOrgs.js';
-import { buildStaffTreeData } from '../scenarios/staffTree.js';
-import {
-  buildMockupOrgsFigmaData,
-  buildMockupOrgsGojsData,
-  buildMockupStaffFigmaData,
-  buildMockupStaffGojsData,
-  buildMockupStaffFloodData,
-  buildMockupStaffMagneticData,
-  FIGMA_ORG_LAYOUT,
-  FIGMA_STAFF_LAYOUT,
-  FLOOD_CELL,
-  FLOOD_STAFF_LAYOUT,
-  MAGNETIC_CELL,
-  MAGNETIC_STAFF_LAYOUT,
-  MOCKUP_FIGMA_STYLES,
-  MOCKUP_GOJS_STYLES,
-  MOCKUP_MAGNETIC_STYLES,
-} from '../scenarios/mockups.js';
 import {
   SCALE_ORG_TOTAL,
   SCALE_ORG_WINDOW,
@@ -62,7 +36,7 @@ import {
   STAFF_SCALE_TOTAL,
   type ScaleStaffWindow,
 } from '../scenarios/scaleStaff.js';
-import { SAMPLE_MAPPER_JSON, SAMPLE_MAPPER_ROWS } from '../scenarios/sampleMapper.js';
+import { SAMPLE_MAPPER_JSON } from '../scenarios/sampleMapper.js';
 import { parseJsonFile } from '../utils/json.js';
 import { requireElement, setThemeAttribute, showError } from '../utils/dom.js';
 import {
@@ -550,21 +524,21 @@ export class App {
           win &&
           idx >= win.startIndex &&
           idx < win.startIndex + win.data.organizations.length;
-        if (!inWindow) {
+        if (inWindow) {
+          void this.diagram?.focusNode(orgId);
+        } else {
           this.ensureScaleWindow(idx);
           void this.reload();
-        } else {
-          void this.diagram?.focusNode(orgId);
         }
       }
       return;
     }
     if (this.tab === 'flat-orgs') {
       const org = this.diagram?.getData().organizations.find((o) => o.id === orgId);
-      if (org?.collapsed !== false) {
-        void this.diagram?.expandOrg(orgId);
-      } else {
+      if (org?.collapsed === false) {
         void this.diagram?.focusNode(orgId);
+      } else {
+        void this.diagram?.expandOrg(orgId);
       }
       return;
     }

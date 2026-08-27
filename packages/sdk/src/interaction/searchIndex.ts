@@ -252,7 +252,7 @@ interface RankedEntry {
 
 function compareRanked(a: RankedEntry, b: RankedEntry): number {
   const byLabel = labelCollator.compare(a.result.label, b.result.label);
-  return byLabel !== 0 ? byLabel : a.seq - b.seq;
+  return byLabel === 0 ? a.seq - b.seq : byLabel;
 }
 
 /**

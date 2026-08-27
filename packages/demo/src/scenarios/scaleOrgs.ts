@@ -58,7 +58,7 @@ export function buildScaleOrgsWindow(options: {
   /** Expand focus path for row-tree (default true). False = all collapsed → matrix. */
   expandFocusPath?: boolean;
 }): ScaleOrgsWindow {
-  const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const t0 = typeof performance === 'undefined' ? Date.now() : performance.now();
   const total = options.total ?? SCALE_ORG_TOTAL;
   const windowSize = Math.min(options.windowSize ?? SCALE_ORG_WINDOW, total);
   const focusIndex = Math.max(0, Math.min(options.focusIndex ?? 0, total - 1));
@@ -99,7 +99,7 @@ export function buildScaleOrgsWindow(options: {
       kind: 'administrative' as const,
     }));
 
-  const t1 = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const t1 = typeof performance === 'undefined' ? Date.now() : performance.now();
   return {
     total,
     windowSize: end - start,

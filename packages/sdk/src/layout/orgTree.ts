@@ -121,7 +121,7 @@ export function orgsToSingleRootTree(
       collapsed: true,
     },
     ...organizations.map((o) =>
-      !o.parentOrgId ? { ...o, parentOrgId: virtualRootId } : o,
+      o.parentOrgId ? o : { ...o, parentOrgId: virtualRootId },
     ),
   ];
 }

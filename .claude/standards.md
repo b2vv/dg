@@ -38,6 +38,8 @@
 
 | Команда | Що ловить |
 |---|---|
+| `npm run lint` | **oxlint** — correctness/suspicious/pedantic; 20 правил вимкнено, перелік і причини в `work/tasks/T85-lint-debt.md` |
+| `npm run format` | **oxfmt --check** (у CI **не** гейт — див. T85) |
 | `npm run typecheck` | tsc по sdk + emit types + demo |
 | `npm test` | unit sdk + demo |
 | `npm run test:e2e` | Playwright smoke |
@@ -61,11 +63,15 @@ CI (`.github/workflows/ci.yml`) — три job: `rust` (cargo test), `sdk` (buil
 
 ### Чого гейти НЕ ловлять (виміряно 2026-08-26)
 
-- **Lint відсутній як клас.** У `package.json` немає жодного lint-скрипта — ні ESLint, ні oxlint,
-  ні `cargo clippy`. Тобто **весь** `work/CODING_STANDARDS.md` тримається на людському рев'ю:
-  імена, розмір функцій, кількість аргументів, `any`, `satisfies` vs `as`, TS-enum — нічого з
-  цього машина не бачить.
-- **Форматування ніким не форситься** — ні prettier, ні `cargo fmt --check`.
+- ⚠️ **Оновлено 2026-08-27:** lint більше не відсутній — **oxlint** у CI (`npm run lint`), гейт
+  зелений. Але **20 правил вимкнено**, щоб він таким став; що саме й чому — `work/tasks/T85-lint-debt.md`.
+  З того, що лишилось на людині: розмір функцій (`max-lines*` вимкнено), `no-inline-comments`,
+  `no-underscore-dangle`, `require-await` (90 випадків), `consistent-function-scoping`.
+  `no-unused-vars` **машина ловить** — мертві імпорти більше не проходять.
+- **Форматування є, але не форситься:** `oxfmt` налаштований під наявний стиль репо
+  (`.oxfmtrc.json`), `npm run format` перевіряє. У CI **не** гейт: застосування зачепить 143 файли,
+  і це свідомо відкладено, щоб не конфліктувати з гілками в польоті (T85).
+- **`cargo fmt --check` / `clippy` по Rust як не було, так і немає.**
 - Усе, що взагалі не виражається лінтером: одна причина для зміни, брехливі імена, коментарі
   проти коду, тихі обрізання, розходження «заявлено в WASM ↔ малює TS».
 

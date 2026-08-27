@@ -3,7 +3,7 @@ import {
   staffEdgePolyline,
   staffEdgePolylineToSvg,
 } from './staffEdgeGeometry.js';
-import { assignMatrixCells, placeOrgAtMatrixCell, resolveMatrixDimensions } from './matrixGrid.js';
+import { assignMatrixCells, resolveMatrixDimensions } from './matrixGrid.js';
 import { buildSpineBusEdgesForForest } from './spineBusEdges.js';
 import {
   DEFAULT_ORG_LAYOUT_OPTIONS,
