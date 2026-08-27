@@ -148,9 +148,11 @@ HTMLCanvasElement.prototype.getContext = function getContext(
 // Canvas2D renderer — the one `isWebGLSupported` leaves us with in jsdom —
 // dereferences it on its first real paint. Before T84 no paint ever happened
 // here, so the gap stayed invisible.
-if (typeof (globalThis as { CanvasRenderingContext2D?: unknown }).CanvasRenderingContext2D === 'undefined') {
+if ((globalThis as { CanvasRenderingContext2D?: unknown }).CanvasRenderingContext2D === undefined) {
+  // A function, not an empty class: Pixi only ever hands this identifier back,
+  // and an empty class trips the linter for no gain here.
   (globalThis as { CanvasRenderingContext2D?: unknown }).CanvasRenderingContext2D =
-    class CanvasRenderingContext2D {};
+    function CanvasRenderingContext2D() {};
 }
 
 vi.stubGlobal(
