@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, rstest } from '@rstest/core';
 import { Texture } from 'pixi.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
 import { configureNodeTextureLoader, clearNodeTextureCache } from '../media/nodeMedia.js';
@@ -70,7 +70,7 @@ describe('OrganizationNodeView', () => {
   });
 
   it('success: M6 far lod does not call loadTexture', async () => {
-    const loadTexture = vi.fn(async () => Texture.WHITE);
+    const loadTexture = rstest.fn(async () => Texture.WHITE);
     const view = OrganizationNodeView.create(
       org,
       group,
@@ -84,8 +84,8 @@ describe('OrganizationNodeView', () => {
   });
 
   it('success: tree chrome shows expand control and menu', () => {
-    const onMenu = vi.fn();
-    const onExpand = vi.fn();
+    const onMenu = rstest.fn();
+    const onExpand = rstest.fn();
     const view = OrganizationNodeView.create(
       org,
       group,
@@ -120,7 +120,7 @@ describe('OrganizationNodeView', () => {
   });
 
   it('success: activateChromePointer triggers menu callback', () => {
-    const onMenu = vi.fn();
+    const onMenu = rstest.fn();
     const view = OrganizationNodeView.create(
       org,
       group,

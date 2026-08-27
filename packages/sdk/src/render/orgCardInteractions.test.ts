@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import { DoubleTapTracker } from '../interaction/doubleTap.js';
 import { bindOrgCardInteractions } from './orgCardInteractions.js';
 import type { OrganizationNodeView } from './OrganizationNode.js';
@@ -29,9 +29,9 @@ function fakeCard(chrome: { activates?: boolean; isChrome?: boolean } = {}) {
 
 function handlers() {
   return {
-    onOrgClick: vi.fn(),
-    onOrgDoubleClick: vi.fn(),
-    onOrgContextMenu: vi.fn(),
+    onOrgClick: rstest.fn(),
+    onOrgDoubleClick: rstest.fn(),
+    onOrgContextMenu: rstest.fn(),
   };
 }
 
@@ -39,7 +39,7 @@ describe('bindOrgCardInteractions', () => {
   it('success: a plain tap runs the single-tap action, then the click handler', () => {
     const card = fakeCard();
     const h = handlers();
-    const onSingleTap = vi.fn();
+    const onSingleTap = rstest.fn();
     bindOrgCardInteractions(card.view, {
       orgId: 'o1',
       doubleTap: new DoubleTapTracker(),
@@ -56,7 +56,7 @@ describe('bindOrgCardInteractions', () => {
   it('success: a modifier tap selects only — no expand, no double-tap state', () => {
     const card = fakeCard();
     const h = handlers();
-    const onSingleTap = vi.fn();
+    const onSingleTap = rstest.fn();
     bindOrgCardInteractions(card.view, {
       orgId: 'o1',
       doubleTap: new DoubleTapTracker(),
@@ -72,7 +72,7 @@ describe('bindOrgCardInteractions', () => {
   it('success: two quick taps report a double-click instead of the single action', () => {
     const card = fakeCard();
     const h = handlers();
-    const onSingleTap = vi.fn();
+    const onSingleTap = rstest.fn();
     const doubleTap = new DoubleTapTracker();
     bindOrgCardInteractions(card.view, { orgId: 'o1', doubleTap, handlers: h, onSingleTap });
 
@@ -85,7 +85,7 @@ describe('bindOrgCardInteractions', () => {
   it('failure: a tap consumed by card chrome fires nothing', () => {
     const card = fakeCard({ activates: true });
     const h = handlers();
-    const onSingleTap = vi.fn();
+    const onSingleTap = rstest.fn();
     bindOrgCardInteractions(card.view, {
       orgId: 'o1',
       doubleTap: new DoubleTapTracker(),

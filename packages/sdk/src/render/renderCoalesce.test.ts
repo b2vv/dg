@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import { createRenderCoalesce } from './renderCoalesce.js';
 
 describe('createRenderCoalesce (T75 D2)', () => {
@@ -23,7 +23,7 @@ describe('createRenderCoalesce (T75 D2)', () => {
   });
 
   it('failure: stop prevents further runs', async () => {
-    const run = vi.fn(async () => {
+    const run = rstest.fn(async () => {
       await new Promise((r) => setTimeout(r, 5));
     });
     const coalesce = createRenderCoalesce(run);

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import { act } from 'react';
 import { createElement, useEffect } from 'react';
 import {
@@ -56,7 +56,7 @@ describe('createReactContextMenuHost', () => {
   });
 
   it('success: onAction receives item and closes', async () => {
-    const onAction = vi.fn();
+    const onAction = rstest.fn();
     const Menu = (props: ReactContextMenuRenderProps) => {
       useEffect(() => {
         props.onAction(props.request.items[0]!);

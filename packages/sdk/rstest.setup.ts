@@ -1,4 +1,4 @@
-import { beforeAll, vi } from 'vitest';
+import { beforeAll, rstest } from '@rstest/core';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,36 +13,36 @@ function create2dMock() {
     imageSmoothingQuality: 'low',
     globalAlpha: 1,
     globalCompositeOperation: 'source-over',
-    fillRect: vi.fn(),
-    strokeRect: vi.fn(),
-    clearRect: vi.fn(),
-    beginPath: vi.fn(),
-    closePath: vi.fn(),
-    moveTo: vi.fn(),
-    lineTo: vi.fn(),
-    arc: vi.fn(),
-    fill: vi.fn(),
-    stroke: vi.fn(),
-    drawImage: vi.fn(),
-    getImageData: vi.fn(() => ({ data: new Uint8ClampedArray(4) })),
-    putImageData: vi.fn(),
-    save: vi.fn(),
-    restore: vi.fn(),
-    scale: vi.fn(),
-    rotate: vi.fn(),
-    translate: vi.fn(),
-    transform: vi.fn(),
-    setTransform: vi.fn(),
-    measureText: vi.fn(() => ({ width: 10 })),
-    fillText: vi.fn(),
-    strokeText: vi.fn(),
-    createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
-    createRadialGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
-    createPattern: vi.fn(),
-    clip: vi.fn(),
-    rect: vi.fn(),
-    quadraticCurveTo: vi.fn(),
-    bezierCurveTo: vi.fn(),
+    fillRect: rstest.fn(),
+    strokeRect: rstest.fn(),
+    clearRect: rstest.fn(),
+    beginPath: rstest.fn(),
+    closePath: rstest.fn(),
+    moveTo: rstest.fn(),
+    lineTo: rstest.fn(),
+    arc: rstest.fn(),
+    fill: rstest.fn(),
+    stroke: rstest.fn(),
+    drawImage: rstest.fn(),
+    getImageData: rstest.fn(() => ({ data: new Uint8ClampedArray(4) })),
+    putImageData: rstest.fn(),
+    save: rstest.fn(),
+    restore: rstest.fn(),
+    scale: rstest.fn(),
+    rotate: rstest.fn(),
+    translate: rstest.fn(),
+    transform: rstest.fn(),
+    setTransform: rstest.fn(),
+    measureText: rstest.fn(() => ({ width: 10 })),
+    fillText: rstest.fn(),
+    strokeText: rstest.fn(),
+    createLinearGradient: rstest.fn(() => ({ addColorStop: rstest.fn() })),
+    createRadialGradient: rstest.fn(() => ({ addColorStop: rstest.fn() })),
+    createPattern: rstest.fn(),
+    clip: rstest.fn(),
+    rect: rstest.fn(),
+    quadraticCurveTo: rstest.fn(),
+    bezierCurveTo: rstest.fn(),
   };
 }
 
@@ -122,7 +122,7 @@ function permissive2dMock(): CanvasRenderingContext2D {
   return new Proxy(base, {
     get(target, key) {
       if (key in target) return target[key];
-      if (!made.has(key)) made.set(key, vi.fn());
+      if (!made.has(key)) made.set(key, rstest.fn());
       return made.get(key);
     },
     has: () => true,
@@ -155,25 +155,25 @@ if ((globalThis as { CanvasRenderingContext2D?: unknown }).CanvasRenderingContex
     function CanvasRenderingContext2D() {};
 }
 
-vi.stubGlobal(
+rstest.stubGlobal(
   'matchMedia',
-  vi.fn().mockImplementation((query: string) => ({
+  rstest.fn().mockImplementation((query: string) => ({
     matches: query.includes('dark'),
     media: query,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    dispatchEvent: vi.fn(),
+    addEventListener: rstest.fn(),
+    removeEventListener: rstest.fn(),
+    addListener: rstest.fn(),
+    removeListener: rstest.fn(),
+    dispatchEvent: rstest.fn(),
   })),
 );
 
-vi.stubGlobal(
+rstest.stubGlobal(
   'ResizeObserver',
   class ResizeObserver {
-    observe = vi.fn();
-    disconnect = vi.fn();
-    unobserve = vi.fn();
+    observe = rstest.fn();
+    disconnect = rstest.fn();
+    unobserve = rstest.fn();
   },
 );
 

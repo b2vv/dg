@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, rstest, beforeEach, afterEach } from '@rstest/core';
 import {
   computeDeptContourInWorker,
   computeAllContoursInWorker,
@@ -10,7 +10,7 @@ import { VARIANT_B_POSITIONS } from './bridge.js';
 function createMockWorker(handler: (req: { mapperKey?: string; payload?: unknown }) => unknown) {
   const listeners: Array<(ev: MessageEvent) => void> = [];
   return {
-    postMessage: vi.fn((req: { id: string; mapperKey?: string; payload?: unknown }) => {
+    postMessage: rstest.fn((req: { id: string; mapperKey?: string; payload?: unknown }) => {
       queueMicrotask(() => {
         try {
           const result = handler(req);
@@ -32,11 +32,11 @@ function createMockWorker(handler: (req: { mapperKey?: string; payload?: unknown
         }
       });
     }),
-    addEventListener: vi.fn((event: string, fn: (ev: MessageEvent) => void) => {
+    addEventListener: rstest.fn((event: string, fn: (ev: MessageEvent) => void) => {
       if (event === 'message') listeners.push(fn);
     }),
-    removeEventListener: vi.fn(),
-    terminate: vi.fn(),
+    removeEventListener: rstest.fn(),
+    terminate: rstest.fn(),
   } as unknown as Worker;
 }
 
@@ -91,10 +91,10 @@ describe('computeDeptContourInWorker', () => {
     configureContourWorker({
       workerFactory: () =>
         ({
-          postMessage: vi.fn(),
-          addEventListener: vi.fn(),
-          removeEventListener: vi.fn(),
-          terminate: vi.fn(),
+          postMessage: rstest.fn(),
+          addEventListener: rstest.fn(),
+          removeEventListener: rstest.fn(),
+          terminate: rstest.fn(),
         }) as unknown as Worker,
       fallbackToMainThread: false,
       timeoutMs: 50,

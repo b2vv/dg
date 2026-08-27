@@ -2,7 +2,7 @@
  * Mandatory node interaction contract — work/tasks/NODE-interactions-contract.md
  * Regression guard: do not skip or weaken without product sign-off.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import { OrgHierarchyDiagram } from '../index.js';
 import { defaultContextMenuItems } from '../interaction/contextMenu.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
@@ -113,9 +113,9 @@ async function mountDiagram(
 describe('NODE interactions contract', () => {
   describe('CTX-1 org right-click opens context menu without selecting', () => {
     it('onContextMenu fires once; onNodeClick silent; selection unchanged', async () => {
-      const onNodeClick = vi.fn();
-      const onContextMenu = vi.fn();
-      const onSelectionChange = vi.fn();
+      const onNodeClick = rstest.fn();
+      const onContextMenu = rstest.fn();
+      const onSelectionChange = rstest.fn();
       const { container, diagram } = await mountDiagram(orgTreeData(), {
         onNodeClick,
         onContextMenu,
@@ -143,8 +143,8 @@ describe('NODE interactions contract', () => {
 
   describe('CTX-2 person right-click opens context menu without selecting', () => {
     it('filled staff seat opens menu with person payload', async () => {
-      const onNodeClick = vi.fn();
-      const onContextMenu = vi.fn();
+      const onNodeClick = rstest.fn();
+      const onContextMenu = rstest.fn();
       const { container, diagram } = await mountDiagram(staffWithVacantData(), {
         onNodeClick,
         onContextMenu,
@@ -166,7 +166,7 @@ describe('NODE interactions contract', () => {
 
   describe('CTX-3 vacant position right-click opens context menu', () => {
     it('position ref with title, no person in payload', async () => {
-      const onContextMenu = vi.fn();
+      const onContextMenu = rstest.fn();
       const { container, diagram } = await mountDiagram(staffWithVacantData(), {
         onContextMenu,
       }, { staffCurrentOrgId: 'o1' });
@@ -190,7 +190,7 @@ describe('NODE interactions contract', () => {
 
   describe('CTX-4 ⋮ menu button opens context menu', () => {
     it('org menu chrome invokes same callback as programmatic open', () => {
-      const onMenu = vi.fn();
+      const onMenu = rstest.fn();
       const view = OrganizationNodeView.create(
         { id: 'o1', name: 'Test Org', groupIds: [] },
         undefined,
@@ -206,7 +206,7 @@ describe('NODE interactions contract', () => {
     });
 
     it('person menu chrome invokes callback', () => {
-      const onMenu = vi.fn();
+      const onMenu = rstest.fn();
       const view = PersonNodeView.create(
         { id: 'p1', fullName: 'Bob' },
         {
@@ -230,7 +230,7 @@ describe('NODE interactions contract', () => {
 
   describe('CTX-5 openContextMenu programmatic API', () => {
     it('diagram.openContextMenu delivers default items to host', async () => {
-      const onContextMenu = vi.fn();
+      const onContextMenu = rstest.fn();
       const { container, diagram } = await mountDiagram(orgTreeData(), { onContextMenu });
 
       diagram.openContextMenu({ kind: 'organization', id: 'root', organizationId: 'root' }, {
@@ -252,8 +252,8 @@ describe('NODE interactions contract', () => {
 
   describe('SEL-1 primary click selects org', () => {
     it('onNodeClick fires and selection updates', async () => {
-      const onNodeClick = vi.fn();
-      const onSelectionChange = vi.fn();
+      const onNodeClick = rstest.fn();
+      const onSelectionChange = rstest.fn();
       const { container, diagram } = await mountDiagram(orgTreeData(), {
         onNodeClick,
         onSelectionChange,
@@ -275,7 +275,7 @@ describe('NODE interactions contract', () => {
 
   describe('SEL-2 primary click selects person', () => {
     it('onNodeClick fires for filled seat', async () => {
-      const onNodeClick = vi.fn();
+      const onNodeClick = rstest.fn();
       const { container, diagram } = await mountDiagram(staffWithVacantData(), {
         onNodeClick,
       }, { staffCurrentOrgId: 'o1' });
@@ -296,7 +296,7 @@ describe('NODE interactions contract', () => {
 
   describe('SEL-4 vacant seat click selects position (T78-L5)', () => {
     it('success: vacant pointertap selects by positionId', async () => {
-      const onNodeClick = vi.fn();
+      const onNodeClick = rstest.fn();
       const { container, diagram } = await mountDiagram(
         staffWithVacantData(),
         { onNodeClick },
@@ -321,8 +321,8 @@ describe('NODE interactions contract', () => {
 
   describe('SEL-3 modifier click toggles without replacing right-click semantics', () => {
     it('ctrl+tap toggles selection; right-click still skips onNodeClick', async () => {
-      const onNodeClick = vi.fn();
-      const onContextMenu = vi.fn();
+      const onNodeClick = rstest.fn();
+      const onContextMenu = rstest.fn();
       const { container, diagram } = await mountDiagram(staffWithVacantData(), {
         onNodeClick,
         onContextMenu,

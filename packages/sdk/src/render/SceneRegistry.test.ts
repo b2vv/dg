@@ -1,5 +1,5 @@
 import { Container } from 'pixi.js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { SceneRegistry } from './SceneRegistry.js';
 
 const box = (id: string, kind: 'person' | 'organization' | 'position', x = 0, y = 0) => ({

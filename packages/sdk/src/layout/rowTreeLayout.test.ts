@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { computeOrgLayout, computeOrgRowTreeLayout } from './rowTreeLayout.js';
 import { revealOrgPath } from '../interaction/revealPath.js';
 import type { DiagramOrganization } from '../data/types.js';

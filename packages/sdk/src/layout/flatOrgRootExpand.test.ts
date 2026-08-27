@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { expandOrg, detectOrgMode } from './orgMode.js';
 import { revealOrgPath } from '../interaction/revealPath.js';
 import { computeOrgLayout } from './rowTreeLayout.js';

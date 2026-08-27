@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { arrowHeadTriangle, shortenPolylineForArrow } from './staffEdgeArrows.js';
 
 describe('staffEdgeArrows', () => {

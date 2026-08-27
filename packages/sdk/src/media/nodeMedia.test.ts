@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, rstest } from '@rstest/core';
 import { Texture } from 'pixi.js';
 import {
   clearNodeTextureCache,
@@ -34,7 +34,7 @@ describe('loadNodeTexture', () => {
 
   it('success: returns texture from loader and caches by url+revision', async () => {
     const tex = Texture.WHITE;
-    const loader = vi.fn(async () => tex);
+    const loader = rstest.fn(async () => tex);
     configureNodeTextureLoader(loader);
 
     const a = await loadNodeTexture('/a.png');
@@ -48,7 +48,7 @@ describe('loadNodeTexture', () => {
   });
 
   it('success: evict clears all revisions for url', async () => {
-    const loader = vi.fn(async () => Texture.WHITE);
+    const loader = rstest.fn(async () => Texture.WHITE);
     configureNodeTextureLoader(loader);
     await loadNodeTexture('/e.png', 0);
     await loadNodeTexture('/e.png', 1);
@@ -58,14 +58,14 @@ describe('loadNodeTexture', () => {
   });
 
   it('failure: empty url → null without calling loader', async () => {
-    const loader = vi.fn(async () => Texture.WHITE);
+    const loader = rstest.fn(async () => Texture.WHITE);
     configureNodeTextureLoader(loader);
     expect(await loadNodeTexture('   ')).toBeNull();
     expect(loader).not.toHaveBeenCalled();
   });
 
   it('failure: disallowed url → null without calling loader', async () => {
-    const loader = vi.fn(async () => Texture.WHITE);
+    const loader = rstest.fn(async () => Texture.WHITE);
     configureNodeTextureLoader(loader);
     expect(await loadNodeTexture('http://169.254.169.254/')).toBeNull();
     expect(loader).not.toHaveBeenCalled();

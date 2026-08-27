@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import type { DiagramOrganization, DiagramPosition, DiagramReportLine } from '../../data/types.js';
 import { positionHasCoords, resolvePositionAABB } from './coords.js';
 import { layoutStaffCanvas } from './canvasLayout.js';

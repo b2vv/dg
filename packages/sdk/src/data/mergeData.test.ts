@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { emptyDiagramData } from './types.js';
 import { isDiagramData, mergeById, mergePartial } from './mergeData.js';
 

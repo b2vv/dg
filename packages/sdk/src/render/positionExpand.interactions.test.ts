@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import { OrgHierarchyDiagram } from '../index.js';
 import type { DiagramData } from '../data/types.js';
 
@@ -54,7 +54,7 @@ async function mount(extra: { maxExpandedPositions?: number } = {}) {
   container.style.width = '800px';
   container.style.height = '600px';
   document.body.appendChild(container);
-  const onPositionExpandChange = vi.fn();
+  const onPositionExpandChange = rstest.fn();
   const diagram = await OrgHierarchyDiagram.create(container, {
     data: treeData(),
     staffCurrentOrgId: 'o1',
@@ -121,8 +121,8 @@ describe('OrgHierarchyDiagram position expand (T66)', () => {
   });
 
   it('success: cap eviction emits expand callbacks for victims', async () => {
-    const onLayoutChange = vi.fn();
-    const onPositionExpandChange = vi.fn();
+    const onLayoutChange = rstest.fn();
+    const onPositionExpandChange = rstest.fn();
     const container = document.createElement('div');
     container.style.width = '800px';
     container.style.height = '600px';

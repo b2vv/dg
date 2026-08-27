@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { computeMatrixLayout, swapMatrixOrder } from './matrixLayout.js';
 import { assignMatrixCells } from './matrixGrid.js';
 import { validateOrgHierarchy } from './orgTree.js';

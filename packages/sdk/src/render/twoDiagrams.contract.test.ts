@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import { OrgHierarchyDiagram } from '../index.js';
 import { emptyDiagramData, type DiagramData } from '../data/types.js';
 
@@ -34,8 +34,8 @@ function mount(): HTMLElement {
 
 /** A worker that never answers: every call must fall back, none may hang. */
 function silentWorkerFactory() {
-  const terminate = vi.fn();
-  const factory = vi.fn(
+  const terminate = rstest.fn();
+  const factory = rstest.fn(
     () =>
       ({
         postMessage: () => {},

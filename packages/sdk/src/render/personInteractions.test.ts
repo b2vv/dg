@@ -1,5 +1,5 @@
 import { Container } from 'pixi.js';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import { DoubleTapTracker } from '../interaction/doubleTap.js';
 import { PersonInteractions, type DragGrid } from './personInteractions.js';
 import { defaultRenderConfig } from './types.js';
@@ -78,8 +78,8 @@ describe('PersonInteractions', () => {
   it('success: a click without movement selects and never reports a drop', () => {
     const h = harness();
     const seat = fakeSeat();
-    const onPersonClick = vi.fn();
-    const onPersonDragEnd = vi.fn();
+    const onPersonClick = rstest.fn();
+    const onPersonDragEnd = rstest.fn();
     h.interactions.bind(seat.node, bindArgs({ onPersonClick, onPersonDragEnd }));
 
     seat.fire('pointerdown', { global: { x: 50, y: 30 } });
@@ -94,7 +94,7 @@ describe('PersonInteractions', () => {
   it('success: dragging previews the contour once per cell and drops on the snapped cell', () => {
     const h = harness();
     const seat = fakeSeat();
-    const onPersonDragEnd = vi.fn();
+    const onPersonDragEnd = rstest.fn();
     h.interactions.bind(seat.node, bindArgs({ onPersonDragEnd }));
 
     seat.fire('pointerdown', { global: { x: 42, y: 26 } });
@@ -114,7 +114,7 @@ describe('PersonInteractions', () => {
   it('failure: a drop outside the grid restores the contours and returns the card', () => {
     const h = harness();
     const seat = fakeSeat();
-    const onPersonDragEnd = vi.fn();
+    const onPersonDragEnd = rstest.fn();
     h.interactions.bind(seat.node, bindArgs({ onPersonDragEnd }));
 
     seat.fire('pointerdown', { global: { x: 42, y: 26 } });
@@ -129,7 +129,7 @@ describe('PersonInteractions', () => {
   it('failure: a pointer that started on card chrome never begins a drag', () => {
     const h = harness();
     const seat = fakeSeat({ isChrome: true });
-    const onPersonDragEnd = vi.fn();
+    const onPersonDragEnd = rstest.fn();
     h.interactions.bind(seat.node, bindArgs({ onPersonDragEnd }));
 
     seat.fire('pointerdown', { global: { x: 42, y: 26 } });
@@ -143,7 +143,7 @@ describe('PersonInteractions', () => {
   it('failure: reset drops an in-flight drag, so the old card cannot finish it', () => {
     const h = harness();
     const seat = fakeSeat();
-    const onPersonDragEnd = vi.fn();
+    const onPersonDragEnd = rstest.fn();
     h.interactions.bind(seat.node, bindArgs({ onPersonDragEnd }));
 
     seat.fire('pointerdown', { global: { x: 42, y: 26 } });

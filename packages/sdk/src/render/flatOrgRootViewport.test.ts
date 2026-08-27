@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { OrgHierarchyDiagram } from '../index.js';
 import type { PixiHost } from './PixiHost.js';
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { DEFAULT_MEDIA_PLACEHOLDERS } from './placeholders.js';
 import { MediaService } from './MediaService.js';
 

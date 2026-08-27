@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { mapFloodRingToCards, type FloodCardGeometry } from './floodRingCards.js';
 
 /** Seat 100×40 inside a 140×80 cell: 20px inset left/right, 20px top/bottom. */

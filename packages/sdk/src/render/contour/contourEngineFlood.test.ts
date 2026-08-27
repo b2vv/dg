@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, rstest } from '@rstest/core';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -137,7 +137,7 @@ describe('RenderConfig.contourEngine', () => {
   });
 
   it('success: button-group stays the default and needs no wasm round-trip', async () => {
-    const spy = vi.spyOn(await import('../../contour/bridge.js'), 'computeAllContours');
+    const spy = rstest.spyOn(await import('../../contour/bridge.js'), 'computeAllContours');
     const { container, diagram } = await mount('button-group');
     expect(blobRings(diagram).length).toBeGreaterThan(0);
     expect(spy).not.toHaveBeenCalled();

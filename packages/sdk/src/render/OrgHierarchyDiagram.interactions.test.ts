@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import { OrgHierarchyDiagram } from '../index.js';
 import { InteractionError } from '../interaction/index.js';
 import { VARIANT_B_POSITIONS } from '../contour/bridge.js';
@@ -98,7 +98,7 @@ describe('OrgHierarchyDiagram interactions', () => {
   });
 
   it('success: movePersonToCell emits layout patch', async () => {
-    const onLayoutChange = vi.fn();
+    const onLayoutChange = rstest.fn();
     const container = document.createElement('div');
     container.style.width = '800px';
     container.style.height = '600px';
@@ -178,7 +178,7 @@ describe('OrgHierarchyDiagram interactions', () => {
   });
 
   it('success: setData replaces data and fires onDataMapped', async () => {
-    const onDataMapped = vi.fn();
+    const onDataMapped = rstest.fn();
     const container = document.createElement('div');
     container.style.width = '800px';
     container.style.height = '600px';
@@ -217,7 +217,7 @@ describe('OrgHierarchyDiagram interactions', () => {
   });
 
   it('success: multi-select Set API add/toggle/clear; single-select still works', async () => {
-    const onSelectionChange = vi.fn();
+    const onSelectionChange = rstest.fn();
     const container = document.createElement('div');
     container.style.width = '800px';
     container.style.height = '600px';
@@ -268,8 +268,8 @@ describe('OrgHierarchyDiagram interactions', () => {
     const { container, diagram } = await mount();
     type Host = { renderer: { render: (...a: unknown[]) => Promise<void>; repaintSelection: (...a: unknown[]) => void } };
     const host = (diagram as unknown as { host: Host }).host;
-    const renderSpy = vi.spyOn(host.renderer, 'render');
-    const repaintSpy = vi.spyOn(host.renderer, 'repaintSelection');
+    const renderSpy = rstest.spyOn(host.renderer, 'render');
+    const repaintSpy = rstest.spyOn(host.renderer, 'repaintSelection');
     renderSpy.mockClear();
     repaintSpy.mockClear();
 
@@ -307,7 +307,7 @@ describe('OrgHierarchyDiagram interactions', () => {
   });
 
   it('success: focusByTestId expands collapsed org then selects', async () => {
-    const onSelectionChange = vi.fn();
+    const onSelectionChange = rstest.fn();
     const container = document.createElement('div');
     container.style.width = '800px';
     container.style.height = '600px';
@@ -336,7 +336,7 @@ describe('OrgHierarchyDiagram interactions', () => {
   });
 
   it('success: placeOrgAtMatrixCell emits matrix-cell patch (T78-L7)', async () => {
-    const onLayoutChange = vi.fn();
+    const onLayoutChange = rstest.fn();
     const container = document.createElement('div');
     container.style.width = '800px';
     container.style.height = '600px';
@@ -358,7 +358,7 @@ describe('OrgHierarchyDiagram interactions', () => {
   });
 
   it('failure: placeOrgAtMatrixCell out-of-bounds is a no-op without onLayoutChange (T78-L7)', async () => {
-    const onLayoutChange = vi.fn();
+    const onLayoutChange = rstest.fn();
     const container = document.createElement('div');
     container.style.width = '800px';
     container.style.height = '600px';
@@ -425,7 +425,7 @@ describe('bulk selection actions (T67 D2)', () => {
   });
 
   it('success: bulk-copy-ids writes every selected node as kind:id', async () => {
-    const writeText = vi.fn(async () => {});
+    const writeText = rstest.fn(async () => {});
     const original = navigator.clipboard;
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { diagramPositionsToContourInputs, MAX_SMOOTH_ITERATIONS, toRustConfig } from './config.js';
 import { NO_DEPARTMENT_ID } from '../data/types.js';
 

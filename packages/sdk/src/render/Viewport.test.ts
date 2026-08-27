@@ -1,12 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import { Viewport } from './Viewport.js';
 
 function fakeWorld() {
-  const position = { x: 0, y: 0, set: vi.fn((x: number, y: number) => {
+  const position = { x: 0, y: 0, set: rstest.fn((x: number, y: number) => {
     position.x = x;
     position.y = y;
   }) };
-  const scale = { x: 1, y: 1, set: vi.fn((x: number, y: number) => {
+  const scale = { x: 1, y: 1, set: rstest.fn((x: number, y: number) => {
     scale.x = x;
     scale.y = y;
   }) };
@@ -168,7 +168,7 @@ describe('Viewport', () => {
           queue2.push(cb);
           return 1;
         },
-        cancelFrame: vi.fn(),
+        cancelFrame: rstest.fn(),
       },
     );
     time = 20;
@@ -297,7 +297,7 @@ describe('Viewport', () => {
           queue.push(cb);
           return 1;
         },
-        cancelFrame: vi.fn(),
+        cancelFrame: rstest.fn(),
       },
     );
     time = 10;

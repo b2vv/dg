@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import type { DiagramPosition, DiagramReportLine } from '../../data/types.js';
 import { layoutStaffOrgBlock } from './orgBlockLayout.js';
 import {

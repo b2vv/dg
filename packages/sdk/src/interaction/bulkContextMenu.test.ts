@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { bulkContextMenuItems, defaultContextMenuItems } from './contextMenu.js';
 import type { NodeRef } from './types.js';
 

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import type { DiagramData } from '../data/types.js';
 import {
   buildSearchIndex,
@@ -55,7 +55,7 @@ function sampleData(): DiagramData {
 function mockWorker(handlerFn: (payload: unknown, key: string) => unknown): Worker {
   let onMessage: (ev: MessageEvent) => void = () => {};
   return {
-    postMessage: vi.fn((req: { id: string; mapperKey?: string; payload: unknown }) => {
+    postMessage: rstest.fn((req: { id: string; mapperKey?: string; payload: unknown }) => {
       queueMicrotask(() => {
         try {
           const result = handlerFn(req.payload, req.mapperKey ?? '');
@@ -71,11 +71,11 @@ function mockWorker(handlerFn: (payload: unknown, key: string) => unknown): Work
         }
       });
     }),
-    addEventListener: vi.fn((event: string, fn: (ev: MessageEvent) => void) => {
+    addEventListener: rstest.fn((event: string, fn: (ev: MessageEvent) => void) => {
       if (event === 'message') onMessage = fn;
     }),
-    removeEventListener: vi.fn(),
-    terminate: vi.fn(),
+    removeEventListener: rstest.fn(),
+    terminate: rstest.fn(),
   } as unknown as Worker;
 }
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@rstest/core';
 import { paintMagneticGroups } from './paintMagneticGroups.js';
 import type { ContourMemberBox } from './contourClearance.js';
 import { NO_DEPARTMENT_ID } from './contourPaintFilter.js';

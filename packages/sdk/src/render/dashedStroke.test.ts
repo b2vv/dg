@@ -1,5 +1,5 @@
 import { Graphics } from 'pixi.js';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import { roundedRectRing, strokeDashedRing } from './dashedStroke.js';
 
 const rect = { x: 0, y: 0, width: 40, height: 20 };
@@ -28,11 +28,11 @@ describe('dashedStroke', () => {
     const g = new Graphics();
     const from: Array<[number, number]> = [];
     const to: Array<[number, number]> = [];
-    vi.spyOn(g, 'moveTo').mockImplementation((x: number, y: number) => {
+    rstest.spyOn(g, 'moveTo').mockImplementation((x: number, y: number) => {
       from.push([x, y]);
       return g;
     });
-    vi.spyOn(g, 'lineTo').mockImplementation((x: number, y: number) => {
+    rstest.spyOn(g, 'lineTo').mockImplementation((x: number, y: number) => {
       to.push([x, y]);
       return g;
     });
@@ -50,7 +50,7 @@ describe('dashedStroke', () => {
 
   it('failure: a degenerate ring draws nothing instead of looping forever', () => {
     const g = new Graphics();
-    const moves = vi.spyOn(g, 'moveTo');
+    const moves = rstest.spyOn(g, 'moveTo');
     strokeDashedRing(g, [{ x: 5, y: 5 }], 5, 3);
     strokeDashedRing(g, [], 5, 3);
     expect(moves).not.toHaveBeenCalled();

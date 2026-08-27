@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, rstest } from '@rstest/core';
 import {
   easeOutCubic,
   lerpClosedRings,
@@ -91,7 +91,7 @@ describe('contourMorph', () => {
         queue2.push(cb);
         return 1;
       },
-      cancelFrame: vi.fn(),
+      cancelFrame: rstest.fn(),
       onUpdate: (pts) => cancelled.push(pts[0]!.x),
     });
     time = 20;

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from '@rstest/core';
 import { VARIANT_B_POSITIONS } from '../contour/bridge.js';
 import { assertExportOptions, ExportError } from './types.js';
 import { filterDiagramSubtree } from './subtree.js';

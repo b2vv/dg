@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, rstest } from '@rstest/core';
 import { Texture } from 'pixi.js';
 import { MediaService } from './MediaService.js';
 import {
@@ -79,7 +79,7 @@ describe('MediaService D6 M0', () => {
   it('success: revision miss does not reuse prior global texture (M-B)', async () => {
     const tex1 = Texture.WHITE;
     const tex2 = Texture.EMPTY;
-    const loader = vi
+    const loader = rstest
       .fn()
       .mockResolvedValueOnce(tex1)
       .mockResolvedValueOnce(tex2);
@@ -97,7 +97,7 @@ describe('MediaService D6 M0', () => {
   it('success: invalidate evicts global cache so reload is fresh (M-A)', async () => {
     const tex1 = Texture.WHITE;
     const tex2 = Texture.EMPTY;
-    const loader = vi
+    const loader = rstest
       .fn()
       .mockResolvedValueOnce(tex1)
       .mockResolvedValueOnce(tex2);
@@ -129,7 +129,7 @@ describe('MediaService D6 M0', () => {
 
   it('success: refresh(ref) invalidates resolved org URLs', async () => {
     configureNodeTextureLoader(async () => Texture.WHITE);
-    const reload = vi.fn(async () => undefined);
+    const reload = rstest.fn(async () => undefined);
     const media = new MediaService('light', { default: {} }, {
       onInvalidateViews: async () => {
         await reload();
