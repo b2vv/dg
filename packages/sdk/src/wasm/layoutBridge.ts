@@ -14,7 +14,7 @@ export interface WasmRowTreeOptions {
 
 function requireLayoutMetric(name: string, value: number, allowZero = false): number {
   if (!Number.isFinite(value)) {
-    throw new Error(`${name} must be a finite number`);
+    throw new TypeError(`${name} must be a finite number`);
   }
   if (allowZero ? value < 0 : value <= 0) {
     throw new Error(`${name} must be ${allowZero ? '≥ 0' : 'greater than 0'}`);

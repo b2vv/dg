@@ -114,5 +114,5 @@ const kind = (p) =>
 
 server.close();
 const bad = results.filter((r) => !r.ok);
-console.log(bad.length ? `\n${bad.length} row(s) failed` : '\nall rows held');
-process.exit(bad.length ? 1 : 0);
+console.log(bad.length > 0 ? `\n${bad.length} row(s) failed` : '\nall rows held');
+process.exit(bad.length > 0 ? 1 : 0);

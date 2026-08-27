@@ -48,6 +48,11 @@ jobs:
       - name: Build WASM
         run: npm run build:wasm
 
+      # Until now this repo had no linter at all, and .claude/standards.md said so:
+      # every naming, `any` and dead-import question rested on human review.
+      - name: Lint
+        run: npm run lint
+
       - name: Typecheck (SDK + emit types + demo)
         run: npm run typecheck
 

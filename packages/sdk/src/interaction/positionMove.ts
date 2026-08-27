@@ -103,7 +103,7 @@ export function shiftPositionBlock(
     return {
       ...p,
       hierarchyLevel:
-        p.hierarchyLevel != null ? p.hierarchyLevel + deltaLevel : p.hierarchyLevel,
+        p.hierarchyLevel == null ? p.hierarchyLevel : p.hierarchyLevel + deltaLevel,
       gridCell: { ...p.gridCell, row },
     };
   });

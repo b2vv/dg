@@ -132,8 +132,6 @@ interface StaffSceneGeometry {
 
 export type { NodeWorldBox };
 
-const DEFAULT_MORPH_MS = 160;
-
 export class DiagramRenderer {
   readonly layers = new LayerManager();
   private destroyed = false;

@@ -10,12 +10,9 @@ import {
 import {
   clearNodeTextureCache,
   configureNodeTextureLoader,
-  evictNodeTextureCache,
   loadNodeTexture,
   nodeTextureUrlOwnerCount,
-  acquireNodeTextureUrl,
-  releaseNodeTextureUrl,
-} from './nodeMedia.js';
+  } from './nodeMedia.js';
 
 describe('mediaCacheKey', () => {
   it('success: always suffixes revision (absent ≡ 0)', () => {

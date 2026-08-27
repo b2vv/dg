@@ -147,7 +147,7 @@ describe('Viewport', () => {
       },
     );
 
-    while (queue.length) {
+    while (queue.length > 0) {
       time += 40;
       const cb = queue.shift()!;
       cb(time);
@@ -203,7 +203,7 @@ describe('Viewport', () => {
         },
       ),
     ).toBe(true);
-    while (queue.length) {
+    while (queue.length > 0) {
       time += 40;
       queue.shift()!(time);
     }

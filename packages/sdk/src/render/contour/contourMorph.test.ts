@@ -67,7 +67,7 @@ describe('contourMorph', () => {
       },
     });
 
-    while (queue.length) {
+    while (queue.length > 0) {
       time += 40;
       const cb = queue.shift()!;
       cb(time);

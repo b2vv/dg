@@ -80,7 +80,7 @@ function ejectFromCell(
   assignments: Map<string, MatrixCellAssignment>,
   occupantId: string,
 ): void {
-  grid.forEach((row, rowIndex) => {
+  grid.forEach((row, _rowIndex) => {
     row.forEach((cell, colIndex) => {
       if (cell === occupantId) {
         row[colIndex] = null;

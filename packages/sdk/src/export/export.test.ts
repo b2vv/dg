@@ -599,7 +599,7 @@ describe('buildDiagramSvg', () => {
 describe('rgbImageToPdf', () => {
   it('success: header %PDF', () => {
     const pdf = rgbImageToPdf(2, 2, solidRgb(2, 2, 255, 0, 0));
-    expect(String.fromCharCode(...pdf.slice(0, 5))).toBe('%PDF-');
+    expect(String.fromCodePoint(...pdf.slice(0, 5))).toBe('%PDF-');
   });
 });
 

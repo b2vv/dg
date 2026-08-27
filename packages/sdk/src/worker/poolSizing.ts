@@ -1,8 +1,8 @@
 /** Leave cores for UI + browser; never spawn a huge pool. */
 export function recommendWorkerPoolSize(
-  hardwareConcurrency = typeof navigator !== 'undefined'
-    ? navigator.hardwareConcurrency
-    : 4,
+  hardwareConcurrency = typeof navigator === 'undefined'
+    ? 4
+    : navigator.hardwareConcurrency,
 ): number {
   const cores = Number.isFinite(hardwareConcurrency) && hardwareConcurrency > 0
     ? Math.floor(hardwareConcurrency)

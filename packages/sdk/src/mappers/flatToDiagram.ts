@@ -1,8 +1,6 @@
 import type {
   DiagramData,
   DiagramOrganization,
-  DiagramPerson,
-  DiagramPosition,
   DiagramReportLine,
   DiagramOrgLink,
 } from '../data/types.js';

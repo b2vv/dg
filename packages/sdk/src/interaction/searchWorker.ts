@@ -1,5 +1,5 @@
 import type { DiagramData } from '../data/types.js';
-import { mapInWorker, WorkerPool } from '../worker/bridge.js';
+import { WorkerPool } from '../worker/bridge.js';
 import { createTransformWorker } from '../worker/createWorker.js';
 import { WorkerChannel, type WorkerChannelOptions } from '../worker/WorkerChannel.js';
 import {
@@ -13,8 +13,6 @@ import {
   type SearchIndexDTO,
 } from './searchIndex.js';
 import {
-  handleBuildSearchIndex,
-  handleBuildSearchIndexPositions,
   searchHandlerKeys,
 } from './searchHandlers.js';
 
