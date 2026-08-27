@@ -156,6 +156,12 @@ export class DiagramRenderer {
   private dragGrid: DragGrid | null = null;
   /** Body double-tap tracker (T69); chrome / canvas resets it. */
   private readonly nodeDoubleTap = new DoubleTapTracker();
+  /**
+   * Asked for a repaint by anything that moves pixels outside a scene rebuild —
+   * a dragged card, for one. Set by the host, which owns the Pixi application.
+   */
+  onNeedsPaint: (() => void) | null = null;
+
   /** Seat-card pointer behaviour, including drag with contour preview. */
   private readonly personInteractions = new PersonInteractions({
     personLayer: this.layers.persons,
@@ -164,6 +170,7 @@ export class DiagramRenderer {
     dragGrid: () => this.dragGrid,
     previewDrag: (positionId, col, row) => this.contours.previewDrag(positionId, col, row),
     restoreContours: () => this.contours.restoreAfterFailedDrag(),
+    requestPaint: () => this.onNeedsPaint?.(),
   });
 
   mount(stage: Container): void {

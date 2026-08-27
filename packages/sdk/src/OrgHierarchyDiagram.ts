@@ -463,6 +463,8 @@ export class OrgHierarchyDiagram {
         void this.movePersonToCell(positionId, col, row);
       },
     });
+    // The scene changed; nothing paints on its own any more (T84).
+    host.requestPaint();
     if (this.destroyed || !this.host) return;
     this.callbacks.onLayoutDiagnostics?.(this.getLayoutDiagnostics());
     this.notifyPromoteSync();

@@ -74,6 +74,8 @@ export class PixiHost {
   private container: HTMLElement | null = null;
   private destroyed = false;
   private lastResolution = 1;
+  private paintRequested = false;
+  private paintHandle = 0;
   private contextMenuHandler: ((e: Event) => void) | null = null;
 
   static async create(container: HTMLElement, options: PixiHostOptions = {}): Promise<PixiHost> {
@@ -147,7 +149,29 @@ export class PixiHost {
   }
 
   setOnViewportChange(handler: ((t: ViewportTransform) => void) | null): void {
-    this.viewport?.setOnChange(handler);
+    // Every pan, zoom and camera tween frame passes through Viewport.apply, so
+    // wrapping the change handler covers all of them with one hook.
+    this.viewport?.setOnChange((t) => {
+      this.requestPaint();
+      handler?.(t);
+    });
+  }
+
+  /**
+   * Paint once, at the next frame, however many times it is asked in between.
+   *
+   * Every path that changes what is on screen calls this: the scene rebuild, the
+   * camera, a dragged card. Coalescing matters because a drag fires far more
+   * often than the display refreshes, and each paint is the expensive half.
+   */
+  requestPaint(): void {
+    if (this.paintRequested || this.destroyed) return;
+    this.paintRequested = true;
+    this.paintHandle = requestAnimationFrame(() => {
+      this.paintHandle = 0;
+      this.paintRequested = false;
+      if (!this.destroyed) this.app?.render();
+    });
   }
 
   /**
@@ -177,6 +201,9 @@ export class PixiHost {
     await app.init({
       preference: [...rendererChoice.preference],
       failIfMajorPerformanceCaveat: rendererChoice.failIfMajorPerformanceCaveat,
+      // No shared ticker: a diagram nobody is touching must cost nothing. Every
+      // path that changes the picture asks for a paint instead — `requestPaint`.
+      autoStart: false,
       width,
       height,
       background: options.background ?? 0xf8fafc,
@@ -186,6 +213,8 @@ export class PixiHost {
       // Do not use resizeTo: a 0-height mount (CSS not loaded / mobile layout)
       // would shrink the canvas to empty; we drive size via ResizeObserver mins.
     });
+
+    app.ticker.stop();
 
     // StrictMode / route change may call destroy() while Application.init awaits.
     if (this.destroyed) {
@@ -204,6 +233,10 @@ export class PixiHost {
       maxScale: options.maxScale,
     });
     this.viewport.setScreenSize(width, height);
+    // Anything inside the scene that moves pixels without a rebuild — a dragged
+    // card — reaches the application through here.
+    this.renderer.onNeedsPaint = () => this.requestPaint();
+
     this.viewport.attachWheel(app.canvas);
     this.viewport.attachPinch(app.canvas);
     this.bindPan(app);
@@ -222,6 +255,7 @@ export class PixiHost {
       this.app.renderer.resize(w, h);
       this.viewport?.setScreenSize(w, h);
       this.syncStageHitArea(w, h);
+      this.requestPaint();
     });
     this.resizeObserver.observe(container);
   }
@@ -255,6 +289,13 @@ export class PixiHost {
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
+
+    if (this.paintHandle !== 0) {
+      cancelAnimationFrame(this.paintHandle);
+      this.paintHandle = 0;
+    }
+    this.paintRequested = false;
+    this.renderer.onNeedsPaint = null;
 
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
