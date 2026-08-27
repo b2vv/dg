@@ -122,6 +122,17 @@ HTMLCanvasElement.prototype.getContext = function getContext(
   return null;
 } as typeof HTMLCanvasElement.prototype.getContext;
 
+// jsdom ships no canvas implementation, so this browser global does not exist.
+// Pixi's BrowserAdapter hands back the constructor itself
+// (`getCanvasRenderingContext2D: () => CanvasRenderingContext2D`), and the
+// Canvas2D renderer — the one `isWebGLSupported` leaves us with in jsdom —
+// dereferences it on its first real paint. Before T84 no paint ever happened
+// here, so the gap stayed invisible.
+if (typeof (globalThis as { CanvasRenderingContext2D?: unknown }).CanvasRenderingContext2D === 'undefined') {
+  (globalThis as { CanvasRenderingContext2D?: unknown }).CanvasRenderingContext2D =
+    class CanvasRenderingContext2D {};
+}
+
 vi.stubGlobal(
   'matchMedia',
   vi.fn().mockImplementation((query: string) => ({
