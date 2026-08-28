@@ -330,7 +330,8 @@ export class App {
       // Opt-in, like `?renderer=`: the default stays the selection card so the
       // existing behaviour — and the e2e that pins it — keeps its meaning.
       mode: this.promoteMode,
-      component: DemoPromoteCard,
+      component:
+        this.promoteMode === 'near-visible' ? DemoContentModesCard : DemoPromoteCard,
     });
     if (!this.e2eMode) return;
     this.testAnchors = createTestAnchorOverlay({
@@ -706,6 +707,30 @@ export class App {
   }
 }
 
+/** Demo promote card with a placeholder "chart" slot (host can swap for Chart.js). */
+function DemoPromoteCard(props: PromoteSlotProps) {
+  return createElement(
+    DefaultPromoteCard,
+    props,
+    createElement(
+      'div',
+      {
+        style: {
+          height: 36,
+          borderRadius: 4,
+          background: 'linear-gradient(90deg, #dbeafe, #93c5fd)',
+          fontSize: 10,
+          color: '#1e3a8a',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+      },
+      'Host slot · Chart.js / actions',
+    ),
+  );
+}
+
 /**
  * Three ways a host can fill a promoted card, chosen by the host's own
  * `entityType` — T87.8, acceptance row 3.
@@ -721,7 +746,14 @@ function promoteDisplayMode(node: PromoteSlotProps['node']): 'cover' | 'contain'
   return kind === 'promo-contain' ? 'contain' : 'cover';
 }
 
-function DemoPromoteCard(props: PromoteSlotProps) {
+/**
+ * Card for `near-visible` — demonstrates the three content modes.
+ *
+ * Kept apart from {@link DemoPromoteCard} on purpose: the selection card is what
+ * the demo has always shown, and turning every card with a photo into a bare
+ * image would have changed the default behaviour to demonstrate an opt-in one.
+ */
+function DemoContentModesCard(props: PromoteSlotProps) {
   const mode = promoteDisplayMode(props.node);
   const { screenRect, chrome, node } = props;
   const title =
