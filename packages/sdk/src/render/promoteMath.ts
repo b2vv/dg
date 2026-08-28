@@ -130,6 +130,21 @@ export function resolvePromoteIds(args: ResolvePromoteIdsArgs): string[] {
 }
 
 /**
+ * What a `maxPromoted` value actually means, decided in one place.
+ *
+ * `null` is "no ceiling". Out-of-range values land there rather than on zero,
+ * because a host that mistypes the cap should get a working feature it can see
+ * rather than an empty layer that looks like the feature is broken.
+ *
+ * Every caller that applies a ceiling asks here. Two expressions of the same
+ * rule is how one rule quietly becomes two.
+ */
+export function resolvePromoteCap(max?: number): number | null {
+  if (max == null || !Number.isFinite(max) || max < 0) return null;
+  return Math.floor(max);
+}
+
+/**
  * Trim a set of on-screen cards to `max`, keeping those nearest the middle of
  * the screen — where the user is looking.
  *
@@ -151,8 +166,8 @@ export function pickNearestToCenter<T extends { screenRect: ScreenRect }>(
   screen: { width: number; height: number },
   max?: number,
 ): T[] {
-  if (max == null || !Number.isFinite(max) || max < 0) return [...items];
-  const cap = Math.floor(max);
+  const cap = resolvePromoteCap(max);
+  if (cap === null) return [...items];
   if (cap === 0) return [];
   if (items.length <= cap) return [...items];
 

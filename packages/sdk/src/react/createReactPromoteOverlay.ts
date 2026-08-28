@@ -7,22 +7,14 @@ import {
 } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ContextMenuNodeData } from '../interaction/contextMenuPayload.js';
-import type { NodeRef } from '../interaction/types.js';
+import type { NodeKind, NodeRef } from '../interaction/types.js';
 import type { LodLevel } from '../render/lod.js';
 import type { PromoteCandidate, PromoteChrome } from '../render/promoteTypes.js';
 
-/** A node's world rectangle and identity, without its card data. */
-export interface PromoteBox {
-  id: string;
-  kind: 'organization' | 'person' | 'position';
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
 import {
   nearVisibleGateOpen,
   pickNearestToCenter,
+  resolvePromoteCap,
   resolvePromoteIds,
   viewportCatchUpTransform,
   screenRectInView,
@@ -31,6 +23,16 @@ import {
   type ScreenRect,
 } from '../render/promoteMath.js';
 import type { ViewportTransform } from '../render/Viewport.js';
+
+/** A node's world rectangle and identity, without its card data. */
+export interface PromoteBox {
+  id: string;
+  kind: NodeKind;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 /** Narrow diagram surface for the promote host (avoids circular import with sdk index). */
 export interface PromoteOverlayDiagram {
@@ -67,7 +69,7 @@ export interface PromoteSlotProps {
   id: string;
   node: ContextMenuNodeData;
   screenRect: ScreenRect;
-  /** Corners and insets of the node being replaced, in screen px. */
+  /** Corners and insets of the node being replaced, in **screen** px. */
   chrome: PromoteChrome;
   viewport: ViewportTransform;
   /** Demote / clear selection helper from the host card. */
@@ -114,10 +116,6 @@ export interface ReactPromoteOverlay {
   /** Change the ceiling at runtime; `undefined` removes it. */
   setMaxPromoted: (max?: number) => void;
   dispose: () => void;
-}
-
-interface OverlayState {
-  slots: PromoteSlotProps[];
 }
 
 function OverlayRoot(props: {
@@ -209,12 +207,11 @@ function cappedAroundSticky(
   screen: { width: number; height: number },
   max?: number,
 ): PromoteSlotProps[] {
-  if (max != null && Number.isFinite(max) && Math.floor(max) === 0 && max >= 0) return [];
+  const cap = resolvePromoteCap(max);
+  // A ceiling of exactly zero wins over the focused card: the host asked for none.
+  if (cap === 0) return [];
   const others = slots.filter((slot) => slot !== stickySlot);
-  const rest =
-    max == null || !Number.isFinite(max) || max < 0
-      ? undefined
-      : Math.max(0, Math.floor(max) - 1);
+  const rest = cap === null ? undefined : cap - 1;
   return [stickySlot, ...pickNearestToCenter(others, screen, rest)];
 }
 
@@ -326,6 +323,67 @@ export function createReactPromoteOverlay(
     return active.closest('[data-promote-slot]')?.getAttribute('data-promote-slot') ?? null;
   };
 
+  /** Which nodes this mode wants promoted, before any of them are resolved. */
+  const wantedIds = (
+    lod: LodLevel,
+    viewport: ViewportTransform,
+    screen: { width: number; height: number },
+  ): string[] => {
+    if (mode !== 'near-visible') {
+      return resolvePromoteIds({
+        mode,
+        lod,
+        selection: options.diagram.getSelection(),
+        maxCount: maxPromoted ?? 8,
+      });
+    }
+    return nearVisibleGateOpen(lod) ? visibleIds(viewport, screen) : [];
+  };
+
+  /** Resolve the wanted ids into slots, dropping what must not be promoted. */
+  const buildSlots = (
+    ids: readonly string[],
+    sticky: string | null,
+    viewport: ViewportTransform,
+    screen: { width: number; height: number },
+  ): PromoteSlotProps[] => {
+    const slots: PromoteSlotProps[] = [];
+    if (ids.length === 0) return slots;
+    for (const candidate of options.diagram.listPromoteCandidates(ids)) {
+      if (failedIds.has(candidate.id)) continue;
+      const screenRect = worldBoxToScreen(candidate.world, viewport);
+      if (!screenRectInView(screenRect, screen) && candidate.id !== sticky) continue;
+      if (options.shouldPromote && !options.shouldPromote(candidate.node)) continue;
+      slots.push({
+        id: candidate.id,
+        node: candidate.node,
+        screenRect,
+        chrome: scaleChrome(options.diagram.getPromoteChrome(candidate.kind), viewport.scale),
+        viewport,
+        onDemote: demote,
+      });
+    }
+    return slots;
+  };
+
+  /**
+   * The ceiling, applied last — every card has a rectangle to measure by now.
+   *
+   * A focused card is never trimmed: losing focus mid-edit is worse than showing
+   * a card further from the centre. It takes one of the host's slots rather than
+   * an extra one, so a declared cap of N stays N.
+   */
+  const applyCap = (
+    slots: PromoteSlotProps[],
+    sticky: string | null,
+    screen: { width: number; height: number },
+  ): PromoteSlotProps[] => {
+    const stickySlot = sticky === null ? undefined : slots.find((slot) => slot.id === sticky);
+    return stickySlot === undefined
+      ? pickNearestToCenter(slots, screen, maxPromoted)
+      : cappedAroundSticky(slots, stickySlot, screen, maxPromoted);
+  };
+
   const sync = (): void => {
     if (disposed || !root) return;
     cancelSettle();
@@ -334,55 +392,14 @@ export function createReactPromoteOverlay(
     // carrying a correction for an older one.
     writeLayerTransform('');
     syncedViewport = viewport;
-    const lod = options.diagram.getLodLevel();
     const measured = options.diagram.getScreenSize();
-    const screen = {
-      width: measured.width || 1,
-      height: measured.height || 1,
-    };
+    const screen = { width: measured.width || 1, height: measured.height || 1 };
 
-    const ids =
-      mode === 'near-visible'
-        ? nearVisibleGateOpen(lod)
-          ? visibleIds(viewport, screen)
-          : []
-        : resolvePromoteIds({
-            mode,
-            lod,
-            selection: options.diagram.getSelection(),
-            maxCount: maxPromoted ?? 8,
-          });
-
+    const ids = wantedIds(options.diagram.getLodLevel(), viewport, screen);
     const sticky = focusedSlotId();
     if (sticky !== null && !ids.includes(sticky)) ids.push(sticky);
 
-    const slots: PromoteSlotProps[] = [];
-    for (const candidate of ids.length > 0 ? options.diagram.listPromoteCandidates(ids) : []) {
-      const screenRect = worldBoxToScreen(candidate.world, viewport);
-      if (failedIds.has(candidate.id)) continue;
-      if (!screenRectInView(screenRect, screen) && candidate.id !== sticky) continue;
-      if (options.shouldPromote && !options.shouldPromote(candidate.node)) continue;
-      const worldChrome = options.diagram.getPromoteChrome(candidate.kind);
-      slots.push({
-        id: candidate.id,
-        node: candidate.node,
-        screenRect,
-        chrome: scaleChrome(worldChrome, viewport.scale),
-        viewport,
-        onDemote: demote,
-      });
-    }
-
-    // The ceiling is applied last, once every card has a rectangle to measure.
-    // A focused card is never trimmed away — losing focus mid-edit is worse than
-    // showing a card slightly further from the centre — but it takes one of the
-    // host's slots rather than an extra one, so a declared cap of N stays N.
-    // A cap of exactly 0 wins outright: the host asked for nothing.
-    const stickySlot = sticky === null ? undefined : slots.find((slot) => slot.id === sticky);
-    const capped =
-      stickySlot === undefined
-        ? pickNearestToCenter(slots, screen, maxPromoted)
-        : cappedAroundSticky(slots, stickySlot, screen, maxPromoted);
+    const capped = applyCap(buildSlots(ids, sticky, viewport, screen), sticky, screen);
 
     // Hide in Pixi only what actually became a card. Hiding first — as this did
     // — meant a node that failed the screen test, or that had vanished from the
@@ -390,10 +407,9 @@ export function createReactPromoteOverlay(
     // nothing in its place: a hole in the scene rather than a promoted card.
     options.diagram.setPromotedNodeIds(capped.map((slot) => slot.id));
 
-    const state: OverlayState = { slots: capped };
     root.render(
       createElement(OverlayRoot, {
-        slots: state.slots,
+        slots: capped,
         component: options.component,
         onSlotError: handleSlotError,
         className: options.className,
