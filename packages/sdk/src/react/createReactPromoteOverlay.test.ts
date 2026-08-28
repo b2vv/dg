@@ -652,3 +652,74 @@ describe('maxPromoted meets focus', () => {
     await act(async () => overlay.dispose());
   });
 });
+
+describe('one broken card does not take the layer down', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('failure: a component that throws leaves the other cards standing', async () => {
+    const boxes = [
+      { id: 'good1', kind: 'position' as const, x: 10, y: 20, width: 60, height: 40 },
+      { id: 'bad', kind: 'position' as const, x: 100, y: 20, width: 60, height: 40 },
+      { id: 'good2', kind: 'position' as const, x: 200, y: 20, width: 60, height: 40 },
+    ];
+    const diagram: PromoteOverlayDiagram = {
+      getViewport: () => ({ x: 0, y: 0, scale: 1 }),
+      getLodLevel: () => 'near',
+      getSelection: () => null,
+      select: rstest.fn(async () => undefined),
+      getScreenSize: () => ({ width: 800, height: 600 }),
+      listPromoteBoxes: () => boxes,
+      listPromoteCandidates: (ids) =>
+        (ids ?? boxes.map((b) => b.id)).map((id) => ({
+          id,
+          kind: 'position' as const,
+          world: boxes.find((b) => b.id === id)!,
+          node: {
+            ref: { id, kind: 'position' as const, positionId: id },
+            position: {
+              id,
+              title: id,
+              organizationId: 'org1',
+              groupIds: [],
+              status: 'vacant' as const,
+              isTemporary: false,
+            },
+          },
+        })),
+      setPromotedNodeIds: rstest.fn(),
+      subscribePromoteSync: () => () => {},
+    };
+
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    const errors: string[] = [];
+    let overlay!: ReturnType<typeof createReactPromoteOverlay>;
+    await act(async () => {
+      overlay = createReactPromoteOverlay({
+        diagram,
+        mount,
+        mode: 'near-visible',
+        onSlotError: (id) => errors.push(id),
+        component: (props) => {
+          if (props.id === 'bad') throw new Error('host card blew up');
+          return createElement('div', { 'data-promote-card': props.id });
+        },
+      });
+    });
+
+    const ids = [...mount.querySelectorAll('[data-promote-card]')].map((el) =>
+      el.getAttribute('data-promote-card'),
+    );
+    expect(ids.sort()).toEqual(['good1', 'good2']);
+    expect(errors).toEqual(['bad']);
+    // The broken node must go back to being drawn by Pixi, otherwise the scene
+    // has a hole exactly where the card failed.
+    const lastHidden = (diagram.setPromotedNodeIds as ReturnType<typeof rstest.fn>).mock.calls.at(
+      -1,
+    )?.[0] as string[];
+    expect(lastHidden).not.toContain('bad');
+    await act(async () => overlay.dispose());
+  });
+});

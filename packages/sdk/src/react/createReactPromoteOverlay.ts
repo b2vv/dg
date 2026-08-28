@@ -1,4 +1,10 @@
-import { createElement, type ComponentType, type ReactElement, type ReactNode } from 'react';
+import {
+  Component,
+  createElement,
+  type ComponentType,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ContextMenuNodeData } from '../interaction/contextMenuPayload.js';
 import type { NodeRef } from '../interaction/types.js';
@@ -80,6 +86,11 @@ export interface ReactPromoteOverlayOptions {
    * Not set: every candidate is promoted.
    */
   shouldPromote?(node: ContextMenuNodeData): boolean;
+  /**
+   * A host card threw while rendering. The card is dropped and its node goes
+   * back to being drawn by Pixi; this is the host's chance to log it.
+   */
+  onSlotError?(id: string, error: unknown): void;
   /** Optional wrapper styles / class */
   className?: string;
 }
@@ -101,6 +112,7 @@ interface OverlayState {
 function OverlayRoot(props: {
   slots: PromoteSlotProps[];
   component: ComponentType<PromoteSlotProps>;
+  onSlotError(id: string, error: unknown): void;
   className?: string;
 }): ReactElement {
   return createElement(
@@ -124,10 +136,48 @@ function OverlayRoot(props: {
       createElement(
         'div',
         { key: slot.id, 'data-promote-slot': slot.id, style: { display: 'contents' } },
-        createElement(props.component, { ...slot }),
+        createElement(
+          SlotBoundary,
+          { id: slot.id, onError: props.onSlotError },
+          createElement(props.component, { ...slot }),
+        ),
       ),
     ),
   );
+}
+
+interface SlotBoundaryProps {
+  id: string;
+  onError(id: string, error: unknown): void;
+  children?: ReactNode;
+}
+
+/**
+ * One boundary per card, not one for the layer.
+ *
+ * The overlay renders every promoted node into a single React root, so without
+ * this a throw anywhere unmounts the whole tree — dozens of good cards taken
+ * down by one bad one, over a scene that is still rendering fine underneath.
+ * React Flow has no boundary at all and behaves exactly that way; the difference
+ * is that a host writes their nodes, whereas our cards are built from data that
+ * may be malformed.
+ */
+class SlotBoundary extends Component<SlotBoundaryProps, { failed: boolean }> {
+  override state = { failed: false };
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  override componentDidCatch(error: unknown): void {
+    this.props.onError(this.props.id, error);
+  }
+
+  override render(): ReactNode {
+    // Null, not a placeholder: the node is still on the canvas underneath, so a
+    // fallback box would sit on top of a card that is drawing correctly.
+    return this.state.failed ? null : this.props.children;
+  }
 }
 
 /** Trim to `max` while guaranteeing the focused card a place inside the cap. */
@@ -173,6 +223,24 @@ export function createReactPromoteOverlay(
   let mode: PromoteMode = options.mode ?? 'near-selection';
   let maxPromoted = options.maxPromoted;
   let disposed = false;
+  /**
+   * Cards that threw. They stay out for the life of the overlay: a component
+   * that failed once cannot be trusted to stop failing, and retrying it every
+   * sync would loop between throwing and re-mounting.
+   */
+  const failedIds = new Set<string>();
+
+  const handleSlotError = (id: string, error: unknown): void => {
+    if (failedIds.has(id)) return;
+    failedIds.add(id);
+    options.onSlotError?.(id, error);
+    // Not synchronous: this fires while React is committing, and the re-sync
+    // has to un-hide the node in Pixi so the scene has no hole where the card
+    // would have been.
+    queueMicrotask(() => {
+      if (!disposed) sync();
+    });
+  };
 
   const demote = (): void => {
     void options.diagram.select(null);
@@ -243,6 +311,7 @@ export function createReactPromoteOverlay(
     const slots: PromoteSlotProps[] = [];
     for (const candidate of ids.length > 0 ? options.diagram.listPromoteCandidates(ids) : []) {
       const screenRect = worldBoxToScreen(candidate.world, viewport);
+      if (failedIds.has(candidate.id)) continue;
       if (!screenRectInView(screenRect, screen) && candidate.id !== sticky) continue;
       if (options.shouldPromote && !options.shouldPromote(candidate.node)) continue;
       slots.push({
@@ -276,6 +345,7 @@ export function createReactPromoteOverlay(
       createElement(OverlayRoot, {
         slots: state.slots,
         component: options.component,
+        onSlotError: handleSlotError,
         className: options.className,
       }),
     );
