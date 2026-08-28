@@ -137,12 +137,17 @@ test.describe('promote · near-visible', () => {
     const small = await cards(page).count();
 
     await page.setViewportSize({ width: 1920, height: 1080 });
-    await setZoom(page, 1.4);
-    const large = await cards(page).count();
 
+    // Polled, not sampled after a wait. The resize is what triggers the rebuild
+    // here, and `waitForSettle` cannot help: it waits for the layer transform to
+    // be empty, which it already is before the resize has done anything. The
+    // assertion is the thing that has to become true.
+    //
     // The limit is zoom, not a card count: a better monitor may show more, and
     // that is the intended behaviour rather than a leak.
-    expect(large).toBeGreaterThan(small);
+    await expect
+      .poll(() => cards(page).count(), { timeout: 20_000 })
+      .toBeGreaterThan(small);
   });
 
   test('row 8: crossing the threshold repeatedly does not accumulate nodes', async ({ page }) => {
