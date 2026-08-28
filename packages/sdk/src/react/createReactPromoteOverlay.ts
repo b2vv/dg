@@ -4,7 +4,18 @@ import type { ContextMenuNodeData } from '../interaction/contextMenuPayload.js';
 import type { NodeRef } from '../interaction/types.js';
 import type { LodLevel } from '../render/lod.js';
 import type { PromoteCandidate } from '../render/promoteTypes.js';
+
+/** A node's world rectangle and identity, without its card data. */
+export interface PromoteBox {
+  id: string;
+  kind: 'organization' | 'person' | 'position';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 import {
+  nearVisibleGateOpen,
   resolvePromoteIds,
   screenRectInView,
   worldBoxToScreen,
@@ -19,6 +30,15 @@ export interface PromoteOverlayDiagram {
   getLodLevel(): LodLevel;
   getSelection(): NodeRef | null;
   select(node: NodeRef | null): Promise<void>;
+  /**
+   * Node geometry with no data resolution. Separate from
+   * {@link PromoteOverlayDiagram.listPromoteCandidates} because resolving a box
+   * into card data costs about two orders of magnitude more than reading its
+   * rectangle (2.1 ms vs 0.005 ms over 639 nodes — see
+   * `work/reports/promote-near/report.md` §2.3), and in `near-visible` most
+   * boxes are off screen and never become cards.
+   */
+  listPromoteBoxes(): readonly PromoteBox[];
   listPromoteCandidates(ids?: readonly string[]): PromoteCandidate[];
   setPromotedNodeIds(ids: readonly string[]): void;
   subscribePromoteSync(listener: () => void): () => void;
@@ -111,27 +131,47 @@ export function createReactPromoteOverlay(
     void options.diagram.select(null);
   };
 
+  /**
+   * Ids worth resolving, already narrowed to what is on screen.
+   *
+   * `near-visible` walks every box in the scene, which is why this filter runs
+   * on geometry alone: the cheap half of the work discards most of the scene
+   * before the expensive half ever sees it.
+   */
+  const visibleIds = (
+    viewport: ViewportTransform,
+    screen: { width: number; height: number },
+  ): string[] => {
+    const ids: string[] = [];
+    for (const box of options.diagram.listPromoteBoxes()) {
+      if (screenRectInView(worldBoxToScreen(box, viewport), screen)) ids.push(box.id);
+    }
+    return ids;
+  };
+
   const sync = (): void => {
     if (disposed || !root) return;
     const viewport = options.diagram.getViewport();
     const lod = options.diagram.getLodLevel();
-    const selection = options.diagram.getSelection();
-    const ids = resolvePromoteIds({
-      mode,
-      lod,
-      selection,
-      maxCount: options.maxPromoted ?? 8,
-    });
-
-    options.diagram.setPromotedNodeIds(ids);
-
     const screen = {
       width: mount.clientWidth || 1,
       height: mount.clientHeight || 1,
     };
 
+    const ids =
+      mode === 'near-visible'
+        ? nearVisibleGateOpen(lod)
+          ? visibleIds(viewport, screen)
+          : []
+        : resolvePromoteIds({
+            mode,
+            lod,
+            selection: options.diagram.getSelection(),
+            maxCount: options.maxPromoted ?? 8,
+          });
+
     const slots: PromoteSlotProps[] = [];
-    for (const candidate of options.diagram.listPromoteCandidates(ids)) {
+    for (const candidate of ids.length > 0 ? options.diagram.listPromoteCandidates(ids) : []) {
       const screenRect = worldBoxToScreen(candidate.world, viewport);
       if (!screenRectInView(screenRect, screen)) continue;
       slots.push({
@@ -142,6 +182,12 @@ export function createReactPromoteOverlay(
         onDemote: demote,
       });
     }
+
+    // Hide in Pixi only what actually became a card. Hiding first — as this did
+    // — meant a node that failed the screen test, or that had vanished from the
+    // data since the ids were picked, was erased from the canvas and given
+    // nothing in its place: a hole in the scene rather than a promoted card.
+    options.diagram.setPromotedNodeIds(slots.map((slot) => slot.id));
 
     const state: OverlayState = { slots };
     root.render(

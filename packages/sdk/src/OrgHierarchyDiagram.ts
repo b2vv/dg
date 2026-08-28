@@ -23,6 +23,7 @@ import {
   type NodeTheme,
   type RenderConfig,
   type CameraMotionOptions,
+  type NodeWorldBox,
 } from './render/index.js';
 import { resolvePersonPhotoUrl } from './render/PersonNode.js';
 import { inferStaffCurrentOrgId } from './render/inferStaffCurrentOrgId.js';
@@ -1006,6 +1007,17 @@ export class OrgHierarchyDiagram {
    * World boxes + resolved node payloads for promote overlay.
    * When `ids` omitted, returns all remembered boxes that resolve to a node.
    */
+  /**
+   * Node rectangles with no data resolution — the cheap half of
+   * {@link OrgHierarchyDiagram.listPromoteCandidates}. Promote callers filter on
+   * these first and resolve only what survives, because resolving a box walks
+   * the data arrays several times over while reading its rectangle costs
+   * nothing (`work/reports/promote-near/report.md` §2.3).
+   */
+  listPromoteBoxes(): readonly NodeWorldBox[] {
+    return this.renderer?.listNodeBoxes() ?? [];
+  }
+
   listPromoteCandidates(ids?: readonly string[]): PromoteCandidate[] {
     const boxes = this.renderer?.listNodeBoxes() ?? [];
     const wanted = ids ? new Set(ids) : null;
