@@ -536,7 +536,7 @@ describe('maxPromoted meets focus', () => {
   });
 
   /** Nine seats in a row; the leftmost is far from the screen centre. */
-  function makeRowDiagram(): PromoteOverlayDiagram {
+  function makeRowDiagram(): PromoteOverlayDiagram & { panBy(dx: number): void } {
     const boxes = Array.from({ length: 9 }, (_, i) => ({
       id: `pos${i}`,
       kind: 'position' as const,
@@ -545,8 +545,14 @@ describe('maxPromoted meets focus', () => {
       width: 60,
       height: 40,
     }));
+    let viewport = { x: 0, y: 0, scale: 1 };
+    let listener: (() => void) | null = null;
     return {
-      getViewport: () => ({ x: 0, y: 0, scale: 1 }),
+      panBy: (dx: number) => {
+        viewport = { ...viewport, x: viewport.x + dx };
+        listener?.();
+      },
+      getViewport: () => viewport,
       getLodLevel: () => 'near',
       getSelection: () => null,
       select: rstest.fn(async () => undefined),
@@ -574,7 +580,12 @@ describe('maxPromoted meets focus', () => {
           };
         }),
       setPromotedNodeIds: rstest.fn(),
-      subscribePromoteSync: () => () => {},
+      subscribePromoteSync: (l) => {
+        listener = l;
+        return () => {
+          listener = null;
+        };
+      },
     };
   }
 
@@ -609,22 +620,28 @@ describe('maxPromoted meets focus', () => {
 
   it('failure: the focused card survives a cap that would otherwise drop it', async () => {
     const mount = mountEl();
+    const diagram = makeRowDiagram();
     let overlay!: ReturnType<typeof createReactPromoteOverlay>;
     await act(async () => {
       overlay = createReactPromoteOverlay({
-        diagram: makeRowDiagram(),
+        diagram,
         mount,
         component: card,
         mode: 'near-visible',
+        maxPromoted: 3,
       });
     });
 
-    // pos0 is the furthest from centre, so any small cap would trim it first.
-    const input = mount.querySelector<HTMLInputElement>('[data-input="pos0"]')!;
-    input.focus();
+    // Focus a card that is currently inside the cap, then move the camera so it
+    // becomes the furthest from centre — which is when a plain trim would drop
+    // it, taking the user's focus with it.
+    const focused = [...mount.querySelectorAll('[data-promote-card]')]
+      .map((el) => el.getAttribute('data-promote-card'))
+      .find((id) => id !== null)!;
+    mount.querySelector<HTMLInputElement>(`[data-input="${focused}"]`)!.focus();
 
     await act(async () => {
-      overlay.setMaxPromoted(3);
+      diagram.panBy(-600);
     });
 
     const ids = [...mount.querySelectorAll('[data-promote-card]')].map((el) =>
@@ -632,22 +649,25 @@ describe('maxPromoted meets focus', () => {
     );
     // Kept, and it takes one of the host's three slots rather than a fourth —
     // a declared cap of three stays a cap of three.
-    expect(ids).toContain('pos0');
+    expect(ids).toContain(focused);
     expect(ids).toHaveLength(3);
     await act(async () => overlay.dispose());
   });
 
   it('failure: a cap of zero promotes nothing, focus included — the host said zero', async () => {
     const mount = mountEl();
+    const diagram = makeRowDiagram();
     let overlay!: ReturnType<typeof createReactPromoteOverlay>;
     await act(async () => {
       overlay = createReactPromoteOverlay({
-        diagram: makeRowDiagram(),
+        diagram,
         mount,
         component: card,
         mode: 'near-visible',
       });
     });
+    // The cap has to arrive after the focus, because a card must exist before it
+    // can hold focus — which is why the runtime setter exists at all.
     mount.querySelector<HTMLInputElement>('[data-input="pos0"]')!.focus();
     await act(async () => {
       overlay.setMaxPromoted(0);
@@ -1110,6 +1130,91 @@ describe('rows 7 and 12 — nothing to promote, and something that stopped exist
 
     expect(mount.querySelectorAll('[data-promote-card]')).toHaveLength(0);
     expect(diagram.setPromotedNodeIds).toHaveBeenLastCalledWith([]);
+    await act(async () => overlay.dispose());
+  });
+});
+
+describe('a node entering the view during a gesture is never a hole', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('success: a node that scrolls into view stays with Pixi until the camera stops', async () => {
+    // `here` starts on screen, `arriving` starts far to the right.
+    const here = { id: 'here', kind: 'position' as const, x: 10, y: 10, width: 60, height: 40 };
+    const arriving = {
+      id: 'arriving',
+      kind: 'position' as const,
+      x: 2000,
+      y: 10,
+      width: 60,
+      height: 40,
+    };
+    let viewport = { x: 0, y: 0, scale: 1 };
+    let listener: (() => void) | null = null;
+    const diagram: PromoteOverlayDiagram = {
+      getViewport: () => viewport,
+      getLodLevel: () => 'near',
+      getSelection: () => null,
+      select: rstest.fn(async () => undefined),
+      getScreenSize: () => ({ width: 800, height: 600 }),
+      getPromoteChrome: () => ({ borderRadius: 8, borderWidth: 1 }),
+      listPromoteBoxes: () => [here, arriving],
+      listPromoteCandidates: (ids) =>
+        (ids ?? []).map((id) => {
+          const box = id === 'here' ? here : arriving;
+          return {
+            id,
+            kind: 'position' as const,
+            world: box,
+            node: {
+              ref: { id, kind: 'position' as const, positionId: id },
+              position: {
+                id,
+                title: id,
+                organizationId: 'org1',
+                groupIds: [],
+                status: 'vacant' as const,
+                isTemporary: false,
+              },
+            },
+          };
+        }),
+      setPromotedNodeIds: rstest.fn(),
+      subscribePromoteSync: (l) => {
+        listener = l;
+        return () => {
+          listener = null;
+        };
+      },
+    };
+
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    let overlay!: ReturnType<typeof createReactPromoteOverlay>;
+    await act(async () => {
+      overlay = createReactPromoteOverlay({
+        diagram,
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-visible',
+        settleMs: 10_000, // long enough that the gesture is still in progress
+      });
+    });
+    expect(diagram.setPromotedNodeIds).toHaveBeenLastCalledWith(['here']);
+
+    // The camera moves so `arriving` is now on screen — the gesture has not ended,
+    // so no rebuild has run.
+    await act(async () => {
+      viewport = { x: -1900, y: 0, scale: 1 };
+      listener?.();
+    });
+
+    // `arriving` has no card yet, and that is not a hole: it was never hidden, so
+    // Pixi is still drawing it. Only a node hidden without a card is a hole, and
+    // the promoted set is unchanged.
+    expect(mount.querySelector('[data-promote-card="arriving"]')).toBeNull();
+    expect(diagram.setPromotedNodeIds).toHaveBeenLastCalledWith(['here']);
     await act(async () => overlay.dispose());
   });
 });
