@@ -33,6 +33,7 @@ function makeDiagram(overrides: Partial<PromoteOverlayDiagram> = {}): PromoteOve
     getSelection: () => ({ id: 'pos1', kind: 'position', positionId: 'pos1', personId: 'p1' }),
     select: rstest.fn(async () => undefined),
     getScreenSize: () => ({ width: 800, height: 600 }),
+    getPromoteChrome: () => ({ borderRadius: 8, borderWidth: 1 }),
     listPromoteBoxes: () => [
       { id: 'pos1', kind: 'position' as const, x: 10, y: 20, width: 100, height: 60 },
     ],
@@ -183,6 +184,7 @@ describe('near-visible mode', () => {
       getSelection: () => null,
       select: rstest.fn(async () => undefined),
       getScreenSize: () => ({ width: 800, height: 600 }),
+      getPromoteChrome: () => ({ borderRadius: 8, borderWidth: 1 }),
       listPromoteBoxes: () => boxes,
       listPromoteCandidates: (ids) => {
         resolvedWith.push(ids);
@@ -439,6 +441,7 @@ describe('a card holding focus is not demoted', () => {
       getSelection: () => null,
       select: rstest.fn(async () => undefined),
       getScreenSize: () => ({ width: 800, height: 600 }),
+      getPromoteChrome: () => ({ borderRadius: 8, borderWidth: 1 }),
       listPromoteBoxes: () => [box],
       listPromoteCandidates: (ids) =>
         (ids ?? [box.id]).map(() => ({
@@ -548,6 +551,7 @@ describe('maxPromoted meets focus', () => {
       getSelection: () => null,
       select: rstest.fn(async () => undefined),
       getScreenSize: () => ({ width: 800, height: 600 }),
+      getPromoteChrome: () => ({ borderRadius: 8, borderWidth: 1 }),
       listPromoteBoxes: () => boxes,
       listPromoteCandidates: (ids) =>
         (ids ?? boxes.map((b) => b.id)).map((id) => {
@@ -670,6 +674,7 @@ describe('one broken card does not take the layer down', () => {
       getSelection: () => null,
       select: rstest.fn(async () => undefined),
       getScreenSize: () => ({ width: 800, height: 600 }),
+      getPromoteChrome: () => ({ borderRadius: 8, borderWidth: 1 }),
       listPromoteBoxes: () => boxes,
       listPromoteCandidates: (ids) =>
         (ids ?? boxes.map((b) => b.id)).map((id) => ({
@@ -743,6 +748,7 @@ describe('deferred recompute while the camera moves', () => {
       getSelection: () => null,
       select: rstest.fn(async () => undefined),
       getScreenSize: () => ({ width: 800, height: 600 }),
+      getPromoteChrome: () => ({ borderRadius: 8, borderWidth: 1 }),
       listPromoteBoxes: () => [box],
       listPromoteCandidates: (ids) => {
         state.syncs += 1;
@@ -913,6 +919,96 @@ describe('deferred recompute while the camera moves', () => {
     const first = layerOf(mount).innerHTML;
     await act(async () => overlay.sync());
     expect(layerOf(mount).innerHTML).toBe(first);
+    await act(async () => overlay.dispose());
+  });
+});
+
+describe('the card matches the box it replaces', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  function makeChromeDiagram(scale: number): PromoteOverlayDiagram {
+    // Deliberately narrow: 60 world px is under the old 120px floor.
+    const box = { id: 'pos1', kind: 'position' as const, x: 0, y: 0, width: 60, height: 30 };
+    return {
+      getViewport: () => ({ x: 0, y: 0, scale }),
+      getLodLevel: () => 'near',
+      getSelection: () => null,
+      select: rstest.fn(async () => undefined),
+      getScreenSize: () => ({ width: 800, height: 600 }),
+      getPromoteChrome: (kind) =>
+        kind === 'organization'
+          ? { borderRadius: 12, borderWidth: 1, paddingX: 16, paddingY: 16 }
+          : { borderRadius: 10, borderWidth: 1 },
+      listPromoteBoxes: () => [box],
+      listPromoteCandidates: () => [
+        {
+          id: box.id,
+          kind: 'position' as const,
+          world: box,
+          node: {
+            ref: { id: box.id, kind: 'position' as const, positionId: box.id },
+            position: {
+              id: box.id,
+              title: 'Eng',
+              organizationId: 'org1',
+              groupIds: [],
+              status: 'vacant' as const,
+              isTemporary: false,
+            },
+          },
+        },
+      ],
+      setPromotedNodeIds: rstest.fn(),
+      subscribePromoteSync: () => () => {},
+    };
+  }
+
+  function mountEl(): HTMLElement {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    return mount;
+  }
+
+  it('failure: a narrow card is not widened to a floor of its own', async () => {
+    const mount = mountEl();
+    let overlay!: ReturnType<typeof createReactPromoteOverlay>;
+    await act(async () => {
+      overlay = createReactPromoteOverlay({
+        diagram: makeChromeDiagram(1),
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-visible',
+      });
+    });
+    const card = mount.querySelector<HTMLElement>('[data-promote-card]')!;
+    // A promote card stands in for a Pixi node. Any size of its own makes it
+    // stop covering what it replaces, and the mismatch is asymmetric: the node
+    // shows from one side only.
+    expect(card.style.width).toBe('60px');
+    expect(card.style.height).toBe('30px');
+    await act(async () => overlay.dispose());
+  });
+
+  it('success: the slot carries chrome, scaled to the screen like the box is', async () => {
+    const mount = mountEl();
+    const seen: unknown[] = [];
+    let overlay!: ReturnType<typeof createReactPromoteOverlay>;
+    await act(async () => {
+      overlay = createReactPromoteOverlay({
+        diagram: makeChromeDiagram(2),
+        mount,
+        mode: 'near-visible',
+        component: (props) => {
+          seen.push(props.chrome);
+          return createElement('div', { 'data-promote-card': props.id });
+        },
+      });
+    });
+    // World radius 10 at zoom 2 is 20 screen px — an unscaled radius would give
+    // the DOM card different corners from the canvas card beside it.
+    expect(seen).toEqual([{ borderRadius: 20, borderWidth: 2 }]);
     await act(async () => overlay.dispose());
   });
 });

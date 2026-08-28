@@ -32,7 +32,7 @@ import { createRenderCoalesce } from './render/renderCoalesce.js';
 import { SelectionStore } from './state/SelectionStore.js';
 import { ViewStateStore } from './state/ViewStateStore.js';
 import { DataStore } from './state/DataStore.js';
-import type { PromoteCandidate } from './render/promoteTypes.js';
+import type { PromoteCandidate, PromoteChrome } from './render/promoteTypes.js';
 import { promoteIdMatches } from './render/promoteMath.js';
 import type { SelectionPointerMods } from './interaction/selection.js';
 import { resolveContextMenuNodeData } from './interaction/contextMenuPayload.js';
@@ -1014,6 +1014,25 @@ export class OrgHierarchyDiagram {
    * the data arrays several times over while reading its rectangle costs
    * nothing (`work/reports/promote-near/report.md` §2.3).
    */
+  /**
+   * Frame geometry of a node kind in world units, for callers that draw a
+   * replacement for a Pixi node and need it to line up.
+   */
+  getPromoteChrome(kind: 'organization' | 'person' | 'position'): PromoteChrome {
+    const style =
+      kind === 'organization' ? this.nodeTheme.organization : this.nodeTheme.person;
+    const chrome: PromoteChrome = {
+      borderRadius: style.borderRadius,
+      borderWidth: style.borderWidth,
+    };
+    if (kind === 'organization') {
+      const org = this.nodeTheme.organization;
+      if (org.bodyPaddingX !== undefined) chrome.paddingX = org.bodyPaddingX;
+      if (org.bodyPaddingY !== undefined) chrome.paddingY = org.bodyPaddingY;
+    }
+    return chrome;
+  }
+
   /** Surface size from the host's ResizeObserver — see {@link PixiHost.getScreenSize}. */
   getScreenSize(): { width: number; height: number } {
     return this.host?.getScreenSize() ?? { width: 0, height: 0 };

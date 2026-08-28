@@ -9,7 +9,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { ContextMenuNodeData } from '../interaction/contextMenuPayload.js';
 import type { NodeRef } from '../interaction/types.js';
 import type { LodLevel } from '../render/lod.js';
-import type { PromoteCandidate } from '../render/promoteTypes.js';
+import type { PromoteCandidate, PromoteChrome } from '../render/promoteTypes.js';
 
 /** A node's world rectangle and identity, without its card data. */
 export interface PromoteBox {
@@ -55,6 +55,8 @@ export interface PromoteOverlayDiagram {
    * to gain by measuring it a second time in the hot path.
    */
   getScreenSize(): { width: number; height: number };
+  /** Frame geometry for a node kind, in **world** units — the overlay scales it. */
+  getPromoteChrome(kind: PromoteBox['kind']): PromoteChrome;
   listPromoteBoxes(): readonly PromoteBox[];
   listPromoteCandidates(ids?: readonly string[]): PromoteCandidate[];
   setPromotedNodeIds(ids: readonly string[]): void;
@@ -65,6 +67,8 @@ export interface PromoteSlotProps {
   id: string;
   node: ContextMenuNodeData;
   screenRect: ScreenRect;
+  /** Corners and insets of the node being replaced, in screen px. */
+  chrome: PromoteChrome;
   viewport: ViewportTransform;
   /** Demote / clear selection helper from the host card. */
   onDemote: () => void;
@@ -185,6 +189,17 @@ class SlotBoundary extends Component<SlotBoundaryProps, { failed: boolean }> {
     // fallback box would sit on top of a card that is drawing correctly.
     return this.state.failed ? null : this.props.children;
   }
+}
+
+/** World chrome to screen chrome. Absent insets stay absent rather than becoming 0. */
+function scaleChrome(chrome: PromoteChrome, scale: number): PromoteChrome {
+  const out: PromoteChrome = {
+    borderRadius: chrome.borderRadius * scale,
+    borderWidth: chrome.borderWidth * scale,
+  };
+  if (chrome.paddingX !== undefined) out.paddingX = chrome.paddingX * scale;
+  if (chrome.paddingY !== undefined) out.paddingY = chrome.paddingY * scale;
+  return out;
 }
 
 /** Trim to `max` while guaranteeing the focused card a place inside the cap. */
@@ -347,10 +362,12 @@ export function createReactPromoteOverlay(
       if (failedIds.has(candidate.id)) continue;
       if (!screenRectInView(screenRect, screen) && candidate.id !== sticky) continue;
       if (options.shouldPromote && !options.shouldPromote(candidate.node)) continue;
+      const worldChrome = options.diagram.getPromoteChrome(candidate.kind);
       slots.push({
         id: candidate.id,
         node: candidate.node,
         screenRect,
+        chrome: scaleChrome(worldChrome, viewport.scale),
         viewport,
         onDemote: demote,
       });
@@ -449,7 +466,7 @@ export interface DefaultPromoteCardProps extends PromoteSlotProps {
 
 /** Minimal promote card — hosts can pass `children` (Chart.js, buttons, …). */
 export function DefaultPromoteCard(props: DefaultPromoteCardProps): ReactElement {
-  const { screenRect, node, onDemote, children } = props;
+  const { screenRect, chrome, node, onDemote, children } = props;
   const title =
     node.person?.fullName ??
     node.organization?.name ??
@@ -465,17 +482,21 @@ export function DefaultPromoteCard(props: DefaultPromoteCardProps): ReactElement
         position: 'absolute',
         left: screenRect.left,
         top: screenRect.top,
-        width: Math.max(screenRect.width, 120),
-        minHeight: screenRect.height,
+        // Exactly the box being replaced. A floor or an open-ended height makes
+        // the card stop covering the node it stands in for, and the node shows
+        // from one side only.
+        width: screenRect.width,
+        height: screenRect.height,
+        overflow: 'hidden',
         boxSizing: 'border-box',
-        padding: '8px 10px',
-        borderRadius: 8,
+        padding: `${chrome.paddingY ?? 8}px ${chrome.paddingX ?? 10}px`,
+        borderRadius: chrome.borderRadius,
         boxShadow: '0 4px 14px rgba(15, 23, 42, 0.12)',
         pointerEvents: 'auto',
         fontFamily: 'system-ui, sans-serif',
         color: 'var(--text, #0f172a)',
         background: 'var(--surface, #ffffff)',
-        border: '1px solid var(--border, #cbd5e1)',
+        border: `${chrome.borderWidth}px solid var(--border, #cbd5e1)`,
       },
     },
     createElement(
