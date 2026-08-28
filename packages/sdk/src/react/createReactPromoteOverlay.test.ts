@@ -420,3 +420,109 @@ describe('screen size comes from the diagram, not from the DOM', () => {
     await act(async () => overlay.dispose());
   });
 });
+
+describe('a card holding focus is not demoted', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  /** One seat, and a viewport the test can drive off screen. */
+  function makeMovableDiagram(): {
+    diagram: PromoteOverlayDiagram;
+    panAway(): void;
+  } {
+    let viewport = { x: 0, y: 0, scale: 1 };
+    const box = { id: 'pos1', kind: 'position' as const, x: 10, y: 20, width: 100, height: 60 };
+    const diagram: PromoteOverlayDiagram = {
+      getViewport: () => viewport,
+      getLodLevel: () => 'near',
+      getSelection: () => null,
+      select: rstest.fn(async () => undefined),
+      getScreenSize: () => ({ width: 800, height: 600 }),
+      listPromoteBoxes: () => [box],
+      listPromoteCandidates: (ids) =>
+        (ids ?? [box.id]).map(() => ({
+          id: box.id,
+          kind: 'position' as const,
+          world: box,
+          node: {
+            ref: { id: box.id, kind: 'position' as const, positionId: box.id },
+            position: {
+              id: box.id,
+              title: 'Eng',
+              organizationId: 'org1',
+              groupIds: [],
+              status: 'vacant' as const,
+              isTemporary: false,
+            },
+          },
+        })),
+      setPromotedNodeIds: rstest.fn(),
+      subscribePromoteSync: () => () => {},
+    };
+    return {
+      diagram,
+      panAway: () => {
+        viewport = { x: -5000, y: 0, scale: 1 };
+      },
+    };
+  }
+
+  function mountEl(): HTMLElement {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    return mount;
+  }
+
+  it('failure: the card keeps its focused input when the camera moves it off screen', async () => {
+    const { diagram, panAway } = makeMovableDiagram();
+    const mount = mountEl();
+    let overlay!: ReturnType<typeof createReactPromoteOverlay>;
+    await act(async () => {
+      overlay = createReactPromoteOverlay({
+        diagram,
+        mount,
+        component: (props) =>
+          createElement(
+            'div',
+            { 'data-promote-card': props.id },
+            createElement('input', { 'data-testid': 'card-input', defaultValue: 'typed' }),
+          ),
+        mode: 'near-visible',
+      });
+    });
+
+    const input = mount.querySelector<HTMLInputElement>('[data-testid="card-input"]')!;
+    input.focus();
+    expect(document.activeElement).toBe(input);
+
+    panAway();
+    await act(async () => overlay.sync());
+
+    // Demoting here would take the focus and whatever the user had typed with
+    // it — the node is still on the canvas underneath, so nothing is gained.
+    expect(mount.querySelector('[data-promote-card]')).toBeTruthy();
+    expect(document.activeElement).toBe(input);
+    await act(async () => overlay.dispose());
+  });
+
+  it('success: the same card with no focus in it demotes as usual', async () => {
+    const { diagram, panAway } = makeMovableDiagram();
+    const mount = mountEl();
+    let overlay!: ReturnType<typeof createReactPromoteOverlay>;
+    await act(async () => {
+      overlay = createReactPromoteOverlay({
+        diagram,
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-visible',
+      });
+    });
+
+    panAway();
+    await act(async () => overlay.sync());
+
+    expect(mount.querySelector('[data-promote-card]')).toBeNull();
+    await act(async () => overlay.dispose());
+  });
+});

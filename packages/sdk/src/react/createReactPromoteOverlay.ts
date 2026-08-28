@@ -114,7 +114,15 @@ function OverlayRoot(props: {
       },
     },
     props.slots.map((slot) =>
-      createElement(props.component, { key: slot.id, ...slot }),
+      // `display: contents` keeps this wrapper out of layout entirely — the
+      // host's card positions itself exactly as it would without it — while
+      // still putting a node in the tree that `closest()` can find. That is how
+      // a focused element inside a card is traced back to which card it is.
+      createElement(
+        'div',
+        { key: slot.id, 'data-promote-slot': slot.id, style: { display: 'contents' } },
+        createElement(props.component, { ...slot }),
+      ),
     ),
   );
 }
@@ -168,6 +176,25 @@ export function createReactPromoteOverlay(
     return ids;
   };
 
+  /**
+   * The card that currently holds focus, if any.
+   *
+   * Such a card is never demoted, however far off screen it drifts: taking it
+   * away would take the user's focus and any text they had typed with it, and
+   * nothing is gained — the node is still drawn on the canvas underneath. React
+   * Flow keeps a node mounted for the same reason while it is being dragged
+   * (`system/src/utils/graph.ts:298`).
+   *
+   * Focus also covers the open-menu case in practice, since a popover that
+   * matters holds focus. A host that builds one which does not must keep the
+   * card alive by other means.
+   */
+  const focusedSlotId = (): string | null => {
+    const active = document.activeElement;
+    if (!active || !layer.contains(active)) return null;
+    return active.closest('[data-promote-slot]')?.getAttribute('data-promote-slot') ?? null;
+  };
+
   const sync = (): void => {
     if (disposed || !root) return;
     const viewport = options.diagram.getViewport();
@@ -190,10 +217,13 @@ export function createReactPromoteOverlay(
             maxCount: options.maxPromoted ?? 8,
           });
 
+    const sticky = focusedSlotId();
+    if (sticky !== null && !ids.includes(sticky)) ids.push(sticky);
+
     const slots: PromoteSlotProps[] = [];
     for (const candidate of ids.length > 0 ? options.diagram.listPromoteCandidates(ids) : []) {
       const screenRect = worldBoxToScreen(candidate.world, viewport);
-      if (!screenRectInView(screenRect, screen)) continue;
+      if (!screenRectInView(screenRect, screen) && candidate.id !== sticky) continue;
       if (options.shouldPromote && !options.shouldPromote(candidate.node)) continue;
       slots.push({
         id: candidate.id,
