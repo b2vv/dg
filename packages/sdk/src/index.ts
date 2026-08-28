@@ -120,6 +120,7 @@ export {
   worldBoxToScreen,
   resolvePromoteIds,
   nearVisibleGateOpen,
+  pickNearestToCenter,
   screenRectInView,
   nodeEntityKey,
   parseNodeEntityKey,

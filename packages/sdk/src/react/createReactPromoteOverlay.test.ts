@@ -526,3 +526,129 @@ describe('a card holding focus is not demoted', () => {
     await act(async () => overlay.dispose());
   });
 });
+
+describe('maxPromoted meets focus', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  /** Nine seats in a row; the leftmost is far from the screen centre. */
+  function makeRowDiagram(): PromoteOverlayDiagram {
+    const boxes = Array.from({ length: 9 }, (_, i) => ({
+      id: `pos${i}`,
+      kind: 'position' as const,
+      x: i * 80,
+      y: 280,
+      width: 60,
+      height: 40,
+    }));
+    return {
+      getViewport: () => ({ x: 0, y: 0, scale: 1 }),
+      getLodLevel: () => 'near',
+      getSelection: () => null,
+      select: rstest.fn(async () => undefined),
+      getScreenSize: () => ({ width: 800, height: 600 }),
+      listPromoteBoxes: () => boxes,
+      listPromoteCandidates: (ids) =>
+        (ids ?? boxes.map((b) => b.id)).map((id) => {
+          const box = boxes.find((b) => b.id === id)!;
+          return {
+            id,
+            kind: 'position' as const,
+            world: box,
+            node: {
+              ref: { id, kind: 'position' as const, positionId: id },
+              position: {
+                id,
+                title: id,
+                organizationId: 'org1',
+                groupIds: [],
+                status: 'vacant' as const,
+                isTemporary: false,
+              },
+            },
+          };
+        }),
+      setPromotedNodeIds: rstest.fn(),
+      subscribePromoteSync: () => () => {},
+    };
+  }
+
+  const card = (props: PromoteSlotProps) =>
+    createElement(
+      'div',
+      { 'data-promote-card': props.id },
+      createElement('input', { 'data-input': props.id }),
+    );
+
+  function mountEl(): HTMLElement {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    return mount;
+  }
+
+  it('success: a cap of 3 renders three cards', async () => {
+    const mount = mountEl();
+    let overlay!: ReturnType<typeof createReactPromoteOverlay>;
+    await act(async () => {
+      overlay = createReactPromoteOverlay({
+        diagram: makeRowDiagram(),
+        mount,
+        component: card,
+        mode: 'near-visible',
+        maxPromoted: 3,
+      });
+    });
+    expect(mount.querySelectorAll('[data-promote-card]')).toHaveLength(3);
+    await act(async () => overlay.dispose());
+  });
+
+  it('failure: the focused card survives a cap that would otherwise drop it', async () => {
+    const mount = mountEl();
+    let overlay!: ReturnType<typeof createReactPromoteOverlay>;
+    await act(async () => {
+      overlay = createReactPromoteOverlay({
+        diagram: makeRowDiagram(),
+        mount,
+        component: card,
+        mode: 'near-visible',
+      });
+    });
+
+    // pos0 is the furthest from centre, so any small cap would trim it first.
+    const input = mount.querySelector<HTMLInputElement>('[data-input="pos0"]')!;
+    input.focus();
+
+    await act(async () => {
+      overlay.setMaxPromoted(3);
+    });
+
+    const ids = [...mount.querySelectorAll('[data-promote-card]')].map((el) =>
+      el.getAttribute('data-promote-card'),
+    );
+    // Kept, and it takes one of the host's three slots rather than a fourth —
+    // a declared cap of three stays a cap of three.
+    expect(ids).toContain('pos0');
+    expect(ids).toHaveLength(3);
+    await act(async () => overlay.dispose());
+  });
+
+  it('failure: a cap of zero promotes nothing, focus included — the host said zero', async () => {
+    const mount = mountEl();
+    let overlay!: ReturnType<typeof createReactPromoteOverlay>;
+    await act(async () => {
+      overlay = createReactPromoteOverlay({
+        diagram: makeRowDiagram(),
+        mount,
+        component: card,
+        mode: 'near-visible',
+      });
+    });
+    mount.querySelector<HTMLInputElement>('[data-input="pos0"]')!.focus();
+    await act(async () => {
+      overlay.setMaxPromoted(0);
+    });
+    expect(mount.querySelectorAll('[data-promote-card]')).toHaveLength(0);
+    await act(async () => overlay.dispose());
+  });
+});

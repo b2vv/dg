@@ -2,6 +2,7 @@ import { describe, expect, it } from '@rstest/core';
 import {
   resolvePromoteIds,
   nearVisibleGateOpen,
+  pickNearestToCenter,
   screenRectInView,
   worldBoxToScreen,
   nodeEntityKey,
@@ -139,5 +140,55 @@ describe('near-visible does not go through the selection resolver', () => {
         selection: { id: 'pos1', kind: 'position', positionId: 'pos1' },
       }),
     ).toEqual([]);
+  });
+});
+
+describe('pickNearestToCenter', () => {
+  const screen = { width: 800, height: 600 };
+  /** 44 cards in a row across the screen — the count measured at the near threshold. */
+  const cards = Array.from({ length: 44 }, (_, i) => ({
+    id: `c${i}`,
+    screenRect: { left: i * 20 - 40, top: 280, width: 16, height: 40 },
+  }));
+
+  it('success: a cap of 5 keeps five, and they are the five nearest the centre', () => {
+    const kept = pickNearestToCenter(cards, screen, 5);
+    expect(kept).toHaveLength(5);
+    // Screen centre is x=400; card i has centre 20i - 32, so i=21.6 is nearest.
+    expect(kept.map((c) => c.id).sort()).toEqual(['c20', 'c21', 'c22', 'c23', 'c24'].sort());
+  });
+
+  it('success: no cap keeps everything — the default is no ceiling', () => {
+    expect(pickNearestToCenter(cards, screen, undefined)).toHaveLength(44);
+  });
+
+  it('failure: a cap of zero promotes nothing, leaving every node on the canvas', () => {
+    expect(pickNearestToCenter(cards, screen, 0)).toHaveLength(0);
+  });
+
+  it('failure: out-of-range caps fall back to no ceiling rather than to silence', () => {
+    // A host that passes nonsense gets the working default, not a feature that
+    // quietly does nothing — an empty layer is the harder failure to diagnose.
+    expect(pickNearestToCenter(cards, screen, -1)).toHaveLength(44);
+    expect(pickNearestToCenter(cards, screen, Number.NaN)).toHaveLength(44);
+    expect(pickNearestToCenter(cards, screen, Number.POSITIVE_INFINITY)).toHaveLength(44);
+  });
+
+  it('success: a fractional cap rounds down', () => {
+    expect(pickNearestToCenter(cards, screen, 2.5)).toHaveLength(2);
+  });
+
+  it('success: a cap larger than the input keeps the input, and keeps its order', () => {
+    const three = cards.slice(0, 3);
+    expect(pickNearestToCenter(three, screen, 99)).toEqual(three);
+  });
+
+  it('success: ties keep their original order, so the layer does not reshuffle', () => {
+    // Two cards mirrored about the centre are exactly as far from it.
+    const mirrored = [
+      { id: 'right', screenRect: { left: 500, top: 280, width: 20, height: 20 } },
+      { id: 'left', screenRect: { left: 280, top: 280, width: 20, height: 20 } },
+    ];
+    expect(pickNearestToCenter(mirrored, screen, 1).map((c) => c.id)).toEqual(['right']);
   });
 });

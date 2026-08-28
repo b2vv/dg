@@ -129,6 +129,49 @@ export function resolvePromoteIds(args: ResolvePromoteIdsArgs): string[] {
   return [nodeEntityKey(visual.kind, visual.id)].slice(0, Math.max(0, maxCount));
 }
 
+/**
+ * Trim a set of on-screen cards to `max`, keeping those nearest the middle of
+ * the screen — where the user is looking.
+ *
+ * Lives here, next to the geometry, rather than in {@link resolvePromoteIds},
+ * which has neither rectangles nor a screen to measure against.
+ *
+ * The cap is a host lever, not the rule: **the rule is zoom**, and the default
+ * is no ceiling. Out-of-range values fall back to that default rather than to
+ * zero, because a host that mistypes the cap should get a working feature it can
+ * see, not an empty layer that looks like the feature is broken.
+ *
+ * - not a finite number, or negative -> no ceiling
+ * - `0` -> nothing is promoted (every node stays on the canvas; no holes, since
+ *   the same empty list is what gets hidden in Pixi)
+ * - fractional -> rounded down
+ */
+export function pickNearestToCenter<T extends { screenRect: ScreenRect }>(
+  items: readonly T[],
+  screen: { width: number; height: number },
+  max?: number,
+): T[] {
+  if (max == null || !Number.isFinite(max) || max < 0) return [...items];
+  const cap = Math.floor(max);
+  if (cap === 0) return [];
+  if (items.length <= cap) return [...items];
+
+  const cx = screen.width / 2;
+  const cy = screen.height / 2;
+  const distance = (r: ScreenRect): number => {
+    const dx = r.left + r.width / 2 - cx;
+    const dy = r.top + r.height / 2 - cy;
+    return dx * dx + dy * dy; // squared: same ordering, no square root
+  };
+  // Array.prototype.sort is stable, so cards at equal distance keep their input
+  // order and the layer does not reshuffle between two identical syncs.
+  return [...items]
+    .map((item, index) => ({ item, index, d: distance(item.screenRect) }))
+    .sort((a, b) => a.d - b.d || a.index - b.index)
+    .slice(0, cap)
+    .map((entry) => entry.item);
+}
+
 /** True when a screen rect intersects the viewport (with padding). */
 export function screenRectInView(
   rect: ScreenRect,

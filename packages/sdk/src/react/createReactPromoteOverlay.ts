@@ -16,6 +16,7 @@ export interface PromoteBox {
 }
 import {
   nearVisibleGateOpen,
+  pickNearestToCenter,
   resolvePromoteIds,
   screenRectInView,
   worldBoxToScreen,
@@ -88,6 +89,8 @@ export interface ReactPromoteOverlay {
   sync: () => void;
   setMode: (mode: PromoteMode) => void;
   getMode: () => PromoteMode;
+  /** Change the ceiling at runtime; `undefined` removes it. */
+  setMaxPromoted: (max?: number) => void;
   dispose: () => void;
 }
 
@@ -127,6 +130,22 @@ function OverlayRoot(props: {
   );
 }
 
+/** Trim to `max` while guaranteeing the focused card a place inside the cap. */
+function cappedAroundSticky(
+  slots: readonly PromoteSlotProps[],
+  stickySlot: PromoteSlotProps,
+  screen: { width: number; height: number },
+  max?: number,
+): PromoteSlotProps[] {
+  if (max != null && Number.isFinite(max) && Math.floor(max) === 0 && max >= 0) return [];
+  const others = slots.filter((slot) => slot !== stickySlot);
+  const rest =
+    max == null || !Number.isFinite(max) || max < 0
+      ? undefined
+      : Math.max(0, Math.floor(max) - 1);
+  return [stickySlot, ...pickNearestToCenter(others, screen, rest)];
+}
+
 /**
  * HTML/React promote layer synced to the Pixi camera.
  * Pixi stays the mass renderer; promoted nodes are hidden in WebGL and drawn here.
@@ -152,6 +171,7 @@ export function createReactPromoteOverlay(
 
   let root: Root | null = createRoot(layer);
   let mode: PromoteMode = options.mode ?? 'near-selection';
+  let maxPromoted = options.maxPromoted;
   let disposed = false;
 
   const demote = (): void => {
@@ -214,7 +234,7 @@ export function createReactPromoteOverlay(
             mode,
             lod,
             selection: options.diagram.getSelection(),
-            maxCount: options.maxPromoted ?? 8,
+            maxCount: maxPromoted ?? 8,
           });
 
     const sticky = focusedSlotId();
@@ -234,13 +254,24 @@ export function createReactPromoteOverlay(
       });
     }
 
+    // The ceiling is applied last, once every card has a rectangle to measure.
+    // A focused card is never trimmed away — losing focus mid-edit is worse than
+    // showing a card slightly further from the centre — but it takes one of the
+    // host's slots rather than an extra one, so a declared cap of N stays N.
+    // A cap of exactly 0 wins outright: the host asked for nothing.
+    const stickySlot = sticky === null ? undefined : slots.find((slot) => slot.id === sticky);
+    const capped =
+      stickySlot === undefined
+        ? pickNearestToCenter(slots, screen, maxPromoted)
+        : cappedAroundSticky(slots, stickySlot, screen, maxPromoted);
+
     // Hide in Pixi only what actually became a card. Hiding first — as this did
     // — meant a node that failed the screen test, or that had vanished from the
     // data since the ids were picked, was erased from the canvas and given
     // nothing in its place: a hole in the scene rather than a promoted card.
-    options.diagram.setPromotedNodeIds(slots.map((slot) => slot.id));
+    options.diagram.setPromotedNodeIds(capped.map((slot) => slot.id));
 
-    const state: OverlayState = { slots };
+    const state: OverlayState = { slots: capped };
     root.render(
       createElement(OverlayRoot, {
         slots: state.slots,
@@ -260,6 +291,10 @@ export function createReactPromoteOverlay(
       sync();
     },
     getMode: () => mode,
+    setMaxPromoted: (next) => {
+      maxPromoted = next;
+      sync();
+    },
     dispose: () => {
       if (disposed) return;
       disposed = true;
