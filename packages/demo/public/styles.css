@@ -267,13 +267,18 @@ body[data-active-tab='mockup-staff-flood'] .zoom-fab button {
 
 .sidebar {
   display: none;
-  position: fixed;
-  top: 56px;
+  /* Relative to .stage (position: relative), which starts right after the
+     header's actual rendered height — not a guessed pixel offset from the
+     viewport top. The header wraps to more than one row once enough tabs are
+     added, and a viewport-fixed offset does not track that. */
+  position: absolute;
+  top: 0;
   right: 0;
   width: 220px;
   padding: 1rem;
   background: var(--surface);
   border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   z-index: 10;
 }
 

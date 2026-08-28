@@ -50,23 +50,26 @@
     <span id="status" class="status">Init…</span>
   </header>
 
-  <aside class="sidebar" data-show-tab="mapper">
-    <h2>Mapper</h2>
-    <button type="button" id="load-sample-json">Load sample JSON</button>
-    <label class="file-label">
-      Upload JSON
-      <input id="json-file" type="file" accept="application/json,.json" />
-    </label>
-  </aside>
-
-  <aside class="sidebar" data-show-tab="worker">
-    <h2>Worker bench</h2>
-    <p class="sidebar-note">Runs a pooled map over 5k synthetic rows. Diagram stays on Variant B sample.</p>
-    <button type="button" id="run-worker-bench">Run pooled map (5k orgs)</button>
-  </aside>
-
   <main class="stage">
     <div id="diagram-mount" class="diagram-mount"></div>
+    <!-- Positioned relative to .stage, not the viewport: .stage always starts
+         right after the header's real height, however many rows the toolbar
+         wraps to. A `position: fixed` sidebar with a hardcoded top offset
+         overlapped the status text whenever the toolbar wrapped to two lines. -->
+    <aside class="sidebar" data-show-tab="mapper">
+      <h2>Mapper</h2>
+      <button type="button" id="load-sample-json">Load sample JSON</button>
+      <label class="file-label">
+        Upload JSON
+        <input id="json-file" type="file" accept="application/json,.json" />
+      </label>
+    </aside>
+
+    <aside class="sidebar" data-show-tab="worker">
+      <h2>Worker bench</h2>
+      <p class="sidebar-note">Runs a pooled map over 5k synthetic rows. Diagram stays on Variant B sample.</p>
+      <button type="button" id="run-worker-bench">Run pooled map (5k orgs)</button>
+    </aside>
     <p class="viewport-hint">Drag or scroll · pan · <kbd>Ctrl</kbd>+scroll / pinch · zoom · <kbd>Shift</kbd>+click · multi-select · ⋮ menu on cards · right-click also works on desktop</p>
   </main>
 

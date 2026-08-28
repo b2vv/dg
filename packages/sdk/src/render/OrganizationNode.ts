@@ -278,6 +278,34 @@ export class OrganizationNodeView extends Container {
     return undefined;
   }
 
+  /** Like {@link findText}, tolerant of the ellipsis truncation adds. */
+  findTextStartingWith(prefix: string): Text | undefined {
+    for (const child of this.children) {
+      if (child instanceof Text && child.visible && child.text.startsWith(prefix)) return child;
+    }
+    return undefined;
+  }
+
+  /**
+   * Bounding box of the org name label and, when shown, the symbol-area
+   * fallback text — for regression tests that check they don't overlap.
+   */
+  debugTextBounds(): {
+    name?: { x: number; y: number; width: number; height: number };
+    fallback?: { x: number; y: number; width: number; height: number };
+  } {
+    const rectOf = (t: Text): { x: number; y: number; width: number; height: number } => ({
+      x: t.x,
+      y: t.y,
+      width: t.width,
+      height: t.height,
+    });
+    return {
+      name: this.nameText.visible ? rectOf(this.nameText) : undefined,
+      fallback: this.fullNameFallbackText.visible ? rectOf(this.fullNameFallbackText) : undefined,
+    };
+  }
+
   hasSymbolSprite(): boolean {
     return this.symbolSprite.visible;
   }
@@ -473,10 +501,14 @@ export class OrganizationNodeView extends Container {
   private layoutHorizontalTexts(style: OrganizationNodeStyle, layout: OrgSymbolLayout): void {
     const box = layout.box;
     const pad = box.padding;
+    // The symbol area is occupied whenever anything is drawn in it — a real
+    // sprite, or the text fallback that stands in for a missing one. Checking
+    // only the sprite left the name text starting at the same x as the
+    // fallback text whenever a host has no symbol images, which is the common
+    // case: two labels landing on top of each other.
+    const symbolAreaOccupied = this.symbolSprite.visible || this.fullNameFallbackText.visible;
     const textX =
-      layout.mode === 'full-bleed' || !this.symbolSprite.visible
-        ? pad
-        : box.x + box.width + 10;
+      layout.mode === 'full-bleed' || !symbolAreaOccupied ? pad : box.x + box.width + 10;
     const menuReserve = this.hasMenuButton() ? 28 : 0;
     const rightPad =
       menuReserve + (this.tempBadge.visible && style.tempMarkerStyle !== 'hourglass' ? 22 : 10);

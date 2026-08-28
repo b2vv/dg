@@ -219,8 +219,35 @@ describe('OrganizationNodeView', () => {
     await view.mediaReady;
     expect(view.hasSymbolSprite()).toBe(false);
     expect(view.hasSymbolPlaceholder()).toBe(false);
-    expect(view.findText('Повна назва організації')).toBeTruthy();
+    // Prefix, not exact match: the name label now correctly loses width to the
+    // fallback box beside it (see the overlap regression test below), so a long
+    // full name truncates with an ellipsis instead of rendering whole.
+    expect(view.findTextStartingWith('Повна назва')).toBeTruthy();
     expect(view.findText('Short')).toBeUndefined();
+  });
+
+  it('Phase1 E3: fallback text and name text do not overlap, on the default horizontal card', async () => {
+    // Regression: with no symbol image, the symbol area draws a text fallback
+    // and the name label is positioned as if that area were empty — both start
+    // at the card's left padding, so they land on top of each other. This is
+    // what a host without logo images sees on every org card.
+    const view = OrganizationNodeView.create(
+      {
+        id: 'org-nosym',
+        name: 'Short',
+        fullName: 'Повна назва організації',
+        groupIds: [],
+      },
+      undefined,
+      'light',
+      defaultNodeTheme.organization,
+    );
+    await view.mediaReady;
+    const { name, fallback } = view.debugTextBounds();
+    expect(fallback).toBeTruthy();
+    expect(name).toBeTruthy();
+    // The name label must start at or after the fallback text's right edge.
+    expect(name!.x).toBeGreaterThanOrEqual(fallback!.x + fallback!.width - 1);
   });
 
   it('Phase1: full-bleed when texture is ~400×200', async () => {
