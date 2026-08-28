@@ -19,3 +19,6 @@ packages/core/target/
 worktrees/
 # Added by code-review-graph
 .code-review-graph/
+
+# JetBrains IDE — local settings, not project config
+.idea/
