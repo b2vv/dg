@@ -181,7 +181,15 @@ export function resolveOrgSymbolLayout(
     };
   }
 
-  // E3: missing symbol → text fullName/name in name row + symbol-area fallback.
+  /*
+   * E3: missing symbol → the full name replaces the short name in the name row.
+   *
+   * The symbol area stays empty. It used to also draw `fullNameFallback`, but
+   * that is the *same string* as `displayName` here, so the card rendered its
+   * own name twice — and the copy inside the symbol box is only symbolW wide, so
+   * it truncated to something like "Org…" that carries no information. One
+   * readable label beats two unreadable ones.
+   */
   if (!hasSymbol) {
     if (vertical) {
       const mode = wantCaption ? 'caption' : 'no-caption';
@@ -191,7 +199,7 @@ export function resolveOrgSymbolLayout(
         box,
         showShortName: wantCaption,
         showNameText: true,
-        showFullNameFallback: true,
+        showFullNameFallback: false,
         displayName: fallback,
         fullNameFallback: fallback,
       };
@@ -208,7 +216,7 @@ export function resolveOrgSymbolLayout(
       box: { x, y, width: boxW, height: boxH, padding: pad },
       showShortName: wantCaption,
       showNameText: true,
-      showFullNameFallback: true,
+      showFullNameFallback: false,
       displayName: fallback,
       fullNameFallback: fallback,
     };

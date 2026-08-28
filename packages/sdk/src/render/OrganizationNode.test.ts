@@ -226,11 +226,13 @@ describe('OrganizationNodeView', () => {
     expect(view.findText('Short')).toBeUndefined();
   });
 
-  it('Phase1 E3: fallback text and name text do not overlap, on the default horizontal card', async () => {
-    // Regression: with no symbol image, the symbol area draws a text fallback
-    // and the name label is positioned as if that area were empty — both start
-    // at the card's left padding, so they land on top of each other. This is
-    // what a host without logo images sees on every org card.
+  it('Phase1 E3: a card with no symbol renders its name once, not twice', async () => {
+    // Regression, two bugs deep. The resolver set displayName and
+    // fullNameFallback to the same string and showed both, so a card without a
+    // logo drew its own name twice. They also started at the same x, so the two
+    // copies overlapped into one smudge. Fixing only the position would have
+    // left two truncated copies side by side, neither readable — the symbol-area
+    // copy is symbolW wide and truncates to "Org…".
     const view = OrganizationNodeView.create(
       {
         id: 'org-nosym',
@@ -244,10 +246,11 @@ describe('OrganizationNodeView', () => {
     );
     await view.mediaReady;
     const { name, fallback } = view.debugTextBounds();
-    expect(fallback).toBeTruthy();
+    expect(fallback).toBeUndefined();
     expect(name).toBeTruthy();
-    // The name label must start at or after the fallback text's right edge.
-    expect(name!.x).toBeGreaterThanOrEqual(fallback!.x + fallback!.width - 1);
+    // With the symbol area empty, the name starts at the card's padding and has
+    // the full width to itself.
+    expect(name!.x).toBeLessThan(20);
   });
 
   it('Phase1: full-bleed when texture is ~400×200', async () => {
