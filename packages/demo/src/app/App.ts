@@ -333,7 +333,6 @@ export class App {
     });
     this.mountEl.setAttribute('data-testid', 'diagram-ready');
     installDemoE2eBridge({
-      mount: this.mountEl,
       diagram,
       clickOrg: (orgId) => this.handleOrgNodeClick(orgId),
       scaleWindowStart: () => this.scaleWindow?.startIndex ?? null,
