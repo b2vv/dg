@@ -119,6 +119,7 @@ export {
   isAllowedNodeMediaUrl,
   worldBoxToScreen,
   resolvePromoteIds,
+  nearVisibleGateOpen,
   screenRectInView,
   nodeEntityKey,
   parseNodeEntityKey,

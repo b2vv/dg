@@ -104,6 +104,7 @@ export {
 export {
   worldBoxToScreen,
   resolvePromoteIds,
+  nearVisibleGateOpen,
   screenRectInView,
   nodeEntityKey,
   parseNodeEntityKey,

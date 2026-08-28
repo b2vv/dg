@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@rstest/core';
 import {
   resolvePromoteIds,
+  nearVisibleGateOpen,
   screenRectInView,
   worldBoxToScreen,
   nodeEntityKey,
@@ -94,5 +95,49 @@ describe('screenRectInView', () => {
     expect(
       screenRectInView({ left: -400, top: -400, width: 10, height: 10 }, { width: 800, height: 600 }),
     ).toBe(false);
+  });
+});
+
+describe('nearVisibleGateOpen', () => {
+  it('success: open at near — the band the user called "beauty"', () => {
+    expect(nearVisibleGateOpen('near')).toBe(true);
+  });
+
+  it('failure: closed at mid and far, where cards are schematic anyway', () => {
+    expect(nearVisibleGateOpen('mid')).toBe(false);
+    expect(nearVisibleGateOpen('far')).toBe(false);
+  });
+});
+
+describe('near-visible does not go through the selection resolver', () => {
+  // The resolver has no candidates on its input (ResolvePromoteIdsArgs carries
+  // mode/lod/selection only), so it cannot answer "which cards are visible".
+  // Asking it anyway must promote nothing rather than quietly promote the
+  // selection — a wrong single card is harder to notice than an empty layer.
+  it('failure: resolvePromoteIds promotes nothing in near-visible mode', () => {
+    expect(
+      resolvePromoteIds({
+        mode: 'near-visible',
+        lod: 'near',
+        selection: { id: 'pos1', kind: 'position', positionId: 'pos1' },
+      }),
+    ).toEqual([]);
+  });
+
+  it('success: the selection modes are untouched by the new mode', () => {
+    expect(
+      resolvePromoteIds({
+        mode: 'near-selection',
+        lod: 'near',
+        selection: { id: 'pos1', kind: 'position', positionId: 'pos1' },
+      }),
+    ).toEqual([nodeEntityKey('position', 'pos1')]);
+    expect(
+      resolvePromoteIds({
+        mode: 'near-selection',
+        lod: 'mid',
+        selection: { id: 'pos1', kind: 'position', positionId: 'pos1' },
+      }),
+    ).toEqual([]);
   });
 });

@@ -56,7 +56,26 @@ export function worldBoxToScreen(box: WorldBox, viewport: ViewportTransform): Sc
   };
 }
 
-export type PromoteMode = 'off' | 'selection' | 'near-selection';
+/**
+ * `off` — nothing is promoted.
+ * `selection` — the selected node, at any zoom.
+ * `near-selection` — the selected node, only in the `near` band.
+ * `near-visible` — every visible card in the `near` band, not just the selection.
+ */
+export type PromoteMode = 'off' | 'selection' | 'near-selection' | 'near-visible';
+
+/**
+ * The `near-visible` gate. It answers only "is this a zoom band where cards
+ * deserve real chrome", because the band is the whole rule: the limit is zoom,
+ * never a card count. A bigger screen shows more cards at the same zoom, and
+ * that is the intended behaviour rather than something to cap.
+ *
+ * `near` is deliberately the same threshold Pixi's LOD already uses — one
+ * boundary for "close enough to be worth detail", not two that can drift apart.
+ */
+export function nearVisibleGateOpen(lod: LodLevel): boolean {
+  return lod === 'near';
+}
 
 export interface ResolvePromoteIdsArgs {
   mode: PromoteMode;
@@ -88,14 +107,21 @@ export function promoteVisualForSelection(
 }
 
 /**
- * Decide which node ids should be promoted to HTML.
+ * Decide which node ids should be promoted to HTML **from the selection**.
  * `near-selection`: only when LOD is near and something is selected.
  * `selection`: any LOD with a selection.
  * Returns typed `kind:id` keys (at most one visual per selection).
+ *
+ * `near-visible` is not answerable here and returns nothing: which cards are
+ * visible depends on scene geometry and screen size, neither of which is on this
+ * function's input. Promoting the selection instead would look like it worked —
+ * one card would appear — and that is the harder failure to notice, so the
+ * empty answer is the deliberate one. {@link nearVisibleGateOpen} is that
+ * mode's half of the decision; the overlay owns the other half.
  */
 export function resolvePromoteIds(args: ResolvePromoteIdsArgs): string[] {
   const { mode, lod, selection, maxCount = 8 } = args;
-  if (mode === 'off' || !selection) return [];
+  if (mode === 'off' || mode === 'near-visible' || !selection) return [];
   if (mode === 'near-selection' && lod !== 'near') return [];
 
   const visual = promoteVisualForSelection(selection);
