@@ -170,13 +170,6 @@ export class PixiHost {
   }
 
   /**
-   * Paint once, at the next frame, however many times it is asked in between.
-   *
-   * Every path that changes what is on screen calls this: the scene rebuild, the
-   * camera, a dragged card. Coalescing matters because a drag fires far more
-   * often than the display refreshes, and each paint is the expensive half.
-   */
-  /**
    * Called after the surface has been re-measured.
    *
    * Separate from {@link PixiHost.setOnViewportChange} because a resize moves no
@@ -188,6 +181,13 @@ export class PixiHost {
     this.onResize = handler;
   }
 
+  /**
+   * Paint once, at the next frame, however many times it is asked in between.
+   *
+   * Every path that changes what is on screen calls this: the scene rebuild, the
+   * camera, a dragged card. Coalescing matters because a drag fires far more
+   * often than the display refreshes, and each paint is the expensive half.
+   */
   requestPaint(): void {
     if (this.paintRequested || this.destroyed) return;
     this.paintRequested = true;

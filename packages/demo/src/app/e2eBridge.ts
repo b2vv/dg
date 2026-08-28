@@ -24,6 +24,8 @@ export interface DemoE2eBridge {
   setZoom(scale: number): void;
   /** Move the camera without animation — panning assertions need it exact. */
   setViewport(next: { x?: number; y?: number; scale?: number }): void;
+  /** Nodes Pixi is not drawing because HTML replaced them (T87, rows 1 and 5). */
+  getPromotedNodeIds(): string[];
   getStaffLayoutEdges(): Promise<Array<{ fromId: string; toId: string; kind: string }>>;
   /** Soft render warnings — a silently empty contour layer must show up here. */
   getLayoutDiagnostics(): string[];
@@ -62,6 +64,7 @@ export function installDemoE2eBridge(deps: E2eBridgeDeps): void {
     getZoom: () => diagram.getZoom(),
     setZoom: (scale) => diagram.setZoom(scale),
     setViewport: (next) => diagram.setViewport(next),
+    getPromotedNodeIds: () => [...diagram.getPromotedNodeIds()],
     getLayoutDiagnostics: () => [...diagram.getLayoutDiagnostics()],
     getRendererKind: () => diagram.getRendererKind(),
     getStaffLayoutEdges: () => staffLayoutEdgesFor(deps.config()),

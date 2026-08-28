@@ -1012,3 +1012,104 @@ describe('the card matches the box it replaces', () => {
     await act(async () => overlay.dispose());
   });
 });
+
+describe('rows 7 and 12 — nothing to promote, and something that stopped existing', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  function mountEl(): HTMLElement {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    return mount;
+  }
+
+  const box = { id: 'pos1', kind: 'position' as const, x: 10, y: 20, width: 60, height: 40 };
+  const candidate = {
+    id: box.id,
+    kind: 'position' as const,
+    world: box,
+    node: {
+      ref: { id: box.id, kind: 'position' as const, positionId: box.id },
+      position: {
+        id: box.id,
+        title: 'Eng',
+        organizationId: 'org1',
+        groupIds: [],
+        status: 'vacant' as const,
+        isTemporary: false,
+      },
+    },
+  };
+
+  function base(overrides: Partial<PromoteOverlayDiagram> = {}): PromoteOverlayDiagram {
+    return {
+      getViewport: () => ({ x: 0, y: 0, scale: 1 }),
+      getLodLevel: () => 'near',
+      getSelection: () => null,
+      select: rstest.fn(async () => undefined),
+      getScreenSize: () => ({ width: 800, height: 600 }),
+      getPromoteChrome: () => ({ borderRadius: 8, borderWidth: 1 }),
+      listPromoteBoxes: () => [box],
+      listPromoteCandidates: () => [candidate],
+      setPromotedNodeIds: rstest.fn(),
+      subscribePromoteSync: () => () => {},
+      ...overrides,
+    };
+  }
+
+  it('failure: an empty scene renders an empty layer and raises nothing', async () => {
+    const errors: unknown[] = [];
+    const onError = (e: ErrorEvent): void => {
+      errors.push(e.error);
+    };
+    window.addEventListener('error', onError);
+
+    const diagram = base({ listPromoteBoxes: () => [], listPromoteCandidates: () => [] });
+    const mount = mountEl();
+    let overlay!: ReturnType<typeof createReactPromoteOverlay>;
+    await act(async () => {
+      overlay = createReactPromoteOverlay({
+        diagram,
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-visible',
+      });
+    });
+
+    // A diagram with no data at all must be a quiet no-op, not a crash: hosts
+    // mount the overlay before their first setData.
+    expect(mount.querySelectorAll('[data-promote-card]')).toHaveLength(0);
+    expect(diagram.setPromotedNodeIds).toHaveBeenCalledWith([]);
+    expect(errors).toEqual([]);
+    window.removeEventListener('error', onError);
+    await act(async () => overlay.dispose());
+  });
+
+  it('failure: a node deleted while promoted leaves no ghost at its old position', async () => {
+    let present = true;
+    const diagram = base({
+      listPromoteBoxes: () => (present ? [box] : []),
+      listPromoteCandidates: () => (present ? [candidate] : []),
+    });
+    const mount = mountEl();
+    let overlay!: ReturnType<typeof createReactPromoteOverlay>;
+    await act(async () => {
+      overlay = createReactPromoteOverlay({
+        diagram,
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-visible',
+      });
+    });
+    // The card really was promoted first — otherwise there is no ghost to leave.
+    expect(mount.querySelectorAll('[data-promote-card]')).toHaveLength(1);
+
+    present = false;
+    await act(async () => overlay.sync());
+
+    expect(mount.querySelectorAll('[data-promote-card]')).toHaveLength(0);
+    expect(diagram.setPromotedNodeIds).toHaveBeenLastCalledWith([]);
+    await act(async () => overlay.dispose());
+  });
+});

@@ -1008,17 +1008,6 @@ export class OrgHierarchyDiagram {
   }
 
   /**
-   * World boxes + resolved node payloads for promote overlay.
-   * When `ids` omitted, returns all remembered boxes that resolve to a node.
-   */
-  /**
-   * Node rectangles with no data resolution — the cheap half of
-   * {@link OrgHierarchyDiagram.listPromoteCandidates}. Promote callers filter on
-   * these first and resolve only what survives, because resolving a box walks
-   * the data arrays several times over while reading its rectangle costs
-   * nothing (`work/reports/promote-near/report.md` §2.3).
-   */
-  /**
    * Frame geometry of a node kind in world units, for callers that draw a
    * replacement for a Pixi node and need it to line up.
    */
@@ -1042,10 +1031,21 @@ export class OrgHierarchyDiagram {
     return this.host?.getScreenSize() ?? { width: 0, height: 0 };
   }
 
+  /**
+   * Node rectangles with no data resolution — the cheap half of
+   * {@link OrgHierarchyDiagram.listPromoteCandidates}. Promote callers filter on
+   * these first and resolve only what survives, because resolving a box walks
+   * the data arrays several times over while reading its rectangle costs
+   * nothing (`work/reports/promote-near/report.md` §2.3).
+   */
   listPromoteBoxes(): readonly NodeWorldBox[] {
     return this.renderer?.listNodeBoxes() ?? [];
   }
 
+  /**
+   * World boxes + resolved node payloads for promote overlay.
+   * When `ids` omitted, returns all remembered boxes that resolve to a node.
+   */
   listPromoteCandidates(ids?: readonly string[]): PromoteCandidate[] {
     const boxes = this.renderer?.listNodeBoxes() ?? [];
     const wanted = ids ? new Set(ids) : null;
@@ -1070,6 +1070,17 @@ export class OrgHierarchyDiagram {
   /** Hide Pixi views for promoted ids (HTML overlay owns the chrome). */
   setPromotedNodeIds(ids: readonly string[]): void {
     this.renderer?.setPromotedNodeIds(ids);
+  }
+
+  /**
+   * Which nodes Pixi is currently **not** drawing because HTML replaced them.
+   *
+   * The complement of this set is what the canvas owns, so it is the only way to
+   * ask "did that node go back to being drawn?" from outside — the DOM alone
+   * cannot answer it, since an absent card and a hidden node look the same.
+   */
+  getPromotedNodeIds(): readonly string[] {
+    return this.renderer?.getPromotedNodeIds() ?? [];
   }
 
   setZoom(scale: number): void {

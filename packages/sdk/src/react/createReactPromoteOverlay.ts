@@ -39,14 +39,6 @@ export interface PromoteOverlayDiagram {
   getSelection(): NodeRef | null;
   select(node: NodeRef | null): Promise<void>;
   /**
-   * Node geometry with no data resolution. Separate from
-   * {@link PromoteOverlayDiagram.listPromoteCandidates} because resolving a box
-   * into card data costs about two orders of magnitude more than reading its
-   * rectangle (2.1 ms vs 0.005 ms over 639 nodes — see
-   * `work/reports/promote-near/report.md` §2.3), and in `near-visible` most
-   * boxes are off screen and never become cards.
-   */
-  /**
    * Size of the diagram surface, from the diagram's own ResizeObserver.
    *
    * Deliberately not `mount.clientWidth`: reading a geometric property makes the
@@ -57,6 +49,14 @@ export interface PromoteOverlayDiagram {
   getScreenSize(): { width: number; height: number };
   /** Frame geometry for a node kind, in **world** units — the overlay scales it. */
   getPromoteChrome(kind: PromoteBox['kind']): PromoteChrome;
+  /**
+   * Node geometry with no data resolution. Separate from
+   * {@link PromoteOverlayDiagram.listPromoteCandidates} because resolving a box
+   * into card data costs about two orders of magnitude more than reading its
+   * rectangle (2.1 ms vs 0.005 ms over 639 nodes — see
+   * `work/reports/promote-near/report.md` §2.3), and in `near-visible` most
+   * boxes are off screen and never become cards.
+   */
   listPromoteBoxes(): readonly PromoteBox[];
   listPromoteCandidates(ids?: readonly string[]): PromoteCandidate[];
   setPromotedNodeIds(ids: readonly string[]): void;

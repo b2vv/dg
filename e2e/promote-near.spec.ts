@@ -33,6 +33,14 @@ function cards(page: Page) {
   return page.locator(`${PROMOTE_ROOT} [data-promote-card]`);
 }
 
+/** Nodes Pixi has stopped drawing — the canvas half of the swap. */
+async function hiddenInPixi(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const b = (window as unknown as { __demoE2e: { getPromotedNodeIds(): string[] } }).__demoE2e;
+    return b.getPromotedNodeIds();
+  });
+}
+
 test.describe('promote · near-visible', () => {
   test('rows 1 and 2: cards above the near threshold, none below it', async ({ page }) => {
     await openTab(page, 'Staff · 1M');
@@ -40,11 +48,15 @@ test.describe('promote · near-visible', () => {
     await setZoom(page, 1.4);
     const near = await cards(page).count();
     expect(near).toBeGreaterThan(1);
+    // Every card in HTML is a node Pixi stopped drawing, and nothing else is
+    // hidden. Counting only the DOM would miss a node hidden without a card.
+    expect((await hiddenInPixi(page)).length).toBe(near);
 
     await setZoom(page, 0.8);
     // Below `near` the canvas cards are schematic; HTML chrome there would cost
     // without buying anything readable.
     await expect(cards(page)).toHaveCount(0);
+    expect(await hiddenInPixi(page)).toEqual([]);
 
     await setZoom(page, 1.4);
     await expect(cards(page)).toHaveCount(near);
@@ -84,10 +96,15 @@ test.describe('promote · near-visible', () => {
     const after = await cards(page).evaluateAll((els) =>
       els.map((el) => el.getAttribute('data-promote-card')),
     );
-    // Those seats must not simply vanish: Pixi draws them again, so what changes
-    // is which renderer owns them, not whether they exist.
     expect(after).not.toEqual(before);
     for (const id of after) expect(before).not.toContain(id);
+
+    // The half that matters, and that the DOM cannot show: those seats are no
+    // longer hidden, so Pixi is drawing them again. Without this the test only
+    // proved the card disappeared, which is also what a hole in the scene looks
+    // like.
+    const hidden = await hiddenInPixi(page);
+    for (const id of before) expect(hidden).not.toContain(id);
   });
 
   test('row 4: a bigger screen shows more cards at the same zoom', async ({ page }) => {
