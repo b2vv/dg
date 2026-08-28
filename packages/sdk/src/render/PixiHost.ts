@@ -79,6 +79,7 @@ export class PixiHost {
   private paintRequested = false;
   private paintHandle = 0;
   private contextMenuHandler: ((e: Event) => void) | null = null;
+  private onResize: (() => void) | null = null;
 
   static async create(container: HTMLElement, options: PixiHostOptions = {}): Promise<PixiHost> {
     if (!container) {
@@ -175,6 +176,18 @@ export class PixiHost {
    * camera, a dragged card. Coalescing matters because a drag fires far more
    * often than the display refreshes, and each paint is the expensive half.
    */
+  /**
+   * Called after the surface has been re-measured.
+   *
+   * Separate from {@link PixiHost.setOnViewportChange} because a resize moves no
+   * camera: the transform is identical and only the visible area changed. Any
+   * consumer whose answer depends on how much fits on screen has to hear about
+   * it, and before this hook there was no way to.
+   */
+  setOnResize(handler: (() => void) | null): void {
+    this.onResize = handler;
+  }
+
   requestPaint(): void {
     if (this.paintRequested || this.destroyed) return;
     this.paintRequested = true;
@@ -271,6 +284,7 @@ export class PixiHost {
       this.viewport?.setScreenSize(w, h);
       this.syncStageHitArea(w, h);
       this.requestPaint();
+      this.onResize?.();
     });
     this.resizeObserver.observe(container);
   }
@@ -311,6 +325,7 @@ export class PixiHost {
     }
     this.paintRequested = false;
     this.renderer.onNeedsPaint = null;
+    this.onResize = null;
 
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;

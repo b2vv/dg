@@ -240,8 +240,23 @@ export function buildMockupStaffFigmaData(): DiagramData {
       { id: 'p-hq-head', fullName: 'Dana Whitfield', photoUrl: photo },
       { id: 'p-hq-1z', fullName: 'Noel Farrow', photoUrl: photo },
       { id: 'p-hq-2z', fullName: 'Sasha Ilves', photoUrl: photo },
-      { id: 'p-head', fullName: 'Avery Chen', photoUrl: photo, testId: 'staff-head' },
-      { id: 'p-1z', fullName: 'Jordan Blake', photoUrl: photo, testId: 'staff-temp' },
+      // T87.8 — `entityType` is the host's own vocabulary; the SDK carries it
+      // through untouched and the demo card reads it to choose how the picture
+      // is shown. That is the claim of acceptance row 3: the host decides.
+      {
+        id: 'p-head',
+        fullName: 'Avery Chen',
+        photoUrl: photo,
+        testId: 'staff-head',
+        entityType: 'promo-cover',
+      },
+      {
+        id: 'p-1z',
+        fullName: 'Jordan Blake',
+        photoUrl: photo,
+        testId: 'staff-temp',
+        entityType: 'promo-contain',
+      },
       { id: 'p-2z', fullName: 'Morgan Lee', photoUrl: photo },
       { id: 'p-sup', fullName: 'Casey Nguyen', photoUrl: photo },
       { id: 'p-u1', fullName: 'Taylor Brooks', photoUrl: photo },

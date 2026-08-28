@@ -246,6 +246,10 @@ export class OrgHierarchyDiagram {
       instance.onViewportTransform(t.scale);
       instance.notifyPromoteSync();
     });
+    // A resize changes how much of the scene fits without moving the camera, so
+    // it changes the answer to "which nodes are visible" — and nothing else
+    // would tell the promote layer that.
+    instance.host.setOnResize(() => instance.notifyPromoteSync());
     instance.viewState.lodLevel = resolveLodLevel(
       instance.host.getZoom(),
       instance.viewState.lodThresholds,

@@ -1,4 +1,4 @@
-import type { OrgHierarchyCallbacks, OrgHierarchyConfig } from '@org-hierarchy/sdk';
+import type { OrgHierarchyCallbacks, OrgHierarchyConfig, PromoteMode } from '@org-hierarchy/sdk';
 import {
   OrgHierarchyDiagram,
   mapFlatRowsInPool,
@@ -79,6 +79,11 @@ export class App {
     typeof window === 'undefined'
       ? null
       : new URLSearchParams(window.location.search).get('renderer');
+  private readonly promoteMode: PromoteMode =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('promote') === 'near-visible'
+      ? 'near-visible'
+      : 'near-selection';
 
   private readonly mountEl: HTMLElement;
   private readonly statusEl: HTMLElement;
@@ -322,7 +327,9 @@ export class App {
     this.promote = createReactPromoteOverlay({
       diagram,
       mount: this.mountEl,
-      mode: 'near-selection',
+      // Opt-in, like `?renderer=`: the default stays the selection card so the
+      // existing behaviour — and the e2e that pins it — keeps its meaning.
+      mode: this.promoteMode,
       component: DemoPromoteCard,
     });
     if (!this.e2eMode) return;
@@ -699,26 +706,72 @@ export class App {
   }
 }
 
-/** Demo promote card with a placeholder “chart” slot (host can swap for Chart.js). */
+/**
+ * Three ways a host can fill a promoted card, chosen by the host's own
+ * `entityType` — T87.8, acceptance row 3.
+ *
+ * The SDK never interprets `entityType`; it carries it through and the host
+ * decides. That is the whole claim being demonstrated here, so the demo does the
+ * deciding in one readable place rather than hiding it in a style table.
+ */
+function promoteDisplayMode(node: PromoteSlotProps['node']): 'cover' | 'contain' | 'text' {
+  const image = node.person?.photoUrl;
+  if (!image) return 'text';
+  const kind = node.person?.entityType ?? node.organization?.entityType;
+  return kind === 'promo-contain' ? 'contain' : 'cover';
+}
+
 function DemoPromoteCard(props: PromoteSlotProps) {
+  const mode = promoteDisplayMode(props.node);
+  const { screenRect, chrome, node } = props;
+  const title =
+    node.person?.fullName ?? node.organization?.name ?? node.position?.title ?? node.ref.id;
+
+  if (mode === 'text') {
+    // No picture at all — a vacant seat. Showing an empty frame where the other
+    // cards show an image reads as a loading failure, so it says what it is.
+    return createElement(
+      DefaultPromoteCard,
+      props,
+      createElement(
+        'div',
+        { style: { fontSize: 10, color: '#94a3b8' }, 'data-promote-mode': 'text' },
+        'Без зображення',
+      ),
+    );
+  }
+
   return createElement(
-    DefaultPromoteCard,
-    props,
-    createElement(
-      'div',
-      {
-        style: {
-          height: 36,
-          borderRadius: 4,
-          background: 'linear-gradient(90deg, #dbeafe, #93c5fd)',
-          fontSize: 10,
-          color: '#1e3a8a',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        },
+    'div',
+    {
+      'data-promote-card': node.ref.id,
+      'data-promote-mode': mode,
+      style: {
+        position: 'absolute',
+        left: screenRect.left,
+        top: screenRect.top,
+        width: screenRect.width,
+        height: screenRect.height,
+        boxSizing: 'border-box',
+        borderRadius: chrome.borderRadius,
+        border: `${chrome.borderWidth}px solid var(--border, #cbd5e1)`,
+        background: 'var(--surface, #ffffff)',
+        overflow: 'hidden',
+        pointerEvents: 'auto',
+        // `cover` fills to the edges, so it gets no inset at all; `contain`
+        // needs the inset for the letterbox to read as deliberate.
+        padding: mode === 'contain' ? (chrome.paddingY ?? 6) : 0,
       },
-      'Host slot · Chart.js / actions',
-    ),
+    },
+    createElement('img', {
+      src: node.person?.photoUrl,
+      alt: title,
+      style: {
+        width: '100%',
+        height: '100%',
+        objectFit: mode,
+        display: 'block',
+      },
+    }),
   );
 }
