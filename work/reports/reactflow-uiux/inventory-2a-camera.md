@@ -76,3 +76,127 @@
 - **Кешований `extent`:** `d3ZoomInstance.extent(() => cachedExtent)` з `ResizeObserver`
   замість дефолтного d3 (той читає `clientWidth/clientHeight` → синхронний layout **на кожен
   кадр** пану/пінчу). Це прямо задокументована оптимізація `XYPanZoom.ts:58-84`.
+
+---
+
+## 2. Програмний рух
+
+Публічний вхід — `useReactFlow()` (він же `ReactFlowInstance`), який мерджить
+`useViewportHelper()` (`packages/react/src/hooks/useViewportHelper.ts:19-121`)
+з методами стору. Уся сімка зводиться до трьох примітивів `PanZoomInstance`:
+`setViewport` / `scaleTo` / `scaleBy` (`XYPanZoom.ts:248-302`).
+
+### Сигнатури (усі повертають `Promise<boolean>`)
+
+```ts
+// packages/system/src/types/general.ts:236-256
+type ViewportHelperFunctionOptions = {
+  duration?: number;                      // ms; 0/undefined = миттєво
+  ease?: (t: number) => number;           // дефолт — cubicInOut
+  interpolate?: 'smooth' | 'linear';      // дефолт 'smooth'
+};
+type SetCenterOptions  = ViewportHelperFunctionOptions & { zoom?: number };
+type FitBoundsOptions  = ViewportHelperFunctionOptions & { padding?: number };
+
+fitView(options?: FitViewOptions): Promise<boolean>            // react/src/hooks/useReactFlow.ts:294-304
+fitBounds(bounds: Rect, options?: FitBoundsOptions)            // useViewportHelper.ts:68-83
+setCenter(x: number, y: number, options?: SetCenterOptions)    // react/src/store/index.ts:422-441
+zoomTo(zoomLevel: number, options?)                            // useViewportHelper.ts:34-38  → scaleTo
+setViewport(viewport: Viewport, options?)                      // useViewportHelper.ts:40-60
+zoomIn(options?)                                               // useViewportHelper.ts:24-28  → scaleBy(1.2)
+zoomOut(options?)                                              // useViewportHelper.ts:29-33  → scaleBy(1/1.2)
+```
+
+Ще поруч (не в списку, але корисне): `panBy(delta)` (`store/index.ts:417-421`),
+`getZoom()`, `getViewport()` (`useViewportHelper.ts:39,61-64`).
+
+### Анімація: `duration` / `ease` / `interpolate`
+
+Один спільний механізм, `packages/system/src/xypanzoom/utils.ts:23-34`:
+
+```ts
+const defaultEase = (t) => ((t *= 2) <= 1 ? t*t*t : (t -= 2)*t*t + 2) / 2;   // cubicInOut, скопійовано з d3-ease
+getD3Transition(selection, duration = 0, ease = defaultEase, onEnd)
+  → duration > 0 ? selection.transition().duration(duration).ease(ease).on('end', onEnd)
+                 : selection;      // без duration — той самий selection, зміна миттєва
+```
+
+`interpolate` вибирає інтерполятор **d3**: `'linear'` → `d3-interpolate.interpolate`,
+`'smooth'` (дефолт) → `interpolateZoom` (`XYPanZoom.ts:106-117, 278-302`).
+Це принципова різниця: `interpolateZoom` — це **Van Wijk & Nuij «smooth and efficient
+zooming and panning»**: камера при далекому перельоті спершу *від'їжджає*, летить,
+і *під'їжджає*. `'linear'` — просто лінійна інтерполяція x/y/k, при великій дистанції дає
+ефект «розмазаного пролітання» повз усе.
+
+### Неочевидна вартість / пастки
+
+- **Promise резолвиться з `.on('end')` d3-транзиції** (`utils.ts:33`), тобто **перерваний
+  користувачем жест лишає Promise невирішеним** — d3 при interrupt стріляє `interrupt`,
+  не `end`. `await fitView({duration: 800})` може повиснути назавжди, якщо юзер крутнув колесо.
+- **`fitView()` не виконується одразу — він у черзі.** Ставиться `fitViewQueued: true` і
+  штовхається no-op у `nodeQueue` (`useReactFlow.ts:294-304`); справжній `fitViewport()`
+  запускається аж у `setNodes` і **лише якщо `nodesInitialized`** (`store/index.ts:130-138`).
+  Причина: fit неможливий, доки вузли не виміряні. Наслідок — **на порожній сцені
+  `nodesInitialized === false`** (`packages/system/src/utils/store.ts:140`), отже
+  Promise від `fitView()` **ніколи не резолвиться**, доки не з'являться вузли.
+- **Порожня сцена в `fitViewport`** — окремий ранній вихід: `if (nodes.size === 0) return true`
+  (`packages/system/src/utils/graph.ts:381-383`). Тобто камера не рухається, але «успіх».
+  Два різних поводження на порожнечу залежно від входу.
+- **Багаторазовий виклик `fitView` дає один Promise** — резолвер перевикористовується
+  (`useReactFlow.ts:296-297`, коментар у `store/index.ts:76-80`).
+- **`setCenter` без `options.zoom` бере `maxZoom`, а не поточний зум** (`store/index.ts:429`).
+  Це стабільно ловить людей: «центруй на вузлі» несподівано ще й зумить на максимум.
+  Внутрішній автопан на фокус вузла це знає і передає зум явно
+  (`packages/react/src/components/NodeWrapper/index.tsx:168-180`).
+- **`setViewport` приймає часткові координати** — `x ?? tX` тощо (`useViewportHelper.ts:50-57`),
+  тож `setViewport({zoom: 2})` рухає лише зум.
+- **`setViewport` НЕ обмежується `translateExtent`** — воно йде в `panZoom.setViewport`
+  (`XYPanZoom.ts:248-254`), яке кличе `setTransform` напряму. Обмежена версія —
+  окрема функція `setViewportConstrained` (`XYPanZoom.ts:233-246`), і вона в публічний
+  API не виведена; використовується лише при ініті та в `panBy`.
+- **`zoomIn`/`zoomOut` — фіксований множник 1.2** (`useViewportHelper.ts:27,32`), не
+  конфігурується пропом; хочеш інший крок — пиши свій через `zoomTo`.
+- **`fitBounds.padding` — тільки `number`, дефолт `0.1`** (`useViewportHelper.ts:70`), тоді
+  як `fitViewOptions.padding` приймає повний `Padding` (числа, `'10px'`, `'5%'`, per-side об'єкт).
+  Асиметрія API.
+
+---
+
+## 3. `fitViewOptions`
+
+```ts
+// packages/system/src/types/general.ts:186-195
+type FitViewOptionsBase<NodeType> = {
+  padding?: Padding;              // number | '10px' | '5%' | {top,right,bottom,left,x,y}
+  includeHiddenNodes?: boolean;
+  minZoom?: number;               // перекриває глобальний minZoom
+  maxZoom?: number;               // перекриває глобальний maxZoom
+  duration?: number;
+  ease?: (t: number) => number;
+  interpolate?: 'smooth' | 'linear';
+  nodes?: (NodeType | { id: string })[];   // достатньо {id}
+};
+```
+
+Реалізація: `getFitViewNodes()` (`packages/system/src/utils/graph.ts:343-372`) →
+`getInternalNodesBounds()` → `getViewportForBounds()` → `panZoom.setViewport()`
+(`graph.ts:375-403`).
+
+- **`nodes`** — фільтр за `id` через `Set` (`graph.ts:347`); передавати можна як цілі вузли,
+  так і `{id}`-заглушки. Це і є «зумни на цей піддерев'я».
+- **`includeHiddenNodes`** — перемикає критерій «видимості»: без нього потрібні
+  `measured.width/height && !hidden`; з ним береться `getNodeDimensions()` — declared/initial
+  розміри, бо приховані вузли **ніколи не рендерились і не мають measured**
+  (`graph.ts:352-365`, коментар з посиланням на issue #5841).
+- **`minZoom`/`maxZoom`** тут — це clamp на **обчислений** fit-зум (`general.ts:319`), а не
+  зміна глобальних меж панзуму.
+- **`padding` дефолт `0.1`** (`graph.ts:395`) — 10 % **від відповідного виміру вьюпорта**
+  (`parsePaddings`, `general.ts:229-256`): вертикальні відступи рахуються від `height`,
+  горизонтальні від `width`, тому `padding: 0.1` — це різна кількість пікселів по осях.
+- **Асиметричний padding — двопрохідний алгоритм** (`general.ts:304-342`): спершу рахується
+  центрований вьюпорт, потім `calculateAppliedPaddings()` міряє фактичні відступи і зсуває
+  камеру рівно настільки, наскільки якийсь бік *недобрав* required-padding
+  (`Math.min(applied - required, 0)`). Тобто padding — це **мінімум**, а не точна рамка:
+  бік із запасом лишається як є.
+- **`'%'` рахується від виміру вьюпорта, `'px'` — абсолютно**; невалідна одиниця →
+  `console.error` і `0` (`general.ts:215-219`).

@@ -723,3 +723,196 @@ describe('one broken card does not take the layer down', () => {
     await act(async () => overlay.dispose());
   });
 });
+
+describe('deferred recompute while the camera moves', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  function makeCameraDiagram(): {
+    diagram: PromoteOverlayDiagram;
+    moveTo(v: { x: number; y: number; scale: number }): void;
+    syncs: number;
+  } {
+    const state = { viewport: { x: 0, y: 0, scale: 1 }, syncs: 0 };
+    let listener: (() => void) | null = null;
+    const box = { id: 'pos1', kind: 'position' as const, x: 100, y: 100, width: 60, height: 40 };
+    const diagram: PromoteOverlayDiagram = {
+      getViewport: () => state.viewport,
+      getLodLevel: () => 'near',
+      getSelection: () => null,
+      select: rstest.fn(async () => undefined),
+      getScreenSize: () => ({ width: 800, height: 600 }),
+      listPromoteBoxes: () => [box],
+      listPromoteCandidates: (ids) => {
+        state.syncs += 1;
+        return (ids ?? [box.id]).map(() => ({
+          id: box.id,
+          kind: 'position' as const,
+          world: box,
+          node: {
+            ref: { id: box.id, kind: 'position' as const, positionId: box.id },
+            position: {
+              id: box.id,
+              title: 'Eng',
+              organizationId: 'org1',
+              groupIds: [],
+              status: 'vacant' as const,
+              isTemporary: false,
+            },
+          },
+        }));
+      },
+      setPromotedNodeIds: rstest.fn(),
+      subscribePromoteSync: (l) => {
+        listener = l;
+        return () => {
+          listener = null;
+        };
+      },
+    };
+    return {
+      diagram,
+      moveTo: (v) => {
+        state.viewport = v;
+        listener?.();
+      },
+      get syncs() {
+        return state.syncs;
+      },
+    };
+  }
+
+  const settleMs = 15;
+  const afterSettle = () => new Promise((r) => setTimeout(r, settleMs * 4));
+
+  function mountEl(): HTMLElement {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    return mount;
+  }
+
+  function layerOf(mount: HTMLElement): HTMLElement {
+    return mount.querySelector<HTMLElement>('[data-org-hierarchy-promote-root]')!;
+  }
+
+  it('success: the layer carries the camera while the cards stay put', async () => {
+    const cam = makeCameraDiagram();
+    const mount = mountEl();
+    let overlay!: ReturnType<typeof createReactPromoteOverlay>;
+    await act(async () => {
+      overlay = createReactPromoteOverlay({
+        diagram: cam.diagram,
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-visible',
+        settleMs,
+      });
+    });
+    const before = cam.syncs;
+    const cardLeft = mount.querySelector<HTMLElement>('[data-promote-card]')!.style.left;
+
+    await act(async () => cam.moveTo({ x: 40, y: -10, scale: 1 }));
+
+    // Moving dozens of cards individually is the cost this design avoids: one
+    // transform on the layer does the same job, and no card is touched.
+    expect(layerOf(mount).style.transform).toBe('translate(40px, -10px) scale(1)');
+    expect(mount.querySelector<HTMLElement>('[data-promote-card]')!.style.left).toBe(cardLeft);
+    expect(cam.syncs).toBe(before);
+    await act(async () => overlay.dispose());
+  });
+
+  it('success: once the camera settles the layer is reset and positions are rebuilt', async () => {
+    const cam = makeCameraDiagram();
+    const mount = mountEl();
+    let overlay!: ReturnType<typeof createReactPromoteOverlay>;
+    await act(async () => {
+      overlay = createReactPromoteOverlay({
+        diagram: cam.diagram,
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-visible',
+        settleMs,
+      });
+    });
+    await act(async () => cam.moveTo({ x: 40, y: -10, scale: 1 }));
+    await act(async () => {
+      await afterSettle();
+    });
+
+    expect(layerOf(mount).style.transform).toBe('');
+    // world 100 * scale 1 + pan 40 = 140
+    expect(mount.querySelector<HTMLElement>('[data-promote-card]')!.style.left).toBe('140px');
+    await act(async () => overlay.dispose());
+  });
+
+  it('failure: the latest camera wins, not an intermediate one', async () => {
+    const cam = makeCameraDiagram();
+    const mount = mountEl();
+    let overlay!: ReturnType<typeof createReactPromoteOverlay>;
+    await act(async () => {
+      overlay = createReactPromoteOverlay({
+        diagram: cam.diagram,
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-visible',
+        settleMs,
+      });
+    });
+    await act(async () => {
+      cam.moveTo({ x: 40, y: 0, scale: 1 });
+      cam.moveTo({ x: 90, y: 0, scale: 1 });
+    });
+    await act(async () => {
+      await afterSettle();
+    });
+
+    // Drawing the frame the camera already left would be a visible snap back.
+    expect(mount.querySelector<HTMLElement>('[data-promote-card]')!.style.left).toBe('190px');
+    await act(async () => overlay.dispose());
+  });
+
+  it('failure: dispose during a pending recompute renders nothing and does not throw', async () => {
+    const cam = makeCameraDiagram();
+    const mount = mountEl();
+    let overlay!: ReturnType<typeof createReactPromoteOverlay>;
+    await act(async () => {
+      overlay = createReactPromoteOverlay({
+        diagram: cam.diagram,
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-visible',
+        settleMs,
+      });
+    });
+    await act(async () => cam.moveTo({ x: 40, y: 0, scale: 1 }));
+    const before = cam.syncs;
+    await act(async () => overlay.dispose());
+    await act(async () => {
+      await afterSettle();
+    });
+
+    // The timer outliving the root would render into an unmounted tree.
+    expect(cam.syncs).toBe(before);
+    expect(mount.querySelector('[data-promote-card]')).toBeNull();
+  });
+
+  it('success: two consecutive syncs produce identical DOM', async () => {
+    const cam = makeCameraDiagram();
+    const mount = mountEl();
+    let overlay!: ReturnType<typeof createReactPromoteOverlay>;
+    await act(async () => {
+      overlay = createReactPromoteOverlay({
+        diagram: cam.diagram,
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-visible',
+        settleMs,
+      });
+    });
+    const first = layerOf(mount).innerHTML;
+    await act(async () => overlay.sync());
+    expect(layerOf(mount).innerHTML).toBe(first);
+    await act(async () => overlay.dispose());
+  });
+});

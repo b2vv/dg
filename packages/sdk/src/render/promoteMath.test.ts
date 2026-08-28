@@ -3,6 +3,7 @@ import {
   resolvePromoteIds,
   nearVisibleGateOpen,
   pickNearestToCenter,
+  viewportCatchUpTransform,
   screenRectInView,
   worldBoxToScreen,
   nodeEntityKey,
@@ -190,5 +191,41 @@ describe('pickNearestToCenter', () => {
       { id: 'left', screenRect: { left: 280, top: 280, width: 20, height: 20 } },
     ];
     expect(pickNearestToCenter(mirrored, screen, 1).map((c) => c.id)).toEqual(['right']);
+  });
+});
+
+describe('viewportCatchUpTransform', () => {
+  it('success: an unchanged camera needs no correction', () => {
+    const v = { x: 10, y: 20, scale: 1.5 };
+    expect(viewportCatchUpTransform(v, v)).toEqual({ x: 0, y: 0, scale: 1 });
+  });
+
+  it('success: a pure pan becomes a pure translate', () => {
+    expect(
+      viewportCatchUpTransform({ x: 10, y: 20, scale: 2 }, { x: 60, y: -5, scale: 2 }),
+    ).toEqual({ x: 50, y: -25, scale: 1 });
+  });
+
+  it('success: a zoom carries the ratio', () => {
+    expect(
+      viewportCatchUpTransform({ x: 0, y: 0, scale: 1 }, { x: 0, y: 0, scale: 2 }),
+    ).toEqual({ x: 0, y: 0, scale: 2 });
+  });
+
+  it('success: the correction maps an old screen point onto its new one', () => {
+    const from = { x: 30, y: 40, scale: 1.25 };
+    const to = { x: -70, y: 15, scale: 2.5 };
+    const world = { x: 12, y: 7 };
+    const t = viewportCatchUpTransform(from, to)!;
+    const oldScreen = { x: world.x * from.scale + from.x, y: world.y * from.scale + from.y };
+    const newScreen = { x: world.x * to.scale + to.x, y: world.y * to.scale + to.y };
+    // This is the whole point: applying the correction to where a card is drawn
+    // must put it where the card belongs, without touching the card itself.
+    expect(oldScreen.x * t.scale + t.x).toBeCloseTo(newScreen.x, 10);
+    expect(oldScreen.y * t.scale + t.y).toBeCloseTo(newScreen.y, 10);
+  });
+
+  it('failure: a zero previous scale cannot be corrected, so it asks for a full resync', () => {
+    expect(viewportCatchUpTransform({ x: 0, y: 0, scale: 0 }, { x: 5, y: 5, scale: 1 })).toBeNull();
   });
 });

@@ -172,6 +172,27 @@ export function pickNearestToCenter<T extends { screenRect: ScreenRect }>(
     .map((entry) => entry.item);
 }
 
+/**
+ * The correction that makes cards drawn for one camera look right under another,
+ * without touching a single card.
+ *
+ * Positions in the promote layer are computed for a specific viewport and then
+ * left alone while the camera moves — recomputing dozens of them per frame is
+ * the cost this whole design avoids. Applying this transform to the layer keeps
+ * those stale positions correct until the camera settles and they are rebuilt.
+ *
+ * Returns `null` when the previous camera had zero scale, which carries no
+ * information about where anything was: the caller must rebuild instead.
+ */
+export function viewportCatchUpTransform(
+  from: ViewportTransform,
+  to: ViewportTransform,
+): ViewportTransform | null {
+  if (!from.scale) return null;
+  const scale = to.scale / from.scale;
+  return { x: to.x - from.x * scale, y: to.y - from.y * scale, scale };
+}
+
 /** True when a screen rect intersects the viewport (with padding). */
 export function screenRectInView(
   rect: ScreenRect,

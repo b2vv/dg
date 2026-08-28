@@ -24,6 +24,7 @@ import {
   nearVisibleGateOpen,
   pickNearestToCenter,
   resolvePromoteIds,
+  viewportCatchUpTransform,
   screenRectInView,
   worldBoxToScreen,
   type PromoteMode,
@@ -91,6 +92,12 @@ export interface ReactPromoteOverlayOptions {
    * back to being drawn by Pixi; this is the host's chance to log it.
    */
   onSlotError?(id: string, error: unknown): void;
+  /**
+   * How long the camera must be still, in ms, before card positions are rebuilt.
+   * While it moves, the whole layer is carried by one CSS transform instead.
+   * Default 150 — the same interval d3-zoom and React Flow treat as "stopped".
+   */
+  settleMs?: number;
   /** Optional wrapper styles / class */
   className?: string;
 }
@@ -217,6 +224,9 @@ export function createReactPromoteOverlay(
   layer.style.inset = '0';
   layer.style.pointerEvents = 'none';
   layer.style.zIndex = '5';
+  // The catch-up transform is applied here, so it has to scale from the layer's
+  // own top-left — the same origin the card positions were computed against.
+  layer.style.transformOrigin = '0 0';
   mount.appendChild(layer);
 
   let root: Root | null = createRoot(layer);
@@ -229,6 +239,24 @@ export function createReactPromoteOverlay(
    * sync would loop between throwing and re-mounting.
    */
   const failedIds = new Set<string>();
+  /** The camera the DOM currently on screen was built for. */
+  let syncedViewport: ViewportTransform | null = null;
+  let settleHandle: ReturnType<typeof setTimeout> | null = null;
+  let appliedTransform = '';
+  const settleMs = options.settleMs ?? 150;
+
+  const cancelSettle = (): void => {
+    if (settleHandle === null) return;
+    clearTimeout(settleHandle);
+    settleHandle = null;
+  };
+
+  /** Write past React, and only on a real change — this runs on every frame. */
+  const writeLayerTransform = (value: string): void => {
+    if (value === appliedTransform) return;
+    appliedTransform = value;
+    layer.style.transform = value;
+  };
 
   const handleSlotError = (id: string, error: unknown): void => {
     if (failedIds.has(id)) return;
@@ -285,7 +313,12 @@ export function createReactPromoteOverlay(
 
   const sync = (): void => {
     if (disposed || !root) return;
+    cancelSettle();
     const viewport = options.diagram.getViewport();
+    // Positions below are computed for this camera, so the layer must not be
+    // carrying a correction for an older one.
+    writeLayerTransform('');
+    syncedViewport = viewport;
     const lod = options.diagram.getLodLevel();
     const measured = options.diagram.getScreenSize();
     const screen = {
@@ -351,7 +384,34 @@ export function createReactPromoteOverlay(
     );
   };
 
-  const unsubscribe = options.diagram.subscribePromoteSync(sync);
+  /**
+   * Every camera frame lands here. Rebuilding card positions on each of them is
+   * the cost this design exists to avoid, so the frame gets one transform on the
+   * layer and the rebuild waits until the camera stops.
+   */
+  const onCameraChange = (): void => {
+    if (disposed) return;
+    const catchUp = syncedViewport
+      ? viewportCatchUpTransform(syncedViewport, options.diagram.getViewport())
+      : null;
+    if (!catchUp) {
+      // No usable reference frame — correcting is impossible, so rebuild.
+      sync();
+      return;
+    }
+    writeLayerTransform(
+      `translate(${catchUp.x}px, ${catchUp.y}px) scale(${catchUp.scale})`,
+    );
+    cancelSettle();
+    settleHandle = setTimeout(() => {
+      settleHandle = null;
+      // Reads the camera fresh, so the frame that gets drawn is the one the
+      // camera stopped at rather than the one that scheduled this.
+      sync();
+    }, settleMs);
+  };
+
+  const unsubscribe = options.diagram.subscribePromoteSync(onCameraChange);
   sync();
 
   return {
@@ -368,6 +428,9 @@ export function createReactPromoteOverlay(
     dispose: () => {
       if (disposed) return;
       disposed = true;
+      // Before unmounting the root: a timer that outlives it would render into
+      // a tree that no longer exists.
+      cancelSettle();
       unsubscribe();
       options.diagram.setPromotedNodeIds([]);
       root?.unmount();

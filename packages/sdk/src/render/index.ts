@@ -107,6 +107,7 @@ export {
   resolvePromoteIds,
   nearVisibleGateOpen,
   pickNearestToCenter,
+  viewportCatchUpTransform,
   screenRectInView,
   nodeEntityKey,
   parseNodeEntityKey,
