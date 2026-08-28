@@ -32,6 +32,7 @@ function makeDiagram(overrides: Partial<PromoteOverlayDiagram> = {}): PromoteOve
     getLodLevel: () => 'near',
     getSelection: () => ({ id: 'pos1', kind: 'position', positionId: 'pos1', personId: 'p1' }),
     select: rstest.fn(async () => undefined),
+    getScreenSize: () => ({ width: 800, height: 600 }),
     listPromoteBoxes: () => [
       { id: 'pos1', kind: 'position' as const, x: 10, y: 20, width: 100, height: 60 },
     ],
@@ -181,6 +182,7 @@ describe('near-visible mode', () => {
       getLodLevel: () => 'near',
       getSelection: () => null,
       select: rstest.fn(async () => undefined),
+      getScreenSize: () => ({ width: 800, height: 600 }),
       listPromoteBoxes: () => boxes,
       listPromoteCandidates: (ids) => {
         resolvedWith.push(ids);
@@ -378,6 +380,43 @@ describe('shouldPromote — the host keeps a node on the canvas', () => {
     });
 
     expect(mount.querySelector('[data-promote-card]')).toBeTruthy();
+    await act(async () => overlay.dispose());
+  });
+});
+
+describe('screen size comes from the diagram, not from the DOM', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('success: sync never reads clientWidth, which would flush layout every frame', async () => {
+    const mount = document.createElement('div');
+    let clientWidthReads = 0;
+    Object.defineProperty(mount, 'clientWidth', {
+      get() {
+        clientWidthReads += 1;
+        return 800;
+      },
+    });
+    Object.defineProperty(mount, 'clientHeight', { value: 600 });
+    document.body.appendChild(mount);
+
+    const diagram = makeDiagram();
+    let overlay!: ReturnType<typeof createReactPromoteOverlay>;
+    await act(async () => {
+      overlay = createReactPromoteOverlay({ diagram, mount, component: DefaultPromoteCard });
+    });
+    await act(async () => {
+      overlay.sync();
+      overlay.sync();
+    });
+
+    // Reading clientWidth forces the browser to flush pending style and layout.
+    // On the path that runs for every viewport change that is a cost paid per
+    // frame — the same trap React Flow removed from its own gesture path by
+    // caching the container box (XYPanZoom.ts:58-81). The diagram already has a
+    // ResizeObserver, so the size is asked of it instead.
+    expect(clientWidthReads).toBe(0);
     await act(async () => overlay.dispose());
   });
 });

@@ -1014,6 +1014,11 @@ export class OrgHierarchyDiagram {
    * the data arrays several times over while reading its rectangle costs
    * nothing (`work/reports/promote-near/report.md` §2.3).
    */
+  /** Surface size from the host's ResizeObserver — see {@link PixiHost.getScreenSize}. */
+  getScreenSize(): { width: number; height: number } {
+    return this.host?.getScreenSize() ?? { width: 0, height: 0 };
+  }
+
   listPromoteBoxes(): readonly NodeWorldBox[] {
     return this.renderer?.listNodeBoxes() ?? [];
   }

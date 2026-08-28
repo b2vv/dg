@@ -38,6 +38,15 @@ export interface PromoteOverlayDiagram {
    * `work/reports/promote-near/report.md` §2.3), and in `near-visible` most
    * boxes are off screen and never become cards.
    */
+  /**
+   * Size of the diagram surface, from the diagram's own ResizeObserver.
+   *
+   * Deliberately not `mount.clientWidth`: reading a geometric property makes the
+   * browser flush pending style and layout, and this runs on every viewport
+   * change. The diagram is already measuring its container, so there is nothing
+   * to gain by measuring it a second time in the hot path.
+   */
+  getScreenSize(): { width: number; height: number };
   listPromoteBoxes(): readonly PromoteBox[];
   listPromoteCandidates(ids?: readonly string[]): PromoteCandidate[];
   setPromotedNodeIds(ids: readonly string[]): void;
@@ -163,9 +172,10 @@ export function createReactPromoteOverlay(
     if (disposed || !root) return;
     const viewport = options.diagram.getViewport();
     const lod = options.diagram.getLodLevel();
+    const measured = options.diagram.getScreenSize();
     const screen = {
-      width: mount.clientWidth || 1,
-      height: mount.clientHeight || 1,
+      width: measured.width || 1,
+      height: measured.height || 1,
     };
 
     const ids =
