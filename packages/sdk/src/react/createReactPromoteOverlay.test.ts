@@ -306,3 +306,78 @@ describe('hide only what was drawn', () => {
     await act(async () => overlay.dispose());
   });
 });
+
+describe('shouldPromote — the host keeps a node on the canvas', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  function mountEl(): HTMLElement {
+    const mount = document.createElement('div');
+    Object.defineProperty(mount, 'clientWidth', { value: 800 });
+    Object.defineProperty(mount, 'clientHeight', { value: 600 });
+    document.body.appendChild(mount);
+    return mount;
+  }
+
+  it('failure: a rejected node stays on the canvas with no empty shell in the layer', async () => {
+    const diagram = makeDiagram();
+    const mount = mountEl();
+    let overlay!: ReturnType<typeof createReactPromoteOverlay>;
+    await act(async () => {
+      overlay = createReactPromoteOverlay({
+        diagram,
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-selection',
+        shouldPromote: () => false,
+      });
+    });
+
+    // Both halves matter: nothing in HTML, and nothing hidden in Pixi either.
+    // Hiding without drawing is the hole this ordering exists to prevent.
+    expect(mount.querySelector('[data-promote-card]')).toBeNull();
+    expect(diagram.setPromotedNodeIds).toHaveBeenCalledWith([]);
+    await act(async () => overlay.dispose());
+  });
+
+  it('success: the predicate sees the node data, so the host can decide by kind', async () => {
+    const diagram = makeDiagram();
+    const mount = mountEl();
+    const seen: string[] = [];
+    let overlay!: ReturnType<typeof createReactPromoteOverlay>;
+    await act(async () => {
+      overlay = createReactPromoteOverlay({
+        diagram,
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-selection',
+        shouldPromote: (node) => {
+          seen.push(node.ref.kind);
+          return node.ref.kind === 'position';
+        },
+      });
+    });
+
+    expect(seen).toEqual(['position']);
+    expect(mount.querySelector('[data-promote-card]')).toBeTruthy();
+    await act(async () => overlay.dispose());
+  });
+
+  it('success: no predicate promotes everything, as before', async () => {
+    const diagram = makeDiagram();
+    const mount = mountEl();
+    let overlay!: ReturnType<typeof createReactPromoteOverlay>;
+    await act(async () => {
+      overlay = createReactPromoteOverlay({
+        diagram,
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-selection',
+      });
+    });
+
+    expect(mount.querySelector('[data-promote-card]')).toBeTruthy();
+    await act(async () => overlay.dispose());
+  });
+});

@@ -60,6 +60,16 @@ export interface ReactPromoteOverlayOptions {
   component: ComponentType<PromoteSlotProps>;
   mode?: PromoteMode;
   maxPromoted?: number;
+  /**
+   * Host veto, asked once per candidate before anything is hidden in Pixi.
+   * Returning `false` leaves that node drawn on the canvas, which is the answer
+   * for a node the host has no chrome for — the overlay renders one component
+   * for every promoted node, so "no card for this one" has to be said here
+   * rather than by the component returning nothing.
+   *
+   * Not set: every candidate is promoted.
+   */
+  shouldPromote?(node: ContextMenuNodeData): boolean;
   /** Optional wrapper styles / class */
   className?: string;
 }
@@ -174,6 +184,7 @@ export function createReactPromoteOverlay(
     for (const candidate of ids.length > 0 ? options.diagram.listPromoteCandidates(ids) : []) {
       const screenRect = worldBoxToScreen(candidate.world, viewport);
       if (!screenRectInView(screenRect, screen)) continue;
+      if (options.shouldPromote && !options.shouldPromote(candidate.node)) continue;
       slots.push({
         id: candidate.id,
         node: candidate.node,
