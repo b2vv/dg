@@ -23,6 +23,7 @@ import {
   type NodeTheme,
   type RenderConfig,
   type CameraMotionOptions,
+  type NodeWorldBox,
 } from './render/index.js';
 import { resolvePersonPhotoUrl } from './render/PersonNode.js';
 import { inferStaffCurrentOrgId } from './render/inferStaffCurrentOrgId.js';
@@ -31,7 +32,7 @@ import { createRenderCoalesce } from './render/renderCoalesce.js';
 import { SelectionStore } from './state/SelectionStore.js';
 import { ViewStateStore } from './state/ViewStateStore.js';
 import { DataStore } from './state/DataStore.js';
-import type { PromoteCandidate } from './render/promoteTypes.js';
+import type { PromoteCandidate, PromoteChrome } from './render/promoteTypes.js';
 import { promoteIdMatches } from './render/promoteMath.js';
 import type { SelectionPointerMods } from './interaction/selection.js';
 import { resolveContextMenuNodeData } from './interaction/contextMenuPayload.js';
@@ -245,6 +246,10 @@ export class OrgHierarchyDiagram {
       instance.onViewportTransform(t.scale);
       instance.notifyPromoteSync();
     });
+    // A resize changes how much of the scene fits without moving the camera, so
+    // it changes the answer to "which nodes are visible" — and nothing else
+    // would tell the promote layer that.
+    instance.host.setOnResize(() => instance.notifyPromoteSync());
     instance.viewState.lodLevel = resolveLodLevel(
       instance.host.getZoom(),
       instance.viewState.lodThresholds,
@@ -1003,6 +1008,41 @@ export class OrgHierarchyDiagram {
   }
 
   /**
+   * Frame geometry of a node kind in world units, for callers that draw a
+   * replacement for a Pixi node and need it to line up.
+   */
+  getPromoteChrome(kind: 'organization' | 'person' | 'position'): PromoteChrome {
+    const style =
+      kind === 'organization' ? this.nodeTheme.organization : this.nodeTheme.person;
+    const chrome: PromoteChrome = {
+      borderRadius: style.borderRadius,
+      borderWidth: style.borderWidth,
+    };
+    if (kind === 'organization') {
+      const org = this.nodeTheme.organization;
+      if (org.bodyPaddingX !== undefined) chrome.paddingX = org.bodyPaddingX;
+      if (org.bodyPaddingY !== undefined) chrome.paddingY = org.bodyPaddingY;
+    }
+    return chrome;
+  }
+
+  /** Surface size from the host's ResizeObserver — see {@link PixiHost.getScreenSize}. */
+  getScreenSize(): { width: number; height: number } {
+    return this.host?.getScreenSize() ?? { width: 0, height: 0 };
+  }
+
+  /**
+   * Node rectangles with no data resolution — the cheap half of
+   * {@link OrgHierarchyDiagram.listPromoteCandidates}. Promote callers filter on
+   * these first and resolve only what survives, because resolving a box walks
+   * the data arrays several times over while reading its rectangle costs
+   * nothing (`work/reports/promote-near/report.md` §2.3).
+   */
+  listPromoteBoxes(): readonly NodeWorldBox[] {
+    return this.renderer?.listNodeBoxes() ?? [];
+  }
+
+  /**
    * World boxes + resolved node payloads for promote overlay.
    * When `ids` omitted, returns all remembered boxes that resolve to a node.
    */
@@ -1030,6 +1070,17 @@ export class OrgHierarchyDiagram {
   /** Hide Pixi views for promoted ids (HTML overlay owns the chrome). */
   setPromotedNodeIds(ids: readonly string[]): void {
     this.renderer?.setPromotedNodeIds(ids);
+  }
+
+  /**
+   * Which nodes Pixi is currently **not** drawing because HTML replaced them.
+   *
+   * The complement of this set is what the canvas owns, so it is the only way to
+   * ask "did that node go back to being drawn?" from outside — the DOM alone
+   * cannot answer it, since an absent card and a hidden node look the same.
+   */
+  getPromotedNodeIds(): readonly string[] {
+    return this.renderer?.getPromotedNodeIds() ?? [];
   }
 
   setZoom(scale: number): void {

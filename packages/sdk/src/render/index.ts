@@ -1,6 +1,7 @@
 export type { ContourComputer, RenderOptions } from './DiagramRenderer.js';
 export { DiagramRenderer } from './DiagramRenderer.js';
 export { LayerManager } from './LayerManager.js';
+export type { NodeWorldBox } from './SceneRegistry.js';
 export { PixiHost, resolvePixiResolution } from './PixiHost.js';
 export { Viewport } from './Viewport.js';
 export type { ViewportTransform, ViewportOptions, CameraMotionOptions } from './Viewport.js';
@@ -104,6 +105,10 @@ export {
 export {
   worldBoxToScreen,
   resolvePromoteIds,
+  nearVisibleGateOpen,
+  pickNearestToCenter,
+  resolvePromoteCap,
+  viewportCatchUpTransform,
   screenRectInView,
   nodeEntityKey,
   parseNodeEntityKey,
