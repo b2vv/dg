@@ -37,7 +37,16 @@ export interface WindowRequest {
 export interface WindowRange {
   start: number;
   end: number;
+  /** Seats that actually exist in the band, after the ends of the wall clamp it. */
   size: number;
+  /**
+   * Seats the camera asks for, *before* the clamp.
+   *
+   * At the top or bottom of the tier `size` is smaller than a screenful — correct
+   * for a window built at that edge, wrong for one built anywhere else. A jump
+   * builds elsewhere, so it sizes by the ask, not by what the edge left over.
+   */
+  span: number;
 }
 
 /**
@@ -62,7 +71,7 @@ export function resolveWindowRange(req: WindowRequest, geom: WallGeometry): Wind
   // Wall row 1 holds the first seat, so a row index maps to `(row - 1)` rows of seats.
   const start = clamp(req.wallBase + (firstRow - 1) * geom.cols, geom.firstIndex, lastSeat);
   const end = clamp(req.wallBase + (endRow - 1) * geom.cols, start, lastSeat);
-  return { start, end, size: end - start };
+  return { start, end, size: end - start, span: Math.max(0, endRow - firstRow) * geom.cols };
 }
 
 /**
@@ -98,26 +107,58 @@ function clamp(v: number, lo: number, hi: number): number {
  * rebuilds can finish out of order and leave the index describing the older
  * window.
  */
-export class RebuildScheduler {
+export class RebuildScheduler<T = number> {
   private timer: ReturnType<typeof setTimeout> | null = null;
-  private pending: number | null = null;
-  private running = false;
+  private pending: T | null = null;
   private stopped = false;
+  /**
+   * The mutual exclusion both entry points share.
+   *
+   * A boolean «running» flag is not enough once there is a second entry point:
+   * a caller that sets `pending` and then awaits the loop can land in the gap
+   * between the loop's last check and its exit, and wait for a build that will
+   * never start. Chaining onto the tail has no such gap — a job is queued
+   * behind whatever is in flight at the moment it is created.
+   */
+  private tail: Promise<void> = Promise.resolve();
 
   constructor(
-    private readonly build: (start: number) => Promise<void>,
+    private readonly build: (request: T) => Promise<void>,
     private readonly quietMs: number,
     private readonly onError: (error: unknown) => void = () => {},
   ) {}
 
-  request(start: number): void {
+  request(request: T): void {
     if (this.stopped) return;
-    this.pending = start;
+    this.pending = request;
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = setTimeout(() => {
       this.timer = null;
-      void this.drain();
+      void this.flush();
     }, this.quietMs);
+  }
+
+  /**
+   * Rebuild now and resolve when the scene has it.
+   *
+   * For an explicit destination rather than a gesture: waiting out the quiet
+   * period would only add latency to something the user already committed to,
+   * and the caller needs to say what landed, which means awaiting it. Anything
+   * merely queued is superseded — a pan that has not started yet is stale the
+   * moment somebody names where they want to be.
+   *
+   * Unlike {@link request}, a failure is thrown rather than routed to
+   * `onError`: an explicit action that did not happen has to be named to the
+   * person who asked for it.
+   */
+  async run(request: T): Promise<void> {
+    if (this.stopped) return;
+    if (this.timer !== null) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    this.pending = null;
+    await this.enqueue(request);
   }
 
   /** Cancel anything not yet started. A rebuild already in flight still finishes. */
@@ -128,25 +169,30 @@ export class RebuildScheduler {
     this.timer = null;
   }
 
-  private async drain(): Promise<void> {
-    if (this.running || this.stopped) return;
-    this.running = true;
-    try {
-      while (this.pending !== null && !this.stopped) {
-        const next = this.pending;
-        this.pending = null;
-        try {
-          await this.build(next);
-        } catch (error) {
-          // The range is dropped rather than retried: the camera has usually
-          // moved on by now, and a retry loop on a dead worker would rebuild
-          // forever against a window nobody is looking at. The scene keeps the
-          // data it already has; the caller names the reason.
-          this.onError(error);
-        }
+  private async flush(): Promise<void> {
+    while (this.pending !== null && !this.stopped) {
+      const next = this.pending;
+      this.pending = null;
+      try {
+        await this.enqueue(next);
+      } catch (error) {
+        // The range is dropped rather than retried: the camera has usually
+        // moved on by now, and a retry loop on a dead worker would rebuild
+        // forever against a window nobody is looking at. The scene keeps the
+        // data it already has; the caller names the reason.
+        this.onError(error);
       }
-    } finally {
-      this.running = false;
     }
+  }
+
+  private enqueue(request: T): Promise<void> {
+    const job = this.tail.then(() => (this.stopped ? undefined : this.build(request)));
+    // The tail must survive a rejection, or one failed rebuild wedges every
+    // later one; the rejection still reaches whoever awaited `job`.
+    this.tail = job.then(
+      () => {},
+      () => {},
+    );
+    return job;
   }
 }

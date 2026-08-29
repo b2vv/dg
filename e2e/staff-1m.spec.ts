@@ -26,7 +26,9 @@ test.describe('1M staff scale tab', () => {
     const search = page.locator('#search-input');
     await search.fill('pos-500000');
     await search.press('Enter');
-    await expect(page.locator('#status')).toContainText('Staff · 1M', { timeout: 60_000 });
+    // The window status, not the tab label: since T88.6 the jump goes through
+    // `setData`, and the tab label was written by the reload that no longer runs.
+    await expect(page.locator('#status')).toContainText('window', { timeout: 60_000 });
     // The window re-centred: the focus seat exists again, around the new index.
     await expect(page.getByTestId('node-scale-focus-seat')).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('.scene-caption')).toContainText('window');
@@ -137,5 +139,43 @@ test.describe('the window follows the camera (T88)', () => {
     // appended would walk toward a million rows of report lines.
     expect(after.positions).toBeLessThan(before.positions * 1.5);
     expect(after.reportLines).toBeLessThan(before.reportLines * 1.5);
+  });
+
+  // Acceptance row 14: a jump must move the window, not the scene around it.
+  test('a pos-N jump keeps the canvas and the zoom it was given', async ({ page }) => {
+    type Bridge = {
+      getViewport(): { x: number; y: number; scale: number };
+      setViewport(v: object): void;
+    };
+    const viewport = () =>
+      page.evaluate(() => (window as unknown as { __demoE2e: Bridge }).__demoE2e.getViewport());
+
+    // Mark the live canvas. `reload()` empties the mount, so a recreated scene
+    // cannot carry this attribute — it is the difference the row is about.
+    await page.evaluate(() => {
+      document.querySelector('canvas')!.setAttribute('data-t88-probe', 'original');
+    });
+
+    // Zoom away from what `fitView` would choose, so a refit is a visible number
+    // rather than a claim: at the fit scale, refitting and not refitting agree.
+    await page.evaluate(() => {
+      const b = (window as unknown as { __demoE2e: Bridge }).__demoE2e;
+      const vp = b.getViewport();
+      b.setViewport({ ...vp, scale: vp.scale * 0.4 });
+    });
+    // The zoom is a camera move too — let the slide it triggers finish first.
+    await page.waitForTimeout(900);
+    const before = await viewport();
+
+    const search = page.locator('#search-input');
+    await search.fill('pos-500000');
+    await search.press('Enter');
+    await expect(page.getByTestId('node-scale-focus-seat')).toBeVisible({ timeout: 30_000 });
+
+    expect(await page.locator('canvas').first().getAttribute('data-t88-probe')).toBe('original');
+    const after = await viewport();
+    expect(after.scale).toBeCloseTo(before.scale, 5);
+    // It did move: a jump that changed nothing would pass the two checks above.
+    await expect(page.locator('[data-window-start]')).not.toHaveAttribute('data-window-start', '0');
   });
 });

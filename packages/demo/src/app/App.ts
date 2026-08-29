@@ -36,6 +36,7 @@ import {
   parseScaleStaffQuery,
   STAFF_SCALE_DEFAULT_FOCUS,
   STAFF_SCALE_TOTAL,
+  STAFF_SCALE_WINDOW,
   type ScaleStaffWindow,
 } from '../scenarios/scaleStaff.js';
 import {
@@ -78,6 +79,16 @@ export type { DemoE2eBridge };
 
 export type { ContourControls, DemoTab };
 
+/**
+ * Why the staff window is being rebuilt.
+ *
+ * The two are not the same move and must not be collapsed into one number: a
+ * slide is given a range and keeps the content under the cursor still, a jump
+ * is given a point and takes the camera to it. They share a scheduler because
+ * they share the one thing that must not overlap — `setData`.
+ */
+type StaffRebuild = { kind: 'slide'; start: number } | { kind: 'jump'; focusIndex: number };
+
 export class App {
   private diagram: OrgHierarchyDiagram | null = null;
   private tab: DemoTab = 'variant-b';
@@ -90,7 +101,7 @@ export class App {
   private scaleWindow: ScaleOrgsWindow | null = null;
   private staffScaleWindow: ScaleStaffWindow | null = null;
 
-  private staffScheduler: RebuildScheduler | null = null;
+  private staffScheduler: RebuildScheduler<StaffRebuild> | null = null;
   private contextMenu: ReactContextMenuHost | null = null;
   private promote: ReactPromoteOverlay | null = null;
   private testAnchors: TestAnchorOverlay | null = null;
@@ -249,8 +260,11 @@ export class App {
           : {}),
         callbacks: this.diagramCallbacks(),
       });
-      this.staffScheduler = new RebuildScheduler(
-        (start) => this.slideStaffWindow(start),
+      this.staffScheduler = new RebuildScheduler<StaffRebuild>(
+        (request) =>
+          request.kind === 'slide'
+            ? this.slideStaffWindow(request.start)
+            : this.jumpStaffWindow(request.focusIndex),
         STAFF_REBUILD_QUIET_MS,
         (error) => {
           // The scene keeps the window it already has — the failure is named,
@@ -310,7 +324,7 @@ export class App {
           this.staffWallGeometry(),
         );
         if (range.start === win.startIndex) return;
-        this.staffScheduler?.request(range.start);
+        this.staffScheduler?.request({ kind: 'slide', start: range.start });
       },
       onSelectionChange: (nodes) => {
         this.setStatus(
@@ -570,6 +584,57 @@ export class App {
   }
 
   /**
+   * Take the window to a named seat without recreating the scene.
+   *
+   * The opposite of a slide in the one place that matters: `rebaseViewport`
+   * exists to hold the content under the cursor still, which is exactly what
+   * somebody who typed an index does *not* want. The camera is put on the seat
+   * instead — and the canvas it moves over is the one that was already there,
+   * which is the whole point of not going through `reload()`.
+   */
+  private async jumpStaffWindow(focusIndex: number): Promise<void> {
+    const diagram = this.diagram;
+    const previous = this.staffScaleWindow;
+    if (!diagram || !previous || this.tab !== 'staff-1m') return;
+
+    const geom = this.staffWallGeometry();
+    const { span } = resolveWindowRange(
+      {
+        screen: diagram.getScreenSize(),
+        viewport: diagram.getViewport(),
+        reserveScreens: STAFF_RESERVE_SCREENS,
+        wallBase: previous.wallBase,
+      },
+      geom,
+    );
+    // `span`, not `size`: if the camera is sitting at the end of tier 2 right
+    // now, what the wall left over there is narrower than a screen, and the
+    // window is about to be built somewhere with no edge to run into. A zero
+    // span means the surface has not been measured yet — the default is the
+    // only honest guess left.
+    const next = buildScaleStaffWindow({ focusIndex, windowSize: span > 0 ? span : STAFF_SCALE_WINDOW });
+    this.staffScaleWindow = next;
+    await diagram.setData(next.data);
+
+    // A seat outside tier 2 renders nothing to aim at, so the camera goes to the
+    // start of the window that *was* materialized. Leaving it where it was would
+    // point it at whatever the old window had at those coordinates — the reload
+    // path hid that by refitting the whole scene.
+    await diagram.focusNode(next.focusMaterialized ? `pos-${focusIndex}` : `pos-${next.startIndex}`);
+    this.mountSceneCaption();
+    this.syncStaffWindowMarker(next);
+    // After the camera, not before: focusing selects the seat, and the selection
+    // callback writes a status of its own.
+    this.setStatus(
+      next.focusMaterialized
+        ? this.staffWindowStatus(next)
+        // The window only centres inside tier 2 — say so instead of leaving the
+        // camera on a seat that is not the one that was asked for.
+        : `search · pos-${focusIndex} is in the ${next.focusTier} tier · the window centres on the current org (pos-${LEAD_SEATS}…${LEAD_SEATS + next.composition.current - 1})`,
+    );
+  }
+
+  /**
    * The observable the e2e waits on. Without it a test can only sleep on a
    * constant and hope the rebuild landed — the rebuild is debounced and async,
    * so there is otherwise nothing in the DOM that says it happened.
@@ -693,14 +758,21 @@ export class App {
         if (local[0]) await this.diagram.revealPath(local[0].node.positionId ?? local[0].node.id);
         return;
       }
-      const win = this.rebuildStaffScaleWindow(index);
-      await this.reload();
-      if (!win.focusMaterialized) {
-        // The window only centres inside tier 2 — say so instead of leaving the
-        // camera on a seat that is not the one that was asked for.
-        this.setStatus(
-          `search · pos-${index} is in the ${win.focusTier} tier · the window centres on the current org (pos-${LEAD_SEATS}…${LEAD_SEATS + win.composition.current - 1})`,
-        );
+      const scheduler = this.staffScheduler;
+      if (!scheduler) {
+        // No live scene to move the window inside of — building one is the only
+        // thing the old path is still here for.
+        this.rebuildStaffScaleWindow(index);
+        await this.reload();
+        return;
+      }
+      try {
+        // Through the scheduler, not around it: the jump ends in `setData`, and
+        // an in-flight pan rebuild is the overlap the scheduler exists to stop.
+        await scheduler.run({ kind: 'jump', focusIndex: index });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        this.setStatus(`search · pos-${index} · window unchanged · rebuild failed: ${msg}`);
       }
       return;
     }

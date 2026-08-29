@@ -77,6 +77,33 @@ describe('resolveWindowRange', () => {
     );
     expect(r.end).toBe(LEAD_SEATS + CURRENT_SEATS);
   });
+
+  it('failure: at the bottom edge `span` still asks for a screenful, `size` does not', () => {
+    // What is left over at the edge is the right size for a window built *at*
+    // that edge and the wrong size for one built anywhere else — a jump reads
+    // `span` so it does not carry the edge's leftovers to the middle of the wall.
+    const lastRow = Math.floor((LEAD_SEATS + CURRENT_SEATS) / STAFF_SCALE_COLS);
+    const r = resolveWindowRange(
+      {
+        screen: { width: 1920, height: 720 },
+        viewport: at(lastRow),
+        reserveScreens: 2,
+        wallBase: lastRow * STAFF_SCALE_COLS,
+      },
+      geom,
+    );
+    expect(r.size).toBeLessThan(r.span);
+    const middle = resolveWindowRange(
+      {
+        screen: { width: 1920, height: 720 },
+        viewport: at(1000),
+        reserveScreens: 2,
+        wallBase: 1000 * STAFF_SCALE_COLS,
+      },
+      geom,
+    );
+    expect(r.span).toBe(middle.size);
+  });
 });
 
 describe('rebaseViewport', () => {
@@ -183,6 +210,80 @@ describe('RebuildScheduler', () => {
     s.request(24);
     s.stop();
     await new Promise((r) => setTimeout(r, 60));
+    expect(built).toEqual([]);
+  });
+
+  it('success: run() rebuilds ahead of the quiet period and resolves once it landed', async () => {
+    const built: number[] = [];
+    const s = new RebuildScheduler(async (start: number) => {
+      await new Promise((r) => setTimeout(r, 10));
+      built.push(start);
+    }, 10_000);
+    await s.run(24);
+    // No wait after the await: an explicit destination is not a gesture, so
+    // there is nothing to coalesce and nothing to wait out.
+    expect(built).toEqual([24]);
+  });
+
+  it('failure: run() waits for a build in flight instead of overlapping it', async () => {
+    // The reason the scheduler exists: `setData` rebuilds the search index
+    // asynchronously, so two overlapping rebuilds can land out of order.
+    const events: string[] = [];
+    const s = new RebuildScheduler(async (start: number) => {
+      events.push(`start ${start}`);
+      await new Promise((r) => setTimeout(r, 30));
+      events.push(`end ${start}`);
+    }, 5);
+    s.request(24);
+    await new Promise((r) => setTimeout(r, 15));
+    await s.run(48);
+    expect(events).toEqual(['start 24', 'end 24', 'start 48', 'end 48']);
+  });
+
+  it('failure: run() supersedes a pan that was queued but never started', async () => {
+    const built: number[] = [];
+    const s = new RebuildScheduler(async (start: number) => {
+      built.push(start);
+    }, 20);
+    s.request(24);
+    await s.run(48);
+    await new Promise((r) => setTimeout(r, 60));
+    expect(built).toEqual([48]);
+  });
+
+  it('failure: a failed run() is thrown to the caller, not swallowed into onError', async () => {
+    // A gesture that failed to rebuild is dropped silently on purpose; an index
+    // somebody typed has an author waiting to be told it did not happen.
+    const errors: unknown[] = [];
+    const s = new RebuildScheduler(
+      async () => {
+        throw new Error('layout worker died');
+      },
+      5,
+      (e) => errors.push(e),
+    );
+    await expect(s.run(24)).rejects.toThrow('layout worker died');
+    expect(errors).toEqual([]);
+  });
+
+  it('failure: a failed run() does not wedge the rebuilds after it', async () => {
+    const built: number[] = [];
+    const s = new RebuildScheduler(async (start: number) => {
+      built.push(start);
+      if (built.length === 1) throw new Error('nope');
+    }, 5);
+    await expect(s.run(24)).rejects.toThrow('nope');
+    await s.run(48);
+    expect(built).toEqual([24, 48]);
+  });
+
+  it('failure: run() after stop() builds nothing', async () => {
+    const built: number[] = [];
+    const s = new RebuildScheduler(async (start: number) => {
+      built.push(start);
+    }, 5);
+    s.stop();
+    await s.run(24);
     expect(built).toEqual([]);
   });
 });
