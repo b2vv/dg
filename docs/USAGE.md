@@ -253,6 +253,7 @@ await OrgHierarchyDiagram.create(el, {
     onPositionExpandChange: (state) => {},
     onDataMapped: ({ orgs, persons, positions, ms }) => {},
     onLayoutDiagnostics: (messages) => {},      // див. §12
+    onViewportChange: (t, meta) => {},          // камера/ресайз — див. §11
     onContextMenu: (request) => request.items,  // повернути false → меню не показувати
     onContextMenuAction: (item, request) => {},
   },
@@ -302,6 +303,25 @@ await diagram.appendData(nextChunk, { append: async (c) => mapChunk(c) });
 // 3. повна заміна — коли вікно поїхало далеко
 await diagram.setData(newWindow);
 ```
+
+### Вікно, що їде за камерою
+
+Щоб вікно рухалось саме, а не лише по явній дії, слухайте камеру:
+
+```ts
+callbacks: {
+  onViewportChange(transform, { settled, reason }) {
+    // Викликається не частіше разу на кадр, поки камера рухається, і ще раз —
+    // з `settled: true` — коли вона зупинилась на `viewportSettleMs` (дефолт 150).
+    if (!settled) return checkReserve(transform);   // запас закінчується?
+    void diagram.setData(buildWindowAround(transform));
+  },
+}
+```
+
+`reason` розрізняє дві події, і це не косметика: `'resize'` приходить із **незміненою**
+трансформою — змінилось лише те, скільки вміщається. Хост, який дивиться тільки на трансформу,
+лишить голу смугу вздовж нового краю й ніколи її не заповнить.
 
 - `appendData` дедуплікує за `id` (patch виграє) і **зливає** індекс пошуку замість перебудови;
   якщо чанк **оновлює** вже відому сутність — індекс перебудується, інакше лишився б дубль.

@@ -188,7 +188,12 @@ export type {
   StaffEdgeLink,
   StaffEdgeRouteVia,
 } from './render/index.js';
-export type { LayoutPatch, OrgHierarchyCallbacks } from './callbacks.js';
+export type {
+  LayoutPatch,
+  OrgHierarchyCallbacks,
+  ViewportChangeMeta,
+  ViewportChangeReason,
+} from './callbacks.js';
 
 export type {
   NodeRef,

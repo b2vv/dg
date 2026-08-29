@@ -50,7 +50,12 @@ import {
   type OrgLayoutOptions,
   type StaffLayoutOptions,
 } from './layout/index.js';
-import type { OrgHierarchyCallbacks, LayoutPatch } from './callbacks.js';
+import type {
+  OrgHierarchyCallbacks,
+  LayoutPatch,
+  ViewportChangeReason,
+} from './callbacks.js';
+import type { ViewportTransform } from './render/Viewport.js';
 import { createTransformWorker, WorkerPool } from './worker/index.js';
 import {
   revealOrgPath,
@@ -97,6 +102,8 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
   /** Custom worker factory (transform.worker.ts) */
   workerFactory?: () => Worker;
   callbacks?: OrgHierarchyCallbacks;
+  /** Quiet period before `onViewportChange` reports `settled` (default 150). */
+  viewportSettleMs?: number;
   /** Staff 3-tier focus organization id */
   staffCurrentOrgId?: string;
   /** Staff layout (node/cell pitch — keep refCell* aligned with render.cell* for contours). */
@@ -155,6 +162,16 @@ export class OrgHierarchyDiagram {
   private readonly renderCoalesce = createRenderCoalesce(() => this.renderNow());
   private destroyed = false;
   private promoteSyncListeners = new Set<() => void>();
+
+  // The viewport notifier is deliberately separate from `promoteSync`: that one
+  // has no transform to hand out and also fires from selection and from the end
+  // of a render, so a host subscribed to it would recompute its window on every
+  // click. This one carries the transform and fires only for the two things that
+  // change what is visible.
+  private viewportSettleMs = 150;
+  private viewportPending: { t: ViewportTransform; reason: ViewportChangeReason } | null = null;
+  private viewportFrame: number | null = null;
+  private viewportSettleTimer: ReturnType<typeof setTimeout> | null = null;
   private mediaService: MediaService | null = null;
   /** Menu build + dispatch (was an inline switch on this class). */
   private readonly contextMenu = new ContextMenuController({
@@ -242,14 +259,20 @@ export class OrgHierarchyDiagram {
         { cause },
       );
     }
+    instance.viewportSettleMs = config.viewportSettleMs ?? 150;
     instance.host.setOnViewportChange((t) => {
       instance.onViewportTransform(t.scale);
       instance.notifyPromoteSync();
+      instance.notifyViewportChange(t, 'camera');
     });
     // A resize changes how much of the scene fits without moving the camera, so
     // it changes the answer to "which nodes are visible" — and nothing else
     // would tell the promote layer that.
-    instance.host.setOnResize(() => instance.notifyPromoteSync());
+    instance.host.setOnResize(() => {
+      instance.notifyPromoteSync();
+      // The transform is unchanged by design — only how much of it fits is.
+      instance.notifyViewportChange(instance.getViewport(), 'resize');
+    });
     instance.viewState.lodLevel = resolveLodLevel(
       instance.host.getZoom(),
       instance.viewState.lodThresholds,
@@ -289,6 +312,32 @@ export class OrgHierarchyDiagram {
   /** The renderer of the mounted host, or null before mount / after destroy. */
   private get renderer(): DiagramRenderer | null {
     return this.host?.renderer ?? null;
+  }
+
+  /**
+   * Coalesce viewport events to one call per frame, then one settled call.
+   *
+   * `PixiHost.setOnViewportChange` passes every `Viewport.apply` straight
+   * through — it coalesces the *paint*, not the handler — so without this a pan
+   * would call the host once per pointermove.
+   */
+  private notifyViewportChange(t: ViewportTransform, reason: ViewportChangeReason): void {
+    if (this.destroyed || !this.callbacks.onViewportChange) return;
+    this.viewportPending = { t, reason };
+    if (this.viewportSettleTimer !== null) clearTimeout(this.viewportSettleTimer);
+    this.viewportSettleTimer = setTimeout(() => {
+      this.viewportSettleTimer = null;
+      const pending = this.viewportPending;
+      if (this.destroyed || !pending) return;
+      this.callbacks.onViewportChange?.(pending.t, { settled: true, reason: pending.reason });
+    }, this.viewportSettleMs);
+    if (this.viewportFrame !== null) return;
+    this.viewportFrame = requestAnimationFrame(() => {
+      this.viewportFrame = null;
+      const pending = this.viewportPending;
+      if (this.destroyed || !pending) return;
+      this.callbacks.onViewportChange?.(pending.t, { settled: false, reason: pending.reason });
+    });
   }
 
   private notifyPromoteSync(): void {
@@ -1185,6 +1234,11 @@ export class OrgHierarchyDiagram {
   destroy(): void {
     this.destroyed = true;
     this.renderCoalesce.stop();
+    if (this.viewportFrame !== null) cancelAnimationFrame(this.viewportFrame);
+    if (this.viewportSettleTimer !== null) clearTimeout(this.viewportSettleTimer);
+    this.viewportFrame = null;
+    this.viewportSettleTimer = null;
+    this.viewportPending = null;
     this.promoteSyncListeners.clear();
     void this.mediaService?.destroy();
     this.mediaService = null;

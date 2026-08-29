@@ -1,6 +1,7 @@
 import type { OrgDisplayMode } from './layout/index.js';
 import type { MenuItem, NodeRef } from './interaction/types.js';
 import type { ContextMenuRequest } from './interaction/contextMenuPayload.js';
+import type { ViewportTransform } from './render/Viewport.js';
 
 export type LayoutPatch =
   | { type: 'position-move'; positionId: string; col: number; row: number }
@@ -9,7 +10,30 @@ export type LayoutPatch =
   | { type: 'block-shift'; positionIds: string[]; deltaLevel: number }
   | { type: 'position-expand'; positionId: string; expanded: boolean };
 
+/** Why the visible area changed. A resize moves no camera (T88). */
+export type ViewportChangeReason = 'camera' | 'resize';
+
+export interface ViewportChangeMeta {
+  /** True on the one call that follows the camera coming to rest. */
+  settled: boolean;
+  reason: ViewportChangeReason;
+}
+
 export interface OrgHierarchyCallbacks {
+  /**
+   * The visible area changed: the camera moved, or the surface was resized.
+   *
+   * Coalesced to one call per frame while moving, then one more with
+   * `settled: true` once the camera has been still for `viewportSettleMs`.
+   * A host that materializes data for what is on screen wants both: the moving
+   * calls to decide whether its reserve is running out, the settled one to
+   * rebuild without doing it mid-gesture.
+   *
+   * `reason` matters because a resize changes how much of the scene fits
+   * **without moving the camera** — a host that only watched the transform would
+   * leave a bare strip along the new edge and never fill it.
+   */
+  onViewportChange?(transform: ViewportTransform, meta: ViewportChangeMeta): void;
   onNodeClick?(node: NodeRef): void;
   /** Double-click → host sidebar (T69 / D5). */
   onNodeDoubleClick?(node: NodeRef): void;
