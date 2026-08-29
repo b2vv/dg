@@ -1,0 +1,34 @@
+{
+  // Whole-monorepo view for the `ttsc-graph` MCP server (`@ttsc/graph`), which
+  // builds its graph as a byproduct of a real ttsc type-check. No package config
+  // spans both workspaces, and a graph that stops at the package boundary cannot
+  // answer the question the tool exists for — who across the repo uses this.
+  //
+  // `paths` points the demo at the SDK *sources*. Without it `@org-hierarchy/sdk`
+  // resolves through the workspace symlink to `dist/*.d.ts`, and every demo→sdk
+  // edge would land on a declaration file instead of the code being edited.
+  //
+  // Not wired into any build or `typecheck` script — those stay per-package.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@org-hierarchy/sdk": ["./packages/sdk/src/index.ts"],
+      "@org-hierarchy/sdk/react": ["./packages/sdk/src/react/index.ts"],
+      "@org-hierarchy/sdk/*": ["./packages/sdk/src/*"]
+    },
+    "types": ["node"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"]
+  },
+  "include": [
+    "packages/sdk/src/**/*",
+    "packages/demo/src/**/*",
+    "e2e/**/*.ts",
+    "playwright.config.ts"
+  ]
+}

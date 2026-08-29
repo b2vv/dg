@@ -68,6 +68,25 @@ The graph itself lives in `.code-review-graph/` (~24 MB) and is **gitignored** �
 its own. Restart the AI tool after cloning so it picks up `.mcp.json`. The graph can lag a fresh
 edit, so confirm «untested / no importers» claims against the code before acting on them.
 
+### Type graph (ttsc-graph)
+
+`@ttsc/graph` is wired alongside CRG: `.mcp.json` starts it, and it answers through one tool,
+`inspect_typescript_graph` (`lookup`, `trace`, `entrypoints`, `details`, `tour`, `overview`).
+It builds no index of its own — the graph is a byproduct of a real type-check, so every node and
+edge is compiler-resolved rather than text-matched, and a `trace` gives the true blast radius of a
+type or symbol across both packages.
+
+```bash
+npx ttsc-graph dump --cwd . --tsconfig tsconfig.graph.json   # whole graph as JSON
+```
+
+`tsconfig.graph.json` exists for this and nothing else: it is the only config spanning both
+workspaces, and its `paths` point the demo at the SDK **sources** so cross-package edges land on
+code instead of `dist/*.d.ts`. It is not part of any build or `typecheck` script.
+
+Use CRG for call graphs, communities and flows; use this one for questions that follow the type
+system across the package boundary. Restart the AI tool after cloning so the tool surfaces.
+
 ### Issue tracker
 
 GitHub Issues on `b2vv/dg` via `gh`. See `docs/agents/issue-tracker.md`.

@@ -9,6 +9,17 @@
       ],
       "cwd": "/Users/strelia/projects/dg",
       "type": "stdio"
+    },
+    "ttsc-graph": {
+      "command": "node_modules/.bin/ttsc-graph",
+      "args": [
+        "--cwd",
+        "/Users/strelia/projects/dg",
+        "--tsconfig",
+        "tsconfig.graph.json"
+      ],
+      "cwd": "/Users/strelia/projects/dg",
+      "type": "stdio"
     }
   }
 }

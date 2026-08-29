@@ -28,8 +28,10 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",
+    "@ttsc/graph": "^0.28.3",
     "oxfmt": "^0.65.0",
-    "oxlint": "^1.74.0"
+    "oxlint": "^1.74.0",
+    "ttsc": "^0.28.3"
   },
   "engines": {
     "node": ">=20"
