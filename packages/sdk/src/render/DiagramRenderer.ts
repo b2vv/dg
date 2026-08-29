@@ -239,35 +239,17 @@ export class DiagramRenderer {
 
   /** Axis-aligned union of remembered node boxes (world space). */
   getContentBounds(): { x: number; y: number; width: number; height: number } | null {
-    const nodes = this.scene.contentBounds();
-    const chrome = this.chromeBounds;
-    if (!nodes) return chrome;
-    if (!chrome) return nodes;
-    const x = Math.min(nodes.x, chrome.x);
-    const y = Math.min(nodes.y, chrome.y);
-    return {
-      x,
-      y,
-      width: Math.max(nodes.x + nodes.width, chrome.x + chrome.width) - x,
-      height: Math.max(nodes.y + nodes.height, chrome.y + chrome.height) - y,
-    };
+    const parts = [this.scene.contentBounds(), this.chromeBounds].filter(
+      (r): r is WorldRect => r !== null,
+    );
+    return unionBoxes(parts);
   }
 
   /** Grow the painted-chrome union; reset per render. */
   private rememberChrome(rect: WorldRect): void {
-    const c = this.chromeBounds;
-    if (!c) {
-      this.chromeBounds = { ...rect };
-      return;
-    }
-    const x = Math.min(c.x, rect.x);
-    const y = Math.min(c.y, rect.y);
-    this.chromeBounds = {
-      x,
-      y,
-      width: Math.max(c.x + c.width, rect.x + rect.width) - x,
-      height: Math.max(c.y + c.height, rect.y + rect.height) - y,
-    };
+    this.chromeBounds = unionBoxes(
+      this.chromeBounds ? [this.chromeBounds, rect] : [rect],
+    );
   }
 
   async render(
