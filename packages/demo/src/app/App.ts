@@ -30,12 +30,32 @@ import {
 } from '../scenarios/scaleOrgs.js';
 import {
   buildScaleStaffWindow,
+  CURRENT_SEATS,
+  STAFF_SCALE_COLS,
   LEAD_SEATS,
   parseScaleStaffQuery,
   STAFF_SCALE_DEFAULT_FOCUS,
   STAFF_SCALE_TOTAL,
   type ScaleStaffWindow,
 } from '../scenarios/scaleStaff.js';
+import {
+  RebuildScheduler,
+  rebaseViewport,
+  resolveWindowRange,
+  type WallGeometry,
+} from './viewportWindow.js';
+
+/**
+ * Screens of materialized seats kept beyond each visible edge.
+ *
+ * One screen either side is the starting point, not a measured answer — T88.8
+ * is where it gets a number. Named here so the measurement has one knob to turn
+ * rather than a constant buried in a call site.
+ */
+const STAFF_RESERVE_SCREENS = 1;
+
+/** Quiet period before the window is rebuilt, in ms. */
+const STAFF_REBUILD_QUIET_MS = 120;
 import { SAMPLE_MAPPER_JSON } from '../scenarios/sampleMapper.js';
 import { parseJsonFile } from '../utils/json.js';
 import { requireElement, setThemeAttribute, showError } from '../utils/dom.js';
@@ -69,6 +89,8 @@ export class App {
   private scaleParents: Int32Array | null = null;
   private scaleWindow: ScaleOrgsWindow | null = null;
   private staffScaleWindow: ScaleStaffWindow | null = null;
+
+  private staffScheduler: RebuildScheduler | null = null;
   private contextMenu: ReactContextMenuHost | null = null;
   private promote: ReactPromoteOverlay | null = null;
   private testAnchors: TestAnchorOverlay | null = null;
@@ -227,6 +249,16 @@ export class App {
           : {}),
         callbacks: this.diagramCallbacks(),
       });
+      this.staffScheduler = new RebuildScheduler(
+        (start) => this.slideStaffWindow(start),
+        STAFF_REBUILD_QUIET_MS,
+        (error) => {
+          // The scene keeps the window it already has — the failure is named,
+          // not painted as an empty edge that looks like a broken diagram.
+          const msg = error instanceof Error ? error.message : String(error);
+          this.setStatus(`staff · window unchanged · rebuild failed: ${msg}`);
+        },
+      );
       this.mountOverlays(this.diagram);
       this.mountZoomFab();
       this.mountBulkBar();
@@ -234,6 +266,9 @@ export class App {
       this.fitDiagramView();
       this.setStatus(`${this.tabLabel()} · zoom ${this.diagram.getZoom().toFixed(2)}`);
       this.mountSceneCaption();
+      if (this.tab === 'staff-1m' && this.staffScaleWindow) {
+        this.syncStaffWindowMarker(this.staffScaleWindow);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       showError(this.mountEl, msg);
@@ -243,6 +278,8 @@ export class App {
 
   /** Drop the live diagram and everything mounted around it. */
   private disposeDiagram(): void {
+    this.staffScheduler?.stop();
+    this.staffScheduler = null;
     this.promote?.dispose();
     this.promote = null;
     this.testAnchors?.dispose();
@@ -255,6 +292,26 @@ export class App {
 
   private diagramCallbacks(): OrgHierarchyCallbacks {
     return {
+      onViewportChange: (_transform, meta) => {
+        // Only on settled: rebuilding mid-gesture is what the reserve exists to
+        // avoid. A resize counts as settled work too — it changes how much fits
+        // without moving the camera, so nothing else would notice the new edge.
+        if (!meta.settled || this.tab !== 'staff-1m') return;
+        const win = this.staffScaleWindow;
+        const diagram = this.diagram;
+        if (!win || !diagram) return;
+        const range = resolveWindowRange(
+          {
+            screen: diagram.getScreenSize(),
+            viewport: diagram.getViewport(),
+            reserveScreens: STAFF_RESERVE_SCREENS,
+            wallBase: win.wallBase,
+          },
+          this.staffWallGeometry(),
+        );
+        if (range.start === win.startIndex) return;
+        this.staffScheduler?.request(range.start);
+      },
       onSelectionChange: (nodes) => {
         this.setStatus(
           nodes.length === 0
@@ -471,6 +528,59 @@ export class App {
   private rebuildStaffScaleWindow(focusIndex = STAFF_SCALE_DEFAULT_FOCUS): ScaleStaffWindow {
     this.staffScaleWindow = buildScaleStaffWindow({ focusIndex });
     return this.staffScaleWindow;
+  }
+
+  /**
+   * Staff · 1M wall geometry: refCellHeight 44 + verticalGap 28 (`tabConfigs.ts`).
+   * Mirrored here rather than read back from the diagram because the window has
+   * to be sized *before* anything is materialized to read it from.
+   */
+  private staffWallGeometry(): WallGeometry {
+    return { cols: STAFF_SCALE_COLS, pitchY: 72, firstIndex: LEAD_SEATS, tierSeats: CURRENT_SEATS };
+  }
+
+  /**
+   * Move the window to follow the camera, then move the camera back.
+   *
+   * Seat rows are relative to the wall base, so re-basing shifts every card by
+   * whole rows; `rebaseViewport` undoes exactly that shift, which is what keeps
+   * the content under the cursor still while the data underneath it changes.
+   */
+  private async slideStaffWindow(start: number): Promise<void> {
+    const diagram = this.diagram;
+    const previous = this.staffScaleWindow;
+    if (!diagram || !previous || this.tab !== 'staff-1m') return;
+
+    const geom = this.staffWallGeometry();
+    const screen = diagram.getScreenSize();
+    const size = resolveWindowRange(
+      { screen, viewport: diagram.getViewport(), reserveScreens: STAFF_RESERVE_SCREENS, wallBase: previous.wallBase },
+      geom,
+    ).size;
+    const next = buildScaleStaffWindow({ startIndex: start, windowSize: size });
+    if (next.wallBase === previous.wallBase && next.startIndex === previous.startIndex) return;
+
+    const rowShift = (next.wallBase - previous.wallBase) / geom.cols;
+    this.staffScaleWindow = next;
+    await diagram.setData(next.data);
+    diagram.setViewport(rebaseViewport(diagram.getViewport(), { rowShift, pitchY: geom.pitchY }));
+    this.mountSceneCaption();
+    this.syncStaffWindowMarker(next);
+    this.setStatus(this.staffWindowStatus(next));
+  }
+
+  /**
+   * The observable the e2e waits on. Without it a test can only sleep on a
+   * constant and hope the rebuild landed — the rebuild is debounced and async,
+   * so there is otherwise nothing in the DOM that says it happened.
+   */
+  private staffWindowStatus(win: ScaleStaffWindow): string {
+    return `staff · window ${win.startIndex}…${win.startIndex + win.windowSize} / ${win.total}`;
+  }
+
+  private syncStaffWindowMarker(win: ScaleStaffWindow): void {
+    this.mountEl.dataset.windowStart = String(win.startIndex);
+    this.mountEl.dataset.windowEnd = String(win.startIndex + win.windowSize);
   }
 
   private ensureScaleWindow(focusIndex = 0): ScaleOrgsWindow {

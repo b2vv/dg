@@ -24,6 +24,16 @@ export interface DemoE2eBridge {
   setZoom(scale: number): void;
   /** Move the camera without animation — panning assertions need it exact. */
   setViewport(next: { x?: number; y?: number; scale?: number }): void;
+  getViewport(): { x: number; y: number; scale: number };
+  /**
+   * How much is materialized right now (T88, row 2).
+   *
+   * Counts rather than the data itself: the assertion is that a sliding window
+   * evicts, and `reportLines` is the collection that would leak — the demo adds
+   * one per seat, and edges carry no id, so an append-only window would walk
+   * toward a million of them while the node count looked healthy.
+   */
+  getSceneCounts(): { positions: number; reportLines: number };
   /** Nodes Pixi is not drawing because HTML replaced them (T87, rows 1 and 5). */
   getPromotedNodeIds(): string[];
   getStaffLayoutEdges(): Promise<Array<{ fromId: string; toId: string; kind: string }>>;
@@ -64,6 +74,11 @@ export function installDemoE2eBridge(deps: E2eBridgeDeps): void {
     getZoom: () => diagram.getZoom(),
     setZoom: (scale) => diagram.setZoom(scale),
     setViewport: (next) => diagram.setViewport(next),
+    getViewport: () => diagram.getViewport(),
+    getSceneCounts: () => {
+      const d = diagram.getData();
+      return { positions: d.positions.length, reportLines: d.reportLines?.length ?? 0 };
+    },
     getPromotedNodeIds: () => [...diagram.getPromotedNodeIds()],
     getLayoutDiagnostics: () => [...diagram.getLayoutDiagnostics()],
     getRendererKind: () => diagram.getRendererKind(),

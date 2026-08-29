@@ -50,3 +50,92 @@ test.describe('1M staff scale tab', () => {
     });
   });
 });
+
+test.describe('the window follows the camera (T88)', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/?e2e=1');
+    await page.getByRole('button', { name: 'Staff · 1M' }).click();
+    await page.getByTestId('diagram-ready').waitFor({ timeout: 60_000 });
+  });
+
+  test('panning past the edge materializes seats nobody asked for', async ({ page }) => {
+    const mount = page.locator('[data-window-start]');
+    // Mounting fits the view, the camera settles, and the window re-slides to
+    // match that zoomed-out frame. Reading `before` any earlier measures that
+    // rebuild instead of the gesture.
+    const stableStart = async (): Promise<number> => {
+      let last = NaN;
+      for (let i = 0; i < 40; i += 1) {
+        const now = Number(await mount.getAttribute('data-window-start'));
+        if (now === last) return now;
+        last = now;
+        await page.waitForTimeout(150);
+      }
+      return last;
+    };
+    const before = await stableStart();
+
+    // Drag inside the page, one move per frame. Driving this with
+    // page.mouse.move measures Playwright's round-trips, not the app (T87.10).
+    await page.evaluate(async () => {
+      const canvas = document.querySelector('canvas')!;
+      const r = canvas.getBoundingClientRect();
+      const opts = (x: number, y: number) => ({
+        clientX: x, clientY: y, bubbles: true, pointerId: 1, pointerType: 'mouse', button: 0, buttons: 1,
+      });
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      canvas.dispatchEvent(new PointerEvent('pointerdown', opts(cx, cy)));
+      await new Promise<void>((resolve) => {
+        let i = 0;
+        const step = (): void => {
+          i += 1;
+          // Dragging the content up brings lower parts of the wall into view,
+          // which is where the higher seat indices live.
+          canvas.dispatchEvent(new PointerEvent('pointermove', opts(cx, cy - i * 14)));
+          if (i < 60) requestAnimationFrame(step);
+          else {
+            canvas.dispatchEvent(new PointerEvent('pointerup', opts(cx, cy - i * 14)));
+            resolve();
+          }
+        };
+        requestAnimationFrame(step);
+      });
+    });
+
+    // The rebuild is debounced and async — this attribute is the only thing in
+    // the DOM that says it happened, which is why T88.5 puts it there.
+    await expect
+      .poll(async () => Number(await mount.getAttribute('data-window-start')), { timeout: 15_000 })
+      .toBeGreaterThan(before);
+    await expect(page.locator('#status')).toContainText('window');
+  });
+
+  test('sliding does not grow the scene without bound', async ({ page }) => {
+    const counts = async () =>
+      page.evaluate(() => {
+        const b = (window as unknown as {
+          __demoE2e: { getSceneCounts(): { positions: number; reportLines: number } };
+        }).__demoE2e;
+        return b.getSceneCounts();
+      });
+    await page.waitForTimeout(900); // let the mount-time rebuild settle first
+    const before = await counts();
+
+    for (let round = 0; round < 3; round += 1) {
+      await page.evaluate((r) => {
+        const b = (window as unknown as { __demoE2e: { getViewport(): { x: number; y: number; scale: number }; setViewport(v: object): void } }).__demoE2e;
+        const vp = b.getViewport();
+        b.setViewport({ ...vp, y: vp.y - 900 * (r + 1) });
+      }, round);
+      await page.waitForTimeout(400);
+    }
+
+    const after = await counts();
+    // Evicting is the half that setData gives for free: a window that only
+    // appended would walk toward a million rows of report lines.
+    expect(after.positions).toBeLessThan(before.positions * 1.5);
+    expect(after.reportLines).toBeLessThan(before.reportLines * 1.5);
+  });
+});

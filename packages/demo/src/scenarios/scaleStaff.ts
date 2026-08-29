@@ -353,6 +353,13 @@ export function buildScaleStaffWindow(options: {
   windowSize?: number;
   focusIndex?: number;
   expandedOrgId?: string;
+  /**
+   * Build at this index instead of centring on the focus.
+   *
+   * A window that follows the camera is given a range, not a point: centring
+   * would drag it back to the middle on every rebuild and fight the pan.
+   */
+  startIndex?: number;
 } = {}): ScaleStaffWindow {
   const t0 = typeof performance === 'undefined' ? Date.now() : performance.now();
   const total = options.total ?? STAFF_SCALE_TOTAL;
@@ -365,7 +372,13 @@ export function buildScaleStaffWindow(options: {
   // renders, but `focusMaterialized` reports that no seat carries the marker.
   const focusTier = tierOfSeat(focusIndex, total);
   const currentFocus = Math.max(0, Math.min(focusIndex - composition.lead, composition.current - 1));
-  const start = composition.lead + resolveStaffWindowStart(currentFocus, windowSize, composition.current);
+  const start =
+    options.startIndex === undefined
+      ? composition.lead + resolveStaffWindowStart(currentFocus, windowSize, composition.current)
+      : Math.max(
+          composition.lead,
+          Math.min(options.startIndex, composition.lead + Math.max(0, composition.current - windowSize)),
+        );
   const end = Math.min(composition.lead + composition.current, start + windowSize);
   const subBase = composition.lead + composition.current;
 

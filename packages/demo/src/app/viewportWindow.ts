@@ -107,6 +107,7 @@ export class RebuildScheduler {
   constructor(
     private readonly build: (start: number) => Promise<void>,
     private readonly quietMs: number,
+    private readonly onError: (error: unknown) => void = () => {},
   ) {}
 
   request(start: number): void {
@@ -134,7 +135,15 @@ export class RebuildScheduler {
       while (this.pending !== null && !this.stopped) {
         const next = this.pending;
         this.pending = null;
-        await this.build(next);
+        try {
+          await this.build(next);
+        } catch (error) {
+          // The range is dropped rather than retried: the camera has usually
+          // moved on by now, and a retry loop on a dead worker would rebuild
+          // forever against a window nobody is looking at. The scene keeps the
+          // data it already has; the caller names the reason.
+          this.onError(error);
+        }
       }
     } finally {
       this.running = false;

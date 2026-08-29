@@ -134,6 +134,47 @@ describe('RebuildScheduler', () => {
     expect(built).toEqual([24, 48]);
   });
 
+  it('failure: a build that throws is reported and does not wedge the scheduler', async () => {
+    // The window is rebuilt by a worker and a WASM layout, either of which can
+    // fail. plan-defense asked what the user sees then: the scene stays on the
+    // window it already has, the reason is named, and the next gesture still
+    // works — a scheduler that swallowed the throw would look identical to one
+    // that quietly stopped rebuilding forever.
+    const built: number[] = [];
+    const errors: string[] = [];
+    const s = new RebuildScheduler(
+      async (start: number) => {
+        built.push(start);
+        if (built.length === 1) throw new Error('layout worker died');
+      },
+      5,
+      (e) => errors.push(e instanceof Error ? e.message : String(e)),
+    );
+    s.request(24);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(errors).toEqual(['layout worker died']);
+
+    s.request(48);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(built).toEqual([24, 48]);
+    expect(errors).toHaveLength(1);
+  });
+
+  it('failure: a throw drops the queued range instead of retrying it forever', async () => {
+    const built: number[] = [];
+    const s = new RebuildScheduler(
+      async (start: number) => {
+        built.push(start);
+        throw new Error('nope');
+      },
+      5,
+      () => {},
+    );
+    s.request(24);
+    await new Promise((r) => setTimeout(r, 40));
+    expect(built).toEqual([24]);
+  });
+
   it('failure: stop() cancels a pending rebuild', async () => {
     const built: number[] = [];
     const s = new RebuildScheduler(async (start: number) => {
