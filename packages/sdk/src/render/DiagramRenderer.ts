@@ -160,12 +160,16 @@ export class DiagramRenderer {
    */
   onNeedsPaint: (() => void) | null = null;
 
+  /** The band the scene was last drawn at — seat drag is gated on it. */
+  private lastLod: LodLevel = 'near';
+
   /** Seat-card pointer behaviour, including drag with contour preview. */
   private readonly personInteractions = new PersonInteractions({
     personLayer: this.layers.persons,
     doubleTap: this.nodeDoubleTap,
     rememberBox: (box) => this.rememberBox(box),
     dragGrid: () => this.dragGrid,
+    currentLod: () => this.lastLod,
     previewDrag: (positionId, col, row) => this.contours.previewDrag(positionId, col, row),
     restoreContours: () => this.contours.restoreAfterFailedDrag(),
     requestPaint: () => this.onNeedsPaint?.(),
@@ -250,6 +254,7 @@ export class DiagramRenderer {
     });
 
     const lod = options.lod ?? 'near';
+    this.lastLod = lod;
     const hasStaff = data.positions.length > 0;
     if (hasStaff) {
       await this.renderStaff(data, theme, resolvedTheme, config, { ...options, lod }, epoch);

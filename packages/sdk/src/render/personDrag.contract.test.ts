@@ -99,6 +99,62 @@ describe('person drag contract (T77-M05)', () => {
   });
 });
 
+describe('drag is only offered where the card is worth dragging', () => {
+  /**
+   * Below the `near` band a seat is a compressed strip (mid) or a dot (far), so
+   * a drag there aims at something the user cannot actually see. Pressing and
+   * moving pans the scene instead, which is what the gesture means when the card
+   * is not a card yet.
+   */
+  async function dragAt(zoom: number): Promise<{ moved: boolean; cleanup: () => void }> {
+    const drops: unknown[] = [];
+    const { container, diagram } = await mountDraggable(() => drops.push(1));
+    diagram.setZoom(zoom);
+    // Crossing an LOD band re-renders the scene and replaces the node views, so
+    // the node has to be looked up after the zoom, not before it.
+    await new Promise((r) => setTimeout(r, 80));
+    const host = (
+      diagram as unknown as {
+        host: { renderer: { layers: { persons: { children: unknown[] } } } };
+      }
+    ).host;
+    const node = host.renderer.layers.persons.children.find(
+      (c): c is PersonNodeView => c instanceof PersonNodeView,
+    );
+    if (!node) throw new Error('expected a person node after zoom');
+    const originX = node.x;
+    node.emit('pointerdown', pointerEvent({ x: originX + 5, y: node.y + 5 }));
+    node.emit('globalpointermove', pointerEvent({ x: originX + 120, y: node.y + 5 }));
+    const moved = node.x !== originX;
+    node.emit('pointerup', pointerEvent({ x: originX + 120, y: node.y + 5 }));
+    return {
+      moved,
+      cleanup: () => {
+        diagram.destroy();
+        container.remove();
+      },
+    };
+  }
+
+  it('success: at near the card follows the pointer', async () => {
+    const { moved, cleanup } = await dragAt(1.4);
+    expect(moved).toBe(true);
+    cleanup();
+  });
+
+  it('failure: at mid the card does not move', async () => {
+    const { moved, cleanup } = await dragAt(0.8);
+    expect(moved).toBe(false);
+    cleanup();
+  });
+
+  it('failure: at far the card does not move', async () => {
+    const { moved, cleanup } = await dragAt(0.3);
+    expect(moved).toBe(false);
+    cleanup();
+  });
+});
+
 describe('snap uses layout pitch, not the bare cell (T77-M05)', () => {
   // Staff layout with gaps: pitch = cell + gap, and cards are inset in the cell.
   const grid = { pitchX: 164, pitchY: 188, originX: 40, originY: 24, insetX: 2, insetY: 2 };

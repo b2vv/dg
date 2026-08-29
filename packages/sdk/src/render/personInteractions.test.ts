@@ -51,6 +51,9 @@ function harness(grid: DragGrid | null = GRID) {
     doubleTap: new DoubleTapTracker(),
     rememberBox: (box) => boxes.push(box.id),
     dragGrid: () => grid,
+    // These tests are about the drag itself, so they run in the band where the
+    // drag is offered at all.
+    currentLod: () => 'near' as const,
     previewDrag: (id, col, row) => previews.push([id, col, row]),
     restoreContours: () => restores.push(1),
     requestPaint: () => paints.push(1),

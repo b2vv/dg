@@ -1,4 +1,5 @@
 import type { Container } from 'pixi.js';
+import type { LodLevel } from './lod.js';
 import { snapToGrid, snapWorldToCell } from '../interaction/positionMove.js';
 import type { DoubleTapTracker } from '../interaction/doubleTap.js';
 import {
@@ -56,6 +57,8 @@ export interface PersonInteractionDeps {
   rememberBox(box: NodeWorldBox): void;
   /** Snap grid for the current scene; null before a scene sets one. */
   dragGrid(): DragGrid | null;
+  /** Band the scene is drawn at — see the drag gate in `bind`. */
+  currentLod(): LodLevel;
   previewDrag(positionId: string, col: number, row: number): void;
   restoreContours(): void;
   /** Nothing paints on its own any more — a moved card has to ask. */
@@ -129,6 +132,13 @@ export class PersonInteractions {
         e.stopPropagation();
         return;
       }
+      // Drag only where the card is a card. Below `near` a seat is a compressed
+      // strip (mid) or a dot (far), so a drag there aims at something the user
+      // cannot see and drops it somewhere they did not choose. Falling through
+      // without stopPropagation lets the stage pan instead, which is what the
+      // same gesture means when there is no card to grab — and a tap still
+      // selects, since selection rides on pointertap rather than on this.
+      if (this.deps.currentLod() !== 'near') return;
       const local = this.deps.personLayer.toLocal(e.global);
       const grid = this.deps.dragGrid();
       // T78-L1: origin from THIS card's world + gridCell, not the first staff tier.
