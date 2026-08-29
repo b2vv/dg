@@ -27,10 +27,31 @@ describe('staffZoneBounds', () => {
     };
     const nodes = [box('a', 'org1', 10, 50), box('b', 'org1', 130, 60)];
     const r = worldBoundsForTier(tier, nodes, [], { margin: 32 });
-    expect(r.y).toBe(40);
-    expect(r.height).toBe(200);
+    // Vertical bounds hug the content the same way horizontal ones do. They used
+    // to be the tier band's raw y/height (40 / 200), which made the gap between a
+    // zone's edge and its first row depend on how the block happened to place its
+    // seats — 96 px on one tab, 38 on another, 24 on a third.
+    expect(r.y).toBe(50 - 16);
+    expect(r.height).toBe(60 + 50 - 50 + 32);
     expect(r.x).toBe(10 - 16);
     expect(r.width).toBe(130 + 100 - 10 + 32);
+  });
+
+  it('success: the label band widens only the top, so the name has its own strip', () => {
+    const tier: StaffTierBand = {
+      tier: 2,
+      kind: 'staff-block',
+      y: 40,
+      height: 200,
+      organizationId: 'org1',
+    };
+    const nodes = [box('a', 'org1', 10, 50)];
+    const plain = worldBoundsForTier(tier, nodes, [], { margin: 32 });
+    const banded = worldBoundsForTier(tier, nodes, [], { margin: 32, labelBand: 30 });
+    expect(banded.y).toBe(plain.y - 30);
+    expect(banded.height).toBe(plain.height + 30);
+    expect(banded.x).toBe(plain.x);
+    expect(banded.width).toBe(plain.width);
   });
 
   it('success: enrich adds label from organizations', () => {

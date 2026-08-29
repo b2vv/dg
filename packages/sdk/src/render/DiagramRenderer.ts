@@ -32,6 +32,7 @@ import type { NodeRef } from '../interaction/types.js';
 import { DepartmentCardView } from './DepartmentCardView.js';
 import { paintDashedFrame } from './dashedStroke.js';
 import { StaffZonesView } from './StaffZonesView.js';
+import type { WorldRect } from './staffZoneBounds.js';
 import { enrichStaffTierBands, unionBoxes } from './staffZoneBounds.js';
 import { OrgEdgesView } from './OrgEdgesView.js';
 import { StaffEdgesView } from './StaffEdgesView.js';
@@ -163,6 +164,18 @@ export class DiagramRenderer {
   /** The band the scene was last drawn at — seat drag is gated on it. */
   private lastLod: LodLevel = 'near';
 
+  /** Strip reserved for zone labels in the last render; 0 without zone chrome. */
+  private lastZoneLabelBand = 0;
+
+  /**
+   * Union of the chrome painted around the nodes — zones and department frames.
+   *
+   * `contentBounds()` knows only node boxes, so fitting to it clipped everything
+   * drawn around them: the top zone's name sat above the fitted region and was
+   * cut off by the viewport edge.
+   */
+  private chromeBounds: WorldRect | null = null;
+
   /** Seat-card pointer behaviour, including drag with contour preview. */
   private readonly personInteractions = new PersonInteractions({
     personLayer: this.layers.persons,
@@ -226,7 +239,35 @@ export class DiagramRenderer {
 
   /** Axis-aligned union of remembered node boxes (world space). */
   getContentBounds(): { x: number; y: number; width: number; height: number } | null {
-    return this.scene.contentBounds();
+    const nodes = this.scene.contentBounds();
+    const chrome = this.chromeBounds;
+    if (!nodes) return chrome;
+    if (!chrome) return nodes;
+    const x = Math.min(nodes.x, chrome.x);
+    const y = Math.min(nodes.y, chrome.y);
+    return {
+      x,
+      y,
+      width: Math.max(nodes.x + nodes.width, chrome.x + chrome.width) - x,
+      height: Math.max(nodes.y + nodes.height, chrome.y + chrome.height) - y,
+    };
+  }
+
+  /** Grow the painted-chrome union; reset per render. */
+  private rememberChrome(rect: WorldRect): void {
+    const c = this.chromeBounds;
+    if (!c) {
+      this.chromeBounds = { ...rect };
+      return;
+    }
+    const x = Math.min(c.x, rect.x);
+    const y = Math.min(c.y, rect.y);
+    this.chromeBounds = {
+      x,
+      y,
+      width: Math.max(c.x + c.width, rect.x + rect.width) - x,
+      height: Math.max(c.y + c.height, rect.y + rect.height) - y,
+    };
   }
 
   async render(
@@ -239,6 +280,7 @@ export class DiagramRenderer {
     if (this.destroyed) return;
     const epoch = ++this.renderEpoch;
     this.contours.reset();
+    this.chromeBounds = null;
     this.contourWorld = null;
     this.dragGrid = null;
     this.personInteractions.reset();
@@ -356,16 +398,17 @@ export class DiagramRenderer {
     // painter falls back to its own per-mode defaults. Reading the raw field gave
     // a band of zero on exactly the tab the collision was reported on.
     //
-    // The band is measured to the seats, but the seats are not what sits closest
-    // to the label: the department wrapper grows upward around them by its own
-    // padding, so that has to be in the reservation too.
+    // Just the label's own strip. The department wrapper's padding is already in
+    // the zone's `contentPadding`, so adding it here counted it twice — and since
+    // it differs per tab (a dashed card pads differently from a magnetic
+    // contour), the same zone ended up with a different top gap on every tab.
     const zoneLabelBand = config.staffZoneChrome
       ? (() => {
           const zone = resolveStaffZoneStyle(theme, ctx.resolvedTheme);
-          const labelBottom = (zone.labelPadding ?? 8) + zone.labelFontSize;
-          return labelBottom + 6 + departmentWrapperPadding(theme, config);
+          return (zone.labelPadding ?? 8) + zone.labelFontSize + 6;
         })()
       : 0;
+    this.lastZoneLabelBand = zoneLabelBand;
     const staffOpts: StaffLayoutOptions = {
       // Keep staff boxes on the same pitch as contour cells.
       nodeWidth: theme.person.width,
@@ -431,8 +474,18 @@ export class DiagramRenderer {
       canvas.positionNodes,
       canvas.orgCards,
       data.organizations,
-      { margin: geom.margin, canvasWidth: canvas.width, contentPadding },
+      {
+        margin: geom.margin,
+        canvasWidth: canvas.width,
+        contentPadding,
+        labelBand: this.lastZoneLabelBand,
+      },
     );
+    for (const tier of tiers) {
+      if (tier.x !== undefined && tier.width !== undefined) {
+        this.rememberChrome({ x: tier.x, y: tier.y, width: tier.width, height: tier.height });
+      }
+    }
     this.layers.zones.addChild(
       StaffZonesView.fromCanvas({
         tiers,

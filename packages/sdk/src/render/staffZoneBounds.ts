@@ -26,10 +26,33 @@ export function worldBoundsForTier(
      * the bare cards, or the wash touches — or crosses — the block frame.
      */
     contentPadding?: number;
+    /**
+     * Strip reserved above the content for the zone's own label (T94). The
+     * layout leaves room for it in the tier flow; the zone paints into it.
+     */
+    labelBand?: number;
   },
 ): WorldRect {
   const pad = Math.max(0, options.margin / 2) + Math.max(0, options.contentPadding ?? 0);
   const minWidth = options.minWidth ?? 0;
+  const labelBand = Math.max(0, options.labelBand ?? 0);
+
+  /**
+   * Vertical bounds hug the content, exactly as the horizontal ones do.
+   *
+   * They used to be taken raw from `tier.y` / `tier.height`, so the visible gap
+   * between a zone's top edge and its first row was whatever the block layout
+   * happened to leave — 96 px where seats are placed by the tree, 38 px where
+   * they carry authored grid cells, 24 px elsewhere. Same idea to a reader,
+   * three different pictures. Deriving y/height from the content gives one
+   * padding everywhere, and the label band sits above it.
+   */
+  const vertical = (ys: number[]): { y: number; height: number } => {
+    if (ys.length === 0) return { y: tier.y, height: tier.height };
+    const top = Math.min(...ys);
+    const bottom = Math.max(...ys);
+    return { y: top - pad - labelBand, height: bottom - top + pad * 2 + labelBand };
+  };
 
   if (tier.kind === 'org-cards') {
     const cards = tier.cards ?? orgCards;
@@ -40,6 +63,13 @@ export function worldBoundsForTier(
     }
     for (const n of tier3) {
       xs.push(n.x, n.x + n.width);
+    }
+    const ys: number[] = [];
+    for (const c of cards) {
+      ys.push(c.y, c.y + c.height);
+    }
+    for (const n of tier3) {
+      ys.push(n.y, n.y + n.height);
     }
     if (xs.length === 0) {
       return {
@@ -53,9 +83,8 @@ export function worldBoundsForTier(
     const maxX = Math.max(...xs);
     return {
       x: minX - pad,
-      y: tier.y,
       width: Math.max(minWidth, maxX - minX + pad * 2),
-      height: tier.height,
+      ...vertical(ys),
     };
   }
 
@@ -75,9 +104,8 @@ export function worldBoundsForTier(
   const maxX = Math.max(...nodes.map((n) => n.x + n.width));
   return {
     x: minX - pad,
-    y: tier.y,
     width: Math.max(minWidth, maxX - minX + pad * 2),
-    height: tier.height,
+    ...vertical(nodes.flatMap((n) => [n.y, n.y + n.height])),
   };
 }
 
@@ -87,7 +115,12 @@ export function enrichStaffTierBands(
   positionNodes: readonly StaffNodeBox[],
   orgCards: readonly StaffOrgCard[],
   organizations: readonly DiagramOrganization[],
-  options: { margin: number; canvasWidth: number; contentPadding?: number },
+  options: {
+    margin: number;
+    canvasWidth: number;
+    contentPadding?: number;
+    labelBand?: number;
+  },
 ): StaffTierBand[] {
   const orgName = new Map(organizations.map((o) => [o.id, o.name]));
   return tiers.map((tier) => {
@@ -95,6 +128,7 @@ export function enrichStaffTierBands(
       margin: options.margin,
       canvasWidth: options.canvasWidth,
       contentPadding: options.contentPadding,
+      labelBand: options.labelBand,
     });
     const label =
       tier.label ??
@@ -104,6 +138,11 @@ export function enrichStaffTierBands(
       ...tier,
       x: bounds.x,
       width: bounds.width,
+      // Carried through too: the painter takes y/height straight from the band
+      // when x/width are set, so leaving these raw meant the content-derived
+      // vertical bounds were computed and then thrown away.
+      y: bounds.y,
+      height: bounds.height,
       label,
     };
   });

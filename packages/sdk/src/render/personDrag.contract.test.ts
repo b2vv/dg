@@ -221,3 +221,41 @@ describe('snap uses layout pitch, not the bare cell (T77-M05)', () => {
     expect(snapWorldToCell(x, y, cellOnly).col).not.toBe(col);
   });
 });
+
+describe('fitView must not cut off the chrome it painted', () => {
+  it('failure: content bounds include the zone band above the topmost seat', async () => {
+    // getContentBounds unions node boxes only, so zones, department frames and
+    // their labels sat outside the fitted region — the top zone's name was
+    // clipped by the viewport edge. Reserving a label band (T94) added more
+    // chrome above the first row, which made the omission plainly visible.
+    const container = document.createElement('div');
+    container.style.width = '900px';
+    container.style.height = '700px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: gridData(),
+      staffCurrentOrgId: 'org1',
+      useWorker: false,
+      render: { cellWidth: 140, cellHeight: 160, staffZoneChrome: true },
+    });
+
+    const renderer = (
+      diagram as unknown as {
+        host: {
+          renderer: {
+            getContentBounds(): { y: number } | null;
+            listNodeBoxes(): readonly { y: number }[];
+          };
+        };
+      }
+    ).host.renderer;
+    const bounds = renderer.getContentBounds()!;
+    const topSeat = Math.min(...renderer.listNodeBoxes().map((b) => b.y));
+
+    expect(bounds).toBeTruthy();
+    expect(bounds.y).toBeLessThan(topSeat);
+
+    diagram.destroy();
+    container.remove();
+  });
+});
