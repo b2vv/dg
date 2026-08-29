@@ -20,7 +20,6 @@ import {
   resolveNodeTheme,
   canvasBackgroundForTheme,
   getOrgSymbolUrl,
-  type NodeTheme,
   type NodeThemeOverrides,
   type RenderConfig,
   type CameraMotionOptions,
