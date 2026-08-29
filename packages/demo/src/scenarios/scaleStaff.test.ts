@@ -5,6 +5,8 @@ import {
   parseScaleStaffQuery,
   resolveStaffWindowStart,
   scaleStaffComposition,
+  STAFF_SCALE_COLS,
+  STAFF_SCALE_DEFAULT_FOCUS,
   STAFF_SCALE_TOTAL,
   STAFF_SCALE_WINDOW,
   SUBORDINATE_ORGS,
@@ -123,5 +125,78 @@ describe('honesty of the focus marker', () => {
     expect(tierOfSeat(LEAD_SEATS)).toBe('current');
     expect(tierOfSeat(LEAD_SEATS + 699_999)).toBe('current');
     expect(tierOfSeat(LEAD_SEATS + 700_000)).toBe('subordinate');
+  });
+});
+
+describe('T88.1 — geometry that survives a sliding window', () => {
+  // Two windows that overlap. `mid` and `mid + STAFF_SCALE_COLS` differ by exactly
+  // one grid row, so a seat in the overlap must land in the same column and one
+  // row apart — never re-flowed to a different column.
+  const mid = STAFF_SCALE_DEFAULT_FOCUS;
+  const a = buildScaleStaffWindow({ focusIndex: mid });
+  const b = buildScaleStaffWindow({ focusIndex: mid + STAFF_SCALE_COLS });
+  const cellOf = (w: typeof a, id: string) =>
+    w.data.positions.find((p) => p.id === id)?.gridCell;
+
+  it('success: a seat keeps its column when the window slides past it', () => {
+    // Seats present in both windows. The cell is a property of the seat's index
+    // in the address space, not of where the window happened to start — anything
+    // else moves all 600 cards under a camera that did not move.
+    const shared = a.data.positions
+      .filter((p) => p.organizationId === 'current-org')
+      .map((p) => p.id)
+      .filter((id) => b.data.positions.some((p) => p.id === id));
+    expect(shared.length).toBeGreaterThan(100);
+
+    // The pinned head is the one documented exception: its identity is fixed,
+    // its cell rides above the wall so the report lines keep both ends on
+    // screen. Naming it here beats filtering it out quietly — if a second card
+    // ever starts moving, this list is what catches it.
+    const movedSideways = shared.filter((id) => cellOf(a, id)?.col !== cellOf(b, id)?.col);
+    expect(movedSideways).toEqual([]);
+  });
+
+  it('success: the column comes from the absolute index, not the window start', () => {
+    // The column is what a sideways pan must never change, and snapping the wall
+    // base to a whole row is what buys it: (i - base) % COLS === i % COLS.
+    expect(cellOf(a, `pos-${mid}`)?.col).toBe(mid % STAFF_SCALE_COLS);
+    expect(cellOf(b, `pos-${mid}`)?.col).toBe(mid % STAFF_SCALE_COLS);
+  });
+
+  it('success: a slide moves rows by whole rows, which is what the camera undoes', () => {
+    // Rows stay window-relative on purpose — absolute rows would put the wall at
+    // y ≈ 730 000 px (coords.ts:61 multiplies row by the pitch) and zoom the
+    // scene out past anything visible. The price is that a rebuild shifts every
+    // row by the same integer, and the host shifts the camera back by it.
+    const shift = (b.wallBase - a.wallBase) / STAFF_SCALE_COLS;
+    expect(shift).toBe(1);
+    const shared = a.data.positions
+      .filter((p) => p.organizationId === 'current-org' && p.id !== `pos-${LEAD_SEATS}`)
+      .map((p) => p.id)
+      .filter((id) => b.data.positions.some((p) => p.id === id));
+    for (const id of shared.slice(0, 50)) {
+      expect(cellOf(b, id)?.row).toBe((cellOf(a, id)?.row ?? 0) - shift);
+    }
+  });
+
+  it('failure: the head of the current org is the same person after a slide', () => {
+    // `isHead` is structural — exactly one per org, and resolveHead throws
+    // otherwise. Which seat carries it must not depend on where the window
+    // starts, or panning promotes and demotes people.
+    const headOf = (w: typeof a) =>
+      w.data.positions.find((p) => p.organizationId === 'current-org' && p.isHead)?.id;
+    expect(headOf(a)).toBeDefined();
+    expect(headOf(b)).toBe(headOf(a));
+  });
+
+  it('failure: every admin report line points at a seat that is in the scene', () => {
+    // The lines all originate at the head. When the head moved with the window,
+    // a slide rewrote all 600 of them; a line to a seat outside the window is
+    // the same defect seen from the other end.
+    const ids = new Set(b.data.positions.map((p) => p.id));
+    const dangling = (b.data.reportLines ?? []).filter(
+      (l) => !ids.has(l.fromId) || !ids.has(l.toId),
+    );
+    expect(dangling).toEqual([]);
   });
 });

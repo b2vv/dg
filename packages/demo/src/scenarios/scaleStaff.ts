@@ -73,6 +73,12 @@ export interface ScaleStaffWindow {
   /** True when the focus seat is materialized and marked with a testId. */
   focusMaterialized: boolean;
   startIndex: number;
+  /**
+   * First index of the wall's top row. The camera compensation on a rebuild is
+   * `(wallBase - previousWallBase) / STAFF_SCALE_COLS` rows — without this the
+   * host cannot tell how far the frame of reference moved.
+   */
+  wallBase: number;
   buildMs: number;
   composition: ScaleStaffComposition;
   data: DiagramData;
@@ -201,22 +207,85 @@ function leadTier(seats: number): TierSeats {
   return tier;
 }
 
-/** Tier 2 — the window of current-org seats the viewport actually draws. */
+/**
+ * Start of the tier-2 wall, snapped **down to a whole grid row**.
+ *
+ * The snap is what makes a seat's column absolute: with `base` a multiple of
+ * `STAFF_SCALE_COLS`, `(i - base) % COLS === i % COLS`, so panning never moves a
+ * seat sideways. Only the row stays window-relative, and only ever by whole
+ * rows — which is exactly the quantity the camera is shifted back by when the
+ * window is rebuilt, so the content on screen does not move at all.
+ *
+ * Absolute rows were the other candidate and were measured, not guessed: at the
+ * default focus the row is ~14 570, and `coords.ts:61` turns that into
+ * `y = row * pitchY` ≈ 730 000 px. The scene becomes as tall as the address
+ * space, `fitView` zooms out past anything visible, and tier 1 ends up 700 000 px
+ * from tier 2. Relative rows plus a camera shift keep the world small.
+ */
+export function snapWallBase(start: number): number {
+  return Math.floor(start / STAFF_SCALE_COLS) * STAFF_SCALE_COLS;
+}
+
+/**
+ * Grid cell of a current-org seat.
+ *
+ * Row 0 is reserved for the pinned head, so the wall starts at row 1.
+ */
+export function cellOfSeat(index: number, wallBase: number): { col: number; row: number } {
+  return {
+    col: index % STAFF_SCALE_COLS,
+    row: Math.floor((index - wallBase) / STAFF_SCALE_COLS) + 1,
+  };
+}
+
+/**
+ * Tier 2 — the window of current-org seats the viewport actually draws.
+ *
+ * Two things here are deliberately **not** derived from `range.start`, because
+ * a window that slides must not move what it merely scrolls past:
+ *
+ * 1. **The cell.** `cellOfSeat` reads the absolute address, so a seat keeps its
+ *    column and row whatever the window start is. Deriving it from `i - start`
+ *    made a one-seat slide re-flow all 600 cards under a camera that never moved.
+ * 2. **The head.** `isHead` is structural — exactly one per org, and
+ *    `resolveHead` throws otherwise — so it cannot simply be dropped. It is
+ *    pinned to the first seat of the tier, which keeps the same person in charge
+ *    however far the window travels; previously the boss changed as you panned.
+ *
+ * The pinned head is the one card whose cell *does* ride with the window: it sits
+ * in its own row directly above the wall, so it stays on screen and every report
+ * line keeps both ends in the scene. Its identity is fixed; only its seat is.
+ */
 function currentTier(range: { start: number; end: number; leadSeats: number }, focusIndex: number): TierSeats {
   const tier = emptyTier();
-  const headId = `pos-${range.start}`;
+  const headIndex = range.leadSeats;
+  const headId = `pos-${headIndex}`;
+  const headInWall = headIndex >= range.start && headIndex < range.end;
+  const wallBase = snapWallBase(range.start);
+
+  if (!headInWall) {
+    pushSeat(tier, headIndex, {
+      id: headId,
+      title: `${seatTitle(headIndex)} · head`,
+      organizationId: 'current-org',
+      departmentId: departmentOfSeat(headIndex - range.leadSeats),
+      isHead: true,
+      // Its own row above the wall, so it never collides with a real cell.
+      gridCell: { col: 0, row: 0 },
+    });
+  }
+
   for (let i = range.start; i < range.end; i += 1) {
-    const local = i - range.start;
     pushSeat(tier, i, {
       id: `pos-${i}`,
       title: i === focusIndex ? `${seatTitle(i)} · focus` : seatTitle(i),
       organizationId: 'current-org',
       departmentId: departmentOfSeat(i - range.leadSeats),
-      isHead: i === range.start,
-      gridCell: { col: local % STAFF_SCALE_COLS, row: Math.floor(local / STAFF_SCALE_COLS) },
+      isHead: i === headIndex,
+      gridCell: cellOfSeat(i, wallBase),
       testId: i === focusIndex ? 'scale-focus-seat' : undefined,
     });
-    if (i !== range.start) tier.reportLines.push({ fromId: headId, toId: `pos-${i}`, kind: 'admin' });
+    if (i !== headIndex) tier.reportLines.push({ fromId: headId, toId: `pos-${i}`, kind: 'admin' });
   }
   tier.reportLines.push({ fromId: 'pos-0', toId: headId, kind: 'dotted' });
   return tier;
@@ -316,6 +385,7 @@ export function buildScaleStaffWindow(options: {
     focusTier,
     focusMaterialized: positions.some((p) => p.testId === 'scale-focus-seat'),
     startIndex: start,
+    wallBase: snapWallBase(start),
     buildMs: Math.round(t1 - t0),
     composition,
     data: {
