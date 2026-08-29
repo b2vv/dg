@@ -6,6 +6,7 @@ import {
   resolveNodeTheme,
   resolveTheme,
 } from './theme.js';
+import { defaultNodeTheme, mergeTheme } from './types.js';
 import type { DiagramOrganization } from '../data/types.js';
 
 describe('resolveTheme', () => {
@@ -117,5 +118,33 @@ describe('getInactiveOrgSymbolUrl', () => {
         'light',
       ),
     ).toBeUndefined();
+  });
+});
+
+describe('theme overrides go one field at a time', () => {
+  it('success: a single staffZone field overrides without restating the rest', () => {
+    // A host wanting a left-aligned zone label had to supply all seven fields of
+    // StaffZoneStyle, i.e. copy the SDK's defaults into their own code, where
+    // they silently drift. The merge already handled a partial correctly; only
+    // the type refused it.
+    const theme = mergeTheme({
+      staffZone: { labelAlign: 'left' },
+    });
+    expect(theme.staffZone?.labelAlign).toBe('left');
+    // Everything else keeps the default rather than becoming undefined.
+    expect(theme.staffZone?.labelFontSize).toBe(14);
+    expect(theme.staffZone?.borderRadius).toBe(12);
+  });
+
+  it('success: the same holds for a nested person field', () => {
+    const theme = mergeTheme({ person: { nameFontSize: 20 } });
+    expect(theme.person.nameFontSize).toBe(20);
+    expect(theme.person.width).toBe(defaultNodeTheme.person.width);
+  });
+
+  it('success: departmentCard takes a partial too', () => {
+    const theme = mergeTheme({ departmentCard: { labelRow: true } });
+    expect(theme.departmentCard?.labelRow).toBe(true);
+    expect(theme.departmentCard?.borderRadius).toBe(8);
   });
 });

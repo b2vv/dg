@@ -21,6 +21,7 @@ import {
   canvasBackgroundForTheme,
   getOrgSymbolUrl,
   type NodeTheme,
+  type NodeThemeOverrides,
   type RenderConfig,
   type CameraMotionOptions,
   type NodeWorldBox,
@@ -88,7 +89,7 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
   data: TRaw | DiagramData;
   mappers?: DiagramMappers<TRaw>;
   theme?: 'light' | 'dark' | 'auto';
-  styles?: Partial<NodeTheme>;
+  styles?: NodeThemeOverrides;
   render?: Partial<RenderConfig>;
   /** Contour + WASM compute у Web Worker (default: true у browser) */
   useWorker?: boolean;
@@ -131,7 +132,7 @@ export class OrgHierarchyDiagram {
   private rendererPreference: RendererKindPreference = 'auto';
   /** Set only when the host asked for an engine we do not know (T83). */
   private rendererDiagnostic: string | null = null;
-  private stylesPartial: Partial<NodeTheme> | undefined;
+  private stylesPartial: NodeThemeOverrides | undefined;
   private nodeTheme = mergeTheme();
   private renderConfig: RenderConfig = { ...defaultRenderConfig };
   private useWorker = true;

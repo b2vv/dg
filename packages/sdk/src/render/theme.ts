@@ -5,6 +5,7 @@ import {
   defaultNodeTheme,
   mergeTheme,
   type NodeTheme,
+  type NodeThemeOverrides,
   type ThemeMode,
 } from './types.js';
 
@@ -23,7 +24,7 @@ export function canvasBackgroundForTheme(theme: 'light' | 'dark'): number {
 /** Org / person / department fills for the resolved theme (+ optional host overrides). */
 export function resolveNodeTheme(
   theme: 'light' | 'dark',
-  partial?: Partial<NodeTheme>,
+  partial?: NodeThemeOverrides,
 ): NodeTheme {
   const base = theme === 'dark' ? darkNodeTheme : defaultNodeTheme;
   return mergeTheme(partial, base);

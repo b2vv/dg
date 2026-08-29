@@ -133,6 +133,7 @@ export {
   variantBAdjacentEdgeClearance,
   mergeTheme,
   type NodeTheme,
+  type NodeThemeOverrides,
   type ThemeMode,
   type RenderConfig,
   type DepartmentPaintStyle,

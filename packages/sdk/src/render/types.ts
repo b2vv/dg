@@ -194,6 +194,22 @@ export interface NodeTheme {
   edge?: EdgeStyle;
 }
 
+/**
+ * What a host may pass as `styles` — every nested style is itself optional,
+ * field by field.
+ *
+ * `Partial<NodeTheme>` only made the top level optional, so changing one field
+ * of `staffZone` meant restating all seven, i.e. copying the SDK's defaults into
+ * host code where they drift silently. {@link mergeTheme} always layered
+ * defaults → base → override, so a partial merged correctly all along; only the
+ * type refused it.
+ */
+export type NodeThemeOverrides = {
+  [K in keyof NodeTheme]?: NodeTheme[K] extends number | undefined
+    ? NodeTheme[K]
+    : Partial<NonNullable<NodeTheme[K]>>;
+};
+
 export type DepartmentPaintStyle = 'blob' | 'card';
 
 /** Contour geometry source — see {@link RenderConfig.contourEngine}. */
@@ -417,7 +433,7 @@ export const defaultRenderConfig: RenderConfig = {
 };
 
 export function mergeTheme(
-  partial?: Partial<NodeTheme>,
+  partial?: NodeThemeOverrides,
   base: NodeTheme = defaultNodeTheme,
 ): NodeTheme {
   if (!partial) {

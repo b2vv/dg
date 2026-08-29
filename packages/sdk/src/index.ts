@@ -163,6 +163,7 @@ export type {
 } from './media/index.js';
 export type {
   NodeTheme,
+  NodeThemeOverrides,
   ThemeMode,
   RenderConfig,
   ContourComputer,
