@@ -90,11 +90,6 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
         ...base,
         data: buildStaffTreeData(),
         staffCurrentOrgId: 'ops',
-        // The department card's label is always right-aligned with no option to
-        // move it, so a right-aligned zone label lands in the same corner and the
-        // card frame draws over it. Left is the fix for this tab; reserving a
-        // label band in the tier is T94 and would move geometry everywhere.
-        styles: { staffZone: { labelAlign: 'left' } },
         render: {
           ...base.render,
           staffZoneChrome: true,

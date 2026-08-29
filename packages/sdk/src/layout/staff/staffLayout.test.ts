@@ -284,6 +284,61 @@ describe('layoutStaffCanvas', () => {
     expect(cross.some((e) => e.fromId === 'ceo' && e.toId === 'sub')).toBe(true);
   });
 
+  it('success: a reserved zone-label band pushes content below the label, not under it', async () => {
+    // T94: the zone draws its name inside its own top-left/right corner, and the
+    // first content row used to start in that same strip — the card frame drew
+    // over the label. The band is supplied by the renderer, which is the only
+    // side that knows the label's font size.
+    const organizations = [org('mgr'), org('current', 'mgr')];
+    const positions = [
+      pos('mgr-ceo', 'mgr', { isHead: true }),
+      pos('ceo', 'current', { isHead: true }),
+    ];
+    const reports: DiagramReportLine[] = [];
+    const data = {
+      organizations,
+      positions,
+      reports,
+      groups: [],
+      departments: [],
+      persons: [],
+    };
+
+    const without = await layoutStaffCanvas(data, 'current');
+    const with40 = await layoutStaffCanvas(data, 'current', { zoneLabelBand: 40 });
+
+    for (const tier of [1, 2] as const) {
+      const bandless = without.tiers.find((t) => t.tier === tier)!;
+      const banded = with40.tiers.find((t) => t.tier === tier)!;
+      const firstBandless = Math.min(
+        ...without.positionNodes.filter((n) => n.tier === tier).map((n) => n.y),
+      );
+      const firstBanded = Math.min(
+        ...with40.positionNodes.filter((n) => n.tier === tier).map((n) => n.y),
+      );
+      // The band opens a strip between the zone's top edge and its first row.
+      expect(firstBanded - banded.y).toBe(firstBandless - bandless.y + 40);
+      // And the zone grows to keep that strip inside itself.
+      expect(banded.height).toBe(bandless.height + 40);
+    }
+  });
+
+  it('failure: no band means no shift — the default is unchanged', async () => {
+    const organizations = [org('current')];
+    const positions = [pos('ceo', 'current', { isHead: true })];
+    const data = {
+      organizations,
+      positions,
+      reports: [] as DiagramReportLine[],
+      groups: [],
+      departments: [],
+      persons: [],
+    };
+    const a = await layoutStaffCanvas(data, 'current');
+    const b = await layoutStaffCanvas(data, 'current', { zoneLabelBand: 0 });
+    expect(b.tiers.map((t) => [t.y, t.height])).toEqual(a.tiers.map((t) => [t.y, t.height]));
+  });
+
   it('tier 1: managing head + its direct reports (SPEC «керівний склад»)', async () => {
     const organizations = [org('mgr'), org('current', 'mgr')];
     const positions = [

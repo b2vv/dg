@@ -69,15 +69,18 @@ export async function layoutStaffCanvas(
     if (head) {
       const leadership = leadershipOf(head, mgrPositions, data.reports);
       const block = await layoutStaffOrgBlock(leadership, data.reports, managingId, options);
+      // The zone's own label owns a strip at the top of the band; content starts
+      // below it (T94). Without the reservation the first row lands in that strip
+      // and the card frame is drawn over the zone name.
       const nodes = block.nodes.map((n) => ({
         ...n,
-        y: n.y + cursorY,
+        y: n.y + cursorY + opts.zoneLabelBand,
         tier: 1 as const,
       }));
       positionNodes.push(...nodes);
       edges.push(...block.edges);
       diagnostics.push(...block.diagnostics);
-      const height = Math.max(block.height, opts.orgCardHeight);
+      const height = Math.max(block.height, opts.orgCardHeight) + opts.zoneLabelBand;
       tiers.push({
         tier: 1,
         kind: 'staff-block',
@@ -100,13 +103,14 @@ export async function layoutStaffCanvas(
   );
   const t2nodes = tier2.nodes.map((n) => ({
     ...n,
-    y: n.y + cursorY,
+    y: n.y + cursorY + opts.zoneLabelBand,
     tier: 2 as const,
   }));
   positionNodes.push(...t2nodes);
   edges.push(...tier2.edges);
   diagnostics.push(...tier2.diagnostics);
-  const t2height = Math.max(tier2.height, opts.nodeHeight + opts.margin * 2);
+  const t2height =
+    Math.max(tier2.height, opts.nodeHeight + opts.margin * 2) + opts.zoneLabelBand;
   tiers.push({
     tier: 2,
     kind: 'staff-block',

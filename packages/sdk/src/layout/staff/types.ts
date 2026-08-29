@@ -8,6 +8,13 @@ export class StaffLayoutError extends Error {
 }
 
 export interface StaffLayoutOptions {
+  /**
+   * Vertical strip reserved at the top of each staff-block zone for the zone's
+   * own label (T94). The renderer supplies it, because only it knows the label
+   * font size; without it the first content row starts in the same strip the
+   * label is drawn in and the card frame covers the name. Default 0.
+   */
+  zoneLabelBand?: number;
   staffCoordMode?: StaffCoordMode;
   nodeWidth?: number;
   nodeHeight?: number;
@@ -49,6 +56,7 @@ export const DEFAULT_STAFF_LAYOUT_OPTIONS: Required<
   expandedPositionIds: readonly string[];
   maxExpandedPositions: number;
 } = {
+  zoneLabelBand: 0,
   staffCoordMode: 'hybrid',
   nodeWidth: 136,
   nodeHeight: 156,

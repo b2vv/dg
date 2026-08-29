@@ -348,12 +348,31 @@ export class DiagramRenderer {
   /** SPEC §2.2 three-tier canvas: zones, contours, edges, seats, org cards. */
   private async renderStaffCanvas(ctx: StaffSceneContext, currentOrgId: string): Promise<void> {
     const { data, theme, config, options, epoch } = ctx;
+    // Only the renderer knows the label's font size, so the strip the zone name
+    // needs is computed here and reserved by the layout (T94).
+    //
+    // Resolved through resolveStaffZoneStyle rather than read off theme.staffZone:
+    // a theme can leave staffZone undefined and still paint zones, because the
+    // painter falls back to its own per-mode defaults. Reading the raw field gave
+    // a band of zero on exactly the tab the collision was reported on.
+    //
+    // The band is measured to the seats, but the seats are not what sits closest
+    // to the label: the department wrapper grows upward around them by its own
+    // padding, so that has to be in the reservation too.
+    const zoneLabelBand = config.staffZoneChrome
+      ? (() => {
+          const zone = resolveStaffZoneStyle(theme, ctx.resolvedTheme);
+          const labelBottom = (zone.labelPadding ?? 8) + zone.labelFontSize;
+          return labelBottom + 6 + departmentWrapperPadding(theme, config);
+        })()
+      : 0;
     const staffOpts: StaffLayoutOptions = {
       // Keep staff boxes on the same pitch as contour cells.
       nodeWidth: theme.person.width,
       nodeHeight: theme.person.height,
       refCellWidth: config.cellWidth,
       refCellHeight: config.cellHeight,
+      zoneLabelBand,
       ...options.staff?.layout,
       expandedOrgIds: options.staff?.expandedOrgIds ?? options.staff?.layout?.expandedOrgIds,
     };
