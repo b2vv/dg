@@ -10,7 +10,11 @@ describe('nodeCardChrome', () => {
     expect(btn.hitArea).toBeInstanceOf(Rectangle);
     expect((btn.hitArea as Rectangle).width).toBe(22);
 
-    btn.emit('pointertap', { stopPropagation: () => {}, clientX: 12, clientY: 34 });
+    btn.emit('pointertap', {
+      stopPropagation: () => {},
+      clientX: 12,
+      clientY: 34,
+    } as unknown as FederatedPointerEvent);
     expect(onMenu).toHaveBeenCalledWith({ clientX: 12, clientY: 34 });
   });
 
@@ -19,7 +23,7 @@ describe('nodeCardChrome', () => {
     const onTap = rstest.fn();
     const btn = attachIconButton(host, 10, 4, '+', 'Expand', onTap);
     expect(btn.hitArea).toBeInstanceOf(Rectangle);
-    btn.emit('pointertap', { stopPropagation: () => {} });
+    btn.emit('pointertap', { stopPropagation: () => {} } as unknown as FederatedPointerEvent);
     expect(onTap).toHaveBeenCalledOnce();
   });
 
@@ -37,8 +41,8 @@ describe('nodeCardChrome', () => {
     attachMenuButton(host, 200, 4, () => {}, 160);
     const e = {
       getLocalPosition: (target: Container) => target.toLocal({ x: 170, y: 15 }),
-    } as FederatedPointerEvent;
+    } as unknown as FederatedPointerEvent;
     expect(hitChromePointer(host, e)).toBe(true);
-    expect(hitChromePointer(host, { getLocalPosition: () => ({ x: 0, y: 0 }) } as FederatedPointerEvent)).toBe(false);
+    expect(hitChromePointer(host, { getLocalPosition: () => ({ x: 0, y: 0 }) } as unknown as FederatedPointerEvent)).toBe(false);
   });
 });

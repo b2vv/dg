@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@rstest/core';
 import { paintMagneticGroups } from './paintMagneticGroups.js';
 import type { ContourMemberBox } from './contourClearance.js';
-import { NO_DEPARTMENT_ID } from './contourPaintFilter.js';
+import { NO_DEPARTMENT_ID } from '../../data/types.js';
 
 const CELL = 100;
 const cell = (positionId: string, col: number, row: number): ContourMemberBox => ({

@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@rstest/core';
-import { emptyDiagramData } from '../data/types.js';
+import { emptyDiagramData, type DiagramData } from '../data/types.js';
 import {
   orgNodeRef,
   personNodeRef,
@@ -9,13 +9,31 @@ import {
   testIdForRef,
 } from './nodeRefs.js';
 
-const data = {
+const data: DiagramData = {
   ...emptyDiagramData(),
   organizations: [{ id: 'o1', name: 'Cedar Lake', groupIds: [] }],
-  persons: [{ id: 'per1', firstName: 'Ada', lastName: 'Byron' }],
+  // firstName/lastName here predated DiagramPerson.fullName and had gone
+  // unnoticed because tests were outside the type check.
+  persons: [{ id: 'per1', fullName: 'Ada Byron' }],
   positions: [
-    { id: 'p1', organizationId: 'o1', departmentId: 'd1', title: 'Lead', personId: 'per1' },
-    { id: 'p2', organizationId: 'o1', title: 'Vacant seat' },
+    {
+      id: 'p1',
+      organizationId: 'o1',
+      departmentId: 'd1',
+      title: 'Lead',
+      personId: 'per1',
+      groupIds: [],
+      status: 'filled',
+      isTemporary: false,
+    },
+    {
+      id: 'p2',
+      organizationId: 'o1',
+      title: 'Vacant seat',
+      groupIds: [],
+      status: 'vacant',
+      isTemporary: false,
+    },
   ],
 };
 

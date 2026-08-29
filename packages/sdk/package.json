@@ -1,7 +1,7 @@
 {
   "name": "@org-hierarchy/sdk",
   "version": "0.2.0",
-  "description": "Org hierarchy diagram SDK — data, mappers, worker helpers",
+  "description": "Org hierarchy diagram SDK \u2014 data, mappers, worker helpers",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -31,7 +31,7 @@
     "build": "tsc && node scripts/copy-wasm.mjs && node scripts/check-package.mjs",
     "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
     "dev": "rsbuild dev",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -p tsconfig.check.json",
     "test": "rstest run",
     "test:watch": "rstest --watch",
     "prepare": "npm run build"
@@ -52,6 +52,7 @@
     "@rsbuild/core": "^1.2.0",
     "@rsbuild/plugin-type-check": "^1.2.0",
     "@rstest/core": "^0.11.10",
+    "@types/node": "^26.4.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "jsdom": "^25.0.1",

@@ -5,7 +5,7 @@ import { isDiagramData, mergeById, mergePartial } from './mergeData.js';
 const base = () => ({
   ...emptyDiagramData(),
   organizations: [{ id: 'o1', name: 'Old', groupIds: [] }],
-  positions: [{ id: 'p1', organizationId: 'o1', title: 'Lead' }],
+  positions: [{ id: 'p1', organizationId: 'o1', title: 'Lead', groupIds: [], status: 'filled' as const, isTemporary: false }],
   reportLines: [{ fromId: 'p1', toId: 'p2', kind: 'admin' as const }],
 });
 

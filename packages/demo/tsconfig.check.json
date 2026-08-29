@@ -1,0 +1,9 @@
+{
+  // See packages/sdk/tsconfig.check.json — same reason.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src/**/*"],
+  "exclude": []
+}

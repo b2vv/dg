@@ -1,0 +1,16 @@
+{
+  // Type-checks everything, tests included. The build config excludes *.test.ts
+  // because tests must not reach dist — but that same exclusion hid type errors
+  // in the tests themselves, so `typecheck` runs against this file instead.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    // rootDir belongs to the build. Checking also covers the harness files that
+    // sit beside src, so it is widened here rather than worked around.
+    "rootDir": "."
+  },
+  "include": ["src/**/*", "rstest.setup.ts", "rstest.config.ts"],
+  "exclude": []
+}

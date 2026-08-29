@@ -1,0 +1,16 @@
+{
+  // The e2e specs were never type-checked: there is no root tsconfig, and each
+  // package's config only covers its own src. A spec that referenced a bridge
+  // method that no longer exists would fail at run time instead of at check time.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
+  "include": ["e2e/**/*.ts", "playwright.config.ts"]
+}

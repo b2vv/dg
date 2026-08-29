@@ -1,5 +1,6 @@
 import { describe, expect, it, rstest } from '@rstest/core';
 import { OrgHierarchyDiagram } from '../index.js';
+import type { DiagramData } from '../data/types.js';
 import { InteractionError } from '../interaction/index.js';
 import { VARIANT_B_POSITIONS } from '../contour/bridge.js';
 
@@ -143,7 +144,7 @@ describe('OrgHierarchyDiagram interactions', () => {
         positions: [],
         reportLines: [],
       },
-      { toDiagram: async (chunk) => chunk as ReturnType<typeof makeData> },
+      { toDiagram: async (chunk) => chunk as unknown as DiagramData },
     );
     expect(diagram.getData().organizations).toHaveLength(before);
     expect(diagram.getData().organizations.find((o) => o.id === 'org1')?.name).toBe(
@@ -159,7 +160,7 @@ describe('OrgHierarchyDiagram interactions', () => {
           positions: [],
           reportLines: [],
         },
-        { toDiagram: async (chunk) => chunk as ReturnType<typeof makeData> },
+        { toDiagram: async (chunk) => chunk as unknown as DiagramData },
       ),
     ).resolves.toBeUndefined();
     expect(diagram.getData().organizations).toHaveLength(before);

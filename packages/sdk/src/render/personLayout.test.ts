@@ -87,8 +87,7 @@ describe('resolveGojsRowLayoutMetrics', () => {
         organizationId: 'o1',
         periodStart: '2024-01-01',
         childrenCount: 1,
-        allDescendantCount: 3,
-      },
+        allDescendantCount: 3, groupIds: [], status: 'filled' as const, isTemporary: false, title: 'Seat' },
       baseStyle({ cardRowHeight: 56 }),
     );
     expect(metrics).toEqual({
@@ -101,7 +100,7 @@ describe('resolveGojsRowLayoutMetrics', () => {
 
   it('omits chrome bands when period and counts absent', () => {
     expect(
-      resolveGojsRowLayoutMetrics({ id: 'p1', organizationId: 'o1' }, baseStyle({ cardRowHeight: 56 })),
+      resolveGojsRowLayoutMetrics({ id: 'p1', organizationId: 'o1', groupIds: [], status: 'filled' as const, isTemporary: false, title: 'Seat' }, baseStyle({ cardRowHeight: 56 })),
     ).toEqual({ cardY: 0, cardH: 56, timelineH: 0, countBarH: 0 });
   });
 });

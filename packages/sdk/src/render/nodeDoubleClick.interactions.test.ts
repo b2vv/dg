@@ -1,11 +1,13 @@
+import type { FederatedPointerEvent } from 'pixi.js';
 import { describe, expect, it, rstest } from '@rstest/core';
 import { OrgHierarchyDiagram } from '../index.js';
+import type { DiagramData } from '../data/types.js';
 import { DiagramRenderer } from './DiagramRenderer.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
 import { defaultNodeTheme } from './types.js';
 import type { PixiHost } from './PixiHost.js';
 
-function orgOnlyData() {
+function orgOnlyData(): DiagramData {
   return {
     organizations: [
       { id: 'root', name: 'Root', groupIds: [], collapsed: false },
@@ -19,7 +21,7 @@ function orgOnlyData() {
   };
 }
 
-function personData() {
+function personData(): DiagramData {
   return {
     organizations: [{ id: 'o1', name: 'Ops', groupIds: [] }],
     groups: [],
@@ -51,10 +53,11 @@ function hostOf(diagram: OrgHierarchyDiagram): PixiHost {
   return host;
 }
 
+/** Stub pointer event — see the note in nodeInteractions.contract.test.ts. */
 function tapEvent(
   local: { x: number; y: number } = { x: 40, y: 40 },
   mods: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean } = {},
-) {
+): FederatedPointerEvent {
   return {
     stopPropagation: () => {},
     preventDefault: () => {},
@@ -65,7 +68,7 @@ function tapEvent(
     ctrlKey: Boolean(mods.ctrlKey),
     metaKey: Boolean(mods.metaKey),
     shiftKey: Boolean(mods.shiftKey),
-  };
+  } as unknown as FederatedPointerEvent;
 }
 
 describe('onNodeDoubleClick (T69)', () => {
@@ -158,8 +161,8 @@ describe('onNodeDoubleClick (T69)', () => {
     });
 
     const node = renderer.layers.organizations.children.find(
-      (c) => c instanceof OrganizationNodeView && (c as OrganizationNodeView).hasExpandControl(),
-    ) as OrganizationNodeView | undefined;
+      (c) => c instanceof OrganizationNodeView && (c as unknown as OrganizationNodeView).hasExpandControl(),
+    ) as unknown as OrganizationNodeView | undefined;
     expect(node).toBeTruthy();
 
     const chrome = (node as unknown as { chromeControls: { children: { x: number; y: number }[] } })
@@ -321,8 +324,8 @@ describe('onNodeDoubleClick (T69)', () => {
       ...tapEvent(),
       button: 2,
       preventDefault: () => {},
-    });
-    node!.emit('pointertap', { ...tapEvent(), button: 2 });
+    } as unknown as FederatedPointerEvent);
+    node!.emit('pointertap', { ...tapEvent(), button: 2 } as unknown as FederatedPointerEvent);
 
     expect(onContextMenu).toHaveBeenCalledTimes(1);
     expect(onNodeClick).not.toHaveBeenCalled();

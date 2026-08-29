@@ -67,8 +67,7 @@ describe('visualPersonEdgeBox', () => {
       organizationId: 'org-1',
       periodStart: '2024-01-01',
       childrenCount: 2,
-      allDescendantCount: 5,
-    } satisfies DiagramPosition;
+      allDescendantCount: 5, groupIds: [], status: 'filled' as const, isTemporary: false, title: 'Seat' } satisfies DiagramPosition;
     const style = {
       width: 200,
       height: 98,
@@ -84,7 +83,7 @@ describe('visualPersonEdgeBox', () => {
     const child = visualPersonEdgeBox(
       staffEdgeBoxForPosition(
         { id: 'pos-2', x: 40, y: 220, width: 200, height: 98 },
-        { id: 'pos-2', organizationId: 'org-1' },
+        { id: 'pos-2', organizationId: 'org-1', groupIds: [], status: 'filled' as const, isTemporary: false, title: 'Seat' },
         style,
       ),
       'near',
@@ -126,8 +125,7 @@ describe('mapPositionNodesToStaffEdgeBoxes', () => {
           organizationId: 'org-1',
           periodStart: '2024-01-01',
           childrenCount: 1,
-          allDescendantCount: 2,
-        },
+          allDescendantCount: 2, groupIds: [], status: 'filled' as const, isTemporary: false, title: 'Seat' },
       ],
     ]);
     const boxes = mapPositionNodesToStaffEdgeBoxes(
@@ -144,7 +142,7 @@ describe('mapPositionNodesToStaffEdgeBoxes', () => {
 
   it('failure: portrait theme omits gojs-row hints', () => {
     const positionById = new Map<string, DiagramPosition>([
-      ['pos-1', { id: 'pos-1', organizationId: 'org-1', periodStart: '2024-01-01' }],
+      ['pos-1', { id: 'pos-1', organizationId: 'org-1', periodStart: '2024-01-01', groupIds: [], status: 'filled' as const, isTemporary: false, title: 'Seat' }],
     ]);
     const boxes = mapPositionNodesToStaffEdgeBoxes(
       [{ id: 'pos-1', x: 0, y: 0, width: 136, height: 156 }],

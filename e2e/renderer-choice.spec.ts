@@ -56,7 +56,12 @@ function bridge(page: Page) {
 
 /** The diagram's own canvas — not the first one the page happens to contain. */
 const sceneUsesWebgl = (page: Page) =>
-  page.evaluate(() => !!document.querySelector('#diagram-mount canvas')?.getContext('webgl2'));
+  page.evaluate(
+    () =>
+      !!document
+        .querySelector<HTMLCanvasElement>('#diagram-mount canvas')
+        ?.getContext('webgl2'),
+  );
 
 /**
  * What the browser itself says, asked without touching our code or Pixi's cache:

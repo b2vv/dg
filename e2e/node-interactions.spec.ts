@@ -5,7 +5,15 @@ import { expect, test } from '@playwright/test';
  * E2E smoke: context menu opens via test anchors (same path as Pixi right-click host wiring).
  */
 
-const CONTEXT_MENU_CASES = [
+interface ContextMenuCase {
+  tab: string;
+  anchor: string;
+  kind: 'organization' | 'person' | 'position';
+  /** Extra preparation some tabs need before the anchor exists. */
+  setup?: string;
+}
+
+const CONTEXT_MENU_CASES: readonly ContextMenuCase[] = [
   { tab: 'Orgs · Figma', anchor: 'mockup-root', kind: 'organization' },
   { tab: 'Orgs · GoJS', anchor: 'mockup-hq', kind: 'organization' },
   { tab: 'Staff · Figma', anchor: 'staff-head', kind: 'person' },
@@ -13,7 +21,7 @@ const CONTEXT_MENU_CASES = [
   { tab: 'Staff · Figma', anchor: 'staff-vacant', kind: 'position' },
   { tab: 'Variant B', anchor: 'ceo', kind: 'person', setup: 'variant-b' },
   { tab: 'Flat orgs', anchor: 'root', kind: 'organization', setup: 'flat-orgs' },
-] as const;
+];
 
 async function openTab(
   page: import('@playwright/test').Page,

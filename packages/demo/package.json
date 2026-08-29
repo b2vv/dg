@@ -2,14 +2,14 @@
   "name": "@org-hierarchy/demo",
   "version": "0.1.0",
   "private": true,
-  "description": "Org Hierarchy SDK — Rsbuild demo app",
+  "description": "Org Hierarchy SDK \u2014 Rsbuild demo app",
   "type": "module",
   "scripts": {
     "dev": "rsbuild dev",
     "build": "rsbuild build",
     "preview": "rsbuild preview",
     "test": "rstest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -p tsconfig.check.json"
   },
   "dependencies": {
     "@org-hierarchy/sdk": "*",

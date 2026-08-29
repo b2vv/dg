@@ -33,7 +33,7 @@ const style = (over: Partial<PersonNodeStyle> = {}): PersonNodeStyle => ({
   ...over,
 });
 
-const position = { id: 'p1', organizationId: 'o1', title: 'Lead engineer' };
+const position = { id: 'p1', organizationId: 'o1', title: 'Lead engineer', groupIds: [], status: 'filled' as const, isTemporary: false };
 const person = { id: 'per1', fullName: 'Ada Byron' };
 
 describe('personCardContent', () => {

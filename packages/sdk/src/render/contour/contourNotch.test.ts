@@ -4,13 +4,13 @@ import {
   notchRect,
   notchedRings,
   subtractRects,
-  type ContourNotchPoint,
   type ContourRect,
 } from './contourNotch.js';
+import type { ContourPoint } from '../../contour/bridge.js';
 
 const card = (x: number, y: number): ContourRect => ({ x, y, width: 100, height: 60 });
 
-function pointInsideRing(p: ContourNotchPoint, ring: readonly ContourNotchPoint[]): boolean {
+function pointInsideRing(p: ContourPoint, ring: readonly ContourPoint[]): boolean {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
     const a = ring[i]!;
@@ -23,7 +23,7 @@ function pointInsideRing(p: ContourNotchPoint, ring: readonly ContourNotchPoint[
   return inside;
 }
 
-const centerOf = (r: ContourRect): ContourNotchPoint => ({
+const centerOf = (r: ContourRect): ContourPoint => ({
   x: r.x + r.width / 2,
   y: r.y + r.height / 2,
 });

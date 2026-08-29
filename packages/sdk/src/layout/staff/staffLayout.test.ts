@@ -111,6 +111,9 @@ describe('position coords', () => {
       verticalGap: 10,
       refCellWidth: 100,
       refCellHeight: 50,
+      // Required by the signature; the call went unchecked before tests were
+      // part of the type check, so its absence never surfaced.
+      margin: 0,
     });
     expect(box).toEqual({ x: 250, y: 65, width: 80, height: 40 });
   });

@@ -36,7 +36,7 @@ describe('mapInWorker', () => {
     await expect(mapInWorker(worker, 'inc', { n: 1 }, undefined, 5_000)).resolves.toEqual({
       n: 2,
     });
-    expect(posted?.id).toMatch(/^map-/);
+    expect((posted as unknown as { id?: string } | null)?.id).toMatch(/^map-/);
   });
 
   it('failure: rejects immediately on worker error event (A3)', async () => {

@@ -1,8 +1,10 @@
+import type { FederatedPointerEvent } from 'pixi.js';
 import { describe, expect, it, rstest } from '@rstest/core';
 import { OrgHierarchyDiagram } from '../index.js';
 import { PersonNodeView } from './PersonNode.js';
 import { snapWorldToCell } from '../interaction/positionMove.js';
 import type { DiagramData } from '../data/types.js';
+import type { LayoutPatch } from '../callbacks.js';
 
 /**
  * T77-M05 — the drag contract: a click must not read as a drop, and the snap
@@ -31,7 +33,11 @@ function gridData(): DiagramData {
   };
 }
 
-function pointerEvent(local: { x: number; y: number }, pointerId = 1) {
+/** Stub pointer event — see the note in nodeInteractions.contract.test.ts. */
+function pointerEvent(
+  local: { x: number; y: number },
+  pointerId = 1,
+): FederatedPointerEvent {
   return {
     pointerId,
     button: 0,
@@ -44,10 +50,16 @@ function pointerEvent(local: { x: number; y: number }, pointerId = 1) {
     ctrlKey: false,
     metaKey: false,
     shiftKey: false,
-  };
+  } as unknown as FederatedPointerEvent;
 }
 
-async function mountDraggable(onPersonDragEnd: () => void) {
+/**
+ * `onPersonDragEnd` is an internal renderer hook, not a public callback — the
+ * diagram turns a drop into `onLayoutChange({ type: 'position-move' })`. Passing
+ * it through `callbacks` wired it to nothing, so the "never reports a drop"
+ * assertions below could never have failed. They watch the real callback now.
+ */
+async function mountDraggable(onDrop: (patch: LayoutPatch) => void) {
   const container = document.createElement('div');
   container.style.width = '800px';
   container.style.height = '600px';
@@ -56,7 +68,11 @@ async function mountDraggable(onPersonDragEnd: () => void) {
     data: gridData(),
     staffCurrentOrgId: 'org1',
     useWorker: false,
-    callbacks: { onPersonDragEnd },
+    callbacks: {
+      onLayoutChange: (patch) => {
+        if (patch.type === 'position-move') onDrop(patch);
+      },
+    },
     render: { cellWidth: 140, cellHeight: 160 },
   });
   const host = (diagram as unknown as { host: { renderer: { layers: { persons: { children: unknown[] } } } } }).host;
@@ -69,8 +85,8 @@ async function mountDraggable(onPersonDragEnd: () => void) {
 
 describe('person drag contract (T77-M05)', () => {
   it('failure: a click without movement never reports a drop', async () => {
-    const onPersonDragEnd = rstest.fn();
-    const { container, diagram, node } = await mountDraggable(onPersonDragEnd);
+    const onDrop = rstest.fn();
+    const { container, diagram, node } = await mountDraggable(onDrop);
 
     const start = { x: node.x + 10, y: node.y + 10 };
     node.emit('pointerdown', pointerEvent(start));
@@ -78,7 +94,35 @@ describe('person drag contract (T77-M05)', () => {
     node.emit('globalpointermove', pointerEvent({ x: start.x + 1, y: start.y + 1 }));
     node.emit('pointerup', pointerEvent({ x: start.x + 1, y: start.y + 1 }));
 
-    expect(onPersonDragEnd).not.toHaveBeenCalled();
+    expect(onDrop).not.toHaveBeenCalled();
+    diagram.destroy();
+    container.remove();
+  });
+
+  it('success: a real drag does report a drop — the negative tests need a positive', async () => {
+    // Without this, "never reports a drop" could pass because nothing ever
+    // reports one. That is exactly how the old wiring failed silently.
+    const onDrop = rstest.fn();
+    const { container, diagram } = await mountDraggable(onDrop);
+    // Drag is offered only in the `near` band, and the node views are replaced
+    // when the band changes — so zoom first, then take the node.
+    diagram.setZoom(1.4);
+    await new Promise((r) => setTimeout(r, 80));
+    const host = (
+      diagram as unknown as {
+        host: { renderer: { layers: { persons: { children: unknown[] } } } };
+      }
+    ).host;
+    const node = host.renderer.layers.persons.children.find(
+      (c): c is PersonNodeView => c instanceof PersonNodeView,
+    )!;
+    const start = { x: node.x + 5, y: node.y + 5 };
+    node.emit('pointerdown', pointerEvent(start));
+    node.emit('globalpointermove', pointerEvent({ x: start.x + 160, y: start.y }));
+    node.emit('pointerup', pointerEvent({ x: start.x + 160, y: start.y }));
+
+    expect(onDrop).toHaveBeenCalledTimes(1);
+    expect(onDrop.mock.calls[0][0]).toMatchObject({ type: 'position-move' });
     diagram.destroy();
     container.remove();
   });

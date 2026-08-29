@@ -19,7 +19,7 @@
     "compare:nodes": "playwright test e2e/node-compare.spec.ts",
     "test:verify": "npm run lint && npm run typecheck && npm test && npm run test:e2e && npm run compare:nodes",
     "test:rust": "cd packages/core && cargo test",
-    "typecheck": "npm run typecheck -w @org-hierarchy/sdk && npm run build:types -w @org-hierarchy/sdk && npm run typecheck -w @org-hierarchy/demo",
+    "typecheck": "npm run typecheck -w @org-hierarchy/sdk && npm run build:types -w @org-hierarchy/sdk && npm run typecheck -w @org-hierarchy/demo && tsc -p tsconfig.e2e.json",
     "test:prod": "playwright test --config playwright.prod.config.ts",
     "lint": "oxlint --max-warnings 0",
     "lint:fix": "oxlint --fix",

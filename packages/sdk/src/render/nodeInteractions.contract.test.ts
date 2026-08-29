@@ -4,13 +4,15 @@
  */
 import { describe, expect, it, rstest } from '@rstest/core';
 import { OrgHierarchyDiagram } from '../index.js';
+import type { DiagramData } from '../data/types.js';
 import { defaultContextMenuItems } from '../interaction/contextMenu.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
 import { PersonNodeView } from './PersonNode.js';
 import { defaultNodeTheme } from './types.js';
+import type { FederatedPointerEvent } from 'pixi.js';
 import type { PixiHost } from './PixiHost.js';
 
-function orgTreeData() {
+function orgTreeData(): DiagramData {
   return {
     organizations: [
       { id: 'root', name: 'Root', groupIds: [], collapsed: false, testId: 'root' },
@@ -24,7 +26,7 @@ function orgTreeData() {
   };
 }
 
-function staffWithVacantData() {
+function staffWithVacantData(): DiagramData {
   return {
     organizations: [{ id: 'o1', name: 'Ops', groupIds: [] }],
     groups: [],
@@ -65,14 +67,22 @@ function hostOf(diagram: OrgHierarchyDiagram): PixiHost {
   return host;
 }
 
+/**
+ * Minimal stand-in for a Pixi pointer event.
+ *
+ * The cast is deliberate and is the point of the helper: these tests drive the
+ * handlers directly, so the stub carries only the fields a handler reads. Typing
+ * the return keeps the call sites checked while saying, once, that the object is
+ * a stub.
+ */
 function pointerEvent(
-  local: { x: number; y: number } = { x: 40, y: 40 },
+  local: Partial<{ x: number; y: number }> = {},
   extra: { button?: number; ctrlKey?: boolean; shiftKey?: boolean } = {},
-) {
+): FederatedPointerEvent {
   return {
     stopPropagation: () => {},
     preventDefault: () => {},
-    getLocalPosition: () => local,
+    getLocalPosition: () => ({ x: local.x ?? 40, y: local.y ?? 40 }),
     clientX: 120,
     clientY: 80,
     global: { x: 10, y: 10 },
@@ -80,20 +90,20 @@ function pointerEvent(
     ctrlKey: Boolean(extra.ctrlKey),
     metaKey: false,
     shiftKey: Boolean(extra.shiftKey),
-  };
+  } as unknown as FederatedPointerEvent;
 }
 
 function findPersonNode(diagram: OrgHierarchyDiagram, label: string): PersonNodeView {
   const persons = hostOf(diagram).renderer.layers.persons;
   const node = persons.children.find(
-    (c) => c instanceof PersonNodeView && c.findText(label),
+    (c): c is PersonNodeView => c instanceof PersonNodeView && Boolean(c.findText(label)),
   );
   if (!node) throw new Error(`person node with label ${label}`);
   return node;
 }
 
 async function mountDiagram(
-  data: ReturnType<typeof orgTreeData>,
+  data: DiagramData,
   callbacks: Parameters<typeof OrgHierarchyDiagram.create>[1]['callbacks'] = {},
   extra: Partial<Parameters<typeof OrgHierarchyDiagram.create>[1]> = {},
 ) {
@@ -241,7 +251,7 @@ describe('NODE interactions contract', () => {
       expect(onContextMenu).toHaveBeenCalledTimes(1);
       const req = onContextMenu.mock.calls[0]![0];
       expect(req.node.organization?.name).toBe('Root');
-      expect(req.items.map((i) => i.id)).toEqual(
+      expect(req.items.map((i: { id: string }) => i.id)).toEqual(
         defaultContextMenuItems({ kind: 'organization', id: 'root' }).map((i) => i.id),
       );
 
