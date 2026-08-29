@@ -54,7 +54,7 @@ export function tabsInFamily(family: DemoTabMeta['family']): ReadonlySet<DemoTab
 
 export const FIGMA_MOCKUP_TABS = tabsInFamily('figma');
 export const GOJS_MOCKUP_TABS = tabsInFamily('gojs');
-/** Org-tree scenes — see {@link DemoTabMeta.orgTree}. */
+/** Org-tree scenes — see `orgTree` on {@link DemoTabMeta}. */
 export const ORG_TREE_TABS: ReadonlySet<DemoTab> = new Set(
   (Object.keys(TAB_META) as DemoTab[]).filter((tab) => TAB_META[tab].orgTree),
 );

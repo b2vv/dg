@@ -212,7 +212,7 @@ export type NodeThemeOverrides = {
 
 export type DepartmentPaintStyle = 'blob' | 'card';
 
-/** Contour geometry source — see {@link RenderConfig.contourEngine}. */
+/** Contour geometry source — see `contourEngine` on {@link RenderConfig}. */
 export type ContourEngine = 'button-group' | 'cell-flood';
 
 export interface RenderConfig {
@@ -257,7 +257,7 @@ export interface RenderConfig {
    */
   orgSiblingGroupChrome?: boolean;
   /**
-   * Sibling-frame flavour when {@link RenderConfig.orgSiblingGroupChrome} is on:
+   * Sibling-frame flavour when `orgSiblingGroupChrome` is on:
    * `zone` (default) = filled staff-zone chrome around any sibling group (Figma
    * frame 1264:8121); `outline` = thin outline around collapsed matrix siblings.
    */

@@ -35,7 +35,7 @@ export interface OrgSymbolLayout {
    * Whether to paint the short-name caption beside the symbol.
    * False for no-caption / full-bleed; also false when there is no symbol
    * only if host set `showShortName: false` — but E3 still shows fullName/name
-   * via {@link OrgSymbolLayout.showNameText}.
+   * via `showNameText` below.
    */
   showShortName: boolean;
   /** True when the primary text line should be visible. */

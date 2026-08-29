@@ -6,7 +6,7 @@ import type { WorldBox } from './promoteMath.js';
  * Frame geometry of the node a promoted card stands in for.
  *
  * ⚠️ **The units depend on who hands it to you**, and the shape cannot tell you
- * which: {@link OrgHierarchyDiagram.getPromoteChrome} returns **world** units,
+ * which: `OrgHierarchyDiagram.getPromoteChrome()` returns **world** units,
  * and the overlay multiplies them by the camera before putting them in a slot,
  * so a card component receives **screen** px. Each side says which it means.
  *

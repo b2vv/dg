@@ -53,7 +53,7 @@ export interface PromoteOverlayDiagram {
   getPromoteChrome(kind: PromoteBox['kind']): PromoteChrome;
   /**
    * Node geometry with no data resolution. Separate from
-   * {@link PromoteOverlayDiagram.listPromoteCandidates} because resolving a box
+   * `listPromoteCandidates` above because resolving a box
    * into card data costs about two orders of magnitude more than reading its
    * rectangle (2.1 ms vs 0.005 ms over 639 nodes — see
    * `work/reports/promote-near/report.md` §2.3), and in `near-visible` most
