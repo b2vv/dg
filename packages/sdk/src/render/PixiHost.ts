@@ -74,8 +74,6 @@ export class PixiHost {
   private container: HTMLElement | null = null;
   private destroyed = false;
   private lastResolution = 1;
-  private lastWidth = 0;
-  private lastHeight = 0;
   private paintRequested = false;
   private paintHandle = 0;
   private contextMenuHandler: ((e: Event) => void) | null = null;
@@ -117,7 +115,10 @@ export class PixiHost {
    * read would force a synchronous style and layout flush.
    */
   getScreenSize(): { width: number; height: number } {
-    return { width: this.lastWidth, height: this.lastHeight };
+    // Delegated, not duplicated: the viewport already tracks the surface size
+    // — the ResizeObserver below feeds it through setScreenSize — and a second
+    // copy of the same two numbers is a second thing to keep in step.
+    return this.viewport?.getScreenSize() ?? { width: 0, height: 0 };
   }
 
   getViewport(): ViewportTransform {
@@ -219,8 +220,6 @@ export class PixiHost {
     const width = Math.max(container.clientWidth || 800, 320);
     const height = Math.max(container.clientHeight || 600, 240);
     this.lastResolution = resolvePixiResolution(options.resolution);
-    this.lastWidth = width;
-    this.lastHeight = height;
 
     const app = new Application();
     const rendererChoice = resolveRendererPreference(options.renderer);
@@ -278,8 +277,6 @@ export class PixiHost {
         this.lastResolution = nextRes;
         this.app.renderer.resolution = nextRes;
       }
-      this.lastWidth = w;
-      this.lastHeight = h;
       this.app.renderer.resize(w, h);
       this.viewport?.setScreenSize(w, h);
       this.syncStageHitArea(w, h);
