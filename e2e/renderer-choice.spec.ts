@@ -177,10 +177,35 @@ test.describe('renderer choice (T83)', () => {
     // the Playwright docker image and a plain CI runner (different fonts wrap
     // the toolbar differently). A clip that fits in both is the same picture in
     // both; one that asks for more is a different size and fails on size alone.
+    //
+    // The clip starts below the scene caption, which overlays the top-left of
+    // the canvas and spells out how many seats the window holds. That number is
+    // viewport-derived, so it moved twice in one afternoon while the hairlines
+    // it sits next to did not — and each move cost a re-record of a baseline
+    // that is not about captions.
+    //
+    // ⚠️ This does NOT make the baseline immune to layout work, and pretending
+    // otherwise would be worse than leaving it alone: the wall itself is drawn
+    // from the same arithmetic, so widening the gaps between seats or changing
+    // how the window is sized legitimately changes this picture. When that
+    // happens the baseline is re-recorded, not argued with. Only linux
+    // baselines are committed, so the source is the `playwright-actual`
+    // artifact from the CI run that failed — check the three attempts are
+    // byte-identical before trusting it.
+    // The height comes down by the same 100, not kept at 480: the clip was
+    // already sized to end where the page does, so sliding it down and keeping
+    // its height pulled the help bar into the frame — the very strip whose font
+    // wrapping the paragraph above says to stay out of.
+    const CAPTION_BAND = 100;
     await expect(page).toHaveScreenshot('staff-1m-canvas-zoomed-out.png', {
       maxDiffPixelRatio: 0.04,
       animations: 'disabled',
-      clip: { x: Math.round(box!.x), y: Math.round(box!.y), width: 1200, height: 480 },
+      clip: {
+        x: Math.round(box!.x),
+        y: Math.round(box!.y) + CAPTION_BAND,
+        width: 1200,
+        height: 480 - CAPTION_BAND,
+      },
     });
   });
 
