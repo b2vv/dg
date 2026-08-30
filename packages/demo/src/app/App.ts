@@ -88,6 +88,21 @@ export interface StaffRebuildRecord {
   kind: 'slide' | 'jump';
   /** Wall clock across `setData`, which is what blocks the frame. */
   ms: number;
+  /**
+   * Building the window's data before `setData` ever sees it — demo-side JS.
+   *
+   * Outside `ms` on purpose: it is the demo's own cost, and T88.12 has to know
+   * whether the seconds are the SDK's or ours before it decides where to cut.
+   */
+  buildMs: number;
+  /**
+   * `onDataMapped`: everything `setData` does before it renders.
+   *
+   * The split that matters — `applyConfig` only assigns and re-seeds flags, so
+   * this is essentially the search index, while `ms - mappedMs` is the render,
+   * and the WASM layout lives in the render.
+   */
+  mappedMs: number;
   from: number;
   to: number;
   size: number;
@@ -114,6 +129,8 @@ export class App {
    * than the thing being measured. Two ranges give the same answer for free.
    */
   private staffRebuildLog: StaffRebuildRecord[] = [];
+  /** Last `onDataMapped` reading — written during `setData`, read right after. */
+  private lastMappedMs = 0;
   private contextMenu: ReactContextMenuHost | null = null;
   private promote: ReactPromoteOverlay | null = null;
   private testAnchors: TestAnchorOverlay | null = null;
@@ -328,6 +345,12 @@ export class App {
         const range = this.staffWindowAsk(live.diagram, live.previous.wallBase);
         if (range.start === live.previous.startIndex) return;
         this.staffScheduler?.request({ kind: 'slide', start: range.start });
+      },
+      // Not a feature: the measurement T88.12 is designed from needs to see
+      // where inside `setData` the time goes, and this is the only seam the SDK
+      // already offers for it.
+      onDataMapped: (stats) => {
+        this.lastMappedMs = stats.ms;
       },
       onSelectionChange: (nodes) => {
         this.setStatus(
@@ -607,6 +630,8 @@ export class App {
     this.staffRebuildLog.push({
       kind,
       ms: Math.round(performance.now() - started),
+      buildMs: next.buildMs,
+      mappedMs: this.lastMappedMs,
       from: previous.startIndex,
       to: next.startIndex,
       size: next.windowSize,

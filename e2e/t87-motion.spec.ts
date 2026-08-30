@@ -171,9 +171,12 @@ test('K6 — frame cost of panning with and without the promote layer', async ({
   const crossWithout = await crossThreshold(false);
   const crossWith = await crossThreshold(true);
 
-  const cards = await page
-    .locator('[data-org-hierarchy-promote-root] [data-promote-card]')
-    .count();
+  // Same wait as `promote-near` row 5, for the same reason: since T88 a zoom on
+  // Staff · 1M triggers a window rebuild, and the renderer clears the scene
+  // while it runs. Counting once, right after the gesture, counts the wipe.
+  const promoteCards = page.locator('[data-org-hierarchy-promote-root] [data-promote-card]');
+  await expect.poll(() => promoteCards.count(), { timeout: 60_000 }).toBeGreaterThan(1);
+  const cards = await promoteCards.count();
   const renderer = await page.evaluate(() => {
     const b = (window as unknown as { __demoE2e: { getRendererKind(): string | null } }).__demoE2e;
     return b.getRendererKind();

@@ -103,10 +103,15 @@ test.describe('promote · near-visible', () => {
   }) => {
     await openTab(page, 'Staff · 1M');
     await setZoom(page, 1.4);
+    // Poll, because since T88 the zoom is also a window rebuild: the camera
+    // settles, the staff window slides under the new frame, and the renderer
+    // clears the whole scene while it does — measured at ~1.5s on this machine
+    // and longer on a CI runner (see report §10.1). Reading the promote layer
+    // once, straight after the zoom, reads it mid-wipe and gets zero.
+    await expect.poll(() => cards(page).count(), { timeout: 60_000 }).toBeGreaterThan(1);
     const before = await cards(page).evaluateAll((els) =>
       els.map((el) => el.getAttribute('data-promote-card')),
     );
-    expect(before.length).toBeGreaterThan(1);
 
     await page.evaluate(() => {
       const bridge = (

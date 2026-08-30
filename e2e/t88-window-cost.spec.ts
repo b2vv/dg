@@ -30,6 +30,8 @@ const RESERVE_SCREENS = 1;
 interface RebuildRecord {
   kind: 'slide' | 'jump';
   ms: number;
+  buildMs: number;
+  mappedMs: number;
   from: number;
   to: number;
   size: number;
@@ -79,6 +81,11 @@ function summarize(label: string, records: RebuildRecord[]): void {
       max: ms[ms.length - 1],
       windowSeats: records[records.length - 1]?.size ?? 0,
       overlap: records.map(overlapRatio),
+      // Where the milliseconds actually are — T88.12 cuts at whichever of these
+      // is the big one, and cutting at the wrong one buys nothing.
+      buildMs: records.map((r) => r.buildMs),
+      indexMs: records.map((r) => r.mappedMs),
+      renderMs: records.map((r) => r.ms - r.mappedMs),
     })}`,
   );
 }
@@ -193,6 +200,39 @@ test.describe('T88.8 — what a window rebuild costs', () => {
     console.log(
       `MEASURE jump-followup-slides ${records.filter((r) => r.kind === 'slide').length}`,
     );
+  });
+
+  test('scale: does the cost follow the number of seats', async ({ page }) => {
+    // The question §9.2 left open. If the cost is linear in seats then the
+    // window size *is* a knob — the useful direction being down, not up — and
+    // a smaller reserve buys frame time at the price of more rebuilds. If it
+    // is flat, nothing about the reserve matters and only the renderer does.
+    await openStaffTab(page);
+    await waitForRebuilds(page, 1);
+    await settled(page);
+    const base = (await viewport(page)).scale;
+
+    const points: Array<{ zoom: number; seats: number; ms: number; renderMs: number }> = [];
+    for (const factor of [2, 1, 0.5, 0.25]) {
+      const before = (await rebuilds(page)).length;
+      await page.evaluate((z) => {
+        const b = (window as unknown as { __demoE2e: Bridge }).__demoE2e;
+        const vp = b.getViewport();
+        b.setViewport({ ...vp, scale: z });
+      }, base * factor);
+      await waitForRebuilds(page, before + 1, 20_000);
+      await settled(page);
+      const last = (await rebuilds(page)).at(-1);
+      if (last && (await rebuilds(page)).length > before) {
+        points.push({
+          zoom: Number((base * factor).toFixed(3)),
+          seats: last.size,
+          ms: last.ms,
+          renderMs: last.ms - last.mappedMs,
+        });
+      }
+    }
+    console.log(`MEASURE scale ${JSON.stringify(points)}`);
   });
 
   test('reserve: does one screen of it survive a fast gesture', async ({ page }) => {
