@@ -36,11 +36,20 @@ test.describe('1M staff scale tab', () => {
 
   test('an index outside tier 2 is reported, not silently re-centred', async ({ page }) => {
     const search = page.locator('#search-input');
+    // This is row 14's literal case (`pos-900000` from the plan), and it takes
+    // the other camera branch: with nothing to aim at, the jump goes to the
+    // start of the window it did materialize. The scene must survive that too.
+    await page.evaluate(() => {
+      document.querySelector('canvas')!.setAttribute('data-canvas-identity', 'original');
+    });
     // Tier 3 lives past 700 004 — the window cannot centre there.
     await search.fill('pos-900000');
     await search.press('Enter');
     await expect(page.locator('#status')).toContainText(/subordinate tier/, { timeout: 60_000 });
     await expect(page.getByTestId('node-scale-focus-seat')).toHaveCount(0);
+    expect(await page.locator('canvas').first().getAttribute('data-canvas-identity')).toBe(
+      'original',
+    );
   });
 
   test('a name query that is not in the window says so instead of lying', async ({ page }) => {
@@ -169,7 +178,7 @@ test.describe('the window follows the camera (T88)', () => {
     // Mark the live canvas. `reload()` empties the mount, so a recreated scene
     // cannot carry this attribute — it is the difference the row is about.
     await page.evaluate(() => {
-      document.querySelector('canvas')!.setAttribute('data-t88-probe', 'original');
+      document.querySelector('canvas')!.setAttribute('data-canvas-identity', 'original');
     });
 
     // Zoom away from what `fitView` would choose, so a refit is a visible number
@@ -180,18 +189,37 @@ test.describe('the window follows the camera (T88)', () => {
       b.setViewport({ ...vp, scale: vp.scale * 0.4 });
     });
     // The zoom is a camera move too — let the slide it triggers finish first.
-    await page.waitForTimeout(900);
+    const mount = page.locator('[data-window-start]');
+    const settledStart = async (): Promise<string> => {
+      let last = '';
+      for (let i = 0; i < 40; i += 1) {
+        const now = (await mount.getAttribute('data-window-start')) ?? '';
+        if (now === last) return now;
+        last = now;
+        await page.waitForTimeout(150);
+      }
+      return last;
+    };
+    const startBefore = await settledStart();
     const before = await viewport();
 
     const search = page.locator('#search-input');
     await search.fill('pos-500000');
     await search.press('Enter');
+
+    // The barrier, and the proof that anything happened at all: the window
+    // start is the one thing in the DOM that says the jump landed. Waiting on
+    // the focus seat alone would rest on the mount-time slide having already
+    // wiped the previous one — true today, and a sleep away from not being.
+    await expect
+      .poll(async () => await mount.getAttribute('data-window-start'), { timeout: 30_000 })
+      .not.toBe(startBefore);
     await expect(page.getByTestId('node-scale-focus-seat')).toBeVisible({ timeout: 30_000 });
 
-    expect(await page.locator('canvas').first().getAttribute('data-t88-probe')).toBe('original');
+    expect(await page.locator('canvas').first().getAttribute('data-canvas-identity')).toBe(
+      'original',
+    );
     const after = await viewport();
     expect(after.scale).toBeCloseTo(before.scale, 5);
-    // It did move: a jump that changed nothing would pass the two checks above.
-    await expect(page.locator('[data-window-start]')).not.toHaveAttribute('data-window-start', '0');
   });
 });

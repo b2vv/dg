@@ -575,8 +575,21 @@ export class App {
     if (next.wallBase === previous.wallBase && next.startIndex === previous.startIndex) return;
 
     const rowShift = (next.wallBase - previous.wallBase) / geom.cols;
+    // Advertised before the await and rolled back if it fails, rather than set
+    // after. Both orders were tried: setting it afterwards leaves the camera
+    // callback reading the *old* start for the length of the rebuild, so every
+    // slide earns a second, redundant one — which is frames, and frames are
+    // what T87's harness measures. Rolling back keeps the honest half: a
+    // rejected rebuild must not leave the field describing a window that was
+    // never materialized, or the next slide takes its `wallBase` from a scene
+    // that does not exist while the status says nothing changed.
     this.staffScaleWindow = next;
-    await diagram.setData(next.data);
+    try {
+      await diagram.setData(next.data);
+    } catch (error) {
+      this.staffScaleWindow = previous;
+      throw error;
+    }
     diagram.setViewport(rebaseViewport(diagram.getViewport(), { rowShift, pitchY: geom.pitchY }));
     this.mountSceneCaption();
     this.syncStaffWindowMarker(next);
@@ -613,25 +626,45 @@ export class App {
     // span means the surface has not been measured yet — the default is the
     // only honest guess left.
     const next = buildScaleStaffWindow({ focusIndex, windowSize: span > 0 ? span : STAFF_SCALE_WINDOW });
+    // See `slideStaffWindow` for why this is advertised first and rolled back.
     this.staffScaleWindow = next;
-    await diagram.setData(next.data);
+    try {
+      await diagram.setData(next.data);
+    } catch (error) {
+      this.staffScaleWindow = previous;
+      throw error;
+    }
 
     // A seat outside tier 2 renders nothing to aim at, so the camera goes to the
     // start of the window that *was* materialized. Leaving it where it was would
     // point it at whatever the old window had at those coordinates — the reload
     // path hid that by refitting the whole scene.
-    await diagram.focusNode(next.focusMaterialized ? `pos-${focusIndex}` : `pos-${next.startIndex}`);
+    const target = next.focusMaterialized ? `pos-${focusIndex}` : `pos-${next.startIndex}`;
+    const aimed = await diagram.focusNode(target);
     this.mountSceneCaption();
     this.syncStaffWindowMarker(next);
     // After the camera, not before: focusing selects the seat, and the selection
     // callback writes a status of its own.
-    this.setStatus(
-      next.focusMaterialized
-        ? this.staffWindowStatus(next)
-        // The window only centres inside tier 2 — say so instead of leaving the
-        // camera on a seat that is not the one that was asked for.
-        : `search · pos-${focusIndex} is in the ${next.focusTier} tier · the window centres on the current org (pos-${LEAD_SEATS}…${LEAD_SEATS + next.composition.current - 1})`,
-    );
+    this.setStatus(this.staffJumpStatus(next, focusIndex, { target, aimed }));
+  }
+
+  /** What a jump has to say for itself, in the order the user cares about. */
+  private staffJumpStatus(
+    win: ScaleStaffWindow,
+    focusIndex: number,
+    camera: { target: string; aimed: boolean },
+  ): string {
+    if (!camera.aimed) {
+      // The window moved either way — an unaimed camera is worth naming, not
+      // worth pretending the jump failed.
+      return `${this.staffWindowStatus(win)} · camera stayed: ${camera.target} is not in the scene`;
+    }
+    if (!win.focusMaterialized) {
+      // The window only centres inside tier 2 — say so instead of leaving the
+      // camera on a seat that is not the one that was asked for.
+      return `search · pos-${focusIndex} is in the ${win.focusTier} tier · the window centres on the current org (pos-${LEAD_SEATS}…${LEAD_SEATS + win.composition.current - 1})`;
+    }
+    return this.staffWindowStatus(win);
   }
 
   /**
