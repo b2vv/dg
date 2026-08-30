@@ -21,7 +21,7 @@ const STATIC_CAPTIONS: Partial<Record<DemoTab, string>> = {
   'mockup-staff-gojs':
     'GoJS staff · solid zones · row seats 200×56 · dept cards · dark production chrome',
   'staff-brigade':
-    'Brigade staff · tier 1 higher command · tier 2 full staff as a tree from reportLines · tier 3 subordinate units as cards, deliberately mixed echelons',
+    'Brigade staff · 84 seats, tree from reportLines (no coords) · first paint stops at the section chiefs — click a card to open its officers · tier 3 = subordinate units as cards, mixed echelons, manning badges N [M], one temporary task force',
 };
 
 /** The 1M tab reports its live window, so its caption is built per render. */

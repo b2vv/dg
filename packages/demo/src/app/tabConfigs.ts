@@ -253,6 +253,10 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
           orgCardHeight: 64,
           refCellWidth: 172,
           refCellHeight: 100,
+          // First paint stops at the section chiefs; officers and NCOs open on
+          // a click. Without this the eleven departments lay out side by side
+          // and «fit» lands at zoom 0.15.
+          collapseUnexpandedPositions: true,
         },
       };
 
