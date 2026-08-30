@@ -188,13 +188,17 @@ export type {
   StaffEdgeLink,
   StaffEdgeRouteVia,
 } from './render/index.js';
+export { SEARCH_PAGE_SIZE } from './callbacks.js';
 export type {
   LayoutPatch,
   OrgHierarchyCallbacks,
   ViewportChangeMeta,
   ViewportChangeReason,
+  HostSearchHit,
+  HostSearchPage,
 } from './callbacks.js';
 
+export type { SearchAllResult } from './OrgHierarchyDiagram.js';
 export type {
   NodeRef,
   SearchResult,

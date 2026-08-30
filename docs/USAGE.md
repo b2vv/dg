@@ -212,6 +212,12 @@ await diagram.collapsePositionSubtree('pos-9');
 // пошук: підрядок по імені/посаді/назві org
 const hits = await diagram.search('ada');     // SearchResult[] { node, label, score }
 
+// пошук ПОЗА вікном — коли хост тримає більше даних, ніж діаграма
+// Окремий метод, а не ширший search(): «що на екрані» і «що є в даних» —
+// різні питання з різними режимами відмови.
+const found = await diagram.searchAll('ada', 0);
+// { hits, total, hasMore, source: 'window' | 'host', unavailable?, unresolved? }
+
 // фокус: розкрити шлях, вибрати, підвести камеру
 await diagram.revealPath(hits[0].node.id);
 await diagram.focusNode('pos-9');             // false, якщо id невідомий
@@ -434,7 +440,18 @@ const promote = createReactPromoteOverlay({
   на `destroy()`. Глобальні `configureContourWorker` / `configureSearchWorker` лишились для хостів,
   які кличуть модульні функції напряму, — але вони **процес-широкі**: якщо потрібна ізоляція,
   беріть `createContourWorkerClient()` / `createSearchWorkerClient()`.
-- **Після `destroy()` діаграма мовчить**: `search()` повертає `[]`, повторний `destroy()` безпечний.
+- **Після `destroy()` діаграма мовчить**: `search()` повертає `[]`, `searchAll()` — порожню
+  сторінку з `source: 'window'`, повторний `destroy()` безпечний.
+- **`searchAll()` без колбека `searchBeyondWindow` — це `search()` плюс число.** Не передати
+  колбек — підтримуваний стан, а не деградація: `source` буде `'window'`, `unavailable` не буде.
+- ⚠️ **Відмова хоста ≠ «нікого не знайдено».** Якщо `searchBeyondWindow` кинув або повернув не
+  сторінку (`{ hits, total, hasMore }`), результат несе `unavailable` з причиною, а локальні
+  збіги лишаються на місці. Показувати це користувачеві як «збігів немає» — означає видати
+  поламаний бекенд за порожні дані.
+- **Сторінка — рівно `SEARCH_PAGE_SIZE` (20).** Обидві сторони мусять збігатись у цьому числі,
+  тож воно експортоване, а не узгоджується на виклик.
+- **`total` — це всі збіги в даних, не розмір сторінки.** Довжина масиву дати цього числа не може,
+  і саме тому `searchAll` повертає обʼєкт, а `search()` лишився масивом.
 - **Немає HTTP-клієнта, персистентності й undo.**
 - **Порожній шар відділів — можливий стан**, а не помилка: якщо flood не відпрацював, SVG
   повторює екран, включно з відсутністю контурів (§6, §10).

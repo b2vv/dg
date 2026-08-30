@@ -54,6 +54,8 @@ import type {
   OrgHierarchyCallbacks,
   LayoutPatch,
   ViewportChangeReason,
+  HostSearchHit,
+  HostSearchPage,
 } from './callbacks.js';
 import type { ViewportTransform } from './render/Viewport.js';
 import { createTransformWorker, WorkerPool } from './worker/index.js';
@@ -131,6 +133,44 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
 }
 
 /** Embed SDK — Pixi render + data/mappers + worker contour */
+/** What {@link OrgHierarchyDiagram.searchAll} answers with. */
+export interface SearchAllResult {
+  hits: SearchResult[];
+  /** Every match in the dataset when the host answered; the page otherwise. */
+  total: number;
+  hasMore: boolean;
+  /** Where the answer came from — `window` also means «no host callback». */
+  source: 'window' | 'host';
+  /**
+   * Set when the host could not answer: it threw, or sent something that is not
+   * a page. The caller must say so rather than showing «no matches» — those are
+   * different facts and a user acts on them differently.
+   */
+  unavailable?: string;
+  /** Host hits whose id nothing in the current scene resolves to. */
+  unresolved?: string[];
+}
+
+/**
+ * Validate a host answer before believing it.
+ *
+ * `searchBeyondWindow` is somebody else's code, so its return value is input,
+ * not a promise kept. Anything that fails this reads as unavailable.
+ */
+function parseHostSearchPage(value: unknown): HostSearchPage | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const page = value as Partial<HostSearchPage>;
+  if (!Array.isArray(page.hits)) return null;
+  if (typeof page.total !== 'number' || !Number.isFinite(page.total) || page.total < 0) return null;
+  if (typeof page.hasMore !== 'boolean') return null;
+  for (const hit of page.hits) {
+    if (typeof hit !== 'object' || hit === null) return null;
+    const h = hit as Partial<HostSearchHit>;
+    if (typeof h.id !== 'string' || typeof h.label !== 'string') return null;
+  }
+  return page as HostSearchPage;
+}
+
 export class OrgHierarchyDiagram {
   private readonly dataStore = new DataStore();
   private host: PixiHost | null = null;
@@ -144,6 +184,8 @@ export class OrgHierarchyDiagram {
   private useWorker = true;
   private workerFactory: () => Worker = createTransformWorker;
   private workerPool: WorkerPool | null = null;
+  /** Bumped per `searchAll` so a late answer can tell it is late. */
+  private searchEpoch = 0;
   private callbacks: OrgHierarchyCallbacks = {};
   private readonly searchService = new SearchIndexService(() => ({
     useWorker: this.useWorker,
@@ -883,6 +925,91 @@ export class OrgHierarchyDiagram {
     // rows would just invite the caller to act on a dead instance.
     if (this.destroyed) return [];
     return this.searchService.query(query);
+  }
+
+  /**
+   * Search beyond the materialised window, when the host offers a way to.
+   *
+   * A separate method rather than a wider `search()`: «what is on screen» and
+   * «what exists in the dataset» are different questions with different failure
+   * modes. The first cannot fail; the second can be absent, slow, refused or
+   * malformed, and folding them together would make every existing caller carry
+   * an error surface it has no use for.
+   *
+   * With no `searchBeyondWindow` callback this is `search()` plus a count —
+   * which is the whole of acceptance row 17.
+   */
+  async searchAll(query: string, page = 0): Promise<SearchAllResult> {
+    if (this.destroyed) return { hits: [], total: 0, hasMore: false, source: 'window' };
+
+    const local = await this.searchService.query(query);
+    if (this.destroyed) return { hits: [], total: 0, hasMore: false, source: 'window' };
+
+    const beyond = this.callbacks.searchBeyondWindow;
+    if (!beyond) {
+      return { hits: local, total: local.length, hasMore: false, source: 'window' };
+    }
+
+    // «Last wins». A slow answer that lands after a newer query has been asked
+    // describes a question nobody is waiting for any more, and rendering it
+    // would show results for text the user has already replaced.
+    const epoch = (this.searchEpoch += 1);
+    const stale = (): boolean => this.destroyed || epoch !== this.searchEpoch;
+
+    let answer: unknown;
+    try {
+      answer = await beyond(query, page);
+    } catch (error) {
+      if (stale()) return { hits: local, total: local.length, hasMore: false, source: 'window' };
+      return {
+        hits: local,
+        total: local.length,
+        hasMore: false,
+        source: 'window',
+        // Named, not swallowed: local hits are still worth showing, and the
+        // caller has to be able to say the rest of the dataset went unsearched.
+        unavailable: error instanceof Error ? error.message : String(error),
+      };
+    }
+
+    // The check goes *after* the await as well as before it. `destroy()` during
+    // an in-flight callback is the case a check on entry cannot see.
+    if (stale()) return { hits: local, total: local.length, hasMore: false, source: 'window' };
+
+    const parsed = parseHostSearchPage(answer);
+    if (!parsed) {
+      return {
+        hits: local,
+        total: local.length,
+        hasMore: false,
+        source: 'window',
+        // A malformed payload is a broken host, and a broken host is not an
+        // empty dataset. Reporting «no matches» here would put the host's bug
+        // in the user's mouth.
+        unavailable: 'searchBeyondWindow returned a malformed page',
+      };
+    }
+
+    const unresolved: string[] = [];
+    const hits: SearchResult[] = [];
+    for (const hit of parsed.hits) {
+      const ref = resolveNodeRefInData(this.data, hit.id);
+      if (!ref) {
+        // Not dropped silently: an id the scene cannot resolve is a hit the user
+        // will click and nothing will happen, so the caller is told which.
+        unresolved.push(hit.id);
+        continue;
+      }
+      hits.push({ node: ref, label: hit.label, score: 1 });
+    }
+
+    return {
+      hits,
+      total: parsed.total,
+      hasMore: parsed.hasMore,
+      source: 'host',
+      ...(unresolved.length > 0 ? { unresolved } : {}),
+    };
   }
 
   /** Primary / first selected node (compat). Prefer {@link getSelections}. */
