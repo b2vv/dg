@@ -9,6 +9,7 @@ import {
 } from '@org-hierarchy/sdk';
 import { buildVariantBData } from '../scenarios/variantB.js';
 import { buildStaffTreeData } from '../scenarios/staffTree.js';
+import { buildStaffBrigadeData } from '../scenarios/staffBrigade.js';
 import {
   buildMockupOrgsFigmaData,
   buildMockupOrgsGojsData,
@@ -228,6 +229,33 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
           cellHeight: FLOOD_CELL.height,
         },
       };
+    case 'staff-brigade':
+      return {
+        ...base,
+        data: buildStaffBrigadeData().data,
+        staffCurrentOrgId: 'brigade',
+        render: {
+          ...base.render,
+          staffZoneChrome: true,
+          departmentStyle: 'card',
+        },
+        staffLayout: {
+          // Roomier than the 1M wall: this scene is meant to be read, not
+          // counted. No position carries coordinates, so the layout takes the
+          // pure-tree branch and these gaps are between tree nodes.
+          horizontalGap: 32,
+          verticalGap: 48,
+          tierGap: 40,
+          margin: 24,
+          nodeWidth: 168,
+          nodeHeight: 96,
+          orgCardWidth: 208,
+          orgCardHeight: 64,
+          refCellWidth: 172,
+          refCellHeight: 100,
+        },
+      };
+
     case 'staff-1m': {
       const win = deps.scaleStaffWindow();
       return {

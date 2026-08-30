@@ -20,6 +20,8 @@ const STATIC_CAPTIONS: Partial<Record<DemoTab, string>> = {
     'Figma staff · Rust cell flood (G1–G8) · departments interleave, so the command contour becomes a C around the supply seat',
   'mockup-staff-gojs':
     'GoJS staff · solid zones · row seats 200×56 · dept cards · dark production chrome',
+  'staff-brigade':
+    'Brigade staff · tier 1 higher command · tier 2 full staff as a tree from reportLines · tier 3 subordinate units as cards, deliberately mixed echelons',
 };
 
 /** The 1M tab reports its live window, so its caption is built per render. */

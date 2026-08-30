@@ -55,7 +55,13 @@ async function pinDiagramMount(page: import('@playwright/test').Page): Promise<v
 
 test.describe('mockup tabs visual + hierarchy', () => {
   test.beforeEach(async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 900 });
+    // Tall enough that the 800px mount clip always fits below the toolbar.
+    // At 900 there was no slack at all: the toolbar took ~120, the clip asked
+    // for 800 from the mount's origin, and Playwright truncated it to whatever
+    // was left — which is why the committed baselines are 780 tall rather than
+    // 800. Adding one tab button then moved the toolbar by 15px and changed the
+    // size of every baseline in this file at once.
+    await page.setViewportSize({ width: 1280, height: 1040 });
     await page.goto('/?e2e=1');
     await expect(page.locator('[data-testid="diagram-ready"]')).toBeVisible({ timeout: 60_000 });
     await pinDiagramMount(page);

@@ -10,6 +10,7 @@ export type DemoTab =
   | 'mockup-staff-flood'
   | 'mockup-staff-gojs'
   | 'staff-1m'
+  | 'staff-brigade'
   | 'flat-orgs'
   | 'scale-100k'
   | 'mapper'
@@ -40,6 +41,7 @@ export const TAB_META: Record<DemoTab, DemoTabMeta> = {
   'mockup-staff-flood': { label: 'Staff · Flood', family: 'figma', contourControls: true },
   'mockup-staff-gojs': { label: 'Staff · GoJS', family: 'gojs', contourControls: true },
   'staff-1m': { label: 'Staff · 1M' },
+  'staff-brigade': { label: 'Staff · Brigade' },
   'flat-orgs': { label: 'Flat orgs', orgTree: true },
   'scale-100k': { label: '100k orgs', orgTree: true },
   mapper: { label: 'Mapper' },
