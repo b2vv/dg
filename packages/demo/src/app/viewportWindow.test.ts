@@ -8,7 +8,15 @@ import {
 } from './viewportWindow.js';
 import { STAFF_SCALE_COLS, LEAD_SEATS, CURRENT_SEATS } from '../scenarios/scaleStaff.js';
 
-// Staff · 1M geometry: refCellHeight 44 + verticalGap 28 (tabConfigs.ts).
+/**
+ * A readable fixture, deliberately **not** the tab's current pitch.
+ *
+ * `resolveWindowRange` is scale-free arithmetic, so the numbers below only have
+ * to make the assertions legible — 720 px of screen is exactly 10 rows of 72.
+ * Wiring this to `STAFF_1M_PITCH_Y` looked tidier and meant that changing the
+ * gaps between seats on one demo tab broke three arithmetic tests that have
+ * nothing to do with how the tab looks.
+ */
 const geom: WallGeometry = {
   cols: STAFF_SCALE_COLS,
   pitchY: 72,

@@ -22,9 +22,14 @@ test.use({
   launchOptions: process.env.REAL_GPU ? { args: ['--use-angle=metal'] } : {},
 });
 
-/** Staff · 1M wall geometry — mirrored from `App.staffWallGeometry`. */
+/**
+ * Staff · 1M wall geometry — mirrored from `tabConfigs.STAFF_1M_CELL`.
+ *
+ * Copied rather than imported: the e2e suite is typechecked by its own tsconfig
+ * and does not reach into `packages/`. If the tab's gaps change, this changes.
+ */
 const COLS = 24;
-const PITCH_Y = 72;
+const PITCH_Y = 88;
 const RESERVE_SCREENS = 1;
 
 interface RebuildRecord {

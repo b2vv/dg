@@ -75,7 +75,7 @@ import {
   type ContourControls,
   type DemoTab,
 } from './tabs.js';
-import { buildTabConfig } from './tabConfigs.js';
+import { buildTabConfig, STAFF_1M_PITCH_Y } from './tabConfigs.js';
 import { captionForTab } from './captions.js';
 import { installDemoE2eBridge, type DemoE2eBridge } from './e2eBridge.js';
 
@@ -572,12 +572,20 @@ export class App {
   }
 
   /**
-   * Staff · 1M wall geometry: refCellHeight 44 + verticalGap 28 (`tabConfigs.ts`).
-   * Mirrored here rather than read back from the diagram because the window has
-   * to be sized *before* anything is materialized to read it from.
+   * Staff · 1M wall geometry, taken from the tab config rather than repeated.
+   *
+   * It cannot be read back from the diagram: the window has to be sized before
+   * anything is materialized to read it from. Importing the constant is the
+   * next best thing — a hand-copied pitch and a changed gap would silently
+   * address rows the wall does not have.
    */
   private staffWallGeometry(): WallGeometry {
-    return { cols: STAFF_SCALE_COLS, pitchY: 72, firstIndex: LEAD_SEATS, tierSeats: CURRENT_SEATS };
+    return {
+      cols: STAFF_SCALE_COLS,
+      pitchY: STAFF_1M_PITCH_Y,
+      firstIndex: LEAD_SEATS,
+      tierSeats: CURRENT_SEATS,
+    };
   }
 
   /** The staff tab's live pieces, or nothing to move. */

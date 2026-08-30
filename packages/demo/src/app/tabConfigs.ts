@@ -48,6 +48,29 @@ export interface TabConfigDeps {
  * Per-tab diagram configuration. Kept out of `App` because it is a pure
  * mapping — tab in, config out — and it is where a new demo scene is added.
  */
+/**
+ * The `Staff · 1M` wall's cell and the gaps around it.
+ *
+ * Exported and derived from rather than repeated: the contour grid's pitch is
+ * cell + gap, and the demo's window arithmetic needs the same vertical pitch to
+ * decide which seats are under the camera. That number used to be written out
+ * by hand in three places with a comment asking the reader to keep them in
+ * step, which is one edit away from a window that addresses rows the wall does
+ * not have.
+ */
+export const STAFF_1M_CELL = {
+  refCellWidth: 248,
+  refCellHeight: 44,
+  // Denser than the mockup: a window is a wall of seats, not a scene.
+  horizontalGap: 40,
+  verticalGap: 44,
+} as const;
+
+/** World px from the top of one wall row to the next. */
+export const STAFF_1M_PITCH_Y = STAFF_1M_CELL.refCellHeight + STAFF_1M_CELL.verticalGap;
+/** World px from the left of one column to the next. */
+export const STAFF_1M_PITCH_X = STAFF_1M_CELL.refCellWidth + STAFF_1M_CELL.horizontalGap;
+
 export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyConfig<unknown> {
   const base = {
     theme: deps.theme,
@@ -218,11 +241,7 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
         staffExpandedOrgIds: ['sub-0'],
         staffLayout: {
           ...MAGNETIC_STAFF_LAYOUT,
-          // Denser than the mockup: a window is a wall of seats, not a scene.
-          horizontalGap: 24,
-          verticalGap: 28,
-          refCellWidth: 248,
-          refCellHeight: 44,
+          ...STAFF_1M_CELL,
         },
         render: {
           ...base.render,
@@ -230,8 +249,8 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
           departmentStyle: 'blob',
           magnetRadius: VARIANT_B_MAGNET_RADIUS,
           minContourMembers: 2,
-          cellWidth: 272,
-          cellHeight: 72,
+          cellWidth: STAFF_1M_PITCH_X,
+          cellHeight: STAFF_1M_PITCH_Y,
         },
       };
     }
