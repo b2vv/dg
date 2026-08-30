@@ -5,6 +5,7 @@ import {
   type OrgHierarchyConfig,
 } from '@org-hierarchy/sdk';
 import type { OrgHierarchyDiagram } from '@org-hierarchy/sdk';
+import type { StaffRebuildRecord } from './App.js';
 
 /**
  * `window.__demoE2e` — the seam Playwright drives the demo through. Kept out of
@@ -36,6 +37,14 @@ export interface DemoE2eBridge {
   getSceneCounts(): { positions: number; reportLines: number };
   /** Nodes Pixi is not drawing because HTML replaced them (T87, rows 1 and 5). */
   getPromotedNodeIds(): string[];
+  /**
+   * What the recent window rebuilds cost and how far they moved (T88.8).
+   *
+   * The measurement gate has to separate a slide (ids overlap heavily, so the
+   * search index rebuilds in full) from a jump (disjoint ids). The ranges say
+   * which one a record was without paying for a set intersection.
+   */
+  getStaffRebuilds(): StaffRebuildRecord[];
   getStaffLayoutEdges(): Promise<Array<{ fromId: string; toId: string; kind: string }>>;
   /** Soft render warnings — a silently empty contour layer must show up here. */
   getLayoutDiagnostics(): string[];
@@ -58,6 +67,8 @@ export interface E2eBridgeDeps {
   scaleWindowStart(): number | null;
   /** Config of the tab on screen — the staff edge probe re-lays it out. */
   config(): OrgHierarchyConfig<unknown>;
+  /** What the recent staff window rebuilds cost (T88.8). */
+  staffRebuilds(): StaffRebuildRecord[];
 }
 
 /** Install the bridge on `window`. Only called in `?e2e=1` mode. */
@@ -80,6 +91,7 @@ export function installDemoE2eBridge(deps: E2eBridgeDeps): void {
       return { positions: d.positions.length, reportLines: d.reportLines?.length ?? 0 };
     },
     getPromotedNodeIds: () => [...diagram.getPromotedNodeIds()],
+    getStaffRebuilds: () => deps.staffRebuilds(),
     getLayoutDiagnostics: () => [...diagram.getLayoutDiagnostics()],
     getRendererKind: () => diagram.getRendererKind(),
     getStaffLayoutEdges: () => staffLayoutEdgesFor(deps.config()),

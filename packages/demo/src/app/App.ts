@@ -58,6 +58,9 @@ const STAFF_RESERVE_SCREENS = 1;
 
 /** Quiet period before the window is rebuilt, in ms. */
 const STAFF_REBUILD_QUIET_MS = 120;
+
+/** How many rebuilds the measurement log keeps before it starts forgetting. */
+const STAFF_REBUILD_LOG_MAX = 50;
 import { SAMPLE_MAPPER_JSON } from '../scenarios/sampleMapper.js';
 import { parseJsonFile } from '../utils/json.js';
 import { requireElement, setThemeAttribute, showError } from '../utils/dom.js';
@@ -80,6 +83,16 @@ export type { DemoE2eBridge };
 
 export type { ContourControls, DemoTab };
 
+/** What one window rebuild cost, and how far it moved. See T88.8. */
+export interface StaffRebuildRecord {
+  kind: 'slide' | 'jump';
+  /** Wall clock across `setData`, which is what blocks the frame. */
+  ms: number;
+  from: number;
+  to: number;
+  size: number;
+}
+
 export class App {
   private diagram: OrgHierarchyDiagram | null = null;
   private tab: DemoTab = 'variant-b';
@@ -93,6 +106,14 @@ export class App {
   private staffScaleWindow: ScaleStaffWindow | null = null;
 
   private staffScheduler: RebuildScheduler | null = null;
+  /**
+   * The last rebuilds and what they cost — the measurement T88.8 is a gate for.
+   *
+   * Ranges rather than id sets: overlap is what the gate has to separate, and
+   * intersecting two four-thousand-id sets on every rebuild would cost more
+   * than the thing being measured. Two ranges give the same answer for free.
+   */
+  private staffRebuildLog: StaffRebuildRecord[] = [];
   private contextMenu: ReactContextMenuHost | null = null;
   private promote: ReactPromoteOverlay | null = null;
   private testAnchors: TestAnchorOverlay | null = null;
@@ -398,6 +419,7 @@ export class App {
       clickOrg: (orgId) => this.handleOrgNodeClick(orgId),
       scaleWindowStart: () => this.scaleWindow?.startIndex ?? null,
       config: () => this.buildConfig(),
+      staffRebuilds: () => [...this.staffRebuildLog],
     });
   }
 
@@ -572,7 +594,9 @@ export class App {
     diagram: OrgHierarchyDiagram,
     next: ScaleStaffWindow,
     previous: ScaleStaffWindow,
+    kind: StaffRebuildRecord['kind'],
   ): Promise<void> {
+    const started = performance.now();
     this.staffScaleWindow = next;
     try {
       await diagram.setData(next.data);
@@ -580,6 +604,14 @@ export class App {
       this.staffScaleWindow = previous;
       throw error;
     }
+    this.staffRebuildLog.push({
+      kind,
+      ms: Math.round(performance.now() - started),
+      from: previous.startIndex,
+      to: next.startIndex,
+      size: next.windowSize,
+    });
+    if (this.staffRebuildLog.length > STAFF_REBUILD_LOG_MAX) this.staffRebuildLog.shift();
   }
 
   /** Everything the outside world learns about a window that landed. */
@@ -607,7 +639,7 @@ export class App {
     if (next.wallBase === previous.wallBase && next.startIndex === previous.startIndex) return;
 
     const rowShift = (next.wallBase - previous.wallBase) / geom.cols;
-    await this.materializeStaffWindow(diagram, next, previous);
+    await this.materializeStaffWindow(diagram, next, previous, 'slide');
     diagram.setViewport(rebaseViewport(diagram.getViewport(), { rowShift, pitchY: geom.pitchY }));
     this.settleStaffWindow(next, this.staffWindowStatus(next));
   }
@@ -633,7 +665,7 @@ export class App {
     // only honest guess left.
     const { span } = this.staffWindowAsk(diagram, previous.wallBase);
     const next = buildScaleStaffWindow({ focusIndex, windowSize: span > 0 ? span : STAFF_SCALE_WINDOW });
-    await this.materializeStaffWindow(diagram, next, previous);
+    await this.materializeStaffWindow(diagram, next, previous, 'jump');
 
     // A seat outside tier 2 renders nothing to aim at, so the camera goes to the
     // start of the window that *was* materialized. Leaving it where it was would
