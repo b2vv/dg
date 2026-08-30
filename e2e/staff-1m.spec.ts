@@ -62,6 +62,10 @@ test.describe('the window follows the camera (T88)', () => {
   });
 
   test('panning past the edge materializes seats nobody asked for', async ({ page }) => {
+    // Honestly slow rather than intermittently red: mounting a million-seat
+    // address space on a software renderer takes most of the default budget on
+    // its own, and a full run puts six of those on the same CPU.
+    test.slow();
     const mount = page.locator('[data-window-start]');
     // Mounting fits the view, the camera settles, and the window re-slides to
     // match that zoomed-out frame. Reading `before` any earlier measures that
@@ -80,6 +84,14 @@ test.describe('the window follows the camera (T88)', () => {
 
     // Drag inside the page, one move per frame. Driving this with
     // page.mouse.move measures Playwright's round-trips, not the app (T87.10).
+    //
+    // Paced by the clock, not by a frame count. Counting frames ties the length
+    // of the gesture to the frame rate, and on a software renderer under a full
+    // run that made the drag alone outlast the whole test budget — a timeout
+    // that says nothing about the window. The clock keeps the gesture the same
+    // length in seconds and the same distance in pixels however few frames the
+    // machine can spare; the final move is dispatched at the full distance so a
+    // starved run ends up exactly where a fast one does.
     await page.evaluate(async () => {
       const canvas = document.querySelector('canvas')!;
       const r = canvas.getBoundingClientRect();
@@ -88,17 +100,21 @@ test.describe('the window follows the camera (T88)', () => {
       });
       const cx = r.left + r.width / 2;
       const cy = r.top + r.height / 2;
+      // 840 px is what 60 steps of 14 px added up to — the distance is the part
+      // of the old gesture that the assertion actually depends on.
+      const DISTANCE = 840;
+      const DURATION_MS = 700;
       canvas.dispatchEvent(new PointerEvent('pointerdown', opts(cx, cy)));
       await new Promise<void>((resolve) => {
-        let i = 0;
+        const started = performance.now();
         const step = (): void => {
-          i += 1;
+          const progress = Math.min(1, (performance.now() - started) / DURATION_MS);
           // Dragging the content up brings lower parts of the wall into view,
           // which is where the higher seat indices live.
-          canvas.dispatchEvent(new PointerEvent('pointermove', opts(cx, cy - i * 14)));
-          if (i < 60) requestAnimationFrame(step);
+          canvas.dispatchEvent(new PointerEvent('pointermove', opts(cx, cy - progress * DISTANCE)));
+          if (progress < 1) requestAnimationFrame(step);
           else {
-            canvas.dispatchEvent(new PointerEvent('pointerup', opts(cx, cy - i * 14)));
+            canvas.dispatchEvent(new PointerEvent('pointerup', opts(cx, cy - DISTANCE)));
             resolve();
           }
         };

@@ -16,7 +16,7 @@
     "test:e2e:software-gl": "SOFTWARE_GL=1 playwright test e2e/renderer-choice.spec.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "compare:nodes": "playwright test e2e/node-compare.spec.ts",
+    "compare:nodes": "COMPARE_NODES=1 playwright test e2e/node-compare.spec.ts",
     "test:verify": "npm run lint && npm run typecheck && npm test && npm run test:e2e && npm run compare:nodes",
     "test:rust": "cd packages/core && cargo test",
     "typecheck": "npm run typecheck -w @org-hierarchy/sdk && npm run build:types -w @org-hierarchy/sdk && npm run typecheck -w @org-hierarchy/demo && tsc -p tsconfig.e2e.json",

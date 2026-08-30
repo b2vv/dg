@@ -10,6 +10,12 @@ CLAUDE.local.md
 test-results/
 playwright-report/
 blob-report/
+# Only the linux baselines are committed — CI is linux, and that is the platform
+# the visual verdict is made on. A local run on another platform writes its own
+# baseline (mockups.spec.ts:34 explains why they cannot be shared: font fallback
+# alone moves the toolbar by 6 px), which is useful locally and noise in a diff.
+e2e/*-snapshots/*-darwin.png
+e2e/*-snapshots/*-win32.png
 
 # Rust build artifacts
 packages/core/target/

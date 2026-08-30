@@ -5,7 +5,19 @@ export default defineConfig({
   // Prod-smoke ходить у живий деплой і має власний конфіг (`test:prod`).
   // Без цього рядка він біг і тут — проти локального preview, тобто перевіряв
   // не те, заради чого писався, і дублював локальну сюїту.
-  testIgnore: '**/prod-smoke.spec.ts',
+  //
+  // Node-compare — генератор, а не тест: його asserts перевіряють, що файл
+  // записався, і нічого про поведінку продукту. Він має власний скрипт
+  // (`compare:nodes`), який `test:verify` викликає окремо, тож тут він лише
+  // дублювався — і на кожному повному прогоні переписував закомічені PNG у
+  // `work/tasks/node-compare/`, лишаючи брудне дерево після зеленого прогону.
+  //
+  // Прапорцем, а не безумовно: `testIgnore` сильніший за шлях у командному
+  // рядку, тож без цієї гілки `compare:nodes` знаходив би нуль тестів.
+  // Prod-smoke обходиться без прапорця лише тому, що має окремий конфіг.
+  testIgnore: process.env.COMPARE_NODES
+    ? ['**/prod-smoke.spec.ts']
+    : ['**/prod-smoke.spec.ts', '**/node-compare.spec.ts'],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
