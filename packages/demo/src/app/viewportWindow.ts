@@ -98,6 +98,16 @@ function clamp(v: number, lo: number, hi: number): number {
 }
 
 /**
+ * Why the window is being rebuilt.
+ *
+ * The two are not the same move and must not be collapsed into one number: a
+ * slide is given a range and keeps the content under the cursor still, a jump
+ * is given a point and takes the camera to it. They share a scheduler because
+ * they share the one thing that must not overlap — `setData`.
+ */
+export type StaffRebuild = { kind: 'slide'; start: number } | { kind: 'jump'; focusIndex: number };
+
+/**
  * One rebuild at a time, and never one per event.
  *
  * Two separate things, both required: a quiet period so a gesture does not
@@ -107,9 +117,9 @@ function clamp(v: number, lo: number, hi: number): number {
  * rebuilds can finish out of order and leave the index describing the older
  * window.
  */
-export class RebuildScheduler<T = number> {
+export class RebuildScheduler {
   private timer: ReturnType<typeof setTimeout> | null = null;
-  private pending: T | null = null;
+  private pending: StaffRebuild | null = null;
   private stopped = false;
   /**
    * The mutual exclusion both entry points share.
@@ -123,12 +133,12 @@ export class RebuildScheduler<T = number> {
   private tail: Promise<void> = Promise.resolve();
 
   constructor(
-    private readonly build: (request: T) => Promise<void>,
+    private readonly build: (request: StaffRebuild) => Promise<void>,
     private readonly quietMs: number,
     private readonly onError: (error: unknown) => void = () => {},
   ) {}
 
-  request(request: T): void {
+  request(request: StaffRebuild): void {
     if (this.stopped) return;
     this.pending = request;
     if (this.timer !== null) clearTimeout(this.timer);
@@ -151,7 +161,7 @@ export class RebuildScheduler<T = number> {
    * `onError`: an explicit action that did not happen has to be named to the
    * person who asked for it.
    */
-  async run(request: T): Promise<void> {
+  async run(request: StaffRebuild): Promise<void> {
     if (this.stopped) return;
     if (this.timer !== null) {
       clearTimeout(this.timer);
@@ -185,7 +195,7 @@ export class RebuildScheduler<T = number> {
     }
   }
 
-  private enqueue(request: T): Promise<void> {
+  private enqueue(request: StaffRebuild): Promise<void> {
     const job = this.tail.then(() => (this.stopped ? undefined : this.build(request)));
     // The tail must survive a rejection, or one failed rebuild wedges every
     // later one; the rejection still reaches whoever awaited `job`.

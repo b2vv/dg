@@ -10,7 +10,12 @@ test.describe('1M staff scale tab', () => {
     await page.goto('/?e2e=1');
     await expect(page.locator('[data-testid="diagram-ready"]')).toBeVisible({ timeout: 60_000 });
     await page.getByRole('button', { name: 'Staff · 1M', exact: true }).click();
-    await expect(page.locator('#status')).toContainText('Staff · 1M', { timeout: 60_000 });
+    // The window marker, not the status line. The tab label is transient: the
+    // mount-time slide overwrites it a few seconds later, and `click()` does not
+    // resolve while the main thread is busy building the window — so the first
+    // poll can land after the label is already gone. The marker only ever
+    // appears on this tab and never goes away again.
+    await expect(page.locator('[data-window-start]')).toHaveCount(1, { timeout: 60_000 });
   });
 
   test('draws a window of the address space and says so', async ({ page }) => {

@@ -44,6 +44,7 @@ import {
   rebaseViewport,
   resolveWindowRange,
   type WallGeometry,
+  type WindowRange,
 } from './viewportWindow.js';
 
 /**
@@ -79,16 +80,6 @@ export type { DemoE2eBridge };
 
 export type { ContourControls, DemoTab };
 
-/**
- * Why the staff window is being rebuilt.
- *
- * The two are not the same move and must not be collapsed into one number: a
- * slide is given a range and keeps the content under the cursor still, a jump
- * is given a point and takes the camera to it. They share a scheduler because
- * they share the one thing that must not overlap — `setData`.
- */
-type StaffRebuild = { kind: 'slide'; start: number } | { kind: 'jump'; focusIndex: number };
-
 export class App {
   private diagram: OrgHierarchyDiagram | null = null;
   private tab: DemoTab = 'variant-b';
@@ -101,7 +92,7 @@ export class App {
   private scaleWindow: ScaleOrgsWindow | null = null;
   private staffScaleWindow: ScaleStaffWindow | null = null;
 
-  private staffScheduler: RebuildScheduler<StaffRebuild> | null = null;
+  private staffScheduler: RebuildScheduler | null = null;
   private contextMenu: ReactContextMenuHost | null = null;
   private promote: ReactPromoteOverlay | null = null;
   private testAnchors: TestAnchorOverlay | null = null;
@@ -260,7 +251,7 @@ export class App {
           : {}),
         callbacks: this.diagramCallbacks(),
       });
-      this.staffScheduler = new RebuildScheduler<StaffRebuild>(
+      this.staffScheduler = new RebuildScheduler(
         (request) =>
           request.kind === 'slide'
             ? this.slideStaffWindow(request.start)
@@ -310,20 +301,11 @@ export class App {
         // Only on settled: rebuilding mid-gesture is what the reserve exists to
         // avoid. A resize counts as settled work too — it changes how much fits
         // without moving the camera, so nothing else would notice the new edge.
-        if (!meta.settled || this.tab !== 'staff-1m') return;
-        const win = this.staffScaleWindow;
-        const diagram = this.diagram;
-        if (!win || !diagram) return;
-        const range = resolveWindowRange(
-          {
-            screen: diagram.getScreenSize(),
-            viewport: diagram.getViewport(),
-            reserveScreens: STAFF_RESERVE_SCREENS,
-            wallBase: win.wallBase,
-          },
-          this.staffWallGeometry(),
-        );
-        if (range.start === win.startIndex) return;
+        if (!meta.settled) return;
+        const live = this.staffContext();
+        if (!live) return;
+        const range = this.staffWindowAsk(live.diagram, live.previous.wallBase);
+        if (range.start === live.previous.startIndex) return;
         this.staffScheduler?.request({ kind: 'slide', start: range.start });
       },
       onSelectionChange: (nodes) => {
@@ -553,6 +535,60 @@ export class App {
     return { cols: STAFF_SCALE_COLS, pitchY: 72, firstIndex: LEAD_SEATS, tierSeats: CURRENT_SEATS };
   }
 
+  /** The staff tab's live pieces, or nothing to move. */
+  private staffContext(): { diagram: OrgHierarchyDiagram; previous: ScaleStaffWindow } | null {
+    const diagram = this.diagram;
+    const previous = this.staffScaleWindow;
+    if (!diagram || !previous || this.tab !== 'staff-1m') return null;
+    return { diagram, previous };
+  }
+
+  /** What the camera is asking the wall for, from where it stands right now. */
+  private staffWindowAsk(diagram: OrgHierarchyDiagram, wallBase: number): WindowRange {
+    return resolveWindowRange(
+      {
+        screen: diagram.getScreenSize(),
+        viewport: diagram.getViewport(),
+        reserveScreens: STAFF_RESERVE_SCREENS,
+        wallBase,
+      },
+      this.staffWallGeometry(),
+    );
+  }
+
+  /**
+   * Put a window into the scene, or leave the old one standing.
+   *
+   * The field is advertised before the await and rolled back if it fails,
+   * rather than set after. Both orders were tried: setting it afterwards leaves
+   * the camera callback reading the *old* start for the length of the rebuild,
+   * so every slide earns a second, redundant one — which is frames, and frames
+   * are what T87's harness measures. The rollback keeps the honest half: a
+   * rejected rebuild must not leave the field describing a window that was
+   * never materialized, or the next rebuild takes its `wallBase` from a scene
+   * that does not exist while the status says nothing changed.
+   */
+  private async materializeStaffWindow(
+    diagram: OrgHierarchyDiagram,
+    next: ScaleStaffWindow,
+    previous: ScaleStaffWindow,
+  ): Promise<void> {
+    this.staffScaleWindow = next;
+    try {
+      await diagram.setData(next.data);
+    } catch (error) {
+      this.staffScaleWindow = previous;
+      throw error;
+    }
+  }
+
+  /** Everything the outside world learns about a window that landed. */
+  private settleStaffWindow(win: ScaleStaffWindow, status: string): void {
+    this.mountSceneCaption();
+    this.syncStaffWindowMarker(win);
+    this.setStatus(status);
+  }
+
   /**
    * Move the window to follow the camera, then move the camera back.
    *
@@ -561,39 +597,19 @@ export class App {
    * the content under the cursor still while the data underneath it changes.
    */
   private async slideStaffWindow(start: number): Promise<void> {
-    const diagram = this.diagram;
-    const previous = this.staffScaleWindow;
-    if (!diagram || !previous || this.tab !== 'staff-1m') return;
+    const live = this.staffContext();
+    if (!live) return;
+    const { diagram, previous } = live;
 
     const geom = this.staffWallGeometry();
-    const screen = diagram.getScreenSize();
-    const size = resolveWindowRange(
-      { screen, viewport: diagram.getViewport(), reserveScreens: STAFF_RESERVE_SCREENS, wallBase: previous.wallBase },
-      geom,
-    ).size;
+    const { size } = this.staffWindowAsk(diagram, previous.wallBase);
     const next = buildScaleStaffWindow({ startIndex: start, windowSize: size });
     if (next.wallBase === previous.wallBase && next.startIndex === previous.startIndex) return;
 
     const rowShift = (next.wallBase - previous.wallBase) / geom.cols;
-    // Advertised before the await and rolled back if it fails, rather than set
-    // after. Both orders were tried: setting it afterwards leaves the camera
-    // callback reading the *old* start for the length of the rebuild, so every
-    // slide earns a second, redundant one — which is frames, and frames are
-    // what T87's harness measures. Rolling back keeps the honest half: a
-    // rejected rebuild must not leave the field describing a window that was
-    // never materialized, or the next slide takes its `wallBase` from a scene
-    // that does not exist while the status says nothing changed.
-    this.staffScaleWindow = next;
-    try {
-      await diagram.setData(next.data);
-    } catch (error) {
-      this.staffScaleWindow = previous;
-      throw error;
-    }
+    await this.materializeStaffWindow(diagram, next, previous);
     diagram.setViewport(rebaseViewport(diagram.getViewport(), { rowShift, pitchY: geom.pitchY }));
-    this.mountSceneCaption();
-    this.syncStaffWindowMarker(next);
-    this.setStatus(this.staffWindowStatus(next));
+    this.settleStaffWindow(next, this.staffWindowStatus(next));
   }
 
   /**
@@ -606,34 +622,18 @@ export class App {
    * which is the whole point of not going through `reload()`.
    */
   private async jumpStaffWindow(focusIndex: number): Promise<void> {
-    const diagram = this.diagram;
-    const previous = this.staffScaleWindow;
-    if (!diagram || !previous || this.tab !== 'staff-1m') return;
+    const live = this.staffContext();
+    if (!live) return;
+    const { diagram, previous } = live;
 
-    const geom = this.staffWallGeometry();
-    const { span } = resolveWindowRange(
-      {
-        screen: diagram.getScreenSize(),
-        viewport: diagram.getViewport(),
-        reserveScreens: STAFF_RESERVE_SCREENS,
-        wallBase: previous.wallBase,
-      },
-      geom,
-    );
     // `span`, not `size`: if the camera is sitting at the end of tier 2 right
     // now, what the wall left over there is narrower than a screen, and the
     // window is about to be built somewhere with no edge to run into. A zero
     // span means the surface has not been measured yet — the default is the
     // only honest guess left.
+    const { span } = this.staffWindowAsk(diagram, previous.wallBase);
     const next = buildScaleStaffWindow({ focusIndex, windowSize: span > 0 ? span : STAFF_SCALE_WINDOW });
-    // See `slideStaffWindow` for why this is advertised first and rolled back.
-    this.staffScaleWindow = next;
-    try {
-      await diagram.setData(next.data);
-    } catch (error) {
-      this.staffScaleWindow = previous;
-      throw error;
-    }
+    await this.materializeStaffWindow(diagram, next, previous);
 
     // A seat outside tier 2 renders nothing to aim at, so the camera goes to the
     // start of the window that *was* materialized. Leaving it where it was would
@@ -641,11 +641,9 @@ export class App {
     // path hid that by refitting the whole scene.
     const target = next.focusMaterialized ? `pos-${focusIndex}` : `pos-${next.startIndex}`;
     const aimed = await diagram.focusNode(target);
-    this.mountSceneCaption();
-    this.syncStaffWindowMarker(next);
     // After the camera, not before: focusing selects the seat, and the selection
     // callback writes a status of its own.
-    this.setStatus(this.staffJumpStatus(next, focusIndex, { target, aimed }));
+    this.settleStaffWindow(next, this.staffJumpStatus(next, focusIndex, { target, aimed }));
   }
 
   /** What a jump has to say for itself, in the order the user cares about. */

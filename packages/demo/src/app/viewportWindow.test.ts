@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@rstest/core';
 import {
   RebuildScheduler,
+  type StaffRebuild,
   rebaseViewport,
   resolveWindowRange,
   type WallGeometry,
@@ -16,6 +17,11 @@ const geom: WallGeometry = {
 };
 
 const at = (row: number, scale = 1) => ({ x: 0, y: -row * 72 * scale, scale });
+
+// The scheduler speaks in rebuild requests, not seat numbers. These two keep
+// the tests reading about the seat they care about rather than the wrapper.
+const slide = (start: number): StaffRebuild => ({ kind: 'slide', start });
+const seatOf = (r: StaffRebuild): number => (r.kind === 'slide' ? r.start : r.focusIndex);
 
 describe('resolveWindowRange', () => {
   it('success: the window covers what is on screen plus the reserve', () => {
@@ -132,10 +138,10 @@ describe('rebaseViewport', () => {
 describe('RebuildScheduler', () => {
   it('success: a burst of requests produces one rebuild, with the last range', async () => {
     const built: number[] = [];
-    const s = new RebuildScheduler(async (start: number) => {
-      built.push(start);
+    const s = new RebuildScheduler(async (r: StaffRebuild) => {
+      built.push(seatOf(r));
     }, 20);
-    for (let i = 0; i < 10; i += 1) s.request(i * 24);
+    for (let i = 0; i < 10; i += 1) s.request(slide(i * 24));
     await new Promise((r) => setTimeout(r, 60));
     expect(built).toEqual([216]);
   });
@@ -148,13 +154,13 @@ describe('RebuildScheduler', () => {
     const held = new Promise<void>((r) => {
       gate.release = r;
     });
-    const s = new RebuildScheduler(async (start: number) => {
-      built.push(start);
+    const s = new RebuildScheduler(async (r: StaffRebuild) => {
+      built.push(seatOf(r));
       if (built.length === 1) await held;
     }, 5);
-    s.request(24);
+    s.request(slide(24));
     await new Promise((r) => setTimeout(r, 20));
-    s.request(48);
+    s.request(slide(48));
     await new Promise((r) => setTimeout(r, 20));
     gate.release();
     await new Promise((r) => setTimeout(r, 40));
@@ -170,18 +176,18 @@ describe('RebuildScheduler', () => {
     const built: number[] = [];
     const errors: string[] = [];
     const s = new RebuildScheduler(
-      async (start: number) => {
-        built.push(start);
+      async (r: StaffRebuild) => {
+        built.push(seatOf(r));
         if (built.length === 1) throw new Error('layout worker died');
       },
       5,
       (e) => errors.push(e instanceof Error ? e.message : String(e)),
     );
-    s.request(24);
+    s.request(slide(24));
     await new Promise((r) => setTimeout(r, 30));
     expect(errors).toEqual(['layout worker died']);
 
-    s.request(48);
+    s.request(slide(48));
     await new Promise((r) => setTimeout(r, 30));
     expect(built).toEqual([24, 48]);
     expect(errors).toHaveLength(1);
@@ -190,24 +196,24 @@ describe('RebuildScheduler', () => {
   it('failure: a throw drops the queued range instead of retrying it forever', async () => {
     const built: number[] = [];
     const s = new RebuildScheduler(
-      async (start: number) => {
-        built.push(start);
+      async (r: StaffRebuild) => {
+        built.push(seatOf(r));
         throw new Error('nope');
       },
       5,
       () => {},
     );
-    s.request(24);
+    s.request(slide(24));
     await new Promise((r) => setTimeout(r, 40));
     expect(built).toEqual([24]);
   });
 
   it('failure: stop() cancels a pending rebuild', async () => {
     const built: number[] = [];
-    const s = new RebuildScheduler(async (start: number) => {
-      built.push(start);
+    const s = new RebuildScheduler(async (r: StaffRebuild) => {
+      built.push(seatOf(r));
     }, 20);
-    s.request(24);
+    s.request(slide(24));
     s.stop();
     await new Promise((r) => setTimeout(r, 60));
     expect(built).toEqual([]);
@@ -215,11 +221,11 @@ describe('RebuildScheduler', () => {
 
   it('success: run() rebuilds ahead of the quiet period and resolves once it landed', async () => {
     const built: number[] = [];
-    const s = new RebuildScheduler(async (start: number) => {
-      await new Promise((r) => setTimeout(r, 10));
-      built.push(start);
+    const s = new RebuildScheduler(async (r: StaffRebuild) => {
+      await new Promise((done) => setTimeout(done, 10));
+      built.push(seatOf(r));
     }, 10_000);
-    await s.run(24);
+    await s.run(slide(24));
     // No wait after the await: an explicit destination is not a gesture, so
     // there is nothing to coalesce and nothing to wait out.
     expect(built).toEqual([24]);
@@ -229,24 +235,24 @@ describe('RebuildScheduler', () => {
     // The reason the scheduler exists: `setData` rebuilds the search index
     // asynchronously, so two overlapping rebuilds can land out of order.
     const events: string[] = [];
-    const s = new RebuildScheduler(async (start: number) => {
-      events.push(`start ${start}`);
-      await new Promise((r) => setTimeout(r, 30));
-      events.push(`end ${start}`);
+    const s = new RebuildScheduler(async (r: StaffRebuild) => {
+      events.push(`start ${seatOf(r)}`);
+      await new Promise((done) => setTimeout(done, 30));
+      events.push(`end ${seatOf(r)}`);
     }, 5);
-    s.request(24);
+    s.request(slide(24));
     await new Promise((r) => setTimeout(r, 15));
-    await s.run(48);
+    await s.run(slide(48));
     expect(events).toEqual(['start 24', 'end 24', 'start 48', 'end 48']);
   });
 
   it('failure: run() supersedes a pan that was queued but never started', async () => {
     const built: number[] = [];
-    const s = new RebuildScheduler(async (start: number) => {
-      built.push(start);
+    const s = new RebuildScheduler(async (r: StaffRebuild) => {
+      built.push(seatOf(r));
     }, 20);
-    s.request(24);
-    await s.run(48);
+    s.request(slide(24));
+    await s.run(slide(48));
     await new Promise((r) => setTimeout(r, 60));
     expect(built).toEqual([48]);
   });
@@ -262,28 +268,41 @@ describe('RebuildScheduler', () => {
       5,
       (e) => errors.push(e),
     );
-    await expect(s.run(24)).rejects.toThrow('layout worker died');
+    await expect(s.run(slide(24))).rejects.toThrow('layout worker died');
     expect(errors).toEqual([]);
   });
 
   it('failure: a failed run() does not wedge the rebuilds after it', async () => {
     const built: number[] = [];
-    const s = new RebuildScheduler(async (start: number) => {
-      built.push(start);
+    const s = new RebuildScheduler(async (r: StaffRebuild) => {
+      built.push(seatOf(r));
       if (built.length === 1) throw new Error('nope');
     }, 5);
-    await expect(s.run(24)).rejects.toThrow('nope');
-    await s.run(48);
+    await expect(s.run(slide(24))).rejects.toThrow('nope');
+    await s.run(slide(48));
     expect(built).toEqual([24, 48]);
+  });
+
+  it('success: a jump reaches the builder as a jump, not as a start index', async () => {
+    // The union is the scheduler's contract now: the two moves share a queue
+    // precisely because they must not both be in `setData` at once, and the
+    // builder is the only place that knows they are different moves.
+    const seen: StaffRebuild[] = [];
+    const s = new RebuildScheduler(async (r: StaffRebuild) => {
+      seen.push(r);
+    }, 5);
+    s.request(slide(24));
+    await s.run({ kind: 'jump', focusIndex: 500_000 });
+    expect(seen).toEqual([{ kind: 'jump', focusIndex: 500_000 }]);
   });
 
   it('failure: run() after stop() builds nothing', async () => {
     const built: number[] = [];
-    const s = new RebuildScheduler(async (start: number) => {
-      built.push(start);
+    const s = new RebuildScheduler(async (r: StaffRebuild) => {
+      built.push(seatOf(r));
     }, 5);
     s.stop();
-    await s.run(24);
+    await s.run(slide(24));
     expect(built).toEqual([]);
   });
 });
