@@ -67,6 +67,15 @@ export interface ScaleStaffWindow {
   total: number;
   /** Seats actually materialized (all tiers). */
   windowSize: number;
+  /**
+   * One past the last **tier-2** seat in the window.
+   *
+   * Not `startIndex + windowSize`: `windowSize` counts every materialised
+   * position across all three tiers, so using it as an end printed a range that
+   * ran past the tier — `window 700004…700033 / 1000000` on a tier that stops
+   * at 700 004.
+   */
+  endIndex: number;
   focusIndex: number;
   /** Tier the focus index lands in — the window can only centre on `current`. */
   focusTier: ScaleStaffTier;
@@ -394,6 +403,7 @@ export function buildScaleStaffWindow(options: {
   return {
     total,
     windowSize: positions.length,
+    endIndex: end,
     focusIndex,
     focusTier,
     focusMaterialized: positions.some((p) => p.testId === 'scale-focus-seat'),

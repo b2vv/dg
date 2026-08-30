@@ -736,12 +736,18 @@ export class App {
    * so there is otherwise nothing in the DOM that says it happened.
    */
   private staffWindowStatus(win: ScaleStaffWindow): string {
-    return `staff · window ${win.startIndex}…${win.startIndex + win.windowSize} / ${win.total}`;
+    // Named ends, not silence. Acceptance rows 5 and 6 ask the status to say
+    // which boundary the window is against — panning into a wall that stops
+    // moving is otherwise indistinguishable from a rebuild that failed.
+    const atStart = win.startIndex <= LEAD_SEATS;
+    const atEnd = win.endIndex >= LEAD_SEATS + win.composition.current;
+    const edge = atEnd ? ' · end of tier 2' : atStart ? ' · start of tier 2' : '';
+    return `staff · window ${win.startIndex}…${win.endIndex} / ${win.total}${edge}`;
   }
 
   private syncStaffWindowMarker(win: ScaleStaffWindow): void {
     this.mountEl.dataset.windowStart = String(win.startIndex);
-    this.mountEl.dataset.windowEnd = String(win.startIndex + win.windowSize);
+    this.mountEl.dataset.windowEnd = String(win.endIndex);
   }
 
   private ensureScaleWindow(focusIndex = 0): ScaleOrgsWindow {

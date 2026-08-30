@@ -92,18 +92,13 @@ describe('resolveWindowRange', () => {
     expect(r.end).toBe(LEAD_SEATS + CURRENT_SEATS);
   });
 
-  it('failure: at the bottom edge `span` still asks for a screenful, `size` does not', () => {
-    // What is left over at the edge is the right size for a window built *at*
-    // that edge and the wrong size for one built anywhere else — a jump reads
-    // `span` so it does not carry the edge's leftovers to the middle of the wall.
-    const lastRow = Math.floor((LEAD_SEATS + CURRENT_SEATS) / STAFF_SCALE_COLS);
+  it('failure: above the wall `span` still asks for a screenful, `size` does not', () => {
+    // The two differ only at the top now. At the bottom the start is held back
+    // by a whole ask, so `size` reaches `span` there — that is the row-5 fix,
+    // and this test used to assert the opposite, which is what a test written
+    // against a bug looks like from the inside.
     const r = resolveWindowRange(
-      {
-        screen: { width: 1920, height: 720 },
-        viewport: at(lastRow),
-        reserveScreens: 2,
-        wallBase: lastRow * STAFF_SCALE_COLS,
-      },
+      { screen: { width: 1920, height: 720 }, viewport: at(0), reserveScreens: 2, wallBase: 0 },
       geom,
     );
     expect(r.size).toBeLessThan(r.span);
@@ -117,6 +112,34 @@ describe('resolveWindowRange', () => {
       geom,
     );
     expect(r.span).toBe(middle.size);
+  });
+
+  it('failure: past the last seat the window holds a screenful, it does not empty', () => {
+    // Row 5. Clamping both ends to the last seat gave size 0, which reached
+    // `buildScaleStaffWindow` as `windowSize: 0` and drew an empty wall.
+    const lastRow = Math.floor((LEAD_SEATS + CURRENT_SEATS) / STAFF_SCALE_COLS);
+    const r = resolveWindowRange(
+      {
+        screen: { width: 1920, height: 720 },
+        viewport: at(lastRow + 6),
+        reserveScreens: 2,
+        wallBase: lastRow * STAFF_SCALE_COLS,
+      },
+      geom,
+    );
+    expect(r.end).toBe(LEAD_SEATS + CURRENT_SEATS);
+    expect(r.size).toBe(r.span);
+    expect(r.start).toBe(LEAD_SEATS + CURRENT_SEATS - r.span);
+  });
+
+  it('failure: before the first seat the window still holds a screenful', () => {
+    // Row 6, the same failure from the other end.
+    const r = resolveWindowRange(
+      { screen: { width: 1920, height: 720 }, viewport: at(-8), reserveScreens: 2, wallBase: 0 },
+      geom,
+    );
+    expect(r.start).toBe(LEAD_SEATS);
+    expect(r.size).toBeGreaterThan(0);
   });
 });
 

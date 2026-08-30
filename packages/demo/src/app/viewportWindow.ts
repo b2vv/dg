@@ -68,10 +68,20 @@ export function resolveWindowRange(req: WindowRequest, geom: WallGeometry): Wind
   const endRow = Math.ceil((worldTop + worldHeight + reserve) / geom.pitchY);
 
   const lastSeat = geom.firstIndex + geom.tierSeats;
+  const span = Math.max(0, endRow - firstRow) * geom.cols;
+  // Hold the start back from the end by a whole ask.
+  //
+  // Clamping `start` to `lastSeat` looked symmetric with the top and was the
+  // bug behind acceptance row 5: a camera panned past the last seat clamped
+  // both ends to `lastSeat`, so `size` came out 0, `buildScaleStaffWindow` got
+  // `windowSize: 0`, its seat loop ran zero times, and the wall went blank —
+  // which is the one thing the row says must not happen. The end of the address
+  // space is not «no seats», it is «the last screenful».
+  const maxStart = Math.max(geom.firstIndex, lastSeat - span);
   // Wall row 1 holds the first seat, so a row index maps to `(row - 1)` rows of seats.
-  const start = clamp(req.wallBase + (firstRow - 1) * geom.cols, geom.firstIndex, lastSeat);
+  const start = clamp(req.wallBase + (firstRow - 1) * geom.cols, geom.firstIndex, maxStart);
   const end = clamp(req.wallBase + (endRow - 1) * geom.cols, start, lastSeat);
-  return { start, end, size: end - start, span: Math.max(0, endRow - firstRow) * geom.cols };
+  return { start, end, size: end - start, span };
 }
 
 /**

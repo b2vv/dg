@@ -171,6 +171,62 @@ test.describe('the window follows the camera (T88)', () => {
     expect(after.reportLines).toBeLessThan(before.reportLines * 1.5);
   });
 
+  // Acceptance rows 5 and 6: the ends of tier 2. The window must stop, keep a
+  // screenful, and say which edge it is against.
+  for (const edge of [
+    { row: 5, name: 'the far end of tier 2', query: 'pos-700000', drag: -1, attr: 'data-window-end', value: '700004', says: 'end of tier 2' },
+    { row: 6, name: 'the start of tier 2', query: 'pos-40', drag: 1, attr: 'data-window-start', value: '4', says: 'start of tier 2' },
+  ]) {
+    test(`row ${edge.row}: panning past ${edge.name} clamps instead of emptying`, async ({ page }) => {
+      test.slow();
+      const search = page.locator('#search-input');
+      await search.fill(edge.query);
+      await search.press('Enter');
+      await expect(page.locator('[data-window-start]')).toHaveCount(1, { timeout: 60_000 });
+      await page.waitForTimeout(1500);
+
+      // Drive the camera at the wall until the window stops moving. A drag was
+      // the first shape of this and never arrived: at the tab's zoom one gesture
+      // covers a few rows of a 29 000-row wall, so it reported «not clamped yet»
+      // rather than what happens at the clamp. The clamp is reached through the
+      // same settled → resolveWindowRange path either way.
+      const mount = page.locator('[data-window-start]');
+      let last = '';
+      for (let step = 0; step < 40; step += 1) {
+        await page.evaluate((dir) => {
+          const b = (window as unknown as {
+            __demoE2e: { getViewport(): { x: number; y: number; scale: number }; setViewport(v: object): void };
+          }).__demoE2e;
+          const vp = b.getViewport();
+          b.setViewport({ ...vp, y: vp.y + dir * 40_000 });
+        }, edge.drag);
+        await page.waitForTimeout(900);
+        const now = (await mount.getAttribute(edge.attr)) ?? '';
+        if (now !== '' && now === last) break;
+        last = now;
+      }
+
+      // Poll to the clamp value, not «changed from before»: at a clamp it does
+      // not change, so a difference assertion waits for something that will
+      // never happen and reports a timeout instead of the state under test.
+      await expect
+        .poll(async () => page.locator('[data-window-start]').getAttribute(edge.attr), {
+          timeout: 30_000,
+        })
+        .toBe(edge.value);
+
+      // «Does not empty» has to be a number. Four lead seats, a pinned head and
+      // the subordinate slice survive even a zero-width window, so anything at
+      // or below that count is exactly the failure this row is about.
+      const counts = await page.evaluate(() => {
+        const b = (window as unknown as { __demoE2e: { getSceneCounts(): { positions: number } } }).__demoE2e;
+        return b.getSceneCounts();
+      });
+      expect(counts.positions).toBeGreaterThan(100);
+      await expect(page.locator('#status')).toContainText(edge.says);
+    });
+  }
+
   // Acceptance row 14: a jump must move the window, not the scene around it.
   test('a pos-N jump keeps the canvas and the zoom it was given', async ({ page }) => {
     type Bridge = {
