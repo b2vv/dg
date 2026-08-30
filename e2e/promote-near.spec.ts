@@ -43,6 +43,26 @@ async function waitForSettle(page: Page): Promise<void> {
     .toBe('');
 }
 
+/**
+ * Wait for the card count to stop moving.
+ *
+ * `waitForSettle` settles the overlay, and since T88 that is no longer the end
+ * of the story on `Staff · 1M`: a zoom is also a window rebuild, the renderer
+ * clears the whole scene while it runs, and the overlay can settle before the
+ * rebuild has even started. A count read in that gap is zero — which is how
+ * three of these rows went red in CI while passing locally.
+ */
+async function waitForStablePromote(page: Page): Promise<void> {
+  let last = -1;
+  let stable = 0;
+  for (let i = 0; i < 80 && stable < 3; i += 1) {
+    const now = await cards(page).count();
+    stable = now === last ? stable + 1 : 0;
+    last = now;
+    await page.waitForTimeout(250);
+  }
+}
+
 async function setZoom(page: Page, zoom: number): Promise<void> {
   await page.evaluate((z) => {
     const bridge = (window as unknown as { __demoE2e?: { setZoom?(v: number): void } }).__demoE2e;
@@ -50,6 +70,7 @@ async function setZoom(page: Page, zoom: number): Promise<void> {
     bridge.setZoom(z);
   }, zoom);
   await waitForSettle(page);
+  await waitForStablePromote(page);
 }
 
 function cards(page: Page) {

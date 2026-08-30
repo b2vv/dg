@@ -244,6 +244,52 @@ export interface StaffEdgeRoute {
  * Same router as `staffEdgePolyline`, tagged by which branch won.
  * `forced` is the last around-lane, returned without a cleanliness check.
  */
+/**
+ * Obstacle boxes sorted by top edge, so an edge only looks at its own band.
+ *
+ * Rejecting by bounding box cut the constant but not the order: every edge
+ * still walked every card, so the router stayed n². The index is built once
+ * per obstacle array and cached on its identity — `mapStaffEdgeBoxesForLod`
+ * returns a fresh array per render, so a cached index is never stale, and a
+ * WeakMap lets it go when the render's boxes do.
+ */
+interface ObstacleIndex {
+  sorted: StaffEdgeBox[];
+  /** `sorted[i]`'s top edge, kept apart so the search reads one flat array. */
+  tops: number[];
+  /** The tallest box, which is how far above a band an overlap can begin. */
+  maxHeight: number;
+}
+
+const obstacleIndexCache = new WeakMap<StaffEdgeBox[], ObstacleIndex>();
+
+function obstacleIndexFor(obstacles: StaffEdgeBox[]): ObstacleIndex {
+  const cached = obstacleIndexCache.get(obstacles);
+  if (cached) return cached;
+  const sorted = [...obstacles].sort((a, b) => (a.obstacle ?? a).y - (b.obstacle ?? b).y);
+  const tops = sorted.map((b) => (b.obstacle ?? b).y);
+  let maxHeight = 0;
+  for (const b of sorted) {
+    const h = (b.obstacle ?? b).height;
+    if (h > maxHeight) maxHeight = h;
+  }
+  const index: ObstacleIndex = { sorted, tops, maxHeight };
+  obstacleIndexCache.set(obstacles, index);
+  return index;
+}
+
+/** First position whose top is >= `y`. */
+function lowerBound(tops: number[], y: number): number {
+  let lo = 0;
+  let hi = tops.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (tops[mid]! < y) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
 export function classifyStaffEdgeRoute(
   from: StaffEdgeBox,
   to: StaffEdgeBox,
@@ -255,7 +301,43 @@ export function classifyStaffEdgeRoute(
   const sameBand = Math.abs(toCy - fromCy) < Math.min(from.height, to.height) * 0.35;
   const preferHorizontal = kind === 'matrix' || kind === 'dotted' || sameBand;
 
-  const others = obstacles.filter((b) => b.id !== from.id && b.id !== to.id);
+  // Neither the array nor the per-pair rectangle is allocated any more.
+  //
+  // `obstacles` is every card on the canvas, and this routine runs once per
+  // edge, so `filter` here built a fresh ~4000-element array per edge — 15.5M
+  // copies for one staff window — and `routerObstacle` allocated a rectangle
+  // for every (edge, box) pair on top of that. Measured at 855ms of a 1.2s
+  // render, growing as n² (report §12).
+  //
+  // The bounding-box reject in front of the segment walk is exact rather than
+  // approximate: an interior hit requires real penetration, so two rectangles
+  // that do not overlap at all cannot produce one. The 1px inflation is slack
+  // against `polylineHitsBoxInterior`'s own epsilon.
+  const blocked = (line: StaffEdgePoint[]): boolean => {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const p of line) {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
+    }
+    // Start above the band by the tallest box: a card whose top sits higher can
+    // still reach into the band, and starting exactly at `minY` would miss it.
+    const { sorted, tops, maxHeight } = obstacleIndexFor(obstacles);
+    for (let i = lowerBound(tops, minY - 1 - maxHeight); i < sorted.length; i += 1) {
+      const box = sorted[i]!;
+      const r = box.obstacle ?? box;
+      if (r.y > maxY + 1) break;
+      if (box.id === from.id || box.id === to.id) continue;
+      if (r.x > maxX + 1 || r.x + r.width < minX - 1 || r.y + r.height < minY - 1) continue;
+      if (polylineHitsBoxInterior(line, routerObstacle(box))) return true;
+    }
+    return false;
+  };
+  const hasOthers = obstacles.some((b) => b.id !== from.id && b.id !== to.id);
 
   // Cross-tier prefers the straight vertical drop, but only when it stays clear
   // of foreign cards — otherwise it falls through to the shared candidate/around
@@ -265,7 +347,7 @@ export function classifyStaffEdgeRoute(
     if (
       vert &&
       isClean(vert, from, to) &&
-      !others.some((box) => polylineHitsBoxInterior(vert, routerObstacle(box)))
+      !blocked(vert)
     ) {
       return { via: 'direct', points: vert };
     }
@@ -286,13 +368,13 @@ export function classifyStaffEdgeRoute(
 
   for (const c of candidates) {
     if (!isClean(c, from, to)) continue;
-    if (others.some((box) => polylineHitsBoxInterior(c, routerObstacle(box)))) continue;
+    if (blocked(c)) continue;
     return { via: 'direct', points: c };
   }
 
-  const preferTop = kind === 'matrix' || kind === 'dotted' || sameBand || others.length > 0;
+  const preferTop = kind === 'matrix' || kind === 'dotted' || sameBand || hasOthers;
   const around = preferTop ? aroundTopPolyline(from, to) : aroundLeftPolyline(from, to);
-  if (!others.some((box) => polylineHitsBoxInterior(around, routerObstacle(box)))) {
+  if (!blocked(around)) {
     return { via: 'around', points: around };
   }
   const alt = preferTop ? aroundLeftPolyline(from, to) : aroundTopPolyline(from, to);
