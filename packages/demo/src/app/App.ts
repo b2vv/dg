@@ -62,6 +62,15 @@ const STAFF_RESERVE_SCREENS = 1;
 /** Quiet period before the window is rebuilt, in ms. */
 const STAFF_REBUILD_QUIET_MS = 120;
 
+/**
+ * Ceiling on seats materialised at once (acceptance row 10).
+ *
+ * Set at what was measured, not guessed: a 3 941-seat window renders in ~471 ms
+ * on this fixture (report §19), and zooming out without a ceiling asks for more
+ * with every notch — the only limit before this was the tier's 700 000.
+ */
+const STAFF_WINDOW_MAX_SEATS = 4000;
+
 /** How many rebuilds the measurement log keeps before it starts forgetting. */
 const STAFF_REBUILD_LOG_MAX = 50;
 import { SAMPLE_MAPPER_JSON } from '../scenarios/sampleMapper.js';
@@ -132,6 +141,8 @@ export class App {
    * than the thing being measured. Two ranges give the same answer for free.
    */
   private staffRebuildLog: StaffRebuildRecord[] = [];
+  /** Did the ceiling cut the last ask short? Row 10 needs the status to say so. */
+  private staffWindowCapped = false;
   /** Last `onDataMapped` reading — written during `setData`, read right after. */
   private lastMappedMs = 0;
   private contextMenu: ReactContextMenuHost | null = null;
@@ -642,6 +653,7 @@ export class App {
         screen: diagram.getScreenSize(),
         viewport: diagram.getViewport(),
         reserveScreens: STAFF_RESERVE_SCREENS,
+        maxSeats: STAFF_WINDOW_MAX_SEATS,
         wallBase,
       },
       this.staffWallGeometry(),
@@ -706,8 +718,9 @@ export class App {
     const { diagram, previous } = live;
 
     const geom = this.staffWallGeometry();
-    const { size } = this.staffWindowAsk(diagram, previous.wallBase);
-    const next = buildScaleStaffWindow({ startIndex: start, windowSize: size });
+    const ask = this.staffWindowAsk(diagram, previous.wallBase);
+    this.staffWindowCapped = ask.capped;
+    const next = buildScaleStaffWindow({ startIndex: start, windowSize: ask.size });
     if (next.wallBase === previous.wallBase && next.startIndex === previous.startIndex) return;
 
     const rowShift = (next.wallBase - previous.wallBase) / geom.cols;
@@ -736,8 +749,12 @@ export class App {
     // window is about to be built somewhere with no edge to run into. A zero
     // span means the surface has not been measured yet — the default is the
     // only honest guess left.
-    const { span } = this.staffWindowAsk(diagram, previous.wallBase);
-    const next = buildScaleStaffWindow({ focusIndex, windowSize: span > 0 ? span : STAFF_SCALE_WINDOW });
+    const ask = this.staffWindowAsk(diagram, previous.wallBase);
+    this.staffWindowCapped = ask.capped;
+    const next = buildScaleStaffWindow({
+      focusIndex,
+      windowSize: ask.span > 0 ? ask.span : STAFF_SCALE_WINDOW,
+    });
     await this.materializeStaffWindow(diagram, next, previous, 'jump');
 
     // A seat outside tier 2 renders nothing to aim at, so the camera goes to the
@@ -892,7 +909,11 @@ export class App {
     const atStart = win.startIndex <= LEAD_SEATS;
     const atEnd = win.endIndex >= LEAD_SEATS + win.composition.current;
     const edge = atEnd ? ' · end of tier 2' : atStart ? ' · start of tier 2' : '';
-    return `staff · window ${win.startIndex}…${win.endIndex} / ${win.total}${edge}`;
+    // Row 10: at a wide zoom the ceiling cuts the ask short, and the screen then
+    // shows less than the camera covers. Saying so is the difference between a
+    // window and a scene that quietly stops at an invisible line.
+    const capped = this.staffWindowCapped ? ' · capped, not all of the view is materialised' : '';
+    return `staff · window ${win.startIndex}…${win.endIndex} / ${win.total}${edge}${capped}`;
   }
 
   private syncStaffWindowMarker(win: ScaleStaffWindow): void {

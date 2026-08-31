@@ -36,7 +36,7 @@ describe('resolveWindowRange', () => {
     // One screen of 720 px at scale 1 is 10 rows of 72. With one screen of
     // reserve on each side that is 30 rows, and a row is `cols` seats.
     const r = resolveWindowRange(
-      { screen: { width: 1920, height: 720 }, viewport: at(100), reserveScreens: 1, wallBase: 2400 },
+      { screen: { width: 1920, height: 720 }, viewport: at(100), reserveScreens: 1, maxSeats: 1_000_000, wallBase: 2400 },
       geom,
     );
     expect((r.end - r.start) / geom.cols).toBeCloseTo(30, 0);
@@ -48,11 +48,11 @@ describe('resolveWindowRange', () => {
     // used to hard-code — that is the whole point of the reserve being named
     // in screens rather than in seats.
     const small = resolveWindowRange(
-      { screen: { width: 1920, height: 720 }, viewport: at(100), reserveScreens: 1, wallBase: 2400 },
+      { screen: { width: 1920, height: 720 }, viewport: at(100), reserveScreens: 1, maxSeats: 1_000_000, wallBase: 2400 },
       geom,
     );
     const large = resolveWindowRange(
-      { screen: { width: 1920, height: 1440 }, viewport: at(100), reserveScreens: 1, wallBase: 2400 },
+      { screen: { width: 1920, height: 1440 }, viewport: at(100), reserveScreens: 1, maxSeats: 1_000_000, wallBase: 2400 },
       geom,
     );
     expect(large.size).toBeGreaterThan(small.size);
@@ -60,11 +60,11 @@ describe('resolveWindowRange', () => {
 
   it('success: zooming out asks for more seats at the same screen size', () => {
     const near = resolveWindowRange(
-      { screen: { width: 1920, height: 720 }, viewport: at(100, 1), reserveScreens: 1, wallBase: 2400 },
+      { screen: { width: 1920, height: 720 }, viewport: at(100, 1), reserveScreens: 1, maxSeats: 1_000_000, wallBase: 2400 },
       geom,
     );
     const far = resolveWindowRange(
-      { screen: { width: 1920, height: 720 }, viewport: at(100, 0.5), reserveScreens: 1, wallBase: 2400 },
+      { screen: { width: 1920, height: 720 }, viewport: at(100, 0.5), reserveScreens: 1, maxSeats: 1_000_000, wallBase: 2400 },
       geom,
     );
     expect(far.size).toBeGreaterThan(near.size);
@@ -72,7 +72,7 @@ describe('resolveWindowRange', () => {
 
   it('failure: the top of the address space clamps instead of going negative', () => {
     const r = resolveWindowRange(
-      { screen: { width: 1920, height: 720 }, viewport: at(0), reserveScreens: 2, wallBase: 0 },
+      { screen: { width: 1920, height: 720 }, viewport: at(0), reserveScreens: 2, maxSeats: 1_000_000, wallBase: 0 },
       geom,
     );
     expect(r.start).toBe(LEAD_SEATS);
@@ -84,7 +84,7 @@ describe('resolveWindowRange', () => {
       {
         screen: { width: 1920, height: 720 },
         viewport: at(lastRow),
-        reserveScreens: 2,
+        reserveScreens: 2, maxSeats: 1_000_000,
         wallBase: lastRow * STAFF_SCALE_COLS,
       },
       geom,
@@ -98,7 +98,7 @@ describe('resolveWindowRange', () => {
     // and this test used to assert the opposite, which is what a test written
     // against a bug looks like from the inside.
     const r = resolveWindowRange(
-      { screen: { width: 1920, height: 720 }, viewport: at(0), reserveScreens: 2, wallBase: 0 },
+      { screen: { width: 1920, height: 720 }, viewport: at(0), reserveScreens: 2, maxSeats: 1_000_000, wallBase: 0 },
       geom,
     );
     expect(r.size).toBeLessThan(r.span);
@@ -106,7 +106,7 @@ describe('resolveWindowRange', () => {
       {
         screen: { width: 1920, height: 720 },
         viewport: at(1000),
-        reserveScreens: 2,
+        reserveScreens: 2, maxSeats: 1_000_000,
         wallBase: 1000 * STAFF_SCALE_COLS,
       },
       geom,
@@ -122,7 +122,7 @@ describe('resolveWindowRange', () => {
       {
         screen: { width: 1920, height: 720 },
         viewport: at(lastRow + 6),
-        reserveScreens: 2,
+        reserveScreens: 2, maxSeats: 1_000_000,
         wallBase: lastRow * STAFF_SCALE_COLS,
       },
       geom,
@@ -135,13 +135,44 @@ describe('resolveWindowRange', () => {
   it('failure: before the first seat the window still holds a screenful', () => {
     // Row 6, the same failure from the other end.
     const r = resolveWindowRange(
-      { screen: { width: 1920, height: 720 }, viewport: at(-8), reserveScreens: 2, wallBase: 0 },
+      { screen: { width: 1920, height: 720 }, viewport: at(-8), reserveScreens: 2, maxSeats: 1_000_000, wallBase: 0 },
       geom,
     );
     expect(r.start).toBe(LEAD_SEATS);
     expect(r.size).toBeGreaterThan(0);
   });
 });
+
+  it('failure: zooming out is bounded by the ceiling, not by the size of the tier', () => {
+    // Row 10. The visible band grows as the scale shrinks, so without a ceiling
+    // the ask grows with every notch and the only thing that ever stopped it
+    // was the tier's 700 000 seats.
+    const wide = resolveWindowRange(
+      {
+        screen: { width: 1920, height: 900 },
+        viewport: { x: 0, y: -1000 * 72, scale: 0.02 },
+        reserveScreens: 1,
+        maxSeats: 4000,
+        wallBase: 1000 * STAFF_SCALE_COLS,
+      },
+      geom,
+    );
+    expect(wide.capped).toBe(true);
+    expect(wide.size).toBeLessThanOrEqual(4000);
+
+    // An ordinary zoom is not capped, so the flag means something.
+    const normal = resolveWindowRange(
+      {
+        screen: { width: 1920, height: 900 },
+        viewport: at(1000),
+        reserveScreens: 1,
+        maxSeats: 4000,
+        wallBase: 1000 * STAFF_SCALE_COLS,
+      },
+      geom,
+    );
+    expect(normal.capped).toBe(false);
+  });
 
 describe('rebaseViewport', () => {
   it('success: shifting the base by a row moves the camera back by exactly a row', () => {

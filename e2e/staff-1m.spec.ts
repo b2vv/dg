@@ -262,6 +262,71 @@ test.describe('the window follows the camera (T88)', () => {
     });
   }
 
+  // Acceptance row 8: a resize moves nothing, but it changes how much fits.
+  test('row 8: growing the viewport materialises more seats without a camera move', async ({
+    page,
+  }) => {
+    test.slow();
+    const mount = page.locator('[data-window-start]');
+    const settled = async (): Promise<number> => {
+      let last = NaN;
+      for (let i = 0; i < 40; i += 1) {
+        const now = Number(await mount.getAttribute('data-window-end'));
+        if (now === last) return now;
+        last = now;
+        await page.waitForTimeout(200);
+      }
+      return last;
+    };
+    await settled();
+    const before = await page.evaluate(() => {
+      const b = (window as unknown as {
+        __demoE2e: { getSceneCounts(): { positions: number }; getViewport(): { scale: number } };
+      }).__demoE2e;
+      return { counts: b.getSceneCounts(), viewport: b.getViewport() };
+    });
+
+    await page.setViewportSize({ width: 1440, height: 1600 });
+    await page.waitForTimeout(2500);
+    await settled();
+
+    const after = await page.evaluate(() => {
+      const b = (window as unknown as {
+        __demoE2e: { getSceneCounts(): { positions: number }; getViewport(): { scale: number } };
+      }).__demoE2e;
+      return { counts: b.getSceneCounts(), viewport: b.getViewport() };
+    });
+
+    // A taller viewport shows more rows, so more seats have to exist to fill it.
+    expect(after.counts.positions).toBeGreaterThan(before.counts.positions);
+    // «Without a camera move» means the user did not move it — not that `y` is
+    // untouched. The resize slides the window, and `rebaseViewport` then shifts
+    // the camera by exactly that slide so the content stays put; asserting the
+    // raw transform is unchanged would be asserting the compensation is broken.
+    // What must not change is the zoom: a resize is not a zoom.
+    expect(after.viewport.scale).toBe(before.viewport.scale);
+  });
+
+  // Acceptance row 10: zooming out is otherwise an unbounded request.
+  test('row 10: a wide zoom is capped, and the status says so', async ({ page }) => {
+    test.slow();
+    await page.evaluate(() => {
+      const b = (window as unknown as { __demoE2e: { setZoom(v: number): void } }).__demoE2e;
+      b.setZoom(0.02);
+    });
+    await expect(page.locator('#status')).toContainText('capped', { timeout: 40_000 });
+
+    const counts = await page.evaluate(() => {
+      const b = (window as unknown as { __demoE2e: { getSceneCounts(): { positions: number } } }).__demoE2e;
+      return b.getSceneCounts();
+    });
+    // The ceiling is 4 000 tier-2 seats; the scene adds the lead tier and the
+    // subordinate slice on top, so the bound is «about the ceiling», not «under
+    // it to the seat».
+    expect(counts.positions).toBeLessThan(4200);
+    await expect(page.locator('#status')).toContainText('not all of the view is materialised');
+  });
+
   // Acceptance row 14: a jump must move the window, not the scene around it.
   test('a pos-N jump keeps the canvas and the zoom it was given', async ({ page }) => {
     type Bridge = {

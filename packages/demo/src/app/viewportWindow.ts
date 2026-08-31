@@ -32,11 +32,22 @@ export interface WindowRequest {
   reserveScreens: number;
   /** Index the current wall's top row starts at. */
   wallBase: number;
+  /**
+   * Ceiling on seats the host is willing to materialise at once.
+   *
+   * Without one, zooming out is an unbounded request: the visible band grows
+   * as the scale shrinks, so the ask grows with it and the only thing that ever
+   * stopped it was the size of the tier — seven hundred thousand seats. The
+   * ceiling is a promise about the worst frame, not a preference.
+   */
+  maxSeats: number;
 }
 
 export interface WindowRange {
   start: number;
   end: number;
+  /** True when {@link WindowRequest.maxSeats} cut the ask short. */
+  capped: boolean;
   /** Seats that actually exist in the band, after the ends of the wall clamp it. */
   size: number;
   /**
@@ -68,7 +79,9 @@ export function resolveWindowRange(req: WindowRequest, geom: WallGeometry): Wind
   const endRow = Math.ceil((worldTop + worldHeight + reserve) / geom.pitchY);
 
   const lastSeat = geom.firstIndex + geom.tierSeats;
-  const span = Math.max(0, endRow - firstRow) * geom.cols;
+  const asked = Math.max(0, endRow - firstRow) * geom.cols;
+  const span = Math.min(asked, req.maxSeats);
+  const capped = span < asked;
   // Hold the start back from the end by a whole ask.
   //
   // Clamping `start` to `lastSeat` looked symmetric with the top and was the
@@ -80,8 +93,15 @@ export function resolveWindowRange(req: WindowRequest, geom: WallGeometry): Wind
   const maxStart = Math.max(geom.firstIndex, lastSeat - span);
   // Wall row 1 holds the first seat, so a row index maps to `(row - 1)` rows of seats.
   const start = clamp(req.wallBase + (firstRow - 1) * geom.cols, geom.firstIndex, maxStart);
-  const end = clamp(req.wallBase + (endRow - 1) * geom.cols, start, lastSeat);
-  return { start, end, size: end - start, span };
+  // The ceiling shortens the window from the far end: the near end is where the
+  // camera is, and dropping seats there would empty the screen the user is
+  // looking at to keep ones they are not.
+  const end = clamp(
+    Math.min(req.wallBase + (endRow - 1) * geom.cols, start + span),
+    start,
+    lastSeat,
+  );
+  return { start, end, size: end - start, span, capped };
 }
 
 /**
