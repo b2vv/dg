@@ -201,8 +201,12 @@ test.describe('the window follows the camera (T88)', () => {
 
     // The rebuild is debounced and async — this attribute is the only thing in
     // the DOM that says it happened, which is why T88.5 puts it there.
+    // 45s, not 15: the wait is a settle plus a debounce plus a rebuild that
+    // §19 measures at ~1s alone, and under a fully parallel run the whole chain
+    // stretches past fifteen. The assertion is unchanged — the window still has
+    // to have moved — only the patience is.
     await expect
-      .poll(async () => Number(await mount.getAttribute('data-window-start')), { timeout: 15_000 })
+      .poll(async () => Number(await mount.getAttribute('data-window-start')), { timeout: 45_000 })
       .toBeGreaterThan(before);
     await expect(page.locator('#status')).toContainText('window');
   });

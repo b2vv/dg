@@ -16,7 +16,17 @@ export default defineConfig({
   // Prod-smoke обходиться без прапорця лише тому, що має окремий конфіг.
   testIgnore: process.env.HARNESS
     ? ['**/prod-smoke.spec.ts']
-    : ['**/prod-smoke.spec.ts', '**/node-compare.spec.ts', '**/t88-window-cost.spec.ts'],
+    : [
+        '**/prod-smoke.spec.ts',
+        '**/node-compare.spec.ts',
+        '**/t88-window-cost.spec.ts',
+        // T87's motion stand measures the machine, not the product: it reports
+        // p50/p95 frame cost and asserts almost nothing. It cost CI ~13 minutes
+        // and went red twice for reasons that were about load and about a
+        // gesture racing a rebuild — never about a regression. Run it where its
+        // numbers are wanted: `npm run measure:motion`.
+        '**/t87-motion.spec.ts',
+      ],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

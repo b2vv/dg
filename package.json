@@ -18,6 +18,7 @@
     "test:e2e:ui": "playwright test --ui",
     "compare:nodes": "HARNESS=1 playwright test e2e/node-compare.spec.ts",
     "measure:window": "HARNESS=1 playwright test e2e/t88-window-cost.spec.ts --workers=1",
+    "measure:motion": "HARNESS=1 playwright test e2e/t87-motion.spec.ts --workers=1",
     "test:verify": "npm run lint && npm run typecheck && npm test && npm run test:e2e && npm run compare:nodes",
     "test:rust": "cd packages/core && cargo test",
     "typecheck": "npm run typecheck -w @org-hierarchy/sdk && npm run build:types -w @org-hierarchy/sdk && npm run typecheck -w @org-hierarchy/demo && tsc -p tsconfig.e2e.json",

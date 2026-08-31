@@ -177,6 +177,10 @@ test.describe('promote · near-visible', () => {
   });
 
   test('row 8: crossing the threshold repeatedly does not accumulate nodes', async ({ page }) => {
+    // Honestly slow since T88: every setZoom on this tab is also a window
+    // rebuild, and this test crosses the threshold twenty times. Twenty rebuilds
+    // is twenty seconds before anything is asserted.
+    test.slow();
     await openTab(page, 'Staff · 1M');
     await setZoom(page, 1.4);
     const baseline = await cards(page).count();
