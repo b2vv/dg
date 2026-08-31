@@ -1,5 +1,6 @@
 import type { DiagramData, DiagramOrganization } from './data/types.js';
 import { isDiagramData, mergePartial } from './data/mergeData.js';
+import { applyInitialExpand } from './data/initialExpand.js';
 import type { DiagramMappers } from './mappers/types.js';
 import {
   PixiHost,
@@ -125,6 +126,19 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
   mediaPlaceholders?: MediaPlaceholderRegistry;
   /** Theme keys to prefetch besides active (T74 M4). */
   prefetchMediaThemeKeys?: readonly string[];
+  /**
+   * Open the tree to the minimum a reader needs, before the first frame.
+   *
+   * With `rootOrgId`, that organisation and its ancestors are opened and
+   * everything else is closed — three levels when it has a governing
+   * organisation above it, two when it is a root itself. Without one, every root
+   * of the forest is treated as ours.
+   *
+   * Omit this and the `collapsed` flags in the data are left exactly as they
+   * arrived. That is deliberate: the flags are a host contract, and taking them
+   * over uninvited would change scenes that already work.
+   */
+  initialExpand?: { rootOrgId?: string };
   /**
    * Which engine draws the scene (T83). Default `'auto'`: the browser refuses a
    * WebGL context it would emulate in software, and Pixi falls to Canvas2D.
@@ -334,6 +348,24 @@ export class OrgHierarchyDiagram {
     }
 
     await instance.applyConfig(config);
+
+    // Before the first render, not after it. `revealPath` and `setOrgsCollapsed`
+    // can do this from outside, but only once a frame already exists — the user
+    // would see the host's collapsed state, then a jump. T97 row 12 forbids that
+    // intermediate frame, and the only place without one is here.
+    //
+    // Opt-in: a host that ships its own `collapsed` and asks for nothing keeps
+    // it. The demo's flat-orgs marks every organisation collapsed, and quietly
+    // overriding that would change a scene that works today (T97 Б2).
+    if (config.initialExpand) {
+      instance.data = {
+        ...instance.data,
+        organizations: applyInitialExpand(
+          instance.data.organizations,
+          config.initialExpand.rootOrgId,
+        ),
+      };
+    }
     // Same builder as setData: a 100k mount used to block the main thread here
     // while the worker path sat unused until the first setData.
     await instance.searchService.rebuildForScale(instance.data);

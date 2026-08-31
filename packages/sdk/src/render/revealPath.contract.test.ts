@@ -121,3 +121,74 @@ describe('revealPath (T97 defense)', () => {
     diagram.destroy();
   });
 });
+
+describe('initialExpand at create (T97 rows 4, 5, 12)', () => {
+  const deep = () => ({
+    organizations: [
+      { id: 'root', name: 'Root', groupIds: [], collapsed: true, matrixOrder: 0 },
+      { id: 'ours', name: 'Ours', parentOrgId: 'root', groupIds: [], collapsed: true, matrixOrder: 1 },
+      { id: 'kid', name: 'Kid', parentOrgId: 'ours', groupIds: [], collapsed: false, matrixOrder: 2 },
+    ],
+    groups: [],
+    departments: [],
+    persons: [],
+    positions: [],
+    reportLines: [],
+    orgLinks: [] as const,
+  });
+
+  async function mountWith(config: Record<string, unknown>) {
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: deep(),
+      useWorker: false,
+      ...config,
+    });
+    return diagram;
+  }
+
+  it('row 4: without the option the host’s collapsed flags are untouched', async () => {
+    const diagram = await mountWith({});
+    const orgs = diagram.getData().organizations;
+    expect(orgs.find((o) => o.id === 'root')?.collapsed).toBe(true);
+    expect(orgs.find((o) => o.id === 'kid')?.collapsed).toBe(false);
+    diagram.destroy();
+  });
+
+  it('row 5: with the option the SDK decides, overriding what arrived', async () => {
+    const diagram = await mountWith({ initialExpand: { rootOrgId: 'ours' } });
+    const orgs = diagram.getData().organizations;
+    // Opened despite arriving collapsed…
+    expect(orgs.find((o) => o.id === 'root')?.collapsed).toBe(false);
+    expect(orgs.find((o) => o.id === 'ours')?.collapsed).toBe(false);
+    // …and closed despite arriving open.
+    expect(orgs.find((o) => o.id === 'kid')?.collapsed).toBe(true);
+    diagram.destroy();
+  });
+
+  it('row 12: applied before the first frame, not by re-rendering after it', async () => {
+    // Ordering, not sampled frames. «No intermediate collapsed frame» is
+    // invisible to an end-state check, and sampling is unreliable when the main
+    // thread is busy (T88 report §24). What is observable is how many frames
+    // create() produced: doing the expansion first costs one render, doing it
+    // afterwards costs two — and the second one is the jump the row forbids.
+    const counts: number[] = [];
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: deep(),
+      useWorker: false,
+      initialExpand: { rootOrgId: 'ours' },
+      callbacks: { onLayoutDiagnostics: () => counts.push(1) },
+    });
+
+    expect(counts).toHaveLength(1);
+    expect(diagram.getData().organizations.find((o) => o.id === 'ours')?.collapsed).toBe(false);
+    diagram.destroy();
+  });
+});

@@ -200,6 +200,7 @@ export type {
 } from './callbacks.js';
 
 export type { SearchAllResult } from './OrgHierarchyDiagram.js';
+export { applyInitialExpand, initialExpandedOrgIds } from './data/initialExpand.js';
 export type {
   NodeRef,
   SearchResult,
