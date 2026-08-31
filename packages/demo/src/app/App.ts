@@ -364,6 +364,13 @@ export class App {
         if (!live) return;
         const range = this.staffWindowAsk(live.diagram, live.previous.wallBase);
         if (range.start === live.previous.startIndex) return;
+        // Row 13: a fast gesture outruns the reserve, and the band ahead is then
+        // empty for as long as the rebuild takes — measured at 239-459 ms, and
+        // the window lands at 2.3-2.7 s (§9.1). Skeletons were the planned answer
+        // and did not enter (§19), so the status is what keeps the emptiness from
+        // being silent. Said here, at the request, rather than inside the rebuild:
+        // the wait starts now, not when the queue gets to it.
+        this.setStatus(`staff · catching up to the camera — window ${range.start}…`);
         this.staffScheduler?.request({ kind: 'slide', start: range.start });
       },
       /**
@@ -835,7 +842,7 @@ export class App {
     panel.append(head, rows);
     this.mountEl.appendChild(panel);
 
-    const state = { page: 0, hasMore: first.hasMore, loading: false };
+    const state = { page: 0, hasMore: first.hasMore, loading: false, shown: 0 };
     const addRows = (result: SearchAllResult): void => {
       // `beyond` when the host answered, `hits` otherwise. Rendering only what
       // the scene can resolve would show an empty list for a query with 25 000
@@ -853,7 +860,12 @@ export class App {
           void this.focusSearchHit(hit.id);
         });
         rows.appendChild(row);
+        state.shown += 1;
       }
+      // The status counted the first page forever while the list grew under it.
+      this.setStatus(
+        `search · «${query}» · ${first.total.toLocaleString('uk-UA')} hits · showing ${state.shown}`,
+      );
     };
     addRows(first);
 
@@ -1034,9 +1046,8 @@ export class App {
           this.setStatus(`search · «${query}» · 0 hits in 1 000 000 seats`);
           return;
         }
-        this.setStatus(
-          `search · «${query}» · ${found.total.toLocaleString('uk-UA')} hits · showing ${found.hits.length}`,
-        );
+        // The panel writes the status as it fills, so the count follows the list
+        // instead of describing the first page forever.
         return;
       }
       this.clearSearchResults();

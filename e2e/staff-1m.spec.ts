@@ -81,6 +81,9 @@ test.describe('1M staff scale tab', () => {
     // length could never carry it, which is why searchAll returns an object.
     await expect(page.getByTestId('search-total')).toHaveText('25 000');
     await expect(panel.locator('button.row')).toHaveCount(20);
+    // The status counts what is on the list, not what this window can focus.
+    // It said «showing 0» under twenty visible rows until the browser showed it.
+    await expect(page.locator('#status')).toContainText('showing 20');
 
     // Scrolling loads the next page rather than a spacer sized to 25 000 rows.
     await panel.locator('.rows').evaluate((el) => {
@@ -261,6 +264,49 @@ test.describe('the window follows the camera (T88)', () => {
       await expect(page.locator('#status')).toContainText(edge.says);
     });
   }
+
+  // Acceptance row 13: the band ahead of a fast gesture must be named.
+  test('row 13: a fling says the scene is catching up instead of going quietly blank', async ({
+    page,
+  }) => {
+    test.slow();
+    await expect(page.locator('[data-window-start]')).toHaveCount(1, { timeout: 60_000 });
+    await page.waitForTimeout(2000);
+
+    // A fling, not a pan: the reserve exists to cover an ordinary gesture, and
+    // row 13 is about the one that outruns it.
+    await page.evaluate(async () => {
+      const canvas = document.querySelector('canvas')!;
+      const r = canvas.getBoundingClientRect();
+      const opts = (x: number, y: number) => ({
+        clientX: x, clientY: y, bubbles: true, pointerId: 1, pointerType: 'mouse', button: 0, buttons: 1,
+      });
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      canvas.dispatchEvent(new PointerEvent('pointerdown', opts(cx, cy)));
+      await new Promise<void>((resolve) => {
+        const started = performance.now();
+        const step = (): void => {
+          const p = Math.min(1, (performance.now() - started) / 350);
+          canvas.dispatchEvent(new PointerEvent('pointermove', opts(cx, cy - p * 3000)));
+          if (p < 1) requestAnimationFrame(step);
+          else {
+            canvas.dispatchEvent(new PointerEvent('pointerup', opts(cx, cy - 3000)));
+            resolve();
+          }
+        };
+        requestAnimationFrame(step);
+      });
+    });
+
+    // The wait has to be named while it lasts. Skeletons were the planned answer
+    // and did not enter, so the status is the whole of «not silent».
+    await expect(page.locator('#status')).toContainText('catching up to the camera', {
+      timeout: 20_000,
+    });
+    // And it must not stay that way: the window lands and says where it is.
+    await expect(page.locator('#status')).toContainText(/window \d+…\d+ \//, { timeout: 30_000 });
+  });
 
   // Acceptance row 8: a resize moves nothing, but it changes how much fits.
   test('row 8: growing the viewport materialises more seats without a camera move', async ({
