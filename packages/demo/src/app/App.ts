@@ -331,6 +331,11 @@ export class App {
     this.diagram = null;
     this.mountEl.innerHTML = '';
     this.mountEl.removeAttribute('data-testid');
+    // The window markers describe a scene that no longer exists. Left behind
+    // they follow the mount onto every other tab, and anything reading them —
+    // an e2e, a host — gets a confident answer about a window nobody has.
+    delete this.mountEl.dataset.windowStart;
+    delete this.mountEl.dataset.windowEnd;
   }
 
   private diagramCallbacks(): OrgHierarchyCallbacks {
@@ -588,6 +593,18 @@ export class App {
     };
   }
 
+  /**
+   * Is this still the scene the rebuild started against?
+   *
+   * A rebuild survives its own tab. `RebuildScheduler.stop()` cancels what has
+   * not begun and lets an in-flight job finish, so a `setData` that started
+   * before a tab switch resolves after it — and everything the tail then writes
+   * (caption, window markers, status) lands on somebody else's scene.
+   */
+  private stillLive(diagram: OrgHierarchyDiagram): boolean {
+    return this.diagram === diagram && this.tab === 'staff-1m';
+  }
+
   /** The staff tab's live pieces, or nothing to move. */
   private staffContext(): { diagram: OrgHierarchyDiagram; previous: ScaleStaffWindow } | null {
     const diagram = this.diagram;
@@ -673,6 +690,7 @@ export class App {
 
     const rowShift = (next.wallBase - previous.wallBase) / geom.cols;
     await this.materializeStaffWindow(diagram, next, previous, 'slide');
+    if (!this.stillLive(diagram)) return;
     diagram.setViewport(rebaseViewport(diagram.getViewport(), { rowShift, pitchY: geom.pitchY }));
     this.settleStaffWindow(next, this.staffWindowStatus(next));
   }
@@ -704,8 +722,10 @@ export class App {
     // start of the window that *was* materialized. Leaving it where it was would
     // point it at whatever the old window had at those coordinates — the reload
     // path hid that by refitting the whole scene.
+    if (!this.stillLive(diagram)) return;
     const target = next.focusMaterialized ? `pos-${focusIndex}` : `pos-${next.startIndex}`;
     const aimed = await diagram.focusNode(target);
+    if (!this.stillLive(diagram)) return;
     // After the camera, not before: focusing selects the seat, and the selection
     // callback writes a status of its own.
     this.settleStaffWindow(next, this.staffJumpStatus(next, focusIndex, { target, aimed }));

@@ -64,6 +64,37 @@ test.describe('demo audit (T33)', () => {
     await expect(page.locator('#status')).not.toContainText('Олена');
   });
 
+  // Acceptance row 22: a rebuild outlives the tab that asked for it.
+  test('a tab switch mid-rebuild does not leave the old window on the new tab', async ({
+    page,
+  }) => {
+    test.slow();
+    await page.goto('/?e2e=1');
+    await page.getByTestId('diagram-ready').waitFor({ timeout: 60_000 });
+    await page.getByRole('button', { name: 'Staff · 1M', exact: true }).click();
+    await expect(page.locator('[data-window-start]')).toHaveCount(1, { timeout: 60_000 });
+
+    // Start a rebuild, then leave before it can land. RebuildScheduler.stop()
+    // cancels what has not begun and lets an in-flight job finish, so the tail
+    // resolves against a scene that belongs to another tab by then.
+    await page.evaluate(() => {
+      const b = (window as unknown as {
+        __demoE2e: { getViewport(): { x: number; y: number; scale: number }; setViewport(v: object): void };
+      }).__demoE2e;
+      const vp = b.getViewport();
+      b.setViewport({ ...vp, y: vp.y - 60_000 });
+    });
+    await page.waitForTimeout(180);
+    await page.getByRole('button', { name: 'Staff tree', exact: true }).click();
+    await page.getByTestId('diagram-ready').waitFor({ timeout: 60_000 });
+    await page.waitForTimeout(4000);
+
+    // The markers describe a window; on a tab that has none they must be absent
+    // rather than stale. They used to survive every tab switch, race or no race.
+    await expect(page.locator('[data-window-start]')).toHaveCount(0);
+    await expect(page.locator('#status')).not.toContainText('staff · window');
+  });
+
   test('one set of on-diagram zoom controls', async ({ page }) => {
     await page.goto('/');
     await page.waitForTimeout(2500);
