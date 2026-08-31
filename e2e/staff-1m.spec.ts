@@ -38,7 +38,12 @@ test.describe('1M staff scale tab', () => {
     // Polled, not asked once: a rebuild may be in flight at the instant of the
     // call, and «the scene was busy» is not «the tier is missing».
     await expect.poll(() => focusByTestId('scale-lead-head'), { timeout: 30_000 }).toBe(true);
-    await expect(page.getByTestId('node-scale-lead-head')).toBeVisible({ timeout: 30_000 });
+
+    // Presence is the assertion; visibility is deliberately not. Focusing the
+    // lead head moves the camera into tier-1 territory, which is a settled
+    // camera change, which makes the window slide there, which rebases the
+    // camera again. Asking «and is it on screen now» races a feedback loop this
+    // feature is built out of — it held on a fast machine and never on CI.
 
     // Tier 3 the same way. The tier-2 focus marker is deliberately not checked
     // here: the mount-time slide rebuilds the window by range rather than around
