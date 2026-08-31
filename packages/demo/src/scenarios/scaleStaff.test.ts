@@ -5,6 +5,9 @@ import {
   parseScaleStaffQuery,
   resolveStaffWindowStart,
   scaleStaffComposition,
+  scaleStaffNameMatches,
+  scaleStaffNamePage,
+  scaleStaffPersonName,
   STAFF_SCALE_COLS,
   STAFF_SCALE_DEFAULT_FOCUS,
   STAFF_SCALE_TOTAL,
@@ -198,5 +201,60 @@ describe('T88.1 — geometry that survives a sliding window', () => {
       (l) => !ids.has(l.fromId) || !ids.has(l.toId),
     );
     expect(dangling).toEqual([]);
+  });
+});
+
+describe('name search by congruence (T88.10)', () => {
+  it('success: matches are an arithmetic sequence, not a scan', () => {
+    const m = scaleStaffNameMatches('Morgan Nguyen');
+    expect(m).not.toBeNull();
+    expect(m!.step).toBe(40);
+    expect(m!.first).toBe(12);
+    expect(m!.count).toBe(25_000);
+    // Spot-check the far end: the sequence must still generate the name there.
+    expect(scaleStaffPersonName(m!.first + 24_999 * m!.step)).toBe('Morgan Nguyen');
+  });
+
+  it('failure: «Morgan Blake» is unreachable — the spec named a name nobody has', () => {
+    // Only 40 of the 100 pairs exist: ⌊i/4⌋ moves four times slower than i, so
+    // the two congruences are not independent. spec.md, plan.md and tasks.md all
+    // expect ~10 000 hits for this one; the true answer is none.
+    expect(scaleStaffNameMatches('Morgan Blake')).toBeNull();
+  });
+
+  it('success: exactly 40 of the 100 pairs are reachable, each with 25 000 seats', () => {
+    const reachable = new Set<string>();
+    for (let i = 0; i < 40; i += 1) reachable.add(scaleStaffPersonName(i));
+    expect(reachable.size).toBe(40);
+    for (const name of reachable) {
+      expect(scaleStaffNameMatches(name)!.count).toBe(25_000);
+    }
+  });
+
+  it('success: a page is 20 indices and knows the total behind it', () => {
+    const p0 = scaleStaffNamePage('Morgan Nguyen', 0, 20);
+    expect(p0.indices).toHaveLength(20);
+    expect(p0.total).toBe(25_000);
+    expect(p0.hasMore).toBe(true);
+    expect(p0.indices[0]).toBe(12);
+    expect(p0.indices[19]).toBe(12 + 19 * 40);
+    expect(scaleStaffNamePage('Morgan Nguyen', 1, 20).indices[0]).toBe(12 + 20 * 40);
+  });
+
+  it('failure: the last page is short and says there is no more', () => {
+    const last = scaleStaffNamePage('Morgan Nguyen', 1249, 20);
+    expect(last.indices).toHaveLength(20);
+    expect(last.hasMore).toBe(false);
+    expect(scaleStaffNamePage('Morgan Nguyen', 1250, 20).indices).toEqual([]);
+  });
+
+  it('failure: an unknown or empty name matches nothing', () => {
+    expect(scaleStaffNameMatches('')).toBeNull();
+    expect(scaleStaffNameMatches('Nobody Here')).toBeNull();
+    expect(scaleStaffNamePage('Nobody Here', 0, 20)).toEqual({
+      indices: [],
+      total: 0,
+      hasMore: false,
+    });
   });
 });

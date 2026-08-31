@@ -385,3 +385,71 @@ body[data-active-tab='worker'] [data-show-tab='worker'] {
   border-radius: 6px;
   overflow: hidden;
 }
+
+/*
+ * Name-search results (T88.10).
+ *
+ * A panel rather than a status line: the query can match 25 000 seats, and a
+ * count with no way to reach any of them is a fact the user cannot act on.
+ * Fixed row height — the list scrolls by pages of 20, and a row that resizes
+ * itself would make the scroll position mean something different each page.
+ */
+.search-results {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  /* Above the promote overlay (z-index 10): the panel is the one thing on this
+     tab you are meant to click, and an overlay of HTML cards sits on the same
+     mount. */
+  z-index: 20;
+  width: 260px;
+  max-height: min(420px, calc(100% - 24px));
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  font-size: 0.75rem;
+  overflow: hidden;
+}
+
+.search-results header {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.search-results .rows {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.search-results button.row {
+  display: block;
+  width: 100%;
+  height: 34px;
+  padding: 0 0.6rem;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-results button.row:hover,
+.search-results button.row:focus-visible {
+  background: color-mix(in srgb, var(--accent, #2f6feb) 12%, transparent);
+}
+
+.search-results .note {
+  padding: 0.45rem 0.6rem;
+  color: var(--muted);
+}

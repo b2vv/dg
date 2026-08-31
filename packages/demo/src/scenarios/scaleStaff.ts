@@ -117,6 +117,57 @@ function personName(index: number): string {
   return `${FIRST[index % FIRST.length]} ${LAST[(index >> 2) % LAST.length]}`;
 }
 
+/**
+ * Which seat indices carry exactly this name.
+ *
+ * `personName` is `FIRST[i % 10] + LAST[(i >> 2) % 10]`, so a name pins two
+ * congruences on one index: `i ≡ f (mod 10)` and `⌊i/4⌋ ≡ l (mod 10)`. Their
+ * periods are 10 and 40, so the pair repeats every 40 — and inside one period
+ * a realizable pair has exactly one solution. The matches are therefore an
+ * arithmetic sequence `first + 40k`, which is why a million-row search needs no
+ * index and no scan.
+ *
+ * Only **40 of the 100** name pairs are reachable at all: the two congruences
+ * are not independent, since `⌊i/4⌋` moves four times slower than `i`. The one
+ * named in `spec.md` — «Morgan Blake» — is one of the sixty that no index
+ * produces, which is why looking for it returns nothing rather than the ten
+ * thousand the spec expected.
+ */
+export function scaleStaffNameMatches(
+  query: string,
+  total = STAFF_SCALE_TOTAL,
+): { first: number; step: number; count: number } | null {
+  const wanted = query.trim().toLowerCase();
+  if (!wanted) return null;
+  const step = 4 * LAST.length;
+  for (let r = 0; r < step; r += 1) {
+    if (personName(r).toLowerCase() !== wanted) continue;
+    const count = Math.max(0, Math.ceil((total - r) / step));
+    return { first: r, step, count };
+  }
+  return null;
+}
+
+/** One page of name matches, without materialising the ones before it. */
+export function scaleStaffNamePage(
+  query: string,
+  page: number,
+  size: number,
+  total = STAFF_SCALE_TOTAL,
+): { indices: number[]; total: number; hasMore: boolean } {
+  const match = scaleStaffNameMatches(query, total);
+  if (!match) return { indices: [], total: 0, hasMore: false };
+  const from = page * size;
+  const take = Math.max(0, Math.min(size, match.count - from));
+  const indices = Array.from({ length: take }, (_, k) => match.first + (from + k) * match.step);
+  return { indices, total: match.count, hasMore: from + take < match.count };
+}
+
+/** The generated name of a seat — exported so tests can check the inversion. */
+export function scaleStaffPersonName(index: number): string {
+  return personName(index);
+}
+
 function seatTitle(index: number): string {
   return `${ROLE[index % ROLE.length]} ${index}`;
 }

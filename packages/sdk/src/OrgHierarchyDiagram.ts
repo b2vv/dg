@@ -147,7 +147,23 @@ export interface SearchAllResult {
    * different facts and a user acts on them differently.
    */
   unavailable?: string;
-  /** Host hits whose id nothing in the current scene resolves to. */
+  /**
+   * The host's page verbatim, before the scene was asked to resolve any of it.
+   *
+   * Required, not a convenience: a windowed host answers with seats it holds
+   * and the diagram does not, so filtering to what the current scene can
+   * resolve would return an empty list for a query with 25 000 real matches.
+   * The caller renders these; `hits` is only the subset it can focus *now*.
+   */
+  beyond?: HostSearchHit[];
+  /**
+   * Ids in {@link beyond} the current scene cannot resolve.
+   *
+   * For a windowed host this is the normal state, not an error — the seat
+   * exists, it is simply not materialised, and reaching it means moving the
+   * window first. It is reported so a caller that expected everything to be
+   * focusable can tell.
+   */
   unresolved?: string[];
 }
 
@@ -1005,6 +1021,7 @@ export class OrgHierarchyDiagram {
 
     return {
       hits,
+      beyond: [...parsed.hits],
       total: parsed.total,
       hasMore: parsed.hasMore,
       source: 'host',

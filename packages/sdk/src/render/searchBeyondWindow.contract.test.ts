@@ -153,8 +153,11 @@ describe('searchBeyondWindow (T88.9)', () => {
     });
     const r = await diagram.searchAll('ada');
     expect(r.unresolved).toEqual(['pos-999999']);
-    // A hit that resolves to nothing is one the user clicks and nothing happens.
+    // `hits` is what the scene can focus now; `beyond` is what the host said.
+    // Filtering the second down to the first would return nothing at all for a
+    // windowed host, whose every answer names seats outside the window.
     expect(r.hits.map((h) => h.label)).toEqual(['Ada']);
+    expect(r.beyond?.map((h) => h.id)).toEqual(['pos-1', 'pos-999999']);
     diagram.destroy();
   });
 

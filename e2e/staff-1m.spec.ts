@@ -61,9 +61,44 @@ test.describe('1M staff scale tab', () => {
     const search = page.locator('#search-input');
     await search.fill('Nonexistent Person');
     await search.press('Enter');
-    await expect(page.locator('#status')).toContainText(/not in the window|hits in the current window/, {
+    await expect(page.locator('#status')).toContainText(/0 hits in 1 000 000 seats/, {
       timeout: 30_000,
     });
+  });
+
+  // Acceptance rows 3 and 11. The name is «Morgan Nguyen», not the «Morgan
+  // Blake» of spec.md: only 40 of the 100 generated pairs are reachable, and
+  // Blake is not among them, so the spec's example matches nothing at all.
+  test('rows 3 and 11: a name search reports every match and reaches them', async ({ page }) => {
+    test.slow();
+    const search = page.locator('#search-input');
+    await search.fill('Morgan Nguyen');
+    await search.press('Enter');
+
+    const panel = page.getByTestId('search-results');
+    await expect(panel).toBeVisible({ timeout: 30_000 });
+    // The count is of the whole address space, not of the page — an array's
+    // length could never carry it, which is why searchAll returns an object.
+    await expect(page.getByTestId('search-total')).toHaveText('25 000');
+    await expect(panel.locator('button.row')).toHaveCount(20);
+
+    // Scrolling loads the next page rather than a spacer sized to 25 000 rows.
+    await panel.locator('.rows').evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    await expect(panel.locator('button.row')).toHaveCount(40, { timeout: 15_000 });
+
+    // Row 3's second half: the camera has to end up on the seat, which means
+    // the window must move to it first — a host hit names a seat the scene has
+    // never materialised.
+    const before = await page.locator('[data-window-start]').getAttribute('data-window-start');
+    await panel.locator('button.row').first().click();
+    await expect
+      .poll(async () => page.locator('[data-window-start]').getAttribute('data-window-start'), {
+        timeout: 30_000,
+      })
+      .not.toBe(before);
+    await expect(page.getByTestId('node-scale-focus-seat')).toBeVisible({ timeout: 30_000 });
   });
 });
 

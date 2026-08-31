@@ -4,7 +4,9 @@ import {
   mapFlatRowsInPool,
   mapArrayItems,
   recommendWorkerPoolSize,
+  SEARCH_PAGE_SIZE,
   type DiagramData,
+  type SearchAllResult,
   type FlatDiagramRow,
 } from '@org-hierarchy/sdk';
 import {
@@ -37,6 +39,7 @@ import {
   STAFF_SCALE_DEFAULT_FOCUS,
   STAFF_SCALE_TOTAL,
   STAFF_SCALE_WINDOW,
+  scaleStaffNamePage,
   type ScaleStaffWindow,
 } from '../scenarios/scaleStaff.js';
 import {
@@ -336,6 +339,7 @@ export class App {
     // an e2e, a host — gets a confident answer about a window nobody has.
     delete this.mountEl.dataset.windowStart;
     delete this.mountEl.dataset.windowEnd;
+    this.clearSearchResults();
   }
 
   private diagramCallbacks(): OrgHierarchyCallbacks {
@@ -350,6 +354,24 @@ export class App {
         const range = this.staffWindowAsk(live.diagram, live.previous.wallBase);
         if (range.start === live.previous.startIndex) return;
         this.staffScheduler?.request({ kind: 'slide', start: range.start });
+      },
+      /**
+       * The host half of T88.9: the demo holds a million addresses, the diagram
+       * holds a window of them.
+       *
+       * No index and no scan: `personName` is two congruences on the seat
+       * index, so «which seats are called this» inverts to an arithmetic
+       * sequence and a page is arithmetic on it. That is what lets a query
+       * answer «25 000 matches» over a million rows inside a frame.
+       */
+      searchBeyondWindow: async (query, page) => {
+        if (this.tab !== 'staff-1m') return { hits: [], total: 0, hasMore: false };
+        const found = scaleStaffNamePage(query, page, SEARCH_PAGE_SIZE, STAFF_SCALE_TOTAL);
+        return {
+          hits: found.indices.map((i) => ({ id: `pos-${i}`, label: `${query} · pos-${i}` })),
+          total: found.total,
+          hasMore: found.hasMore,
+        };
       },
       // Not a feature: the measurement T88.12 is designed from needs to see
       // where inside `setData` the time goes, and this is the only seam the SDK
@@ -751,6 +773,114 @@ export class App {
   }
 
   /**
+   * Show name matches as a list you can reach, not a number you cannot.
+   *
+   * A query can match 25 000 seats. Printing the count in the status line and
+   * focusing the first hit — which is all the tab did before — tells the user
+   * how many exist and gives them no way to see any but one.
+   *
+   * Paged, not virtualised by pixel offsets: rows are a fixed height and pages
+   * are twenty, so «load the next page near the bottom» is the whole of the
+   * virtualisation this scale needs. The alternative — a spacer sized to
+   * 25 000 × row height — buys nothing here and invents a scroll position that
+   * has to stay in step with the data.
+   */
+  private mountSearchResults(query: string, first: SearchAllResult): void {
+    this.clearSearchResults();
+    if (first.total === 0 && !first.unavailable) return;
+
+    const panel = document.createElement('div');
+    panel.className = 'search-results';
+    panel.dataset.testid = 'search-results';
+
+    const head = document.createElement('header');
+    const label = document.createElement('span');
+    label.textContent = query;
+    const count = document.createElement('span');
+    count.dataset.testid = 'search-total';
+    count.textContent = first.unavailable ? 'недоступно' : `${first.total.toLocaleString('uk-UA')}`;
+    head.append(label, count);
+
+    const rows = document.createElement('div');
+    rows.className = 'rows';
+
+    if (first.unavailable) {
+      // The host failed; saying «нічого не знайдено» here would put its outage
+      // in the user's mouth as a fact about the data.
+      const note = document.createElement('p');
+      note.className = 'note';
+      note.textContent = `пошук поза вікном недоступний: ${first.unavailable}`;
+      panel.append(head, note);
+      this.mountEl.appendChild(panel);
+      return;
+    }
+
+    panel.append(head, rows);
+    this.mountEl.appendChild(panel);
+
+    const state = { page: 0, hasMore: first.hasMore, loading: false };
+    const addRows = (result: SearchAllResult): void => {
+      // `beyond` when the host answered, `hits` otherwise. Rendering only what
+      // the scene can resolve would show an empty list for a query with 25 000
+      // matches — every one of them outside the window by construction.
+      const rowsFor = result.beyond
+        ? result.beyond.map((h) => ({ id: h.id, label: h.label }))
+        : result.hits.map((h) => ({ id: h.node.id, label: h.label }));
+      for (const hit of rowsFor) {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'row';
+        row.textContent = hit.label;
+        row.dataset.nodeId = hit.id;
+        row.addEventListener('click', () => {
+          void this.focusSearchHit(hit.id);
+        });
+        rows.appendChild(row);
+      }
+    };
+    addRows(first);
+
+    rows.addEventListener('scroll', () => {
+      if (state.loading || !state.hasMore) return;
+      if (rows.scrollTop + rows.clientHeight < rows.scrollHeight - 40) return;
+      state.loading = true;
+      state.page += 1;
+      void this.diagram
+        ?.searchAll(query, state.page)
+        .then((next) => {
+          state.hasMore = next.hasMore;
+          addRows(next);
+        })
+        .finally(() => {
+          state.loading = false;
+        });
+    });
+  }
+
+  private clearSearchResults(): void {
+    this.mountEl.querySelectorAll('.search-results').forEach((el) => el.remove());
+  }
+
+  /**
+   * Take the window to a hit before focusing it.
+   *
+   * A hit from the host names a seat the scene has never materialised, so
+   * `focusNode` on it would answer `false` and do nothing. The window has to
+   * move there first — which is the jump path, already serialized against
+   * every other rebuild.
+   */
+  private async focusSearchHit(nodeId: string): Promise<void> {
+    const index = parseScaleStaffQuery(nodeId, STAFF_SCALE_TOTAL);
+    if (index === null || !this.staffScheduler) return;
+    try {
+      await this.staffScheduler.run({ kind: 'jump', focusIndex: index });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.setStatus(`search · ${nodeId} · window unchanged · rebuild failed: ${msg}`);
+    }
+  }
+
+  /**
    * The observable the e2e waits on. Without it a test can only sleep on a
    * constant and hope the rebuild landed — the rebuild is debounced and async,
    * so there is otherwise nothing in the DOM that says it happened.
@@ -871,15 +1001,24 @@ export class App {
     if (this.tab === 'staff-1m') {
       const index = parseScaleStaffQuery(query, STAFF_SCALE_TOTAL);
       if (index === null) {
-        const local = await this.diagram.search(query);
+        // Not a seat index, so it is a name — and a name has to be looked for in
+        // the whole address space, not in the few thousand seats on screen.
+        const found = await this.diagram.searchAll(query, 0);
+        this.mountSearchResults(query, found);
+        if (found.unavailable) {
+          this.setStatus(`search · «${query}» · пошук поза вікном недоступний: ${found.unavailable}`);
+          return;
+        }
+        if (found.total === 0) {
+          this.setStatus(`search · «${query}» · 0 hits in 1 000 000 seats`);
+          return;
+        }
         this.setStatus(
-          local.length > 0
-            ? `search · ${local.length} hits in the current window · try pos-500000 to move it`
-            : `search · not in the window · try pos-N (0…${STAFF_SCALE_TOTAL - 1})`,
+          `search · «${query}» · ${found.total.toLocaleString('uk-UA')} hits · showing ${found.hits.length}`,
         );
-        if (local[0]) await this.diagram.revealPath(local[0].node.positionId ?? local[0].node.id);
         return;
       }
+      this.clearSearchResults();
       const scheduler = this.staffScheduler;
       if (!scheduler) {
         // No live scene to move the window inside of — building one is the only
