@@ -196,6 +196,7 @@ export type {
   ViewportChangeReason,
   HostSearchHit,
   HostSearchPage,
+  RenderFailure,
 } from './callbacks.js';
 
 export type { SearchAllResult } from './OrgHierarchyDiagram.js';

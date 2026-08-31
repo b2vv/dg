@@ -51,6 +51,36 @@ describe('revealPath (T97 defense)', () => {
     diagram.destroy();
   });
 
+  it('success: a failed render is reported on its own channel, and still thrown', async () => {
+    // Decision recorded in T97: the SDK gets a separate «the scene was not
+    // drawn, and why» channel. Reported *and* rethrown — reporting alone would
+    // leave every caller that mutated state first to work out on its own
+    // whether to roll back.
+    const seen: string[] = [];
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: data(),
+      useWorker: false,
+      callbacks: { onRenderFailed: (f) => seen.push(f.reason) },
+    });
+    const host = (diagram as unknown as {
+      host: { renderer: { render: () => Promise<void> } };
+    }).host;
+    host.renderer.render = async () => {
+      throw new Error('layout died');
+    };
+
+    await expect(diagram.revealPath('leaf')).rejects.toThrow('layout died');
+    expect(seen).toEqual(['layout died']);
+    // And it answers later too, for a host that logs on a timer rather than
+    // listening — the callback fires once and is gone.
+    expect(diagram.getLastRenderFailure()?.reason).toBe('layout died');
+    diagram.destroy();
+  });
+
   it('failure: a render that throws leaves the tree as it was', async () => {
     const { diagram } = await mount();
     // Poking the renderer directly is the only way to make the render fail from

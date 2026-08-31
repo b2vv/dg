@@ -81,6 +81,20 @@ export interface OrgHierarchyCallbacks {
    * whatever the renderer had, or empty.
    */
   onLayoutDiagnostics?(messages: readonly string[]): void;
+  /**
+   * The scene was **not** drawn, and why.
+   *
+   * A separate channel from {@link onLayoutDiagnostics} on purpose: diagnostics
+   * are soft warnings about a scene that *was* drawn — an empty contour layer,
+   * a skipped expand — and a host reads them to explain what it sees. This one
+   * says there is nothing to explain, because the frame never happened.
+   *
+   * The failure is reported here **and** rethrown to whoever asked for the
+   * render. Reporting without rethrowing would leave every caller that mutated
+   * state before rendering to discover on its own whether to roll back, which
+   * is how a diagram ends up describing a tree it never drew.
+   */
+  onRenderFailed?(failure: RenderFailure): void;
   /** T66: after position expand/collapse / expandToDepth batch. */
   onPositionExpandChange?(state: {
     positionId: string;
@@ -112,3 +126,11 @@ export interface HostSearchPage {
  * nothing but a way for the two to disagree.
  */
 export const SEARCH_PAGE_SIZE = 20;
+
+/** Why the last render did not produce a frame. See {@link OrgHierarchyCallbacks.onRenderFailed}. */
+export interface RenderFailure {
+  /** Message fit to show a person — the thrown error's own text when it had one. */
+  reason: string;
+  /** The original throw, for hosts that log rather than display. */
+  cause: unknown;
+}

@@ -56,6 +56,7 @@ import type {
   ViewportChangeReason,
   HostSearchHit,
   HostSearchPage,
+  RenderFailure,
 } from './callbacks.js';
 import type { ViewportTransform } from './render/Viewport.js';
 import { createTransformWorker, WorkerPool } from './worker/index.js';
@@ -200,6 +201,7 @@ export class OrgHierarchyDiagram {
   private useWorker = true;
   private workerFactory: () => Worker = createTransformWorker;
   private workerPool: WorkerPool | null = null;
+  private lastRenderFailure: RenderFailure | null = null;
   /** Bumped per `searchAll` so a late answer can tell it is late. */
   private searchEpoch = 0;
   private callbacks: OrgHierarchyCallbacks = {};
@@ -500,7 +502,8 @@ export class OrgHierarchyDiagram {
     host.setBackground(
       this.nodeTheme.canvasBackground ?? canvasBackgroundForTheme(resolved),
     );
-    await host.renderer.render(this.data, this.nodeTheme, resolved, this.renderConfig, {
+    await this.reportIfRenderFails(
+      host.renderer.render(this.data, this.nodeTheme, resolved, this.renderConfig, {
       lod: this.viewState.lodLevel,
       orgLayout: this.viewState.orgLayout,
       staff: this.viewState.staffCurrentOrgId
@@ -573,13 +576,49 @@ export class OrgHierarchyDiagram {
       onPersonDragEnd: (positionId, col, row) => {
         void this.movePersonToCell(positionId, col, row);
       },
-    });
+      }),
+    );
     // The scene changed; nothing paints on its own any more (T84).
     host.requestPaint();
     if (this.destroyed || !this.host) return;
     this.callbacks.onLayoutDiagnostics?.(this.getLayoutDiagnostics());
     this.notifyPromoteSync();
     this.prefetchConfiguredMedia();
+  }
+
+  /**
+   * Report a render that produced no frame, then let the failure through.
+   *
+   * A channel of its own, separate from `onLayoutDiagnostics`: diagnostics
+   * explain a scene that *was* drawn, and this says there is no scene to
+   * explain. Rethrown rather than swallowed — every caller that mutated state
+   * before rendering needs to know whether to undo it, and making each of them
+   * poll for that is how a diagram ends up describing a tree it never drew
+   * (T97 defense; `revealPath` is the first caller that relies on it).
+   */
+  private async reportIfRenderFails(pending: Promise<void>): Promise<void> {
+    try {
+      await pending;
+      this.lastRenderFailure = null;
+    } catch (error) {
+      const failure: RenderFailure = {
+        reason: error instanceof Error ? error.message : String(error),
+        cause: error,
+      };
+      this.lastRenderFailure = failure;
+      this.callbacks.onRenderFailed?.(failure);
+      throw error;
+    }
+  }
+
+  /**
+   * Why the last render drew nothing, or `null` when the last one worked.
+   *
+   * The callback fires once; this answers later — a host that logs on a timer,
+   * or one that wants to know before acting, has no other way to ask.
+   */
+  getLastRenderFailure(): RenderFailure | null {
+    return this.lastRenderFailure;
   }
 
   /** URLs currently bound to a node (for `diagram.media.refresh`). */
