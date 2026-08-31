@@ -1099,15 +1099,36 @@ export class OrgHierarchyDiagram {
    * Unknown id → no-op (returns false).
    */
   async revealPath(nodeId: string): Promise<boolean> {
+    // A destroyed diagram has nothing to reveal a path into, and `search()`
+    // already answers that way (`:881`).
+    if (this.destroyed) return false;
+
     const orgId = resolveOrganizationIdForNode(this.data, nodeId);
     if (!orgId) return false;
     const organizations = revealOrgPath(this.data.organizations, orgId);
     if (organizations !== this.data.organizations) {
       // The node box only exists after the reveal is laid out — focusing before
       // the render silently skipped the pan for anything under a collapsed org.
+      const previous = this.data;
       this.data = { ...this.data, organizations };
       this.callbacks.onOrgModeChange?.(this.getOrgMode());
-      await this.render();
+      try {
+        await this.render();
+      } catch (error) {
+        // Rolled back rather than left half-applied. The data said «expanded»
+        // and the scene did not, so the next caller read a tree that was never
+        // drawn — and `getOrgMode()` had already been told about it. Same shape
+        // as the staff window's rebuild, which advertises optimistically and
+        // undoes it here (T88 report §20).
+        this.data = previous;
+        this.callbacks.onOrgModeChange?.(this.getOrgMode());
+        throw error;
+      }
+      // After the await as well as before it: `destroy()` during a reveal is
+      // the case an entry check cannot see. Nothing downstream crashes today
+      // because each call gates itself on `this.host`, but that is a
+      // coincidence of the current call chain rather than a guarantee.
+      if (this.destroyed) return false;
     }
     await this.focusNode(nodeId);
     return true;
