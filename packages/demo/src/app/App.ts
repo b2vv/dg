@@ -143,6 +143,15 @@ export class App {
   private staffRebuildLog: StaffRebuildRecord[] = [];
   /** Did the ceiling cut the last ask short? Row 10 needs the status to say so. */
   private staffWindowCapped = false;
+  /**
+   * A note from an explicit action that outlives the next rebuild.
+   *
+   * The status line is one slot, and a jump that could not centre on the seat
+   * says so into it — then the settle that the jump itself caused slides the
+   * window and overwrites the explanation a moment later. The user is left with
+   * a range and no idea why the seat they typed is not on screen.
+   */
+  private staffNote: string | null = null;
   /** Last `onDataMapped` reading — written during `setData`, read right after. */
   private lastMappedMs = 0;
   private contextMenu: ReactContextMenuHost | null = null;
@@ -337,6 +346,7 @@ export class App {
   private disposeDiagram(): void {
     this.staffScheduler?.stop();
     this.staffScheduler = null;
+    this.staffNote = null;
     this.promote?.dispose();
     this.promote = null;
     this.testAnchors?.dispose();
@@ -790,7 +800,9 @@ export class App {
     }
     if (!win.focusMaterialized) {
       // The window only centres inside tier 2 — say so instead of leaving the
-      // camera on a seat that is not the one that was asked for.
+      // camera on a seat that is not the one that was asked for. Kept as a note
+      // so the settle this jump provokes cannot wipe the explanation.
+      this.staffNote = `pos-${focusIndex} is in the ${win.focusTier} tier`;
       return `search · pos-${focusIndex} is in the ${win.focusTier} tier · the window centres on the current org (pos-${LEAD_SEATS}…${LEAD_SEATS + win.composition.current - 1})`;
     }
     return this.staffWindowStatus(win);
@@ -925,7 +937,8 @@ export class App {
     // shows less than the camera covers. Saying so is the difference between a
     // window and a scene that quietly stops at an invisible line.
     const capped = this.staffWindowCapped ? ' · capped, not all of the view is materialised' : '';
-    return `staff · window ${win.startIndex}…${win.endIndex} / ${win.total}${edge}${capped}`;
+    const note = this.staffNote ? ` · ${this.staffNote}` : '';
+    return `staff · window ${win.startIndex}…${win.endIndex} / ${win.total}${edge}${capped}${note}`;
   }
 
   private syncStaffWindowMarker(win: ScaleStaffWindow): void {
@@ -1032,6 +1045,7 @@ export class App {
     }
 
     if (this.tab === 'staff-1m') {
+      this.staffNote = null;
       const index = parseScaleStaffQuery(query, STAFF_SCALE_TOTAL);
       if (index === null) {
         // Not a seat index, so it is a name — and a name has to be looked for in

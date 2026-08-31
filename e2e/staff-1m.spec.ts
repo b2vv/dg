@@ -22,9 +22,29 @@ test.describe('1M staff scale tab', () => {
     const caption = page.locator('.scene-caption');
     await expect(caption).toContainText('1 000 000');
     await expect(caption).toContainText('window');
-    // Three tiers are present: lead head, current-org focus seat, subordinate card.
-    await expect(page.getByTestId('node-scale-lead-head')).toBeVisible();
-    await expect(page.getByTestId('node-scale-focus-seat')).toBeVisible();
+
+    // Presence, not visibility. These anchors exist only for nodes **in view**,
+    // and after the mount-time slide the camera sits deep in tier 2 with the
+    // lead block far above it — so «is the lead head visible» was really «did
+    // the slide land yet», and it answered differently on CI than here.
+    // `focusTestId` asks the scene whether the node exists and takes the camera
+    // to it, which is the question this test means to ask.
+    const focusByTestId = (testId: string) =>
+      page.evaluate((id) => {
+        const b = (window as unknown as { __demoE2e: { focusTestId(t: string): Promise<boolean> | undefined } }).__demoE2e;
+        return b.focusTestId(id) ?? false;
+      }, testId);
+
+    // Polled, not asked once: a rebuild may be in flight at the instant of the
+    // call, and «the scene was busy» is not «the tier is missing».
+    await expect.poll(() => focusByTestId('scale-lead-head'), { timeout: 30_000 }).toBe(true);
+    await expect(page.getByTestId('node-scale-lead-head')).toBeVisible({ timeout: 30_000 });
+
+    // Tier 3 the same way. The tier-2 focus marker is deliberately not checked
+    // here: the mount-time slide rebuilds the window by range rather than around
+    // a focus, so the marker is gone by design — the search tests below cover it
+    // where it does exist.
+    await expect.poll(() => focusByTestId('scale-sub-first'), { timeout: 30_000 }).toBe(true);
   });
 
   test('search by seat index moves the window', async ({ page }) => {
