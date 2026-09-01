@@ -768,6 +768,10 @@ export class OrgHierarchyDiagram {
    */
   private prefetchConfiguredMedia(): void {
     if (!this.mediaService?.hasPrefetchThemes) return;
+    // The two gates answer different questions and do not overlap: below
+    // `farMax` a card draws no image at all (M6), so there is nothing worth
+    // preloading — the LOD decides *whether any* image is wanted, expansion
+    // decides *which* ones may load.
     if (this.viewState.lodLevel === 'far') return;
 
     const open = expandedOrgIds(this.data.organizations);

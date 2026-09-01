@@ -105,6 +105,26 @@ describe('media loads by expansion (T97 rows 18-23)', () => {
     diagram.destroy();
   });
 
+  it('row 23: at far zoom nothing loads at all, and expansion has nothing to do with it', async () => {
+    // The two gates do not fight, and this says so rather than leaving it to
+    // coincidence. Below farMax the card draws no image at all — that is M6,
+    // asserted in OrganizationNode.test.ts — so prefetching one would be work
+    // for a texture nobody is going to show. Expansion decides *which* images
+    // may load; the LOD decides *whether any* are wanted.
+    const { diagram, asked } = await mount();
+    diagram.setZoom(0.2); // farMax is 0.45
+    await diagram.setTheme('light');
+    expect(asked).toEqual([]);
+
+    // Back within reach, the expansion rule applies again — unchanged.
+    asked.length = 0;
+    diagram.setZoom(1.5);
+    await diagram.setTheme('dark');
+    expect(asked.some((u) => u.includes('org-open'))).toBe(true);
+    expect(asked.some((u) => u.includes('org-under'))).toBe(false);
+    diagram.destroy();
+  });
+
   it('failure: a cycle in parentOrgId is refused before anything can walk it', async () => {
     // T97 row 10 assumed the depth walk would have to survive a cycle. It never
     // sees one: validateOrgHierarchy rejects the data at create, by name. The
