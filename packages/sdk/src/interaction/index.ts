@@ -30,6 +30,14 @@ export {
   type GridSnap,
 } from './positionMove.js';
 export {
+  adminParentsOf,
+  canReparent,
+  checkReparent,
+  reparentPosition,
+  type ReparentCheck,
+  type ReparentRefusal,
+} from './positionReparent.js';
+export {
   selectNode,
   sameNodeRef,
   selectMany,

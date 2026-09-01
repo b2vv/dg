@@ -1,8 +1,14 @@
 import { Container, Graphics } from 'pixi.js';
 import { LayerManager } from './LayerManager.js';
+import { DropTargetIndex } from './dropTargetIndex.js';
+import { nodeEntityKey, parseNodeEntityKey } from '../interaction/nodeKey.js';
 import { SceneRegistry, type NodeWorldBox } from './SceneRegistry.js';
 import { ContourPainter } from './contour/ContourPainter.js';
-import { PersonInteractions, type DragGrid } from './personInteractions.js';
+import {
+  PersonInteractions,
+  type DragGrid,
+  type SeatDragMode,
+} from './personInteractions.js';
 import { bindOrgCardInteractions } from './orgCardInteractions.js';
 import {
   type ContourMagnetConfig,
@@ -12,7 +18,7 @@ import {
 import { contourSceneInputs, matrixNodeBoxes } from './contour/contourInputs.js';
 import { contourButtonGroupMargin } from './contour/contourButtonGroup.js';
 import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
-import type { StaffCanvasResult } from '../layout/staff/types.js';
+import type { StaffCanvasResult, StaffNodeBox } from '../layout/staff/types.js';
 import {
   DEFAULT_STAFF_LAYOUT_OPTIONS,
   type StaffLayoutOptions,
@@ -95,6 +101,8 @@ export interface RenderOptions {
   onOrgExpand?: (orgId: string) => void;
   onOrgCollapse?: (orgId: string) => void;
   onPersonDragEnd?: (positionId: string, col: number, row: number) => void;
+  /** A seat was dropped on another seat and should report to it (T91). */
+  onPersonReparent?: (positionId: string, managerId: string) => void;
   onCanvasClick?: () => void;
   /** Primary selection (compat) and/or full multi-select set (T67). */
   selected?: NodeRef | null | readonly NodeRef[];
@@ -132,6 +140,28 @@ interface StaffSceneGeometry {
 }
 
 export type { NodeWorldBox };
+
+/**
+ * How far outside a card the pointer still catches it when re-parenting.
+ *
+ * Wide enough that the gap between cards is not dead ground, narrow enough that
+ * the target is never a surprise — roughly half a gap at the staff pitch.
+ */
+export const SEAT_MAGNET_RADIUS = 28;
+
+/**
+ * What a drag on this card means, read off the layout's own verdict.
+ *
+ * `anchor` and `matrix` are the roles the layout gives a seat whose coordinates
+ * came from the host; the rest it placed itself. So the split is not a taste
+ * call about gestures — it is «is this position data, or is it a result».
+ */
+function seatDragMode(role: StaffNodeBox['role']): SeatDragMode {
+  return role === 'matrix' || role === 'anchor' ? 'move' : 'reparent';
+}
+
+const DROP_VALID_COLOR = 0x16a34a;
+const DROP_INVALID_COLOR = 0xdc2626;
 
 export class DiagramRenderer {
   readonly layers = new LayerManager();
@@ -186,7 +216,38 @@ export class DiagramRenderer {
     previewDrag: (positionId, col, row) => this.contours.previewDrag(positionId, col, row),
     restoreContours: () => this.contours.restoreAfterFailedDrag(),
     requestPaint: () => this.onNeedsPaint?.(),
+    dropTargetAt: (x, y, skipId) => {
+      // `SceneRegistry` re-keys every box to `kind:id`, so both the id we skip
+      // and the id we return have to be translated — otherwise the dragged card
+      // is never skipped and every target reads as an unknown position.
+      const hit = this.ensureDropTargets().nearest(
+        x,
+        y,
+        SEAT_MAGNET_RADIUS,
+        nodeEntityKey('position', skipId),
+      );
+      return hit ? (parseNodeEntityKey(hit.id)?.id ?? hit.id) : undefined;
+    },
+    canDropOn: (positionId, managerId) => this.canReparent?.(positionId, managerId) ?? false,
+    showDropPreview: (positionId, targetId, valid) =>
+      this.drawDropPreview(positionId, targetId, valid),
+    clearDropPreview: () => this.clearDropPreview(),
   });
+
+  /** Boxes of the seats the last render drew, bucketed for pointer lookup. */
+  private dropTargets: DropTargetIndex | null = null;
+
+  /**
+   * Whether a drop is allowed — supplied by the diagram, which owns the data.
+   *
+   * The renderer knows where the cards are; it does not know what supervision
+   * means, and giving it `reportLines` to consult would put a second copy of
+   * that rule next to the one in `positionReparent`.
+   */
+  canReparent: ((positionId: string, managerId: string) => boolean) | null = null;
+
+  /** What the drop preview is currently saying, or null when nothing is drawn. */
+  lastDropPreview: { targetId: string; valid: boolean; color: number } | null = null;
 
   mount(stage: Container): void {
     stage.addChild(this.layers.root);
@@ -265,6 +326,7 @@ export class DiagramRenderer {
     this.chromeBounds = null;
     this.contourWorld = null;
     this.dragGrid = null;
+    this.dropTargets = null;
     this.personInteractions.reset();
     this.layers.clear();
     this.scene.clear();
@@ -331,6 +393,71 @@ export class DiagramRenderer {
     if (!selected) return [];
     if (Array.isArray(selected)) return selected as readonly NodeRef[];
     return [selected as NodeRef];
+  }
+
+  /**
+   * Paint the drop target ring and the ghost line to it.
+   *
+   * The ghost is what makes the gesture legible: a ring alone says «this card
+   * is under the pointer», which is what hover already says. The line says what
+   * would change — a new reporting line is exactly the thing being drawn. Red
+   * and dashed-to-nowhere means the drop will be refused, and the user sees
+   * that before letting go rather than after (T91 rows 16-17).
+   */
+  private drawDropPreview(positionId: string, targetId: string | null, valid: boolean): void {
+    this.clearDropPreview();
+    if (this.destroyed) return;
+    const from = this.scene.getBox(positionId);
+    if (!from) return;
+    const to = targetId ? this.scene.getBox(targetId) : undefined;
+    const color = valid ? DROP_VALID_COLOR : DROP_INVALID_COLOR;
+    // The colour actually handed to `stroke` below, kept so a test can assert
+    // «this drop reads as refused» without sampling pixels.
+    this.lastDropPreview = to && targetId ? { targetId, valid, color } : null;
+
+    if (to) {
+      const ring = new Graphics();
+      ring.rect(to.x - 4, to.y - 4, to.width + 8, to.height + 8);
+      ring.stroke({ color, width: 3 });
+      this.layers.dragPreview.addChild(ring);
+
+      const ghost = new Graphics();
+      ghost.moveTo(to.x + to.width / 2, to.y + to.height / 2);
+      ghost.lineTo(from.x + from.width / 2, from.y + from.height / 2);
+      ghost.stroke({ color, width: 2, alpha: 0.9 });
+      this.layers.dragPreview.addChild(ghost);
+    }
+  }
+
+  /**
+   * Bucket the drawn seats, once per render and only if a drag asks.
+   *
+   * Built lazily rather than at the end of `render`: most renders never see a
+   * drag, and paying for the index on every one of them would tax the path this
+   * feature is not on. `render` drops it to null, so it can never outlive the
+   * scene it describes.
+   */
+  private ensureDropTargets(): DropTargetIndex {
+    if (this.dropTargets) return this.dropTargets;
+    const boxes = this.scene.listBoxes().filter((b) => b.kind === 'position');
+    // Bucket at the scene's pitch when it has one; otherwise at the largest
+    // card, which keeps roughly one box per bucket either way.
+    let cellW = this.dragGrid?.pitchX ?? 0;
+    let cellH = this.dragGrid?.pitchY ?? 0;
+    if (cellW <= 0 || cellH <= 0) {
+      for (const b of boxes) {
+        cellW = Math.max(cellW, b.width);
+        cellH = Math.max(cellH, b.height);
+      }
+    }
+    this.dropTargets = new DropTargetIndex(boxes, cellW, cellH);
+    return this.dropTargets;
+  }
+
+  private clearDropPreview(): void {
+    this.lastDropPreview = null;
+    const removed = this.layers.dragPreview.removeChildren();
+    for (const child of removed) child.destroy({ children: true });
   }
 
   private drawSelection(selected: NodeRef | null | readonly NodeRef[]): void {
@@ -641,6 +768,7 @@ export class DiagramRenderer {
         config,
         options,
         gridCell: position.gridCell,
+        dragMode: seatDragMode(n.role),
       });
       this.layers.persons.addChild(node);
       this.registerView('position', position.id, node);
@@ -753,6 +881,10 @@ export class DiagramRenderer {
         config,
         options,
         gridCell: position.gridCell,
+        // This path draws only seats that have a `gridCell` (see the guard at
+        // the top of the loop) — every card here is authored, so every drag
+        // here moves.
+        dragMode: 'move',
       });
       this.layers.persons.addChild(node);
       this.registerView('position', position.id, node);

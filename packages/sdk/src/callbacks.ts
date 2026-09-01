@@ -8,7 +8,21 @@ export type LayoutPatch =
   | { type: 'matrix-reorder'; orgId: string; newIndex: number }
   | { type: 'matrix-cell'; orgId: string; row: number; col: number; ejectedOrgId?: string }
   | { type: 'block-shift'; positionIds: string[]; deltaLevel: number }
-  | { type: 'position-expand'; positionId: string; expanded: boolean };
+  | { type: 'position-expand'; positionId: string; expanded: boolean }
+  /**
+   * A seat was dragged onto another seat and now reports to it (T91).
+   *
+   * Carries the manager it left as well as the one it joined, so a host that
+   * keeps its own model can apply the change without first diffing to find out
+   * what the old line was — and can undo it.  `fromManagerId` is null when the
+   * seat had no admin manager at all.
+   */
+  | {
+      type: 'position-reparent';
+      positionId: string;
+      fromManagerId: string | null;
+      toManagerId: string;
+    };
 
 /** Why the visible area changed. A resize moves no camera (T88). */
 export type ViewportChangeReason = 'camera' | 'resize';

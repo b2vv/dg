@@ -1,4 +1,4 @@
-import type { DiagramData, DiagramOrganization } from './data/types.js';
+import type { DiagramData, DiagramOrganization, DiagramReportLine } from './data/types.js';
 import { isDiagramData, mergePartial } from './data/mergeData.js';
 import { applyInitialExpand } from './data/initialExpand.js';
 import type { DiagramMappers } from './mappers/types.js';
@@ -36,6 +36,11 @@ import { DataStore } from './state/DataStore.js';
 import type { PromoteCandidate, PromoteChrome } from './render/promoteTypes.js';
 import { promoteIdMatches } from './render/promoteMath.js';
 import type { SelectionPointerMods } from './interaction/selection.js';
+import {
+  adminParentsOf,
+  canReparent,
+  reparentPosition,
+} from './interaction/positionReparent.js';
 import { resolveContextMenuNodeData } from './interaction/contextMenuPayload.js';
 import {
   collapseAllOrgs,
@@ -609,6 +614,14 @@ export class OrgHierarchyDiagram {
     host.setBackground(
       this.nodeTheme.canvasBackground ?? canvasBackgroundForTheme(resolved),
     );
+    // Rebound on every render, because a drop changes the report lines the
+    // answer depends on — and every drop is followed by a render. The id set is
+    // built here rather than inside the closure so a drag that sweeps across
+    // the wall does not rebuild it once per target.
+    const knownPositionIds = new Set(this.data.positions.map((p) => p.id));
+    const reportLinesNow = this.data.reportLines;
+    host.renderer.canReparent = (positionId, managerId) =>
+      canReparent(reportLinesNow, positionId, managerId, knownPositionIds);
     await this.reportIfRenderFails(
       host.renderer.render(this.data, this.nodeTheme, resolved, this.renderConfig, {
       lod: this.viewState.lodLevel,
@@ -682,6 +695,9 @@ export class OrgHierarchyDiagram {
         : undefined,
       onPersonDragEnd: (positionId, col, row) => {
         void this.movePersonToCell(positionId, col, row);
+      },
+      onPersonReparent: (positionId, managerId) => {
+        void this.reparentPosition(positionId, managerId);
       },
       }),
     );
@@ -1500,6 +1516,48 @@ export class OrgHierarchyDiagram {
     this.host?.resetView(motion);
     if (motion.animate !== true) {
       this.onViewportTransform(1);
+    }
+  }
+
+  /**
+   * Make `positionId` report to `managerId`, then say so.
+   *
+   * Applies here rather than asking the host first, matching
+   * {@link movePersonToCell}: one contract for edits made on the canvas, and no
+   * window in which the card has been dropped but the diagram still draws the
+   * old line. A host that wants the last word has `onLayoutChange` and can send
+   * its own `setData`.
+   *
+   * The rollback mirrors `revealPath` (T97): if the render that follows draws
+   * nothing, the data goes back to what it described, because a diagram that
+   * reports a reporting line it never drew is worse than one that refused.
+   */
+  async reparentPosition(positionId: string, managerId: string): Promise<void> {
+    const before = this.data;
+    const knownIds = new Set(this.data.positions.map((p) => p.id));
+    const fromManagerId = adminParentsOf(this.data.reportLines).get(positionId) ?? null;
+    let reportLines: DiagramReportLine[];
+    try {
+      reportLines = reparentPosition(this.data.reportLines, positionId, managerId, knownIds);
+    } catch (err) {
+      // A refused drop is an ordinary outcome of the gesture, not a fault: the
+      // preview already told the user, and there is nothing to redraw.
+      if (err instanceof InteractionError) return;
+      throw err;
+    }
+    this.data = { ...this.data, reportLines };
+    const patch: LayoutPatch = {
+      type: 'position-reparent',
+      positionId,
+      fromManagerId,
+      toManagerId: managerId,
+    };
+    this.callbacks.onLayoutChange?.(patch);
+    try {
+      await this.render();
+    } catch (err) {
+      this.data = before;
+      throw err;
     }
   }
 

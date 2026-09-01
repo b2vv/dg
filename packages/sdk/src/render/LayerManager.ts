@@ -15,6 +15,14 @@ export class LayerManager {
   /** Contour strokes above cards so corridor outlines stay visible / stable. */
   readonly departmentStrokes = new Container();
   readonly overlay = new Container();
+  /**
+   * Drag feedback — the target ring and the ghost line (T91).
+   *
+   * Its own layer rather than a guest in `overlay`, because `repaintSelection`
+   * clears `overlay` wholesale: sharing would mean a click during a drag wipes
+   * the preview, and a drag wipes the selection ring (T91 row 21).
+   */
+  readonly dragPreview = new Container();
 
   constructor() {
     this.root.addChild(
@@ -25,11 +33,14 @@ export class LayerManager {
       this.persons,
       this.departmentStrokes,
       this.overlay,
+      this.dragPreview,
     );
     // Edges/strokes/zones are paint-only — must not steal hits from node chrome underneath.
     this.edges.eventMode = 'none';
     this.departmentStrokes.eventMode = 'none';
     this.zones.eventMode = 'none';
+    // Feedback only — it must never swallow the pointer it is reporting on.
+    this.dragPreview.eventMode = 'none';
   }
 
   clear(): void {
@@ -40,6 +51,7 @@ export class LayerManager {
     this.destroyLayerChildren(this.persons);
     this.destroyLayerChildren(this.departmentStrokes);
     this.destroyLayerChildren(this.overlay);
+    this.destroyLayerChildren(this.dragPreview);
   }
 
   /** T75 D3: removeChildren alone leaks GPU; destroy detached views. */

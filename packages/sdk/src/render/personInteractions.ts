@@ -38,7 +38,21 @@ export interface PersonPointerHandlers {
     pointer: Required<ContextMenuPointer>,
   ) => void;
   onPersonDragEnd?: (positionId: string, col: number, row: number) => void;
+  onPersonReparent?: (positionId: string, managerId: string) => void;
 }
+
+/**
+ * What dragging this card means — decided by the scene, not by the user (T91
+ * GATE 1).
+ *
+ * A card whose cell the host authored can be *moved*: the coordinates are data,
+ * and putting them somewhere else is an edit that survives the next layout. A
+ * card the layout placed cannot — dropping it on a cell would write a
+ * `gridCell` it never had, silently turning a computed position into an
+ * authored one. What that gesture can mean instead is *whose report this seat
+ * is*, which is data in both cases.
+ */
+export type SeatDragMode = 'move' | 'reparent';
 
 export interface PersonBindArgs {
   personId: string | undefined;
@@ -48,6 +62,8 @@ export interface PersonBindArgs {
   options: PersonPointerHandlers;
   /** Authored cell of this card — the drag origin is derived from it. */
   gridCell?: { col: number; row: number };
+  /** Scene's verdict on what a drag here means; `move` keeps the old path. */
+  dragMode?: SeatDragMode;
 }
 
 export interface PersonInteractionDeps {
@@ -61,6 +77,13 @@ export interface PersonInteractionDeps {
   currentLod(): LodLevel;
   previewDrag(positionId: string, col: number, row: number): void;
   restoreContours(): void;
+  /** Card nearest the pointer within the magnet radius, excluding the dragged one. */
+  dropTargetAt(x: number, y: number, skipId: string): string | undefined;
+  /** May `positionId` be made to report to `managerId`? */
+  canDropOn(positionId: string, managerId: string): boolean;
+  /** Paint the ring and ghost line; `targetId` null clears the target half. */
+  showDropPreview(positionId: string, targetId: string | null, valid: boolean): void;
+  clearDropPreview(): void;
   /** Nothing paints on its own any more — a moved card has to ask. */
   requestPaint(): void;
 }
@@ -78,6 +101,9 @@ interface DragState {
   previewRow: number | null;
   /** T78-L1: per-card grid origin (staff tiers share gridCell indices). */
   snapGrid: DragGrid | null;
+  mode: SeatDragMode;
+  /** Last target the preview was drawn for — repaint only on change. */
+  targetId: string | null;
 }
 
 /**
@@ -91,12 +117,14 @@ export class PersonInteractions {
 
   /** Render entry: the old cards are gone, so any drag on them is too. */
   reset(): void {
+    if (this.drag?.mode === 'reparent') this.deps.clearDropPreview();
     this.drag = null;
   }
 
   /** Wire click, double-tap, context menu and drag for one seat card. */
   bind(node: PersonNodeView, args: PersonBindArgs): void {
     const { personId, positionId, box, config, options, gridCell } = args;
+    const dragMode: SeatDragMode = args.dragMode ?? 'move';
     this.deps.rememberBox(box);
 
     node.on('pointertap', (e) => {
@@ -162,6 +190,8 @@ export class PersonInteractions {
         previewCol: null,
         previewRow: null,
         snapGrid,
+        mode: dragMode,
+        targetId: null,
       };
       e.stopPropagation();
     });
@@ -178,6 +208,10 @@ export class PersonInteractions {
       node.position.set(nx, ny);
       this.deps.requestPaint();
       if (!this.drag.moved) return;
+      if (this.drag.mode === 'reparent') {
+        this.trackTarget(positionId, local.x, local.y);
+        return;
+      }
       const snap = this.snapTo(nx, ny, config);
       if (snap.col < 0 || snap.row < 0) return;
       if (snap.col === this.drag.previewCol && snap.row === this.drag.previewRow) return;
@@ -189,8 +223,20 @@ export class PersonInteractions {
     const endDrag = (e: { pointerId: number }) => {
       if (!this.drag || this.drag.positionId !== positionId) return;
       if (e.pointerId !== this.drag.pointerId) return;
-      const { originX, originY, moved } = this.drag;
+      const { originX, originY, moved, mode, targetId } = this.drag;
       this.drag = null;
+      if (mode === 'reparent') {
+        // The card always goes home: its place is the layout's to decide, and
+        // the edit this gesture makes is to the reporting line, not to a
+        // coordinate (T91 rows 18-20).
+        this.deps.clearDropPreview();
+        node.position.set(originX, originY);
+        this.deps.requestPaint();
+        if (moved && targetId && this.deps.canDropOn(positionId, targetId)) {
+          options.onPersonReparent?.(positionId, targetId);
+        }
+        return;
+      }
       if (!moved) {
         node.position.set(originX, originY);
         this.deps.requestPaint();
@@ -210,6 +256,23 @@ export class PersonInteractions {
     node.on('pointerupoutside', endDrag);
   }
 
+  /**
+   * Follow the pointer's drop target and keep the preview in step.
+   *
+   * Repaints only when the target changes, so holding still costs nothing —
+   * the lookup itself is bounded by the index, not by the scene size.
+   */
+  private trackTarget(positionId: string, x: number, y: number): void {
+    if (!this.drag) return;
+    const targetId = this.deps.dropTargetAt(x, y, positionId) ?? null;
+    if (targetId === this.drag.targetId) return;
+    this.drag.targetId = targetId;
+    const valid = targetId !== null && this.deps.canDropOn(positionId, targetId);
+    this.deps.showDropPreview(positionId, targetId, valid);
+    this.deps.requestPaint();
+  }
+
+  /** Nothing is being dragged onto anything — used by tests and by reset. */
   private snapTo(x: number, y: number, config: RenderConfig): { col: number; row: number } {
     const grid = this.drag?.snapGrid ?? this.deps.dragGrid();
     if (grid) {
