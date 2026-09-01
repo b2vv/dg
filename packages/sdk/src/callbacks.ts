@@ -95,6 +95,16 @@ export interface OrgHierarchyCallbacks {
    * is how a diagram ends up describing a tree it never drew.
    */
   onRenderFailed?(failure: RenderFailure): void;
+  /**
+   * What the initial expansion did, and why it did not do more.
+   *
+   * Only fires when `initialExpand` asked for a `revealNodeId`. A link can name
+   * something this data no longer holds — a stale URL, a target that moved, an
+   * id from a set `setData` replaced — and that is an ordinary outcome rather
+   * than an error, so it is reported instead of thrown. A caller that shows the
+   * URL back to the user needs the reason to say anything useful about it.
+   */
+  onInitialExpand?(result: InitialExpandResult): void;
   /** T66: after position expand/collapse / expandToDepth batch. */
   onPositionExpandChange?(state: {
     positionId: string;
@@ -133,4 +143,12 @@ export interface RenderFailure {
   reason: string;
   /** The original throw, for hosts that log rather than display. */
   cause: unknown;
+}
+
+/** Outcome of `initialExpand.revealNodeId`. See {@link OrgHierarchyCallbacks.onInitialExpand}. */
+export interface InitialExpandResult {
+  /** Organisation the tree was opened down to, or `null` when the target did not resolve. */
+  revealedOrgId: string | null;
+  /** Present only when the target was asked for and not found. */
+  reason?: string;
 }

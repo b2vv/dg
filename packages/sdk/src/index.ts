@@ -197,6 +197,7 @@ export type {
   HostSearchHit,
   HostSearchPage,
   RenderFailure,
+  InitialExpandResult,
 } from './callbacks.js';
 
 export type { SearchAllResult } from './OrgHierarchyDiagram.js';

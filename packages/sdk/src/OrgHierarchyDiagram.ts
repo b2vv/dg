@@ -58,6 +58,7 @@ import type {
   HostSearchHit,
   HostSearchPage,
   RenderFailure,
+  InitialExpandResult,
 } from './callbacks.js';
 import type { ViewportTransform } from './render/Viewport.js';
 import { createTransformWorker, WorkerPool } from './worker/index.js';
@@ -138,7 +139,21 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
    * arrived. That is deliberate: the flags are a host contract, and taking them
    * over uninvited would change scenes that already work.
    */
-  initialExpand?: { rootOrgId?: string };
+  initialExpand?: {
+    rootOrgId?: string;
+    /**
+     * Open the tree down to this node as well, and put the camera on it.
+     *
+     * For a deep link: a URL that names an organisation should land on it
+     * already open, not open it after a collapsed frame. Accepts a person or
+     * position id too — those resolve to the organisation that holds them.
+     *
+     * A target that resolves to nothing leaves the {@link rootOrgId} minimum in
+     * place and says why through `onInitialExpand`; it is not an error, because
+     * a stale link is an ordinary thing for a URL to carry.
+     */
+    revealNodeId?: string;
+  };
   /**
    * Which engine draws the scene (T83). Default `'auto'`: the browser refuses a
    * WebGL context it would emulate in software, and Pixi falls to Canvas2D.
@@ -357,14 +372,33 @@ export class OrgHierarchyDiagram {
     // Opt-in: a host that ships its own `collapsed` and asks for nothing keeps
     // it. The demo's flat-orgs marks every organisation collapsed, and quietly
     // overriding that would change a scene that works today (T97 Б2).
+    let initialReveal: InitialExpandResult | null = null;
     if (config.initialExpand) {
-      instance.data = {
-        ...instance.data,
-        organizations: applyInitialExpand(
-          instance.data.organizations,
-          config.initialExpand.rootOrgId,
-        ),
-      };
+      const { rootOrgId, revealNodeId } = config.initialExpand;
+      let organizations = applyInitialExpand(instance.data.organizations, rootOrgId);
+
+      if (revealNodeId) {
+        // The target may be a person or a position; both live in an org, and
+        // that org is what has to be open for the card to exist.
+        const targetOrgId = resolveOrganizationIdForNode(
+          { ...instance.data, organizations },
+          revealNodeId,
+        );
+        if (targetOrgId) {
+          // Union, not replacement: the minimum stays and the path is added, so
+          // a target inside the minimum changes nothing (row 13).
+          organizations = revealOrgPath(organizations, targetOrgId);
+          initialReveal = { revealedOrgId: targetOrgId };
+        } else {
+          // A link can outlive the data it pointed at. Keeping the minimum and
+          // naming the reason beats an empty screen or a throw.
+          initialReveal = {
+            revealedOrgId: null,
+            reason: `initialExpand.revealNodeId «${revealNodeId}» is not in this data`,
+          };
+        }
+      }
+      instance.data = { ...instance.data, organizations };
     }
     // Same builder as setData: a 100k mount used to block the main thread here
     // while the worker path sat unused until the first setData.
@@ -422,6 +456,15 @@ export class OrgHierarchyDiagram {
       },
     );
     await instance.render();
+
+    // Camera after the frame: a node has no box until it is laid out, which is
+    // why `revealPath` renders before it focuses. Still inside `create()`, so
+    // nothing of the host's can interleave — it has no reference yet.
+    if (initialReveal?.revealedOrgId && config.initialExpand?.revealNodeId) {
+      await instance.focusNode(config.initialExpand.revealNodeId);
+    }
+    if (initialReveal) instance.callbacks.onInitialExpand?.(initialReveal);
+
     return instance;
   }
 
