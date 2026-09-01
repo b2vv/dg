@@ -379,4 +379,59 @@ describe('seat re-parent by drag (T91)', () => {
     diagram.destroy();
     container.remove();
   });
+
+  it('a refused drop does not leave the card you aimed at selected', async () => {
+    // Found in the browser, not here: the tap that closes a drag fires after
+    // `pointerup`, when the drag state is already gone, so the guard against it
+    // never triggered. A move hid the effect behind its own re-render; a refusal
+    // has no re-render, and the stray ring was plain to see.
+    const selections: unknown[][] = [];
+    const container = document.createElement('div');
+    container.style.width = '900px';
+    container.style.height = '700px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: treeData(),
+      staffCurrentOrgId: 'org1',
+      useWorker: false,
+      callbacks: { onSelectionChange: (nodes) => selections.push(nodes) },
+    });
+    diagram.setZoom(1.4);
+    await new Promise((r) => setTimeout(r, 120));
+    const internals = diagram as unknown as Internals;
+    const renderer = internals.host.renderer;
+    const nodeFor = (id: string) => {
+      const box = renderer.getNodeBox(id)!;
+      const node = (renderer.layers.persons.children as PersonNodeView[]).find(
+        (c) =>
+          c instanceof PersonNodeView &&
+          Math.abs(c.x - box.x) < 0.5 &&
+          Math.abs(c.y - box.y) < 0.5,
+      )!;
+      return { node, box };
+    };
+    const toGlobal = (x: number, y: number) =>
+      (renderer.layers.persons as unknown as {
+        toGlobal(p: { x: number; y: number }): { x: number; y: number };
+      }).toGlobal({ x, y });
+
+    const a = nodeFor('a');
+    const bBox = nodeFor('b').box;
+    const at = dragOnto(toGlobal, a, bBox); // a onto its own report — refused
+    // The tap Pixi raises at the end of the gesture.
+    a.node.emit('pointertap', pointerEvent(at));
+    await new Promise((r) => setTimeout(r, 60));
+
+    expect(selections).toEqual([]);
+
+    // …and the next real click still selects, so the suppression is one-shot.
+    a.node.emit('pointerdown', pointerEvent(toGlobal(a.box.x + 5, a.box.y + 5)));
+    a.node.emit('pointerup', pointerEvent(toGlobal(a.box.x + 5, a.box.y + 5)));
+    a.node.emit('pointertap', pointerEvent(toGlobal(a.box.x + 5, a.box.y + 5)));
+    await new Promise((r) => setTimeout(r, 60));
+    expect(selections.length).toBe(1);
+
+    diagram.destroy();
+    container.remove();
+  });
 });

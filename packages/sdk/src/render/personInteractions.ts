@@ -117,12 +117,26 @@ interface DragState {
 export class PersonInteractions {
   private drag: DragState | null = null;
 
+  /**
+   * Swallow the tap that closes a drag.
+   *
+   * `pointertap` fires after `pointerup`, by which time `endDrag` has cleared
+   * `this.drag` — so the guard that reads `this.drag?.moved` in the tap handler
+   * has never actually caught anything, and every completed drag also selected
+   * a card. A move hid it, because the re-render that follows repaints the
+   * chrome; a *refused* re-parent does not re-render, and the stray selection
+   * ring around the card you were told you could not drop on became plainly
+   * visible (T91, found in the browser).
+   */
+  private tapAfterDrag = false;
+
   constructor(private readonly deps: PersonInteractionDeps) {}
 
   /** Render entry: the old cards are gone, so any drag on them is too. */
   reset(): void {
     if (this.drag?.mode === 'reparent') this.deps.clearDropPreview();
     this.drag = null;
+    this.tapAfterDrag = false;
   }
 
   /** Wire click, double-tap, context menu and drag for one seat card. */
@@ -133,6 +147,11 @@ export class PersonInteractions {
 
     node.on('pointertap', (e) => {
       if (!isPrimaryPointerTap(e)) return;
+      if (this.tapAfterDrag) {
+        this.tapAfterDrag = false;
+        this.deps.doubleTap.reset();
+        return;
+      }
       if (this.drag?.moved) return;
       if (node.activateChromePointer(e)) {
         this.deps.doubleTap.reset();
@@ -160,6 +179,9 @@ export class PersonInteractions {
     );
 
     node.on('pointerdown', (e) => {
+      // A new press starts a new gesture: whatever the last one left behind
+      // must not swallow this one's tap.
+      this.tapAfterDrag = false;
       if (node.isChromePointer(e)) {
         e.stopPropagation();
         return;
@@ -231,6 +253,7 @@ export class PersonInteractions {
       if (e.pointerId !== this.drag.pointerId) return;
       const { originX, originY, moved, mode, targetId } = this.drag;
       this.drag = null;
+      if (moved) this.tapAfterDrag = true;
       if (mode === 'reparent') {
         // The card always goes home: its place is the layout's to decide, and
         // the edit this gesture makes is to the reporting line, not to a
