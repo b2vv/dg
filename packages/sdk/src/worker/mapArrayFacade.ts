@@ -107,7 +107,7 @@ export function createPooledItemMapper<TItem, TOut, TFinal = TOut[]>(
   config: PooledItemMapperConfig<TItem, TOut, TFinal>,
 ): (items: TItem[], options?: PooledMapOptions) => Promise<PooledMapResult<TFinal>> {
   const mapChunk: ChunkMapperFn<TItem, TOut[]> = async (chunk) => {
-    const out: TOut[] = new Array(chunk.length);
+    const out: TOut[] = Array.from({ length: chunk.length });
     for (let i = 0; i < chunk.length; i += 1) {
       out[i] = await config.mapItem(chunk[i]!);
     }
@@ -238,7 +238,7 @@ async function mapChunksOnMain<TItem, TChunkOut>(
   chunks: TItem[][],
   mapChunk: ChunkMapperFn<TItem, TChunkOut>,
 ): Promise<TChunkOut[]> {
-  const out: TChunkOut[] = new Array(chunks.length);
+  const out: TChunkOut[] = Array.from({ length: chunks.length });
   for (let i = 0; i < chunks.length; i += 1) {
     out[i] = await mapChunk(chunks[i]!);
     await Promise.resolve();

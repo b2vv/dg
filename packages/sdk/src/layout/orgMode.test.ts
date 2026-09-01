@@ -58,7 +58,7 @@ describe('org state helpers', () => {
   it('success: collapseAllOrgs sets collapsed true', () => {
     const orgs = [org('a', false), org('b', false)];
     const next = collapseAllOrgs(orgs);
-    expect(next.every(isOrgCollapsed)).toBe(true);
+    expect(next.every((o) => isOrgCollapsed(o))).toBe(true);
   });
 
   it('success: expandOrg expands target only', () => {

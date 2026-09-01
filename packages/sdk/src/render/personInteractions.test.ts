@@ -57,6 +57,12 @@ function harness(grid: DragGrid | null = GRID) {
     previewDrag: (id, col, row) => previews.push([id, col, row]),
     restoreContours: () => restores.push(1),
     requestPaint: () => paints.push(1),
+    // This harness exercises the `move` mode only, so the re-parent seams are
+    // inert here — `personReparent.contract.test.ts` drives them for real.
+    dropTargetAt: () => undefined,
+    canDropOn: () => false,
+    showDropPreview: () => {},
+    clearDropPreview: () => {},
   });
   return { interactions, previews, restores, boxes, paints };
 }

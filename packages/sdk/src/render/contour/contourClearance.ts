@@ -25,6 +25,24 @@ function pointClearance(
   return Math.hypot(dx, dy);
 }
 
+/**
+ * Does a point sit closer to any card than the margin allows?
+ *
+ * Lifted out of the ring walk so the loop reads as «sample the segment, push
+ * what intrudes» instead of five nested blocks that never named the question.
+ */
+function pointIntrudes(
+  x: number,
+  y: number,
+  boxes: readonly ContourClearBox[],
+  margin: number,
+): boolean {
+  for (const box of boxes) {
+    if (pointClearance(x, y, box) < margin - 1e-6) return true;
+  }
+  return false;
+}
+
 function isInsideExpanded(
   x: number,
   y: number,
@@ -134,12 +152,9 @@ export function nudgeContourClearOfBoxes(
         const t = s / 4;
         const x = a.x + (b.x - a.x) * t;
         const y = a.y + (b.y - a.y) * t;
-        for (const box of boxes) {
-          if (pointClearance(x, y, box) < margin - 1e-6) {
-            next.push(pushPoint(x, y, boxes, margin));
-            split = true;
-            break;
-          }
+        if (pointIntrudes(x, y, boxes, margin)) {
+          next.push(pushPoint(x, y, boxes, margin));
+          split = true;
         }
       }
     }

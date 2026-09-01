@@ -23,7 +23,7 @@ const BRANCH = 9;
  * Compact parent index for `total` orgs — O(n) typed array, no DiagramOrganization alloc.
  */
 export function buildScaleParentIndex(total: number): Int32Array {
-  const n = Math.max(1, total | 0);
+  const n = Math.max(1, Math.trunc(total));
   const parents = new Int32Array(n);
   parents[0] = -1;
   for (let i = 1; i < n; i += 1) {

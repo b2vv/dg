@@ -810,7 +810,7 @@ describe('deferred recompute while the camera moves', () => {
   }
 
   const settleMs = 15;
-  const afterSettle = () => new Promise((r) => setTimeout(r, settleMs * 4));
+  const afterSettle = () => new Promise((r) => { setTimeout(r, settleMs * 4); });
 
   function mountEl(): HTMLElement {
     const mount = document.createElement('div');

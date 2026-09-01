@@ -57,9 +57,9 @@ describe('Variant B vacant padding tongues (T40)', () => {
         preferNotch: true,
       },
     );
-    const it = contours.find((c) => c.departmentId === 'IT');
-    expect(it?.points.length).toBeGreaterThan(2);
-    return ringArea(it!.points);
+    const itCards = contours.find((c) => c.departmentId === 'IT');
+    expect(itCards?.points.length).toBeGreaterThan(2);
+    return ringArea(itCards!.points);
   }
 
   it('success: paddingCells=0 yields a smaller IT ring than paddingCells=1', async () => {

@@ -31,10 +31,8 @@ export function promoteIdMatches(
 ): boolean {
   if (wanted.has(boxId)) return true;
   const parsed = parseNodeEntityKey(boxId);
-  if (parsed) {
-    if (wanted.has(parsed.id) || wanted.has(nodeEntityKey(parsed.kind, parsed.id))) {
-      return true;
-    }
+  if (parsed && (wanted.has(parsed.id) || wanted.has(nodeEntityKey(parsed.kind, parsed.id)))) {
+    return true;
   }
   if (kind && wanted.has(nodeEntityKey(kind, boxId))) return true;
   for (const w of wanted) {

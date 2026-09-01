@@ -33,18 +33,18 @@ async function compositeImages(
   mode: 'side-by-side' | 'overlay',
 ): Promise<Buffer> {
   const outB64 = await page.evaluate(
-    async ({ diagram, isolated, mode }) => {
+    async ({ diagram, isolated, mode: layout }) => {
       const load = (b64: string) =>
         new Promise<HTMLImageElement>((resolve, reject) => {
           const img = new Image();
-          img.onload = () => resolve(img);
-          img.onerror = reject;
+          img.addEventListener('load', () => resolve(img));
+          img.addEventListener('error', reject);
           img.src = `data:image/png;base64,${b64}`;
         });
 
       const [dImg, iImg] = await Promise.all([load(diagram), load(isolated)]);
 
-      if (mode === 'side-by-side') {
+      if (layout === 'side-by-side') {
         const labelH = 28;
         const gap = 12;
         const w = dImg.width + gap + iImg.width;

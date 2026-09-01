@@ -22,9 +22,12 @@ export function revealOrgPath(
   }
 
   let next = organizations;
-  // Expand from root toward leaf so parents are open first
-  for (const id of path.reverse()) {
-    next = expandOrg(next, id);
+  // The walk collected leaf → root; expand root → leaf so a parent is open
+  // before its child. Read backwards rather than reversing: `path` is local, so
+  // the mutation is harmless, but «why is this safe» is a question the reader
+  // should not have to answer.
+  for (let i = path.length - 1; i >= 0; i -= 1) {
+    next = expandOrg(next, path[i]!);
   }
   return next;
 }

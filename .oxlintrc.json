@@ -30,10 +30,7 @@
     "max-lines": "off",
     "import/max-dependencies": "off",
     "no-underscore-dangle": "off",
-    "import/no-unassigned-import": "off",
-    "no-warning-comments": "off",
     "unicorn/no-useless-undefined": "off",
-    "unicorn/prefer-number-coercion": "off",
     "react/react-in-jsx-scope": "off",
     "eqeqeq": [
       "error",
@@ -45,7 +42,7 @@
     "require-await": "off",
     "require-unicode-regexp": "off",
     "no-useless-return": "off",
-    "no-promise-executor-return": "off",
+    "no-promise-executor-return": "error",
     "import/no-self-import": "error",
     "unicorn/consistent-function-scoping": "off",
     "unicorn/prefer-dom-node-remove": "off",
@@ -57,22 +54,12 @@
     "unicorn/prefer-import-meta-properties": "off",
     "unicorn/no-array-sort": "off",
     "unicorn/no-array-fill-with-reference-type": "off",
-    "unicorn/no-array-reverse": "off",
     "unicorn/prefer-code-point": "off",
-    "no-shadow": "off",
     "unicorn/no-object-as-default-parameter": "off",
-    "unicorn/no-array-callback-reference": "off",
     "no-useless-spread": "off",
     "require-post-message-target-origin": "off",
-    "prefer-add-event-listener": "off",
-    "no-new-array": "off",
     "no-loop-func": "off",
     "prefer-top-level-await": "off",
-    "prefer-single-call": "off",
-    "prefer-math-trunc": "off",
-    "no-unmodified-loop-condition": "off",
-    "unicorn/no-lonely-if": "off",
-    "no-immediate-mutation": "off",
-    "max-depth": "off"
+    "no-unmodified-loop-condition": "off"
   }
 }

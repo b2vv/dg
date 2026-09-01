@@ -114,7 +114,7 @@ describe('searchBeyondWindow (T88.9)', () => {
     const delays: Record<string, number> = { slow: 60, fast: 5 };
     const { diagram } = await mount({
       searchBeyondWindow: async (query) => {
-        await new Promise((r) => setTimeout(r, delays[query] ?? 0));
+        await new Promise((r) => { setTimeout(r, delays[query] ?? 0); });
         return page({ total: query === 'slow' ? 111 : 222 });
       },
     });
@@ -134,7 +134,7 @@ describe('searchBeyondWindow (T88.9)', () => {
   it('row 19: destroy() during the await writes nothing and rejects nothing', async () => {
     const { diagram } = await mount({
       searchBeyondWindow: async () => {
-        await new Promise((r) => setTimeout(r, 40));
+        await new Promise((r) => { setTimeout(r, 40); });
         return page();
       },
     });

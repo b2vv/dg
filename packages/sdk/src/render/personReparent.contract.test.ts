@@ -83,7 +83,7 @@ async function mountTree(onPatch?: (patch: LayoutPatch) => void) {
   });
   // Drag is offered only in the `near` band; the views are rebuilt on the way.
   diagram.setZoom(1.4);
-  await new Promise((r) => setTimeout(r, 120));
+  await new Promise((r) => { setTimeout(r, 120); });
   const internals = diagram as unknown as Internals;
   const renderer = internals.host.renderer;
   const nodeFor = (id: string) => {
@@ -129,7 +129,7 @@ describe('seat re-parent by drag (T91)', () => {
     const { container, diagram, internals, nodeFor, toGlobal } = await mountTree((p) => patches.push(p));
 
     dragOnto(toGlobal, nodeFor('b'), nodeFor('c').box);
-    await new Promise((r) => setTimeout(r, 120));
+    await new Promise((r) => { setTimeout(r, 120); });
 
     const parentOfB = internals.data.reportLines.find((r) => r.kind === 'admin' && r.toId === 'b');
     expect(parentOfB?.fromId).toBe('c');
@@ -150,7 +150,7 @@ describe('seat re-parent by drag (T91)', () => {
     const { container, diagram, internals, nodeFor, toGlobal } = await mountTree();
 
     dragOnto(toGlobal, nodeFor('b'), nodeFor('c').box);
-    await new Promise((r) => setTimeout(r, 120));
+    await new Promise((r) => { setTimeout(r, 120); });
 
     expect(internals.data.positions.every((p) => p.gridCell === undefined)).toBe(true);
     diagram.destroy();
@@ -162,7 +162,7 @@ describe('seat re-parent by drag (T91)', () => {
     const { container, diagram, nodeFor, toGlobal } = await mountTree((p) => patches.push(p));
 
     dragOnto(toGlobal, nodeFor('b'), nodeFor('c').box);
-    await new Promise((r) => setTimeout(r, 120));
+    await new Promise((r) => { setTimeout(r, 120); });
 
     expect(patches.some((p) => p.type === 'position-move')).toBe(false);
     diagram.destroy();
@@ -231,7 +231,7 @@ describe('seat re-parent by drag (T91)', () => {
 
     const before = internals.data.reportLines;
     dragOnto(toGlobal, nodeFor('a'), nodeFor('b').box);
-    await new Promise((r) => setTimeout(r, 120));
+    await new Promise((r) => { setTimeout(r, 120); });
 
     expect(internals.data.reportLines).toBe(before);
     expect(patches).toHaveLength(0);
@@ -245,7 +245,7 @@ describe('seat re-parent by drag (T91)', () => {
 
     const before = internals.data.reportLines;
     dragOnto(toGlobal, nodeFor('b'), null);
-    await new Promise((r) => setTimeout(r, 120));
+    await new Promise((r) => { setTimeout(r, 120); });
 
     expect(internals.data.reportLines).toBe(before);
     expect(patches).toHaveLength(0);
@@ -298,7 +298,7 @@ describe('seat re-parent by drag (T91)', () => {
     expect(beforeB.x).toBe(beforeA.x);
 
     dragOnto(toGlobal, nodeFor('b'), nodeFor('c').box);
-    await new Promise((r) => setTimeout(r, 150));
+    await new Promise((r) => { setTimeout(r, 150); });
 
     const afterB = renderer.getNodeBox('b')!;
     const afterC = renderer.getNodeBox('c')!;
@@ -355,10 +355,10 @@ describe('seat re-parent by drag (T91)', () => {
 
     // farMax is 0.45 — well below it there is no card to aim at.
     diagram.setZoom(0.2);
-    await new Promise((r) => setTimeout(r, 120));
+    await new Promise((r) => { setTimeout(r, 120); });
 
     dragOnto(toGlobal, grabbed, target);
-    await new Promise((r) => setTimeout(r, 120));
+    await new Promise((r) => { setTimeout(r, 120); });
 
     expect(patches).toHaveLength(0);
     diagram.destroy();
@@ -373,7 +373,7 @@ describe('seat re-parent by drag (T91)', () => {
     dragOnto(toGlobal, dragged, nodeFor('a').box, false);
     expect(renderer.lastDropPreview).toMatchObject({ targetId: 'a', valid: false });
     dragged.node.emit('pointerup', pointerEvent({ x: 0, y: 0 }));
-    await new Promise((r) => setTimeout(r, 120));
+    await new Promise((r) => { setTimeout(r, 120); });
 
     expect(patches).toHaveLength(0);
     diagram.destroy();
@@ -397,7 +397,7 @@ describe('seat re-parent by drag (T91)', () => {
       callbacks: { onSelectionChange: (nodes) => selections.push(nodes) },
     });
     diagram.setZoom(1.4);
-    await new Promise((r) => setTimeout(r, 120));
+    await new Promise((r) => { setTimeout(r, 120); });
     const internals = diagram as unknown as Internals;
     const renderer = internals.host.renderer;
     const nodeFor = (id: string) => {
@@ -420,7 +420,7 @@ describe('seat re-parent by drag (T91)', () => {
     const at = dragOnto(toGlobal, a, bBox); // a onto its own report — refused
     // The tap Pixi raises at the end of the gesture.
     a.node.emit('pointertap', pointerEvent(at));
-    await new Promise((r) => setTimeout(r, 60));
+    await new Promise((r) => { setTimeout(r, 60); });
 
     expect(selections).toEqual([]);
 
@@ -428,7 +428,7 @@ describe('seat re-parent by drag (T91)', () => {
     a.node.emit('pointerdown', pointerEvent(toGlobal(a.box.x + 5, a.box.y + 5)));
     a.node.emit('pointerup', pointerEvent(toGlobal(a.box.x + 5, a.box.y + 5)));
     a.node.emit('pointertap', pointerEvent(toGlobal(a.box.x + 5, a.box.y + 5)));
-    await new Promise((r) => setTimeout(r, 60));
+    await new Promise((r) => { setTimeout(r, 60); });
     expect(selections.length).toBe(1);
 
     diagram.destroy();

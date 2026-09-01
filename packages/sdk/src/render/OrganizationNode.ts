@@ -348,7 +348,7 @@ export class OrganizationNodeView extends Container {
       this.card.fill({ color: style.background });
       this.card.stroke({ color: style.border, width: style.borderWidth });
       this.hitArea = {
-        contains: (x, y) => x >= 0 && y >= 0 && x <= width && y <= height,
+        contains: (px: number, py: number) => px >= 0 && py >= 0 && px <= width && py <= height,
       };
       return;
     }

@@ -29,10 +29,10 @@ const centerOf = (b: ContourMemberBox) => ({ x: b.x + b.width / 2, y: b.y + b.he
 
 /** IT owns the row; CEO sits between two IT cards, inside the component bbox. */
 function scene() {
-  const it = [cell('P1', 0, 0), cell('P2', 1, 0), cell('P3', 2, 0)];
+  const itCards = [cell('P1', 0, 0), cell('P2', 1, 0), cell('P3', 2, 0)];
   const ceo = cell('P4', 1, 1);
-  const itWithBelow = [...it, cell('P5', 0, 1)];
-  return { it, ceo, itWithBelow };
+  const itWithBelow = [...itCards, cell('P5', 0, 1)];
+  return { itCards, ceo, itWithBelow };
 }
 
 describe('paintMagneticGroups (G2 / M2)', () => {
@@ -77,7 +77,7 @@ describe('paintMagneticGroups (G2 / M2)', () => {
   });
 
   it('success: no foreign card inside the bbox keeps the plain button-group ring', () => {
-    const { it } = scene();
+    const { itCards } = scene();
     const groups = paintMagneticGroups({
       ...base,
       inputs: [
@@ -85,12 +85,12 @@ describe('paintMagneticGroups (G2 / M2)', () => {
         { id: 'P2', departmentId: 'IT', col: 1, row: 0 },
         { id: 'P3', departmentId: 'IT', col: 2, row: 0 },
       ],
-      memberBoxesByDept: new Map([['IT', it]]),
+      memberBoxesByDept: new Map([['IT', itCards]]),
       departmentIds: ['IT'],
       personCounts: new Map([['IT', 3]]),
     });
     expect(groups).toHaveLength(1);
-    for (const card of it) {
+    for (const card of itCards) {
       expect(ringCovers(groups[0]!.ring, centerOf(card))).toBe(true);
     }
   });
@@ -118,12 +118,12 @@ describe('seats without a department', () => {
     minContourMembers: 1,
   };
 
-  /** IT owns the row; the loose seat has no department and sits inside it. */
+  /** IT owns the row; the loose seat has no department and sits inside itCards. */
   function sceneWithLooseSeat() {
-    const it = [cell('P1', 0, 0), cell('P2', 2, 0), cell('P3', 0, 1), cell('P4', 2, 1)];
+    const itCards = [cell('P1', 0, 0), cell('P2', 2, 0), cell('P3', 0, 1), cell('P4', 2, 1)];
     const loose = cell('P5', 1, 0);
     return {
-      it,
+      itCards,
       loose,
       groups: paintMagneticGroups({
         ...base,
@@ -135,7 +135,7 @@ describe('seats without a department', () => {
           { id: 'P5', departmentId: NO_DEPARTMENT_ID, col: 1, row: 0 },
         ],
         memberBoxesByDept: new Map([
-          ['IT', it],
+          ['IT', itCards],
           [NO_DEPARTMENT_ID, [loose]],
         ]),
         departmentIds: ['IT', NO_DEPARTMENT_ID],

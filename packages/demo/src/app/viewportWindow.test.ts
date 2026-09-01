@@ -204,7 +204,7 @@ describe('RebuildScheduler', () => {
       built.push(seatOf(r));
     }, 20);
     for (let i = 0; i < 10; i += 1) s.request(slide(i * 24));
-    await new Promise((r) => setTimeout(r, 60));
+    await new Promise((r) => { setTimeout(r, 60); });
     expect(built).toEqual([216]);
   });
 
@@ -221,11 +221,11 @@ describe('RebuildScheduler', () => {
       if (built.length === 1) await held;
     }, 5);
     s.request(slide(24));
-    await new Promise((r) => setTimeout(r, 20));
+    await new Promise((r) => { setTimeout(r, 20); });
     s.request(slide(48));
-    await new Promise((r) => setTimeout(r, 20));
+    await new Promise((r) => { setTimeout(r, 20); });
     gate.release();
-    await new Promise((r) => setTimeout(r, 40));
+    await new Promise((r) => { setTimeout(r, 40); });
     expect(built).toEqual([24, 48]);
   });
 
@@ -246,11 +246,11 @@ describe('RebuildScheduler', () => {
       (e) => errors.push(e instanceof Error ? e.message : String(e)),
     );
     s.request(slide(24));
-    await new Promise((r) => setTimeout(r, 30));
+    await new Promise((r) => { setTimeout(r, 30); });
     expect(errors).toEqual(['layout worker died']);
 
     s.request(slide(48));
-    await new Promise((r) => setTimeout(r, 30));
+    await new Promise((r) => { setTimeout(r, 30); });
     expect(built).toEqual([24, 48]);
     expect(errors).toHaveLength(1);
   });
@@ -266,7 +266,7 @@ describe('RebuildScheduler', () => {
       () => {},
     );
     s.request(slide(24));
-    await new Promise((r) => setTimeout(r, 40));
+    await new Promise((r) => { setTimeout(r, 40); });
     expect(built).toEqual([24]);
   });
 
@@ -277,14 +277,14 @@ describe('RebuildScheduler', () => {
     }, 20);
     s.request(slide(24));
     s.stop();
-    await new Promise((r) => setTimeout(r, 60));
+    await new Promise((r) => { setTimeout(r, 60); });
     expect(built).toEqual([]);
   });
 
   it('success: run() rebuilds ahead of the quiet period and resolves once it landed', async () => {
     const built: number[] = [];
     const s = new RebuildScheduler(async (r: StaffRebuild) => {
-      await new Promise((done) => setTimeout(done, 10));
+      await new Promise((done) => { setTimeout(done, 10); });
       built.push(seatOf(r));
     }, 10_000);
     await s.run(slide(24));
@@ -299,11 +299,11 @@ describe('RebuildScheduler', () => {
     const events: string[] = [];
     const s = new RebuildScheduler(async (r: StaffRebuild) => {
       events.push(`start ${seatOf(r)}`);
-      await new Promise((done) => setTimeout(done, 30));
+      await new Promise((done) => { setTimeout(done, 30); });
       events.push(`end ${seatOf(r)}`);
     }, 5);
     s.request(slide(24));
-    await new Promise((r) => setTimeout(r, 15));
+    await new Promise((r) => { setTimeout(r, 15); });
     await s.run(slide(48));
     expect(events).toEqual(['start 24', 'end 24', 'start 48', 'end 48']);
   });
@@ -315,7 +315,7 @@ describe('RebuildScheduler', () => {
     }, 20);
     s.request(slide(24));
     await s.run(slide(48));
-    await new Promise((r) => setTimeout(r, 60));
+    await new Promise((r) => { setTimeout(r, 60); });
     expect(built).toEqual([48]);
   });
 

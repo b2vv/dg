@@ -309,7 +309,7 @@ async function layoutStaffOrgBlockCore(
     inOrg = visiblePositions(inOrg, reports, orgId, options.expandedPositionIds ?? []);
   }
 
-  const withCoords = inOrg.filter(positionHasCoords);
+  const withCoords = inOrg.filter((p) => positionHasCoords(p));
   const without = inOrg.filter((p) => !positionHasCoords(p));
   const diagnostics: string[] = [];
 

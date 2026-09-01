@@ -23,8 +23,11 @@ function data() {
   };
 }
 
-const frame = () => new Promise((r) => requestAnimationFrame(() => r(null)));
-const quiet = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const frame = () =>
+  new Promise((r) => {
+    requestAnimationFrame(() => r(null));
+  });
+const quiet = (ms: number) => new Promise((r) => { setTimeout(r, ms); });
 
 async function mount(seen: Seen[]) {
   const container = document.createElement('div');

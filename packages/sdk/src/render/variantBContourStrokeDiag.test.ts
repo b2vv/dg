@@ -125,7 +125,7 @@ describe('Variant B contour stroke vs cards (T38)', () => {
         preferNotch: true,
       },
     );
-    const it = contours.find((c) => c.departmentId === 'IT')!;
+    const itCards = contours.find((c) => c.departmentId === 'IT')!;
     const nodes = VARIANT_B_POSITIONS.map((p) => {
       const box = resolvePositionAABB(
         {
@@ -147,8 +147,8 @@ describe('Variant B contour stroke vs cards (T38)', () => {
       nodes.map((n) => [n.id, { gridCell: { col: n.col, row: n.row } }]),
     );
     const world = resolveContourWorldTransform(nodes, posMap, cellW, cellH, pitchX, pitchY);
-    const mapped = mapContourPointsToWorld(it.points, world);
-    return { mapped, nodes, it };
+    const mapped = mapContourPointsToWorld(itCards.points, world);
+    return { mapped, nodes, itCards };
   }
 
   it('failure: raw Chaikin (pad1/smooth2) dips into IT cards', async () => {

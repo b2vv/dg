@@ -145,7 +145,7 @@ export async function computeAllContours(
 function normalizeContourResults(
   raw: DeptContourResult[] | DeptContourResult,
 ): DeptContourResult[] {
-  if (Array.isArray(raw)) return raw.map(normalizeOne);
+  if (Array.isArray(raw)) return raw.map((one) => normalizeOne(one));
   if (raw && typeof raw === 'object') return [normalizeOne(raw)];
   return [];
 }

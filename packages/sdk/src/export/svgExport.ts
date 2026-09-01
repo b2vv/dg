@@ -194,8 +194,7 @@ async function paintOrgHierarchySvg(
 ): Promise<{ parts: string[]; width: number; height: number }> {
   const layout = await computeOrgLayout(data.organizations, data.orgLinks ?? []);
   const orgById = new Map(data.organizations.map((o) => [o.id, o]));
-  const parts: string[] = [];
-  parts.push('<g id="edges">');
+  const parts: string[] = ['<g id="edges">'];
   for (const e of layout.edges) {
     if (!e.path) continue;
     parts.push(
@@ -406,10 +405,8 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
       }
       parts.push('</g>');
     }
-    parts.push('</g>');
-
     // Contour stroke above cards (canvas departmentStrokes parity).
-    parts.push('<g id="department-strokes">');
+    parts.push('</g>', '<g id="department-strokes">');
     for (const ring of deptRings) {
       parts.push(
         `<path d="${ring.d} Z" fill="none" stroke="${DEPT_STROKE}" stroke-width="${DEPT_STROKE_W}" stroke-linejoin="round" stroke-linecap="round" data-dept="${esc(ring.departmentId)}"/>`,

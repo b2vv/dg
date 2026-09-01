@@ -82,12 +82,12 @@ describe('OrgHierarchyDiagram', () => {
     expect(diagram.getLodLevel()).toBe('mid');
     diagram.setZoom(0.2);
     await Promise.resolve();
-    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => { setTimeout(r, 0); });
     expect(diagram.getLodLevel()).toBe('far');
 
     diagram.setZoom(2);
     await Promise.resolve();
-    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => { setTimeout(r, 0); });
     expect(diagram.getLodLevel()).toBe('near');
 
     diagram.destroy();

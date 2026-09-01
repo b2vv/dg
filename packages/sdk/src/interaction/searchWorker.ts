@@ -116,7 +116,7 @@ export async function buildSearchIndexInPool(
       rows,
       Math.max(1, rowsPerChunk),
     );
-    const parts = dtos.map(searchIndexFromDTO);
+    const parts = dtos.map((dto) => searchIndexFromDTO(dto));
     return mergeSearchIndexes([orgPart, ...parts]);
   } catch (err) {
     if (defaultChannel.options.fallbackToMainThread) {

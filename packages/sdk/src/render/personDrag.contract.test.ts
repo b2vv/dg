@@ -107,7 +107,7 @@ describe('person drag contract (T77-M05)', () => {
     // Drag is offered only in the `near` band, and the node views are replaced
     // when the band changes — so zoom first, then take the node.
     diagram.setZoom(1.4);
-    await new Promise((r) => setTimeout(r, 80));
+    await new Promise((r) => { setTimeout(r, 80); });
     const host = (
       diagram as unknown as {
         host: { renderer: { layers: { persons: { children: unknown[] } } } };
@@ -156,7 +156,7 @@ describe('drag is only offered where the card is worth dragging', () => {
     diagram.setZoom(zoom);
     // Crossing an LOD band re-renders the scene and replaces the node views, so
     // the node has to be looked up after the zoom, not before it.
-    await new Promise((r) => setTimeout(r, 80));
+    await new Promise((r) => { setTimeout(r, 80); });
     const host = (
       diagram as unknown as {
         host: { renderer: { layers: { persons: { children: unknown[] } } } };

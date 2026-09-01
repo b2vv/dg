@@ -85,7 +85,7 @@ function summarize(label: string, records: RebuildRecord[]): void {
       p95: at(0.95),
       max: ms[ms.length - 1],
       windowSeats: records[records.length - 1]?.size ?? 0,
-      overlap: records.map(overlapRatio),
+      overlap: records.map((r) => overlapRatio(r)),
       // Where the milliseconds actually are — T88.12 cuts at whichever of these
       // is the big one, and cutting at the wrong one buys nothing.
       buildMs: records.map((r) => r.buildMs),

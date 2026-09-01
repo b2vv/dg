@@ -328,9 +328,9 @@ export class App {
         // `expanded` flags on positions, which is a different mechanism.
         ...(ORG_TREE_TABS.has(this.tab)
           ? {
-              initialExpand: {
-                ...(this.revealParam ? { revealNodeId: this.revealParam } : {}),
-              },
+              initialExpand: this.revealParam
+                ? { revealNodeId: this.revealParam }
+                : {},
             }
           : {}),
         callbacks: this.diagramCallbacks(),

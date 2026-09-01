@@ -111,7 +111,7 @@ function buildDirectedSpineBus(
 
   for (const key of sortedKeys) {
     const row = rows.get(key)!;
-    const centers = row.map(cx);
+    const centers = row.map((box) => cx(box));
     const busLeft = Math.min(...centers, parentCx);
     const busRight = Math.max(...centers, parentCx);
 

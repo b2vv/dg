@@ -41,7 +41,9 @@ const server = createServer(async (req, res) => {
     res.end('not found');
   }
 });
-await new Promise((r) => server.listen(4173, r));
+await new Promise((r) => {
+  server.listen(4173, r);
+});
 
 const results = [];
 const check = (row, ok, detail) => {

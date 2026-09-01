@@ -65,8 +65,8 @@ describe('rectangular magnetic row (T50)', () => {
         magnetRadius: 1.5,
       },
     );
-    const it = contours.filter((c) => c.departmentId === 'IT');
-    expect(it).toHaveLength(1);
-    expect(trueCorners(it[0]!.path, GRID_CELL_WIDTH, GRID_CELL_HEIGHT)).toBe(4);
+    const itCards = contours.filter((c) => c.departmentId === 'IT');
+    expect(itCards).toHaveLength(1);
+    expect(trueCorners(itCards[0]!.path, GRID_CELL_WIDTH, GRID_CELL_HEIGHT)).toBe(4);
   });
 });

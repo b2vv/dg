@@ -115,7 +115,7 @@ export class WorkerPool {
   ): Promise<TOut[]> {
     const size = Math.max(1, Math.floor(chunkSize));
     const chunks = chunkArray(items, size);
-    const results: TOut[] = new Array(chunks.length);
+    const results: TOut[] = Array.from({ length: chunks.length });
     let nextChunk = 0;
 
     const runWorker = async (worker: Worker): Promise<void> => {
@@ -143,7 +143,7 @@ export type MapperRegistry = Record<string, (input: unknown) => unknown | Promis
 
 /** Handler для worker script (import у transform.worker.ts) */
 export function createWorkerMessageHandler(registry: MapperRegistry): void {
-  self.onmessage = async (ev: MessageEvent<WorkerRequest>) => {
+  self.addEventListener('message', async (ev: MessageEvent<WorkerRequest>) => {
     const { id, type, mapperKey, payload } = ev.data;
 
     if (type === 'dispose') {
@@ -177,5 +177,5 @@ export function createWorkerMessageHandler(registry: MapperRegistry): void {
       };
       self.postMessage(res);
     }
-  };
+  });
 }
