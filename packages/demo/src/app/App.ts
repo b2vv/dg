@@ -152,6 +152,8 @@ export class App {
    * a range and no idea why the seat they typed is not on screen.
    */
   private staffNote: string | null = null;
+  /** What the initial deep link did — survives the status `reload()` writes after `create()`. */
+  private revealNote: string | null = null;
   /** Last `onDataMapped` reading — written during `setData`, read right after. */
   private lastMappedMs = 0;
   private contextMenu: ReactContextMenuHost | null = null;
@@ -160,6 +162,18 @@ export class App {
   private readonly e2eMode =
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('e2e');
   /** `?renderer=canvas|webgl|auto` — lets e2e pin the engine the way a host would. */
+  /**
+   * Deep link into the tree: `?reveal=org-42`.
+   *
+   * The whole point of T97 §В2 is that this arrives already open, so it is read
+   * once at construction and handed to `create()` — reading it later would mean
+   * revealing over a frame that has already been painted.
+   */
+  private readonly revealParam =
+    typeof window === 'undefined'
+      ? null
+      : new URLSearchParams(window.location.search).get('reveal');
+
   private readonly rendererParam =
     typeof window === 'undefined'
       ? null
@@ -310,6 +324,15 @@ export class App {
         ...(this.rendererParam
           ? { renderer: this.rendererParam as OrgHierarchyConfig['renderer'] }
           : {}),
+        // Org-tree tabs only: the staff tabs decide their own depth through
+        // `expanded` flags on positions, which is a different mechanism.
+        ...(ORG_TREE_TABS.has(this.tab)
+          ? {
+              initialExpand: {
+                ...(this.revealParam ? { revealNodeId: this.revealParam } : {}),
+              },
+            }
+          : {}),
         callbacks: this.diagramCallbacks(),
       });
       this.staffScheduler = new RebuildScheduler(
@@ -330,7 +353,10 @@ export class App {
       this.mountBulkBar();
       this.setStatus(this.readyStatus());
       this.fitDiagramView();
-      this.setStatus(`${this.tabLabel()} · zoom ${this.diagram.getZoom().toFixed(2)}`);
+      this.setStatus(
+        `${this.tabLabel()} · zoom ${this.diagram.getZoom().toFixed(2)}` +
+          (this.revealNote ? ` · ${this.revealNote}` : ''),
+      );
       this.mountSceneCaption();
       if (this.tab === 'staff-1m' && this.staffScaleWindow) {
         this.syncStaffWindowMarker(this.staffScaleWindow);
@@ -347,6 +373,7 @@ export class App {
     this.staffScheduler?.stop();
     this.staffScheduler = null;
     this.staffNote = null;
+    this.revealNote = null;
     this.promote?.dispose();
     this.promote = null;
     this.testAnchors?.dispose();
@@ -406,6 +433,18 @@ export class App {
       // already offers for it.
       onDataMapped: (stats) => {
         this.lastMappedMs = stats.ms;
+      },
+      onInitialExpand: (result) => {
+        // Kept as a note, not written straight to the status: this fires inside
+        // `create()`, and `reload()` sets the tab label right after — the
+        // message would be gone before anyone read it. Same trap as the staff
+        // tier note (T88 §25.1).
+        this.revealNote = result.revealedOrgId
+          ? `opened to ${result.revealedOrgId}`
+          : (result.reason ?? 'reveal target not found');
+      },
+      onRenderFailed: (failure) => {
+        this.setStatus(`${this.tabLabel()} · scene not drawn: ${failure.reason}`);
       },
       onSelectionChange: (nodes) => {
         this.setStatus(
