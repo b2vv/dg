@@ -195,6 +195,55 @@ export function resolveStaffWindowStart(
   return start;
 }
 
+/** Reports per manager in the generated hierarchy. */
+export const STAFF_FANOUT = 8;
+
+/**
+ * Who a seat reports to, by arithmetic on its own index.
+ *
+ * The window exists because a seat's cell is a division rather than a lookup,
+ * and the hierarchy has to be bought at the same price: no graph, no search, no
+ * materialising the neighbours. Seats are blocks of {@link STAFF_FANOUT}; the
+ * first of a block manages the rest, the first of a block-of-blocks manages
+ * those firsts, and so on. In index terms that is «strip the lowest digit in
+ * base 8 that is not already zero».
+ *
+ * The obvious alternative — `parent = floor(i / fanout)` — is a tree on paper
+ * and long edges on the wall: the grid is laid out by index, so parent 375 ends
+ * up 110 rows from child 3001. This scheme keeps a child beside its manager;
+ * measured over four thousand seats the median edge spans **4** seats, and only
+ * 62 of 3 999 reach further than 64 (T96).
+ */
+export function staffParentOfSeat(index: number, firstSeat = LEAD_SEATS): number | null {
+  const local = index - firstSeat;
+  if (local <= 0) return null;
+  let step = STAFF_FANOUT;
+  while (local % step === 0) step *= STAFF_FANOUT;
+  return firstSeat + local - (local % step);
+}
+
+/**
+ * The managers above a seat that the window does not hold.
+ *
+ * A window is a contiguous slice, and a chain of managers is not: a seat deep in
+ * the wall answers to a block head that may sit thousands of indices back. Those
+ * few have to be in the scene, or their report lines would point at cards that
+ * do not exist — the invariant `scaleStaff.test.ts` guards.
+ */
+export function staffAncestorsOutside(
+  index: number,
+  range: { start: number; end: number },
+  firstSeat = LEAD_SEATS,
+): number[] {
+  const out: number[] = [];
+  let cursor = staffParentOfSeat(index, firstSeat);
+  while (cursor !== null && !(cursor >= range.start && cursor < range.end)) {
+    out.push(cursor);
+    cursor = staffParentOfSeat(cursor, firstSeat);
+  }
+  return out;
+}
+
 /** Parse «pos-123456» / «123456» into a seat index, or null. */
 export function parseScaleStaffQuery(query: string, total = STAFF_SCALE_TOTAL): number | null {
   const q = query.trim().toLowerCase();
@@ -323,15 +372,31 @@ function currentTier(range: { start: number; end: number; leadSeats: number }, f
   const headInWall = headIndex >= range.start && headIndex < range.end;
   const wallBase = snapWallBase(range.start);
 
-  if (!headInWall) {
-    pushSeat(tier, headIndex, {
-      id: headId,
-      title: `${seatTitle(headIndex)} · head`,
+  // Managers of seats in this window that the window itself does not hold. A
+  // window is a contiguous slice and a chain of managers is not, so these few
+  // are pinned into the head row — the same trick the head already used, for
+  // the same reason: an edge whose other end is missing is not an edge.
+  const pinned = new Set<number>();
+  for (let i = range.start; i < range.end; i += 1) {
+    for (const ancestor of staffAncestorsOutside(i, range, range.leadSeats)) pinned.add(ancestor);
+  }
+  pinned.delete(headIndex);
+
+  if (!headInWall) pinned.add(headIndex);
+
+  let pinnedCol = 0;
+  for (const index of [...pinned].sort((a, b) => a - b)) {
+    pushSeat(tier, index, {
+      id: `pos-${index}`,
+      title:
+        index === headIndex
+          ? `${seatTitle(index)} · head`
+          : `${seatTitle(index)} · manager`,
       organizationId: 'current-org',
-      departmentId: departmentOfSeat(headIndex - range.leadSeats),
-      isHead: true,
-      // Its own row above the wall, so it never collides with a real cell.
-      gridCell: { col: 0, row: 0 },
+      departmentId: departmentOfSeat(index - range.leadSeats),
+      isHead: index === headIndex,
+      // Their own row above the wall, so they never collide with a real cell.
+      gridCell: { col: pinnedCol++, row: 0 },
     });
   }
 
@@ -345,7 +410,16 @@ function currentTier(range: { start: number; end: number; leadSeats: number }, f
       gridCell: cellOfSeat(i, wallBase),
       testId: i === focusIndex ? 'scale-focus-seat' : undefined,
     });
-    if (i !== headIndex) tier.reportLines.push({ fromId: headId, toId: `pos-${i}`, kind: 'admin' });
+  }
+
+  // Edges last, over the union of window seats and pinned managers, so both
+  // ends of every line are in the scene by construction.
+  const present = new Set<number>(pinned);
+  for (let i = range.start; i < range.end; i += 1) present.add(i);
+  for (const i of present) {
+    const parent = staffParentOfSeat(i, range.leadSeats);
+    if (parent === null || !present.has(parent)) continue;
+    tier.reportLines.push({ fromId: `pos-${parent}`, toId: `pos-${i}`, kind: 'admin' });
   }
   tier.reportLines.push({ fromId: 'pos-0', toId: headId, kind: 'dotted' });
   return tier;

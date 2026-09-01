@@ -8,6 +8,9 @@ import {
   scaleStaffNameMatches,
   scaleStaffNamePage,
   scaleStaffPersonName,
+  staffAncestorsOutside,
+  staffParentOfSeat,
+  STAFF_FANOUT,
   STAFF_SCALE_COLS,
   STAFF_SCALE_DEFAULT_FOCUS,
   STAFF_SCALE_TOTAL,
@@ -151,11 +154,15 @@ describe('T88.1 — geometry that survives a sliding window', () => {
       .filter((id) => b.data.positions.some((p) => p.id === id));
     expect(shared.length).toBeGreaterThan(100);
 
-    // The pinned head is the one documented exception: its identity is fixed,
-    // its cell rides above the wall so the report lines keep both ends on
-    // screen. Naming it here beats filtering it out quietly — if a second card
-    // ever starts moving, this list is what catches it.
-    const movedSideways = shared.filter((id) => cellOf(a, id)?.col !== cellOf(b, id)?.col);
+    // Seats pinned above the wall are the documented exception: their cells ride
+    // in row 0 so their report lines keep both ends on screen. That used to be
+    // exactly one card, the head; since tier 2 became a hierarchy (T96) it is
+    // the head plus whichever managers this window does not hold. Row 0 is the
+    // discriminator — `cellOfSeat` starts the wall at row 1 — and everything
+    // else must still hold its column.
+    const onWall = shared.filter((id) => cellOf(a, id)?.row !== 0 && cellOf(b, id)?.row !== 0);
+    expect(onWall.length).toBeGreaterThan(100);
+    const movedSideways = onWall.filter((id) => cellOf(a, id)?.col !== cellOf(b, id)?.col);
     expect(movedSideways).toEqual([]);
   });
 
@@ -174,9 +181,12 @@ describe('T88.1 — geometry that survives a sliding window', () => {
     const shift = (b.wallBase - a.wallBase) / STAFF_SCALE_COLS;
     expect(shift).toBe(1);
     const shared = a.data.positions
-      .filter((p) => p.organizationId === 'current-org' && p.id !== `pos-${LEAD_SEATS}`)
+      .filter((p) => p.organizationId === 'current-org')
       .map((p) => p.id)
-      .filter((id) => b.data.positions.some((p) => p.id === id));
+      .filter((id) => b.data.positions.some((p) => p.id === id))
+      // Pinned managers ride in row 0 and do not shift with the wall — see the
+      // column test above for why that set is no longer just the head.
+      .filter((id) => cellOf(a, id)?.row !== 0 && cellOf(b, id)?.row !== 0);
     for (const id of shared.slice(0, 50)) {
       expect(cellOf(b, id)?.row).toBe((cellOf(a, id)?.row ?? 0) - shift);
     }
@@ -256,5 +266,74 @@ describe('name search by congruence (T88.10)', () => {
       total: 0,
       hasMore: false,
     });
+  });
+});
+
+describe('tier 2 is a hierarchy, not a star (T96)', () => {
+  it('success: a manager is arithmetic on the index — no search, no graph', () => {
+    // The window exists because a cell is a division. The hierarchy is bought at
+    // the same price or the window loses the property it was built for.
+    expect(staffParentOfSeat(LEAD_SEATS)).toBeNull();
+    expect(staffParentOfSeat(LEAD_SEATS + 1)).toBe(LEAD_SEATS);
+    expect(staffParentOfSeat(LEAD_SEATS + 7)).toBe(LEAD_SEATS);
+    // A block head answers one level up, not to its neighbour.
+    expect(staffParentOfSeat(LEAD_SEATS + 8)).toBe(LEAD_SEATS);
+    expect(staffParentOfSeat(LEAD_SEATS + 9)).toBe(LEAD_SEATS + 8);
+    expect(staffParentOfSeat(LEAD_SEATS + 72)).toBe(LEAD_SEATS + 64);
+  });
+
+  it('success: every chain ends at the head, and none of them loops', () => {
+    for (const offset of [1, 9, 73, 512, 4095, 100_000]) {
+      let cursor: number | null = LEAD_SEATS + offset;
+      let steps = 0;
+      while (cursor !== null && steps < 50) {
+        cursor = staffParentOfSeat(cursor);
+        steps += 1;
+      }
+      expect(cursor).toBeNull();
+      expect(steps).toBeLessThan(20);
+    }
+  });
+
+  it('success: managers sit near their reports — that is the whole point', () => {
+    // The refuted alternative, `floor(i / fanout)`, is a tree on paper: the grid
+    // lays out by index, so it puts parent 375 a hundred rows from child 3001
+    // and every edge crosses the wall again (T88 §15.1).
+    const spans: number[] = [];
+    for (let offset = 1; offset < 4000; offset += 1) {
+      spans.push(offset + LEAD_SEATS - (staffParentOfSeat(LEAD_SEATS + offset) ?? 0));
+    }
+    spans.sort((x, y) => x - y);
+    expect(spans[Math.floor(spans.length / 2)]).toBeLessThanOrEqual(STAFF_FANOUT);
+    // A handful reach further — those are the block heads answering upward.
+    expect(spans.filter((d) => d >= 64).length).toBeLessThan(spans.length / 50);
+  });
+
+  it('success: a window materialises a tree, not a fan from one node', () => {
+    const win = buildScaleStaffWindow({ focusIndex: 350_000, windowSize: 600 });
+    const admin = win.data.reportLines.filter((l) => l.kind === 'admin');
+    const parents = new Set(admin.map((l) => l.fromId));
+    // The star had one parent for the whole tier and a fanout equal to it.
+    expect(parents.size).toBeGreaterThan(20);
+    const fanout = new Map<string, number>();
+    for (const line of admin) fanout.set(line.fromId, (fanout.get(line.fromId) ?? 0) + 1);
+    expect(Math.max(...fanout.values())).toBeLessThan(60);
+  });
+
+  it('failure: no report line points at a card the scene does not have', () => {
+    // The invariant the pinning exists for: a manager outside the window is
+    // materialised above the wall rather than left as a dangling edge.
+    const win = buildScaleStaffWindow({ startIndex: 400_000, windowSize: 900 });
+    const ids = new Set(win.data.positions.map((p) => p.id));
+    for (const line of win.data.reportLines) {
+      expect(ids.has(line.fromId) || line.fromId === 'pos-0').toBe(true);
+      expect(ids.has(line.toId)).toBe(true);
+    }
+  });
+
+  it('failure: pinning a chain costs a handful of seats, not a second window', () => {
+    // If this ever grows with the window, the window has stopped being a window.
+    const outside = staffAncestorsOutside(500_000, { start: 499_800, end: 500_400 });
+    expect(outside.length).toBeLessThan(10);
   });
 });
