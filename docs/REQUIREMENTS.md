@@ -204,6 +204,15 @@ interface NodeTheme {
 
 ### 4.6 Dept contour — обтікання (канонічні приклади)
 
+> ⚠️ **Звірено 2026-09-02.** Нижче описано **один** спосіб малювання, а їх **два**, за прапорцем
+> `RenderConfig.contourEngine`:
+> - `button-group` (**default**) — TS-фарба: округлий прямокутник навколо карток компоненти,
+>   чужі картки вирізані з нього (G2/M2, T79);
+> - `cell-flood` — Rust polyomino flood G1–G8, який і описує п.5 «Chaikin/Bezier».
+>
+> Пункти нижче — правила, спільні для обох; **форма** відрізняється.
+> SVG-експорт бере **той самий** рушій, що канвас (`export/svgExport.ts`).
+
 **Загальне правило:**
 
 1. Positions розставляються на **координатній сітці** (`col`, `row` або `layoutX/Y`).
@@ -513,6 +522,8 @@ const diagramData = await mapInWorker(worker, 'flatRowsToDiagram', rawRows);
 
 ### 4.10 Callbacks для інтеграції
 
+Чернетка, з якої почали:
+
 ```ts
 interface OrgHierarchyCallbacks {
   onNodeClick?(node: NodeRef): void;
@@ -524,6 +535,24 @@ interface OrgHierarchyCallbacks {
 
 **Прибрано з обов'язкових:** `fetchNeighborhood`, `fetchStaffPage` — замінено на `data` / `setData()` / incremental `appendData()`.
 
+**Канон — `packages/sdk/src/callbacks.ts`** (звірено 2026-09-02). Понад чернетку там є:
+
+| Канал | Навіщо |
+|---|---|
+| `onViewportChange(transform, { settled, reason })` | видима область змінилась; `settled` — один виклик після зупинки камери. Це те, на чому хост будує **вікно** над великим набором |
+| `searchBeyondWindow(query, page)` | пошук поза тим, що зараз у `DiagramData` — інакше «нічого не знайдено» означало б «немає у вікні» |
+| `onRenderFailed(failure)` | **окремий** канал від `onLayoutDiagnostics`: діагностика пояснює намальовану сцену, цей каже, що сцени немає |
+| `onInitialExpand(result)` | чим завершилось початкове розкриття |
+| `onSelectionChange`, `onOrgModeChange`, `onLayoutDiagnostics`, `onPositionExpandChange` | стан сцени |
+
+`LayoutPatch` має п'ять типів: `position-move`, `matrix-reorder`, `matrix-cell`, `block-shift`,
+`position-expand` і **`position-reparent`** (несе і старого, і нового керівника, щоб хост міг
+застосувати зміну без діфа й відкотити її).
+
+**Хто застосовує зміну:** SDK міняє свою копію даних і **потім** повідомляє хоста патчем. Це
+стосується і перетягування картки, і переприв'язки. Хост, який хоче останнє слово, шле власний
+`setData`.
+
 ---
 
 ## 5. Технологічний стек (фінальний)
@@ -532,9 +561,10 @@ interface OrgHierarchyCallbacks {
 |-----|------------|
 | Core compute | **Rust → WASM** (+ dept polyomino pack, contour) |
 | Threading | **Web Worker** (не Service Worker) |
-| Render | **Pixi.js** WebGL, LOD, instancing |
-| Bridge | TypeScript, embeddable API |
-| Bundler | **Rsbuild** |
+| Render | **Pixi.js** — WebGL **або Canvas2D** (вибір видно як `getRendererKind()`), LOD. Ticker вимкнено: кадр треба попросити |
+| Bridge | TypeScript **7**, embeddable API |
+| Bundler | **Rsbuild** — демо. SDK збирається `tsc` |
+| Tests / lint | **rstest** + Playwright; **oxlint** як гейт CI |
 | Data | **In-memory** + **DataMapper** (API опційно зовні) |
 | Export | SVG / PNG / PDF / print |
 

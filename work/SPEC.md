@@ -50,11 +50,12 @@ stateDiagram-v2
 3. Зібрати `LayoutNode[]` + `LayoutEdge[]` (orthogonal edge paths)
 4. Normalize bounds + margin offset
 
-**Matrix layout** (planned, не в WASM):
+**Matrix layout** — **реалізовано в TS**, не в WASM (`layout/matrixLayout.ts`; звірено 2026-09-02;
+цей пункт раніше стояв як «planned»):
 
-1. Collapsed org → node у sparse grid або force-directed adjacency
+1. Collapsed org → node у sparse grid за `matrixOrder` / авторськими координатами
 2. Edges між org за `orgLinks` / parent-child
-3. D&D → reorder index у matrix row/column
+3. D&D → reorder index у matrix row/column (`LayoutPatch` `matrix-reorder` / `matrix-cell`)
 
 ### 2.2 Штатка (staff) — три вертикальні яруси
 
@@ -473,16 +474,23 @@ Host raw data
 | Mid | compact card | full contour | card |
 | Near | full card + photo | full contour + label | full card + emblem |
 
-**v1:** увесь LOD і ноди — **лише Pixi** (WebGL). HTML лише для popup / context menu / modal **поза** полотном нод (не React-картка на кожну ноду).  
+**v1:** увесь LOD і ноди — **Pixi**. Полотно піднімається на **WebGL або Canvas2D** — вибір
+видно як `getRendererKind()`, і під софтверним GL Canvas2D свідомо кращий (T83). HTML лише для
+popup / context menu / modal **поза** полотном нод (не React-картка на кожну ноду).
+
+**Полотно не перемальовується саме:** ticker вимкнено, кадр треба попросити (`requestPaint`, T84).  
 LOD bands від `Viewport.scale` (`resolveLodLevel`): far &lt; 0.45 · mid &lt; 1.2 · near — спрощені person/org/contour.
 
-**v1.x (після готової v1 — покращення UX):** опційний шар **HTML/React/SVG promote** поверх Pixi-підкладки:
+**Promote — зроблено** (T26 + T87, звірено 2026-09-02; нижче лишено як опис механізму, а не як
+план). Опційний шар **HTML/React/SVG promote** поверх Pixi-підкладки:
 
 - Pixi лишається камерою, pan/zoom, масою нод, edges, contours;
 - при near-zoom / selection / viewport — promote обраних нод у React (кнопки, img, вкладений Chart.js тощо);
 - один world→screen з Pixi viewport; не дублювати layout у tree-lib.
 
-Повертатись до v1.x **лише коли v1 стабільна** (org + staff vertical slice, export, жести). Не блокує v1.
+Кандидатів відбирає **near-visible гейт** — тест LOD над множиною нод, а не продюсер id
+(`render/promoteMath.ts`, T87). Promote-HTML **не** потрапляє в SVG/PNG/PDF — це лишається
+обмеженням експорту.
 
 Деталі / acceptance — [`TD07-pixi-react-promote-overlay.md`](./tech-debt/TD07-pixi-react-promote-overlay.md); roadmap §11 фаза 5.
 
@@ -529,6 +537,22 @@ z-order bottom → top:
 | Block shift ↑↓ | shift hierarchyLevel block | ✅ |
 | Export | SVG/PNG/PDF/print | ✅ T05 |
 | Layout diagnostics | soft warnings to host | ✅ T24 |
+| **D&D person → re-parent** | drop a seat on another seat → it reports there | ✅ T91 |
+| **Render failure channel** | «сцену не намальовано, причина X» — окремо від diagnostics | ✅ `onRenderFailed` |
+| **Initial expand** | розкрити до мінімуму / до `revealNodeId` **до першого кадру** | ✅ T97 |
+| **Viewport change** | `onViewportChange(transform, { settled })` — хост міняє зріз даних | ✅ T88 |
+| **Host search beyond the window** | `searchBeyondWindow(query, page)` | ✅ T88 |
+
+**Що означає drag на картці посади — вирішує сцена, не користувач** (T91). Розкладка проставляє
+`role`; авторська координата (`anchor` / `matrix`) → **перемістити** в комірку, обчислена
+(`tree` / `floating` / `detached`) → **перепідпорядкувати**, зовнішній пін (`external`) → нічого,
+жест іде в пан. Цикл у підпорядкуванні створити неможливо: перевірка йде вгору від **нової**
+цілі й **не** зупиняється на межі організації, бо ціль з іншої організації дозволена.
+
+**Вікно за камерою — патерн хоста, не функція SDK.** SDK повідомляє, що видима область
+змінилась, і приймає новий зріз через `setData`; арифметику вікна тримає хост
+(`packages/demo/src/app/viewportWindow.ts`, T88). Culling у сцені **немає** — T89 закрито без
+імплементації.
 
 ---
 
@@ -555,8 +579,23 @@ z-order bottom → top:
 
 ### 8.2 Не в v1 (backlog)
 
-- Pixi + HTML/React promote overlay — [TD07](./tech-debt/TD07-pixi-react-promote-overlay.md)
+- ~~Pixi + HTML/React promote overlay~~ — **зроблено** (T26 + near-visible гейт T87)
 - Auto-resolve overlapping anchors (diagnostics only)
+- Promote-HTML **не** входить у SVG/PNG/PDF — експорт лишається без нього
+- Culling сцени — **закрито без імплементації** (T89): вікно вирішує задачу на рівні даних
+
+### 8.3 Додано після v1 (звірено 2026-09-02)
+
+| Що | Де | Задача |
+|----|----|--------|
+| Вибір рушія + фолбек на Canvas2D | `render/PixiHost.ts`, `getRendererKind()` | T83 |
+| Paint on demand (ticker вимкнено) | `render/PixiHost.ts`, `requestPaint` | T84 |
+| Near-visible гейт для promote | `render/promoteMath.ts` | T87 |
+| Вікно за камерою + пошук поза вікном | `onViewportChange`, `searchBeyondWindow`; арифметика в демо | T88 |
+| Переприв'язка посади + перевірка циклу | `interaction/positionReparent.ts`, `render/dropTargetIndex.ts` | T91 |
+| Пін зовнішнього керівника | `layout/staff/externalManagers.ts` | T91 |
+| Початкове розкриття + медіа за розкриттям | `data/initialExpand.ts` | T97 |
+| Канал «сцену не намальовано» | `onRenderFailed` | T97 |
 
 ---
 
@@ -639,7 +678,11 @@ diagram.destroy();
 | Шар | Runner | Команда |
 |-----|--------|---------|
 | Rust WASM | `cargo test` | `npm run test:rust` |
-| TypeScript SDK | Vitest (додати) | `npm run test -w @org-hierarchy/sdk` |
+| TypeScript SDK / demo | **rstest** (мігровано з Vitest) | `npm test` |
+| E2E | Playwright (Chromium; друга пробіжка під `SOFTWARE_GL=1`) | `npm run test:e2e` |
+| Стенди-вимірювачі | Playwright за `HARNESS=1` — інакше `testIgnore` знайде нуль тестів | `npm run measure:window` · `measure:motion` |
+| Lint | **oxlint** — гейт у CI | `npm run lint` |
+| Types | `tsc` (включно з тестами, `tsconfig.check.json`) | `npm run typecheck` |
 
 ### Workflow на задачу
 

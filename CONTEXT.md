@@ -101,3 +101,51 @@ _Avoid_: Serving from `npm run dev` in CI
 **Promote overlay**:
 HTML/React cards for selected near-LOD nodes, camera-synced (`createReactPromoteOverlay`); Pixi views hidden while promoted.
 _Avoid_: Mass HTML for every node; rasterizing promote into export (interactive-only)
+
+**Paint request (render on demand)**:
+The Pixi ticker is off (`autoStart: false`); every path that moves pixels asks for a frame via
+`requestPaint` / `onNeedsPaint`. An idle tab costs nothing (T84).
+_Avoid_: Render loop, animation frame loop; "the renderer redraws itself"
+
+**Renderer kind**:
+Which backend Pixi actually got — `webgl` or `canvas` — readable as `getRendererKind()`. Under a
+software GL stack Canvas2D is deliberately preferred (T83).
+_Avoid_: "Pixi renders on WebGL" as a flat statement
+
+**Viewport window**:
+A slice of a much larger address space that the **host** keeps in `DiagramData`, recomputed as the
+camera moves (`onViewportChange` → `setData`). The 1M-seat demo tab draws ≤ 4000 seats this way.
+The arithmetic lives in the demo, not the SDK (T88).
+_Avoid_: "the SDK holds a million seats"; culling (nothing is hidden — it was never built)
+
+**Near-visible gate**:
+The LOD test that decides which nodes may be promoted to HTML — a gate over candidates, not a
+producer of ids (T87).
+_Avoid_: "promote list", "visible node set"
+
+**Initial expand**:
+The expansion the SDK computes **before the first frame**: our root and its ancestors open,
+everything else closed; `revealNodeId` opens the chain to a deep-linked node. Images load by
+expansion, so a closed branch asks for none (T97).
+_Avoid_: "default collapsed state" (the host's own flags are overwritten when this is opted into)
+
+**Seat drag mode**:
+What dragging a seat card means, decided by the layout's `role`, not by the user: an authored
+coordinate (`anchor` / `matrix`) **moves**, a computed one **re-parents**, a pinned external
+manager does neither (T91).
+_Avoid_: "drag mode toggle", "edit mode"
+
+**Re-parent**:
+Changing which seat a seat reports to, by dropping its card on another card. Applied by the SDK,
+reported to the host as `LayoutPatch { type: 'position-reparent' }`.
+_Avoid_: "move the link", "reconnect edge" (edges are derived, not entities)
+
+**Drop target index**:
+Per-render bucketing of drawn card boxes so "which card is under the pointer" costs the same at
+40 000 cards as at 25.
+_Avoid_: Walking every node on `pointermove`
+
+**External manager pin**:
+A manager from another organisation, drawn as a dimmed card above the block so a cross-org
+reporting line has somewhere to end. Not a member of the block and not counted as one (T91).
+_Avoid_: "ghost node" as a general term; drawing the line across the whole scene

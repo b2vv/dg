@@ -1,6 +1,24 @@
-# Issue tracker: GitHub
+# Issue tracker: in-repo, under `work/`
 
-Issues and specs for this repo live as GitHub issues on [`b2vv/dg`](https://github.com/b2vv/dg). Use the `gh` CLI for all operations.
+> **Corrected 2026-09-02.** This file used to say issues live on GitHub. They do not:
+> `gh issue list --state all` returns an empty array, and has since the repo was created.
+> An agent that took this file at its word looked for the backlog in the one place it was
+> guaranteed not to be.
+
+**The live backlog is `work/tasks/` and `work/tech-debt/`**, one Markdown file per task, with
+`work/README.md` as the index. That is where to look for what is open, and where a new task goes.
+
+⚠️ **A status line in a task header is not evidence.** On 2026-09-01 three tasks read
+«🔵 не почато» while holding 15, 4 and 39 commits on `main` — one of them with a full ship
+report. Check `git log --grep="(T88"` before believing a header.
+
+## GitHub as a fallback
+
+Nothing is published to GitHub Issues today. The conventions below stay for the day that
+changes — and for the skills that say «publish to the issue tracker», which should then be
+read as «create the file under `work/tasks/`».
+
+Use the `gh` CLI for all GitHub operations.
 
 ## Conventions
 
@@ -13,7 +31,7 @@ Issues and specs for this repo live as GitHub issues on [`b2vv/dg`](https://gith
 
 Infer the repo from `git remote -v`; `gh` does this automatically when run inside a clone.
 
-Day-to-day implementation tasks also live under `work/tasks/` and `work/tech-debt/` in-repo; prefer GitHub Issues when a skill says "publish to the issue tracker".
+Day-to-day implementation tasks live under `work/tasks/` and `work/tech-debt/` in-repo — that is the source of truth, not a secondary copy.
 
 ## Pull requests as a triage surface
 
