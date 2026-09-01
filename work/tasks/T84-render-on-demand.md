@@ -1,6 +1,8 @@
 # T84 — Render-on-demand: перестати малювати нерухому картинку 60 разів на секунду
 
-**Пріоритет:** P1 · **Статус:** 🔵 не почато
+**Пріоритет:** P1 · **Статус:** ✅ виконано (2026-08-27) — `9bc54b1`
+**Примітка (2026-09-01):** заголовок казав «не почато». Ticker вимкнено (`autoStart: false`),
+усе, що рухає пікселі, просить `requestPaint`. Виправлено під час перезбору брифінгу.
 **Підстава:** `work/reports/zero-client/report.md` §1 — простійна вкладка палить ~1.2 ядра.
 **Файли:** `packages/sdk/src/render/PixiHost.ts`, `packages/sdk/src/render/Viewport.ts`,
 `packages/sdk/src/render/personInteractions.ts`, `packages/sdk/src/OrgHierarchyDiagram.ts`

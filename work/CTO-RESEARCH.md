@@ -1,12 +1,12 @@
 # CTO research — Org Hierarchy SDK (`b2vv/dg`)
 
-**Дата:** 2026-08-25  
-**Базис:** `origin/main` @ `e02bc2f` (після T79–T82 і двох осей рев'ю)  
+**Дата:** 2026-09-01
+**Базис:** `origin/main` @ `806c843` (після T83, T84, T87, T88, T91, T93–T97)
 **Призначення:** єдиний брифінг перед будь-якою імплементацією. Це не тікет і не ADR.
 
 Кожна теза нижче веде в первинне джерело (код, workflow, `work/tasks/`, `docs/`). Якщо джерело і цей файл розходяться — править джерело, не цей кеш.
 
-**Що змінилось із `a5eb0f6`:** 45 комітів. Зачепили продукт (три нові демо-таби), seams (повна розбивка модулів T82), інфру (CRG), ризики (T78 P0+P1 закриті). Розділи 1–4 і 6–9 перезібрані; залежності (розділ 5) і CI не змінювались — `package.json` / lock / `Cargo.toml` / `.github/` мають нульовий діф до базису.
+**Що змінилось із `e02bc2f`:** 174 коміти — попередній базис протримався шість днів і встиг застаріти в п'яти місцях, з яких два **навчали неправди** (див. «Що цей перезбір спростував»). Зачепили тулінг (перший лінтер у репо; vitest → rstest; TS 7), рендер (paint on demand, вибір рушія, promote), продукт (вікно за камерою, початковий стан, переприв'язка посад), CI (+2 workflow). Розділи 1–8 перезібрані.
 
 ---
 
@@ -14,9 +14,29 @@
 
 **Продукт** — embeddable browser SDK організаційних і штатних діаграм: host дає дані в пам'ять, SDK розкладає й малює Pixi-полотно, експортує SVG/PNG/PDF. Заміна прод-діаграми на GoJS у host-репо. ([`docs/REQUIREMENTS.md`](../docs/REQUIREMENTS.md) §0–§1; [T71](./tasks/T71-gojs-to-dg-migration-plan.md))
 
-**Стан:** живого P0 **немає** — [T78](./tasks/T78-post-t77-critique.md) закритий цілком («🟢 P0 done · P1 done»). Після нього зроблено: G2/M2 на фарбі ([T79](./tasks/T79-g2-m2-paint-notch.md)), другий рушій контуру для вибору BA ([T80](./tasks/T80-contour-engines-ba-demo.md)), таб на 1M посад ([T81](./tasks/T81-staff-1m-scale-tab.md)), розбивка коду по модулях ([T82](./tasks/T82-module-split.md)). Черга далі — **продуктові рішення, не код**: вибір рушія контуру (BA), макет для T61, чек-лист T56.
+**Стан:** живого P0 немає. Від попереднього базису закрито дві P1-задачі продуктивності (T83 вибір рушія, T84 paint on demand), promote near-visible (T87), вікно за камерою (T88), початковий стан діаграми (T97) і переприв'язка посад (T91). Черга далі — **продуктові рішення, не код**: вибір рушія контуру (BA, T80), макет для T61, чек-лист T56.
 
-**Архітектурний факт №1:** контур на канвасі тепер має **два рушії** за прапорцем `RenderConfig.contourEngine` (default `'button-group'`, [`render/types.ts:412`](../packages/sdk/src/render/types.ts)). `'cell-flood'` **справді** тягне Rust-flood через `computeAllContours` по кожному org-блоку ([`render/contour/floodContourEngine.ts:90`](../packages/sdk/src/render/contour/floodContourEngine.ts)) — стара теза «WASM не на paint-шляху» більше не універсальна. **Але `export/` рушія не знає**: SVG завжди малює `paintMagneticGroups` ([`export/svgExport.ts:196,331`](../packages/sdk/src/export/svgExport.ts), у `export/` немає жодної згадки `contourEngine`). Тобто діаграма з `cell-flood` експортується button-group-кільцями — canvas ≠ export, і це ніде не задокументовано.
+**Архітектурний факт №1 — сцена більше не малює себе сама.** `autoStart: false`, спільного ticker'а немає, і **кожен** шлях, що рухає пікселі, зобов'язаний попросити `requestPaint` ([`render/PixiHost.ts:229-231`](../packages/sdk/src/render/PixiHost.ts), T84). Наслідок для будь-якої нової фічі: намалював у обхід — картинка не оновиться, і жоден тест на дані цього не помітить. Драг картки просить фарбу явно ([`render/personInteractions.ts`](../packages/sdk/src/render/personInteractions.ts)).
+
+**Архітектурний факт №2 — рендерер може бути не WebGL.** Полотно піднімається на WebGL або Canvas2D, вибір видно назовні (`getRendererKind()`), і під софтверним GL Canvas2D свідомо кращий (T83). CI ганяє окрему пробіжку з `SOFTWARE_GL=1`, бо ця гілка існує лише там, де браузер відмовляє в контексті ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)).
+
+**Архітектурний факт №3 — «1M посад» це вікно, і воно живе в демо, не в SDK.** Арифметика вікна — [`packages/demo/src/app/viewportWindow.ts`](../packages/demo/src/app/viewportWindow.ts); SDK лише повідомляє хосту, що видима область змінилась (`onViewportChange`, `settled`), і приймає новий зріз через `setData`. Тобто вікно — **патерн хоста**, який SDK уможливлює, а не вміє сам.
+
+---
+
+## Що цей перезбір спростував
+
+Списком, бо ці твердження жили в файлі як факти й керували рішеннями.
+
+| Було написано | Насправді | Доказ |
+|---|---|---|
+| «`export/` рушія не знає: SVG завжди малює `paintMagneticGroups`… canvas ≠ export» — і це був **архітектурний факт №1 на першому екрані** | Експорт читає рушій і бере той самий, що канвас. Файл суперечив сам собі: §2.4 і §6 казали «закрито 2026-08-26», а шапка — ні | [`export/svgExport.ts:85`](../packages/sdk/src/export/svgExport.ts) |
+| §4.2 + §8 правило 7: «WASM pkg gitignored; свіжий clone без `build:wasm` не проганяє contour-тести» | pkg **у git** з 2026-08-25, рішення TD05 перевернуте — бібліотеку віддають як git-залежність | `git ls-files packages/sdk/src/wasm/pkg` · [`.gitignore:23`](../.gitignore) · [TD05](./tech-debt/TD05-wasm-pkg-in-repo.md) |
+| §5: «Нульовий діф до базису — таблиця чинна» | Змінився тестовий раннер, компілятор, збірка SDK і з'явився лінтер | `git diff e02bc2f..HEAD -- package.json packages/sdk/package.json` |
+| §3: «Тести: Vitest+jsdom» | **rstest** (`@rstest/core`) | [`packages/sdk/package.json`](../packages/sdk/package.json) |
+| §4.4: «живий беклог — `work/tasks/`» | Карта брехала про себе: T83 (15 комітів), T84 (4), T88 (39 + ship-report) стояли «🔵 не почато». Виправлено в самих задачах 2026-09-01 | `work/tasks/T83…`, `T84…`, `T88…` |
+
+**Урок для наступного перезбору:** розходження було не там, де файл сумнівався, а там, де він **стверджував найупевненіше** — на першому екрані. Шапку треба перечитувати проти коду першою, а не останньою.
 
 ---
 
@@ -44,6 +64,10 @@
 **Організації** — усі collapsed → **matrix** (sparse grid, TS); ≥1 expanded → **row-tree** (Ploeg WASM `computeOrgRowTreeLayout`). Перемикач `detectOrgMode` / `isOrgCollapsed` ([`layout/orgMode.ts`](../packages/sdk/src/layout/orgMode.ts)).
 
 **Штатка — три яруси** (поточна org завжди в ярусі 2). Per-org coords: matrix / tree / **hybrid anchors** (default). Drill = `focusStaffOrg`; expand-in-place = `toggleStaffOrgExpand` (T20). ([SPEC §2.2](./SPEC.md))
+
+**Початковий стан — не «як прислав хост», а обчислений** (T97). `initialExpand` розкриває рівно мінімум: наш корінь і його предків, решта закрита; `revealNodeId` веде глибоке посилання в ціль **до першого кадру**, а не після. Зображення вантажаться **за розкриттям**, не за датасетом — закрита гілка не просить ні символів організацій, ні фотографій людей ([`data/initialExpand.ts`](../packages/sdk/src/data/initialExpand.ts), `render/mediaByExpansion.contract.test.ts`).
+
+**Координата посади має два різні статуси, і від цього залежить жест.** Авторська (`gridCell` — дані хоста) → драг **пересуває**. Обчислена розкладкою → драг **переприв'язує** до іншого керівника, бо писати `gridCell` у картку, чию позицію рахує розкладка, означало б тихо перетворити результат на дані. Режим читається з `StaffNodeBox.role`, який розкладка проставляє сама (T91).
 
 ### 1.3 Модель даних (канон SDK ≠ чернетка REQUIREMENTS)
 
@@ -80,10 +104,14 @@ packages/core/     Rust crate org-hierarchy-core → WASM (cdylib+rlib)
 packages/sdk/      @org-hierarchy/sdk 0.1.0 — публічний API
 packages/demo/     @org-hierarchy/demo private — Rsbuild QA
 archive/           legacy-ts, legacy-web-rspack (TD02 closed)
-e2e/               Playwright проти preview demo (9 spec-файлів)
+e2e/               Playwright проти preview demo (15 spec-файлів)
 ```
 
-Workspaces npm: лише sdk + demo; core збирається `npm run build:wasm` (кореневий `package.json`). У SDK **136 модулів + 105 тестових файлів**; зелена база — 662 sdk + 61 demo unit, 35 e2e (без скріншотних).
+Workspaces npm: лише sdk + demo; core збирається `npm run build:wasm` (кореневий `package.json`). SDK — версія **0.2.0**, і він **справді збирається як бібліотека**: `tsc && copy-wasm && check-package`, де останній крок перевіряє, що кожен згаданий у `package.json` файл реально їде в пакет.
+
+У SDK **141 модуль + 117 тестових файлів**; зелена база — **846 sdk + 108 demo** unit, **71 e2e**.
+
+**Два e2e-стенди сховані за `HARNESS=1`** — `t87-motion` і `t88-window-cost`. Це не тести, а вимірювачі: вони не кажуть «зламано», вони кажуть «стільки коштує». `testIgnore` **сильніший за шлях у командному рядку**, тож без прапорця `playwright test e2e/t88-…` мовчки знайде нуль тестів ([`playwright.config.ts:14-17`](../playwright.config.ts)).
 
 ### 2.2 Runtime шари (після T82)
 
@@ -109,6 +137,24 @@ Host
 ```
 
 Життєвий цикл фасаду: `create` → `setData`/`appendData` → `render()` (coalesce) → `destroy`. Selection іде `repaintSelection` без rebuild (T75).
+
+**Додалось із базису** (усе — правки наявних модулів, нових директорій майже немає):
+
+| Що | Де | Навіщо |
+|----|----|--------|
+| `requestPaint` / `onNeedsPaint` | `render/PixiHost.ts`, `DiagramRenderer` | T84: нічого не малюється саме по собі |
+| `getRendererKind()` | фасад + `PixiHost` | T83: назвати рушій, а не вгадувати |
+| `promoteMath` / `promoteTypes` | `render/` | T87: near-visible як **LOD-гейт**, не продюсер id |
+| `initialExpand` | `data/initialExpand.ts` | T97: розкрити дерево до мінімуму **до першого кадру** |
+| `positionReparent` | `interaction/` | T91: переприв'язка + перевірка циклу (перша для `reportLines`) |
+| `DropTargetIndex` | `render/dropTargetIndex.ts` | T91: ціль під курсором за O(1) |
+| `externalManagers` | `layout/staff/` | T91: керівник з іншої організації як пін над блоком |
+| `WorkerChannel` | `worker/` | канал на діаграму, не на модуль |
+| `layers.dragPreview` | `render/LayerManager.ts` | окремий шар, бо `repaintSelection` чистить `overlay` цілком |
+
+**Нові канали до хоста** ([`callbacks.ts`](../packages/sdk/src/callbacks.ts)): `onViewportChange` (з `settled` — один виклик після зупинки камери), `searchBeyondWindow` (хост шукає поза вікном), `onRenderFailed` (**окремо** від `onLayoutDiagnostics`: діагностика пояснює намальовану сцену, цей канал каже, що сцени немає), `onInitialExpand`, `onPositionExpandChange`.
+
+**`LayoutPatch` виріс** до п'яти типів; `position-reparent` несе і старого, і нового керівника, щоб хост міг застосувати зміну без діфа й відкотити її.
 
 **Правило шарів після T82:** `data/` → `contour/`, `layout/` → `render/` → `state/` + фасад. Єдина навмисна залежність «назовні» — `state/ViewStateStore` читає типи LOD/теми з `render/` (view state сидить **над** рендерером). ([T82](./tasks/T82-module-split.md))
 
@@ -137,15 +183,28 @@ Pipeline у `contour.rs`: cluster → flood → G5 notch → G6 far-side → G7 
 
 ### 2.5 Demo
 
-13 табів ([`app/tabs.ts`](../packages/demo/src/app/tabs.ts)): Variant B (канон магнетизму QA), Staff tree, Orgs · Figma/GoJS, Staff · Figma / Magnetic / Flood / GoJS, Staff · 1M, Flat orgs, 100k orgs, Mapper, Worker. Конфіг табу — чиста функція [`app/tabConfigs.ts`](../packages/demo/src/app/tabConfigs.ts); ознаки табу (`family`, `contourControls`, `orgTree`, `reloadsOnContourSlider`) — таблиця `TAB_META`; фікстури — [`scenarios/mockups.ts`](../packages/demo/src/scenarios/mockups.ts) (барель). `?e2e=1` → `window.__demoE2e` ([`app/e2eBridge.ts`](../packages/demo/src/app/e2eBridge.ts)) + DOM anchors. Alias SDK на **source**, не `dist`.
+**14 табів** ([`app/tabs.ts`](../packages/demo/src/app/tabs.ts)): Variant B (канон магнетизму QA), Staff tree, Orgs · Figma/GoJS, Staff · Figma / Magnetic / Flood / GoJS, Staff · 1M, **Staff · Brigade**, Flat orgs, 100k orgs, Mapper, Worker. Конфіг табу — чиста функція [`app/tabConfigs.ts`](../packages/demo/src/app/tabConfigs.ts); ознаки табу (`family`, `contourControls`, `orgTree`, `reloadsOnContourSlider`) — таблиця `TAB_META`; фікстури — [`scenarios/mockups.ts`](../packages/demo/src/scenarios/mockups.ts) (барель). `?e2e=1` → `window.__demoE2e` ([`app/e2eBridge.ts`](../packages/demo/src/app/e2eBridge.ts)) + DOM anchors. Alias SDK на **source**, не `dist`.
 
 **Демо-фікстури цивільні навмисно** — сторінка публічна (GitHub Pages), військових назв з Figma в них немає ([MOCKUP-styles-review](./tasks/MOCKUP-styles-review.md) правило 1).
+
+**Два стенди на штатці роблять різну роботу, і плутати їх дорого:**
+
+| Таб | Форма | Для чого |
+|-----|-------|----------|
+| `Staff · 1M` | 1 000 000 адрес, вікно ≤ 4000 посад, дерево з розгалуженням 8 | **хард-тест**: вікно, пошук по мільйону, вартість перебудови |
+| `Staff · Brigade` | 84 посади, штаб-структура, змішані ешелони | **форма продукту**: саме на ній вимірюють фази рендера |
+
+Чому це в брифінгу: три умовні задачі оптимізації були відкриті за числом **1,5 с**, знятим із `Staff · 1M`, і закриті за **9,5–12,7 мс** на `Brigade` — різниця була не в обсязі, а в **формі зв'язків** (зірка проти дерева). Вердикт по продуктивності, знятий не з тієї фікстури, коштував би зміни публічного API рендера ([звіт T88](./reports/viewport-window/report.md) §15, §17, §19; [T96](./tasks/T96-scale-staff-real-hierarchy.md)).
+
+**Вікно за камерою — патерн хоста.** `app/viewportWindow.ts`: `resolveWindowRange` (чиста арифметика) + `RebuildScheduler`, який серіалізує перебудови промісним хвостом, **не** прапорцем «зайнято». SDK у цьому не бере участі, крім `onViewportChange` і `setData`.
 
 ---
 
 ## 3. Патерни (як тут пишуть)
 
 Обов'язкові політики: [`work/TDD.md`](./TDD.md) (Red-Green-Refactor, success **і** failure), [`work/CODING_STANDARDS.md`](./CODING_STANDARDS.md) (KISS > SOLID; без `enum`/`any`; `satisfies`; `assertNever` на discriminated union; функції ≤ ~40 рядків; Law of Demeter). Zod у стандартах згаданий як межа валідації — **у залежностях немає**.
+
+**У репо з'явився лінтер** — `oxlint --max-warnings 0` (+ `oxfmt`), і він у CI. До цього кожне питання про іменування, `any` чи мертвий імпорт трималось на людському рев'ю; тепер частина стандартів виконувана, і **її не треба перевіряти очима на рев'ю** ([T85](./tasks/T85-lint-debt.md), [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)).
 
 | Патерн | Де | Правило |
 |--------|----|---------|
@@ -160,7 +219,7 @@ Pipeline у `contour.rs`: cluster → flood → G5 notch → G6 far-side → G7 
 | Optional React | callbacks + `subscribePromoteSync` | ядро без React |
 | Прапорець рушія | `RenderConfig.contourEngine` | новий вигляд контуру = новий рушій за прапорцем, не третє кільце в старому |
 
-Тести: Vitest+jsdom, eager WASM з `src/wasm/pkg` у setup. Контракт жестів: [`NODE-interactions-contract.md`](./tasks/NODE-interactions-contract.md). Playwright — Chromium-only smoke; **немає** e2e на export / D&D / mapper / promote.
+Тести: **rstest** + jsdom (мігровано з vitest), eager WASM з `src/wasm/pkg` у setup. Контракт жестів: [`NODE-interactions-contract.md`](./tasks/NODE-interactions-contract.md). Playwright — Chromium-only smoke, плюс друга пробіжка під `SOFTWARE_GL=1`. E2e **немає** на export і mapper; по promote і мульти-виділенню вони з'явились (`promote-near`, `t67-multiselect-manual`), по переприв'язці посад — контрактні тести й ручна проходка, e2e немає.
 
 ---
 
@@ -168,34 +227,51 @@ Pipeline у `contour.rs`: cluster → flood → G5 notch → G6 far-side → G7 
 
 ### 4.1 CI / Pages
 
-[`.github/workflows/ci.yml`](../.github/workflows/ci.yml): три джоби (`rust` cargo test; `sdk` wasm-pack + typecheck + vitest; `e2e` Playwright). Node **22**, Rust **stable** + `wasm32-unknown-unknown`, **немає** `rust-toolchain.toml` — тобто версія rustc не зафіксована ні в CI, ні локально. Практика: на rustc 1.79 `npm run build:wasm` падав, вимагаючи ≥ 1.86; робоча машина зараз на 1.98 (`rustc --version`, 2026-08-25). wasm-pack ставиться `curl … | sh` — непіннований інсталер. Кожен job збирає WASM окремо (немає artifact sharing).
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml): три джоби (`rust` cargo test; `sdk` wasm-pack + **lint** + typecheck + rstest; `e2e` Playwright).
+
+Три речі, яких не було на попередньому базисі:
+
+- **Друга пробіжка e2e з `SOFTWARE_GL=1`** — гілка вибору рушія існує лише там, де браузер відмовляє у WebGL-контексті, який довелося б емулювати. Звичайний раннер контекст дає, тож без цієї пробіжки найважливіша для T83 гілка не виконується **ніколи**.
+- **Вивантаження `playwright-actual` при падінні.** Візуальні бейзлайни неможливо зняти ніде, крім цього раннера: локальний контейнер малює однаково сам із собою і **інакше** за раннер. Тому при падінні його власні `-actual.png` — єдине правильне джерело нових бейзлайнів, і вони мусять покинути машину.
+- **Два нові workflow:** [`post-deploy.yml`](../.github/workflows/post-deploy.yml) — димові сценарії проти **живого** Pages (тільки там видно застряглий бандл, зламаний шлях `/dg/` і реальні обсяги), і [`ai-review.yml`](../.github/workflows/ai-review.yml) — два незалежні рев'юери на PR, які не бачать знахідок одне одного. Node **22**, Rust **stable** + `wasm32-unknown-unknown`, **немає** `rust-toolchain.toml` — тобто версія rustc не зафіксована ні в CI, ні локально. Практика: на rustc 1.79 `npm run build:wasm` падав, вимагаючи ≥ 1.86; робоча машина зараз на 1.98 (`rustc --version`, 2026-08-25). wasm-pack ставиться `curl … | sh` — непіннований інсталер. Кожен job збирає WASM окремо (немає artifact sharing).
 
 [`.github/workflows/pages.yml`](../.github/workflows/pages.yml): `DEMO_BASE_PATH=/dg/` → `https://b2vv.github.io/dg/`. Репо публічне; README досі каже «after the repo is public» / License Private TBD.
 
 ### 4.2 WASM pkg (TD05)
 
-Build-on-demand: `packages/sdk/src/wasm/pkg/` gitignored. Свіжий clone без `npm run build:wasm` не проганяє contour-тести SDK. ([TD05](./tech-debt/TD05-wasm-pkg-in-repo.md))
+**Рішення перевернуте 2026-08-25: pkg тепер у git.** `packages/sdk/src/wasm/pkg/` — 5 закомічених файлів; [`.gitignore:23`](../.gitignore) каже це прямо. Build-on-demand був правильний, поки єдиним споживачем був цей монорепо; щойно бібліотеку почали віддавати назовні як **git-залежність**, він перестав працювати — у споживача немає ні Rust, ні wasm-pack.
 
-### 4.3 Локальний тулінг агента (новий із базису)
+**Наслідок:** свіжий clone проганяє contour-тести **без** `npm run build:wasm`. Після правки Rust — перезібрати й **закомітити** pkg. ([TD05](./tech-debt/TD05-wasm-pkg-in-repo.md))
+
+### 4.3 Локальний тулінг агента
 
 [`.mcp.json`](../.mcp.json) + [`.claude/`](../.claude) — code-review-graph (CRG): граф символів і тестів, хуки `PostToolUse` на `Edit|Write|Bash` ([`.claude/settings.json`](../.claude/settings.json)), скіли `explore-codebase` / `debug-issue` / `refactor-safely` / `review-changes`. Дані графа в `.code-review-graph/` — **gitignored**, тобто у кожного агента свій індекс. Персональні нотатки (`CLAUDE.local.md`) ігноруються — правило в `.gitignore` закомічене після інциденту, коли `git add -A` затягнув файл у historію (виправлено переписуванням `main`).
 
 ### 4.4 Трекер
 
-GitHub Issues на `b2vv/dg` **порожні**; живий беклог — `work/tasks/` + `work/tech-debt/`. [`docs/agents/issue-tracker.md`](../docs/agents/issue-tracker.md) каже «issues live on GitHub» — **дрифт**. Гілки агентів: `cursor/<name>-<suffix>`. npm publish не готовий: немає LICENSE, `files: ["dist"]` без wasm-артефакта, немає release workflow.
+GitHub Issues на `b2vv/dg` **порожні**; живий беклог — `work/tasks/` + `work/tech-debt/`.
+
+⚠️ **Але й він дрейфує.** На 2026-09-01 три задачі стояли «🔵 не почато», маючи коміти в `main`: T83 (15), T84 (4), T88 (39 + повний ship-report). Виправлено під час цього перезбору. Практичне правило: **статус у заголовку задачі — не доказ**; `git log --grep="(T88"` дешевший і чесніший.
+
+[`docs/agents/issue-tracker.md`](../docs/agents/issue-tracker.md) каже «issues live on GitHub» — **дрифт**. Гілки агентів: `cursor/<name>-<suffix>`.
+
+**Пакування підтягнулось, publish — ні.** `license: "UNLICENSED"` проставлено, wasm їде в `dist` (`copy-wasm.mjs`), а `check-package.mjs` перевіряє, що пакет не посилається на файли, яких не відвантажує — приклад із коментаря: шлях воркера всередині рядка переживає `tsc` недоторканим, бандлер його резолвить, а споживач `dist` отримує 404 і **мовчки** лишається без воркера. Чого досі немає: semver-процесу, changelog, release workflow, LICENSE-файлу.
 
 ---
 
 ## 5. Залежності
 
-Нульовий діф до базису — таблиця чинна.
+**Змінились із базису** — попередня редакція казала «нульовий діф», і це вже неправда.
 
 | Шар | Пакет | Навіщо |
 |-----|--------|--------|
-| Render | `pixi.js` ^8.19 (lock 8.19.0) | WebGL canvas |
+| Render | `pixi.js` ^8.19 (lock 8.19.0) | WebGL **або Canvas2D** (T83) |
 | Peers | `react`/`react-dom` ≥18 optional | меню, promote, anchors |
-| Build | `@rsbuild/core` ^1.2 (lock 1.7.x) | sdk lib + demo |
-| Test | vitest, jsdom, Playwright ^1.55 (lock 1.62) | unit + e2e |
+| Build | `@rsbuild/core` ^1.2 — **лише демо**; SDK збирається `tsc` | sdk lib + demo |
+| Test | **rstest** (`@rstest/core` ^0.11), jsdom, Playwright ^1.55 (lock 1.62) | unit + e2e |
+| Lint | **oxlint** ^1.74, **oxfmt** ^0.65 | перший лінтер у репо |
+| Компілятор | **TypeScript ^7.0** (було ^5.6) | |
+| Граф | `ttsc` / `@ttsc/graph` ^0.28 | інструмент агента, не рантайм |
 | WASM | wasm-bindgen 0.2, serde-wasm-bindgen 0.6, tidy-tree 0.1, tinyset pin 0.4.10 | Ploeg + contour |
 | PDF | **немає jspdf** | мінімальний RGB PDF у `pdfExport.ts` |
 | Node | `engines: >=20` | |
@@ -214,11 +290,14 @@ GitHub Issues на `b2vv/dg` **порожні**; живий беклог — `wo
 | 2 | ~~Візуальні бейзлайни застаріли~~ — **закрито 2026-08-25**: усі 5 знімків перезняті в контейнері `playwright:v1.62.1-noble` під `linux/amd64` (як CI), галерея `node-compare` теж; повторний прогін без `--update-snapshots` дав 16/16 | [MOCKUP-styles-review §Перегенеровано](./tasks/MOCKUP-styles-review.md) |
 | 3 | ~~Shared module-level воркери~~ — **закрито 2026-08-26**: `worker/WorkerChannel.ts`, кожна діаграма має власний канал і звільняє його на `destroy()`; модульні `configure*` лишились для прямих викликів | `worker/WorkerChannel.ts`, `render/twoDiagrams.contract.test.ts` |
 | 4 | Promote-HTML не входить у SVG/PNG/PDF | `react/createReactPromoteOverlay.ts` |
-| 5 | Немає e2e на export / D&D / mapper / promote | `e2e/` |
+| 5 | Немає e2e на **export / mapper**. По D&D і promote e2e з'явились (`t67-multiselect-manual`, `promote-near`), по D&D переприв'язки — контрактні тести + ручна проходка, e2e немає | `e2e/` |
+| 6 | **Вердикт продуктивності, знятий не з тієї фікстури.** Три задачі були відкриті за 1,5 с на `Staff · 1M` і закриті за 9,5–12,7 мс на `Brigade`: різниця в **формі зв'язків**, не в обсязі. Перед оптимізацією — звірити форму фікстури з продуктом | [звіт T88](./reports/viewport-window/report.md) §15–§19 |
+| 7 | **Крос-орг пін може подвоїтись:** якщо зовнішній керівник належить організації, яка сама намальована на полотні, та сама посада з'явиться двічі — карткою свого блоку і піном над нашим | [T91 звіт](./reports/link-magnetism/report.md) §6 |
+| 8 | Гілка Canvas2D живе лише під `SOFTWARE_GL=1`; звичайний раннер її не виконує. Прибрати цю пробіжку = перестати перевіряти T83, не помітивши цього | `.github/workflows/ci.yml` |
 
 ### Документаційний drift (агенти брешуть самі собі)
 
-`docs/REQUIREMENTS.md`, `docs/TECH_STACK.md`, `work/SPEC.md` **не мінялись** із базису, тому весь список чинний і поповнився двома рушіями:
+`docs/REQUIREMENTS.md`, `docs/TECH_STACK.md`, `work/SPEC.md` **не мінялись** із базису — а код за 174 коміти змінився, тож розрив тільки виріс:
 
 | Документ | Що застаріло |
 |----------|----------------|
@@ -229,8 +308,10 @@ GitHub Issues на `b2vv/dg` **порожні**; живий беклог — `wo
 | TECH_STACK | `createWorkerPipeline` у прикладах (діаграму шарів виправлено 2026-08-25) |
 | ~~CONTEXT~~ | ✅ виправлено: G5/G6 позначені як геометрія `cell-flood`, не дефолтного painter'а |
 | issue-tracker.md | GitHub Issues як SoT — issues порожні |
-| CODING_STANDARDS | Zod на межі — пакета немає |
+| CODING_STANDARDS | Zod на межі — пакета немає. Плюс частина правил тепер **виконувана** (`oxlint`), і документ про це не знає |
 | README | License Private/TBD при публічному репо |
+| TECH_STACK / будь-де про тести | «Vitest» — раннер тепер **rstest** |
+| SPEC / REQUIREMENTS | нічого не знають про paint-on-demand (T84), вибір рушія (T83), promote near-visible (T87), вікно за камерою (T88), початкове розкриття (T97), переприв'язку (T91) |
 
 ### Масштаб і WASM
 
@@ -251,14 +332,20 @@ GitHub Issues на `b2vv/dg` **порожні**; живий беклог — `wo
 
 **Закрито (не переробляти без нової вимоги):** фази 1–4 REQUIREMENTS; Pixi LOD/camera/tween; org matrix + row-tree + spine-bus; staff 3-tier + expand-in-place + position expand; search (top-k, біграми, інкрементний append); export API; React menu/promote; Pages; T74 media; T75/T76 stores; **T77 M01–M11 повністю** (acceptance проставлені з доказами 2026-08-25); **T78 P0+P1**; T79 G2/M2; T80 два рушії; T81 1M-таб; T82 розбивка модулів; T33 чек-ліст переведено в `e2e/demo-audit.spec.ts`.
 
+**Додано з базису:** **T83** (вибір рушія + фолбек на Canvas2D), **T84** (paint on demand), **T87** (promote near-visible), **T88** (вікно за камерою + пошук по мільйону), **T91** (переприв'язка посад), **T94** (резерв смуги під підпис зони), **T96** (тир-2 як ієрархія: ×2,6 на тій самій вкладці), **T97** (початковий стан діаграми).
+
+**Закрито **без** імплементації — і це теж результат:** **T89** (culling) і **T93** (відступ ієрархії) закриті перевіркою, **T90** (плавність драгу) — гіпотезу **виміряно й спростовано**. Не переробляти, не прочитавши, чому саме.
+
 **Відкрито, порядок:**
 
 1. **Рішення BA по рушію контуру** (T80) — після нього прибрати непотрібний шлях або описати обидва як продуктову опцію.
-2. ~~**`cell-flood` в експорті**~~ — зроблено частково (2026-08-25): розходження назване в T80, SPEC §3 і повідомляється в рантаймі. Лишається повний фікс — читати рушій у `export/` — і він має сенс лише якщо BA лишить flood.
-3. ~~**Linux-бейзлайни**~~ — зроблено 2026-08-25 (рецепт із докером — у MOCKUP-styles-review).
-4. **Документи** — SPEC/CONTEXT/TECH_STACK/REQUIREMENTS під фактичний paint із двома рушіями.
-5. **T61** після макета; **T67 Phase 2** marquee — product go; **T56** після вибору замовника.
-6. Host: прибрати GoJS.
+2. ~~**`cell-flood` в експорті**~~ — ✅ **закрито**: `export/svgExport.ts:85` читає рушій. Попередня редакція цього файлу цього не знала й тримала пункт відкритим.
+3. ~~**Linux-бейзлайни**~~ — зроблено 2026-08-25; відтоді ще двічі перезнімались із артефакта CI (`b58d0cd`, `649c9b8`). Рецепт: **не** локальний контейнер, а `playwright-actual` із раннера.
+4. **Документи** — найбільший борг цього перезбору. SPEC/CONTEXT/TECH_STACK/REQUIREMENTS не знають про шість фіч і про зміну раннера. Розрив росте швидше, ніж його закривають.
+5. **T85** (борг лінтера) — лінтер уже в CI, лишилось розібрати накопичене.
+6. **T92** (вартість пану під софтверним рендером) — відкрито, не міряно.
+7. **T61** після макета; **T67 Phase 2** marquee — product go; **T56** після вибору замовника.
+8. Host: прибрати GoJS.
 
 GitHub issue tracker не використовувати як карту, поки він порожній — брати `work/tasks/`.
 
@@ -270,11 +357,15 @@ GitHub issue tracker не використовувати як карту, пок
 2. Словник з `CONTEXT.md`. Новий термін — `/domain-modeling`, не синонім зі avoid-списку.
 3. TDD: failing success **і** failure до production. Баг на канвасі — цілити `paintMagneticGroups` / member boxes / `ContourPainter`, а не `computeAllContours`.
 4. **Третій вигляд контуру — це третій рушій за прапорцем**, а не правка кільця в наявному. Обидва наявні шляхи мають тести; який лишиться — вирішує BA.
-5. Змінюєш вигляд контуру — перевір **обидва** виходи: канвас і `export/svgExport.ts`. Вони вже розходяться на `cell-flood`.
+5. Змінюєш вигляд контуру — перевір **обидва** виходи: канвас і `export/svgExport.ts`. Вони **зведені** (`resolveExportContourRings`), і завдання — не розвести їх знову.
 6. **Не** воскрешати `layout.rs` / `createWorkerPipeline`. Живий layout WASM = Ploeg `computeOrgRowTreeLayout`.
-7. Після Rust — `npm run build:wasm` (rustc ≥ 1.86). Без `pkg` contour-тести SDK не стартують (TD05).
+7. Після Rust — `npm run build:wasm` (rustc ≥ 1.86) **і закомітити `pkg`**: він у git з 2026-08-25, бо бібліотеку віддають як git-залежність (TD05).
 8. Демо-фікстури лишаються цивільними — сторінка публічна.
 9. Не публікувати npm і не обіцяти 2M render.
+10. **Намалював — попроси фарбу.** Ticker вимкнено: без `requestPaint` картинка не оновиться, і жоден тест на дані цього не спіймає (T84).
+11. **Міряєш продуктивність — спершу звір форму фікстури з продуктом.** `Staff · 1M` — хард-тест, `Staff · Brigade` — форма продукту. Число з першої не є вердиктом для другої (T88 §15–§19).
+12. **Статус у заголовку задачі — не доказ.** Перевіряй `git log --grep="(T88"`, а не емодзі.
+13. Перед `playwright test e2e/t8*-…` — `HARNESS=1`, інакше `testIgnore` мовчки знайде нуль тестів.
 
 ---
 
@@ -295,3 +386,9 @@ GitHub issue tracker не використовувати як карту, пок
 | WASM contour / row-tree | `packages/core/src/contour.rs`, `ploeg_layout.rs`, `org_layout.rs` |
 | CI | `.github/workflows/ci.yml` |
 | Demo | `packages/demo/` (`app/tabs.ts`, `app/tabConfigs.ts`, `scenarios/mockups.ts`) |
+| Вікно за камерою (арифметика + планувальник) | `packages/demo/src/app/viewportWindow.ts`, звіт `work/reports/viewport-window/` |
+| Переприв'язка посад | `packages/sdk/src/interaction/positionReparent.ts`, звіт `work/reports/link-magnetism/` |
+| Початкове розкриття | `packages/sdk/src/data/initialExpand.ts` |
+| Paint on demand | `packages/sdk/src/render/PixiHost.ts` (`autoStart: false`, `requestPaint`) |
+| Вибір рушія | `packages/sdk/src/render/PixiHost.ts` (`getRendererKind`), `e2e/renderer-choice.spec.ts` |
+| Стенди-вимірювачі (за `HARNESS=1`) | `e2e/t87-motion.spec.ts`, `e2e/t88-window-cost.spec.ts` |
