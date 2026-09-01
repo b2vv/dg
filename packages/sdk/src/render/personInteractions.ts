@@ -51,8 +51,12 @@ export interface PersonPointerHandlers {
  * `gridCell` it never had, silently turning a computed position into an
  * authored one. What that gesture can mean instead is *whose report this seat
  * is*, which is data in both cases.
+ *
+ * `none` is the third case: a card that is only *shown* here, such as a manager
+ * pinned in from another organisation. Editing it would edit a seat the viewer
+ * did not open, so the gesture falls through to panning instead.
  */
-export type SeatDragMode = 'move' | 'reparent';
+export type SeatDragMode = 'move' | 'reparent' | 'none';
 
 export interface PersonBindArgs {
   personId: string | undefined;
@@ -167,6 +171,8 @@ export class PersonInteractions {
       // same gesture means when there is no card to grab — and a tap still
       // selects, since selection rides on pointertap rather than on this.
       if (this.deps.currentLod() !== 'near') return;
+      // Shown, not owned — see `SeatDragMode`.
+      if (dragMode === 'none') return;
       const local = this.deps.personLayer.toLocal(e.global);
       const grid = this.deps.dragGrid();
       // T78-L1: origin from THIS card's world + gridCell, not the first staff tier.

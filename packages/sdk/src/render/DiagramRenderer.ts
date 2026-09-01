@@ -157,8 +157,12 @@ export const SEAT_MAGNET_RADIUS = 28;
  * call about gestures — it is «is this position data, or is it a result».
  */
 function seatDragMode(role: StaffNodeBox['role']): SeatDragMode {
+  if (role === 'external') return 'none';
   return role === 'matrix' || role === 'anchor' ? 'move' : 'reparent';
 }
+
+/** How much a pinned outside manager recedes behind the block's own seats. */
+const EXTERNAL_CARD_ALPHA = 0.55;
 
 const DROP_VALID_COLOR = 0x16a34a;
 const DROP_INVALID_COLOR = 0xdc2626;
@@ -761,6 +765,9 @@ export class DiagramRenderer {
         },
       );
       node.position.set(n.x, n.y);
+      // A pinned outside manager is a reference, not a member: dimmed so the
+      // block's own seats stay the foreground (T91 row 25).
+      if (n.role === 'external') node.alpha = EXTERNAL_CARD_ALPHA;
       this.personInteractions.bind(node, {
         personId: position.personId,
         positionId: position.id,

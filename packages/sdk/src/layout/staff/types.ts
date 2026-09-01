@@ -84,7 +84,12 @@ export interface StaffNodeBox {
   height: number;
   depth?: number;
   tier?: 1 | 2 | 3;
-  role?: 'anchor' | 'floating' | 'tree' | 'matrix' | 'detached';
+  /**
+   * `external` is a manager pinned in from another organisation (T91): drawn so
+   * a cross-org reporting line has somewhere to end, but not a member of this
+   * block and not counted as one.
+   */
+  role?: 'anchor' | 'floating' | 'tree' | 'matrix' | 'detached' | 'external';
 }
 
 export interface StaffOrgBlockResult {

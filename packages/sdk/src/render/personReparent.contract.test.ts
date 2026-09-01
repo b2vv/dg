@@ -286,6 +286,67 @@ describe('seat re-parent by drag (T91)', () => {
     container.remove();
   });
 
+
+  it('row 23: the scene is redrawn around the new manager', async () => {
+    const { container, diagram, internals, renderer, nodeFor, toGlobal } = await mountTree();
+
+    // Captured before, because the assertion has to be about a *change*. An
+    // "is b below c" check would have passed without any redraw at all: b was
+    // already the lowest card on the scene.
+    const beforeB = { ...renderer.getNodeBox('b')! };
+    const beforeA = { ...renderer.getNodeBox('a')! };
+    expect(beforeB.x).toBe(beforeA.x);
+
+    dragOnto(toGlobal, nodeFor('b'), nodeFor('c').box);
+    await new Promise((r) => setTimeout(r, 150));
+
+    const afterB = renderer.getNodeBox('b')!;
+    const afterC = renderer.getNodeBox('c')!;
+    // b left the column under a and joined the one under c.
+    expect(afterB.x).not.toBe(beforeB.x);
+    expect(Math.abs(afterB.x - afterC.x)).toBeLessThan(Math.abs(afterB.x - renderer.getNodeBox('a')!.x));
+    expect(afterB.y).toBeGreaterThan(afterC.y);
+    expect(internals.data.reportLines).toContainEqual({
+      fromId: 'c',
+      toId: 'b',
+      kind: 'admin',
+    });
+
+    diagram.destroy();
+    container.remove();
+  });
+
+  it('row 24: a render that draws nothing puts the data back', async () => {
+    const failures: string[] = [];
+    const container = document.createElement('div');
+    container.style.width = '900px';
+    container.style.height = '700px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: treeData(),
+      staffCurrentOrgId: 'org1',
+      useWorker: false,
+      callbacks: { onRenderFailed: (f) => failures.push(f.reason) },
+    });
+    const internals = diagram as unknown as Internals;
+    const before = internals.data.reportLines;
+
+    // Break the render the way a layout failure would, then ask for the edit.
+    const renderer = internals.host.renderer as unknown as {
+      render: (...args: unknown[]) => Promise<void>;
+    };
+    renderer.render = () => Promise.reject(new Error('layout exploded'));
+
+    await expect(diagram.reparentPosition('b', 'c')).rejects.toThrow('layout exploded');
+
+    // The diagram must not describe a reporting line it never drew (T97).
+    expect(internals.data.reportLines).toBe(before);
+    expect(failures).toContain('layout exploded');
+
+    diagram.destroy();
+    container.remove();
+  });
+
   it('row 13: below the near band the gesture pans instead of re-parenting', async () => {
     const patches: LayoutPatch[] = [];
     const { container, diagram, nodeFor, toGlobal } = await mountTree((p) => patches.push(p));

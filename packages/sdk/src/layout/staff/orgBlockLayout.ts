@@ -1,4 +1,5 @@
 import type { DiagramPosition, DiagramReportLine } from '../../data/types.js';
+import { pinExternalManagers } from './externalManagers.js';
 import { computeOrgRowTreeLayoutWasm } from '../../wasm/layoutBridge.js';
 import {
   aabbOverlap,
@@ -255,7 +256,32 @@ function packFloatingAwayFromAnchors(
   });
 }
 
+/**
+ * Lay out one organisation's staff, then pin in any manager who supervises it
+ * from another organisation.
+ *
+ * The pinning is a post-step on purpose: it must apply to all three modes, and
+ * an outside manager should not change the arrangement the layout chose for the
+ * seats that do belong here (T91 rows 25-27).
+ */
 export async function layoutStaffOrgBlock(
+  positions: DiagramPosition[],
+  reports: DiagramReportLine[],
+  orgId: string,
+  options: StaffLayoutOptions = {},
+): Promise<StaffOrgBlockResult> {
+  const block = await layoutStaffOrgBlockCore(positions, reports, orgId, options);
+  if (block.nodes.length === 0) return block;
+  return pinExternalManagers(
+    block,
+    positions.filter((p) => p.organizationId === orgId),
+    reports,
+    new Set(positions.map((p) => p.id)),
+    resolveGeom(options),
+  );
+}
+
+async function layoutStaffOrgBlockCore(
   positions: DiagramPosition[],
   reports: DiagramReportLine[],
   orgId: string,
