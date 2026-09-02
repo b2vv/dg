@@ -38,7 +38,7 @@
 
 | Команда | Що ловить |
 |---|---|
-| `npm run lint` | **oxlint** — correctness/suspicious/pedantic. Борг закрито (T85, 2026-09-02): 27 правил лишаються вимкненими, **жодне як борг** — кожне має причину в `work/tasks/T85-lint-debt.md` |
+| `npm run lint` | **oxlint** — correctness/suspicious/pedantic. Борг закрито (T85, 2026-09-02): 27 правил лишаються вимкненими, **жодне як борг** — кожне має причину в T85 — задача в `work/archive/tasks-2026-09-02.md`, текст в історії git |
 | `npm run format` | **oxfmt --check** (у CI **не** гейт — див. T85) |
 | `npm run typecheck` | tsc по sdk + emit types + demo |
 | `npm test` | unit sdk + demo |

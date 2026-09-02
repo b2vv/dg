@@ -15,7 +15,7 @@ work/
   tasks/                 ← детальні задачі для розробки
 ```
 
-**Перед кодом:** [CTO-RESEARCH.md](./CTO-RESEARCH.md). Живий P0: [T78](./tasks/T78-post-t77-critique.md).
+**Перед кодом:** [CTO-RESEARCH.md](./CTO-RESEARCH.md). Живого P0 немає — T78 закрито; черга ходів у [AGENDA.md](./AGENDA.md).
 
 ## Процес розробки (TDD)
 
@@ -24,7 +24,7 @@ work/
 
 **Стандарти TS-коду:** [CODING_STANDARDS.md](./CODING_STANDARDS.md) — Clean Code / Architecture / SOLID / DRY / KISS / GoF + **Matt Pocock (Total TypeScript)**; також SPEC §13.
 
-## Статус проєкту (2026-08-20)
+## Статус проєкту (знімок 2026-08-20 — застарілий, звіряйся з AGENDA.md)
 
 | Область | Статус |
 |---------|--------|
@@ -46,89 +46,42 @@ npm run build:wasm   # якщо wasm pkg не зібраний
 npm run dev          # http://localhost:3000
 ```
 
-## Задачі (пріоритет)
+## Задачі
 
-1. [T01-pixi-renderer.md](./tasks/T01-pixi-renderer.md) — ✅
-2. [T02-worker-contour-pipeline.md](./tasks/T02-worker-contour-pipeline.md) — ✅
-3. [T03-org-matrix-row-tree.md](./tasks/T03-org-matrix-row-tree.md) — ✅
-4. [T08-staff-3-tier-layout.md](./tasks/T08-staff-3-tier-layout.md) — ✅
-5. [T09-staff-edges-demo.md](./tasks/T09-staff-edges-demo.md) — ✅ edges + Staff tree demo
-6. [T04-interactions.md](./tasks/T04-interactions.md) — ✅ v1 core (search, reveal, drag, block shift)
-7. [T10-react-context-menu.md](./tasks/T10-react-context-menu.md) — ✅ React context menu + node payload
-8. [T05-export.md](./tasks/T05-export.md) — ✅ SVG / PNG / PDF / print
-9. [T06-demo-app-rsbuild.md](./tasks/T06-demo-app-rsbuild.md) — ✅
-10. [T07-contour-algorithm-gaps.md](./tasks/T07-contour-algorithm-gaps.md) — ✅ M4 / magnetRadius / config
-11. [T11-ci-hygiene.md](./tasks/T11-ci-hygiene.md) — ✅ CI + debt hygiene
-12. [T12-setdata-readme.md](./tasks/T12-setdata-readme.md) — ✅ `setData` + root README
-13. [T13-lod-viewport.md](./tasks/T13-lod-viewport.md) — ✅ LOD far/mid/near by zoom
-14. [T14-contour-g6.md](./tasks/T14-contour-g6.md) — ✅ G6 no far-side wall
-15. [T15-fitview-context.md](./tasks/T15-fitview-context.md) — ✅ fitView + CONTEXT.md
-16. [T16-incremental-contours-search.md](./tasks/T16-incremental-contours-search.md) — ✅ incremental contours + search scale
-17. [T17-g8-contour-morph.md](./tasks/T17-g8-contour-morph.md) — ✅ G8 contour morph during drag
-18. [T18-worker-search-index.md](./tasks/T18-worker-search-index.md) — ✅ worker/pool search index
-19. [T19-camera-tween.md](./tasks/T19-camera-tween.md) — ✅ animated fitView / resetView / panTo
-20. [T20-staff-expand-inplace.md](./tasks/T20-staff-expand-inplace.md) — ✅ tier-3 expand-in-place
-21. [T21-chunked-mapper-facade.md](./tasks/T21-chunked-mapper-facade.md) — ✅ pooled array mapper facade
-22. [T22-demo-pooled-mapper.md](./tasks/T22-demo-pooled-mapper.md) — ✅ demo uses pooled mapper facade
-23. [T23-node-media-textures.md](./tasks/T23-node-media-textures.md) — ✅ person photo + org symbol sprites
-24. [T24-layout-diagnostics.md](./tasks/T24-layout-diagnostics.md) — ✅ layout diagnostics API
-25. [T25-demo-github-pages.md](./tasks/T25-demo-github-pages.md) — ✅ Pages workflow (needs public repo / paid)
-26. [T26-promote-overlay.md](./tasks/T26-promote-overlay.md) — ✅ React promote overlay (TD07)
-27. [T27-pages-css-mobile-fix.md](./tasks/T27-pages-css-mobile-fix.md) — ✅ Pages CSS + mobile canvas height
-28. [T28-dark-theme-pixi.md](./tasks/T28-dark-theme-pixi.md) — ✅ dark Pixi palette + canvas bg
-29. [T29-visual-polish.md](./tasks/T29-visual-polish.md) — ✅ cards-in-cells + demo layout polish
-30. [T30-ux-edges-contour-zoom.md](./tasks/T30-ux-edges-contour-zoom.md) — ✅ edges, contour padding, pinch/zoom UI
-31. [T31-regression-zoom-100k.md](./tasks/T31-regression-zoom-100k.md) — ✅ regression tests, zoom FAB, 100k window
-32. [T32-card-in-cell-tighten.md](./tasks/T32-card-in-cell-tighten.md) — ✅ option A card≈cell geometry
-33. [T33-demo-live-audit-plan.md](./tasks/T33-demo-live-audit-plan.md) — 📋 live demo audit: проблеми + план фіксів (P0→P2)
-34. [T34-p0-contour-staff-flat-edges.md](./tasks/T34-p0-contour-staff-flat-edges.md) — ✅ P0: IT C-contour, staff cross-tier, flat edge avoid
-35. [T35-polish-zoom-chrome.md](./tasks/T35-polish-zoom-chrome.md) — ✅ P1: padding/smooth defaults, Hi-DPI, demo chrome
-36. [T36-card-chrome-polish.md](./tasks/T36-card-chrome-polish.md) — ✅ P2: initials, contrast, hover, Variant B caption
-37. [T37-variant-b-edge-gaps.md](./tasks/T37-variant-b-edge-gaps.md) — ✅ Variant B corridor gaps for readable report edges
-38. [T38-contour-stroke-clearance.md](./tasks/T38-contour-stroke-clearance.md) — ✅ Chaikin contour clear of cards + round stroke joins
-39. [T39-tree-arrows-quiet-contour.md](./tasks/T39-tree-arrows-quiet-contour.md) — ✅ admin arrows + quieter dept fill; Smooth default 1
-40. [T40-g7-stroke-punchout.md](./tasks/T40-g7-stroke-punchout.md) — ✅ pad0 + own-AABB px clearance; contour stroke above cards
-41. [T41-contour-corner-fillet.md](./tasks/T41-contour-corner-fillet.md) — ✅ convex contour corners filleted to card radius
-42. [T42-svg-contour-parity.md](./tasks/T42-svg-contour-parity.md) — ✅ SVG export matches live fillet/nudge/stroke/arrows
-43. [T43-rust-g7-peel.md](./tasks/T43-rust-g7-peel.md) — ✅ Rust G7 Manhattan peel of vacant tongues; pad=1 safe
-44. [T44-magnetism-edges-zoom-analysis.md](./tasks/T44-magnetism-edges-zoom-analysis.md) — 📋 magnetism sketch vs LOD edge ports / zoom
-45. [T45-lod-edge-ports.md](./tasks/T45-lod-edge-ports.md) — ✅ LOD-aware edge AABBs (mid/far ports on visual chrome)
-46. [T46-notch-singleton-contour.md](./tasks/T46-notch-singleton-contour.md) — ✅ hide singleton CEO wash so IT notch stays empty
-47. [T47-magnet-radius-canonical.md](./tasks/T47-magnet-radius-canonical.md) — ⚠️ radius 2 still forced C; superseded by T49
-48. [T48-100k-tree-matrix.md](./tasks/T48-100k-tree-matrix.md) — ✅ 100k row-tree by default; matrix when all collapsed
-49. [T49-adjacency-magnetism.md](./tasks/T49-adjacency-magnetism.md) — ✅ magnetRadius 1.5: top row + two bottom blobs
-50. [T50-chebyshev-pad-rect.md](./tasks/T50-chebyshev-pad-rect.md) — ✅ Chebyshev pad: adjacent row → rectangle, not hat
-51. [T51-zoom-mid-button-group.md](./tasks/T51-zoom-mid-button-group.md) — ✅ mid LOD center + button-group contour polish
-52. [T52-node-chrome-context-menu.md](./tasks/T52-node-chrome-context-menu.md) — ✅ ⋮ menu + expand chrome on cards
-53. [T53-flat-orgs-root-viewport.md](./tasks/T53-flat-orgs-root-viewport.md) — ✅ root click viewport; 100k focus without reload
-54. [T54-e2e-playwright.md](./tasks/T54-e2e-playwright.md) — ✅ Playwright smoke for demo tabs
-55. [T55-node-testid-anchors.md](./tasks/T55-node-testid-anchors.md) — ✅ testId + DOM anchors for e2e/search/focus
-56. [T56-gojs-feature-inventory.md](./tasks/T56-gojs-feature-inventory.md) — 📋 GoJS catalog + checkbox selection (§16)
-57. [T61-group-recursion-tier3.md](./tasks/T61-group-recursion-tier3.md) — 📋 B8c рекурсія груп орг (макет Figma — пізніше)
-58. [T63-spine-bus-edges.md](./tasks/T63-spine-bus-edges.md) — ✅ B3 spine/шина org-matrix
-59. [T64-named-display-zones-paint.md](./tasks/T64-named-display-zones-paint.md) — ✅ **P0** B8 іменовані зони (paint)
-60. [T65-multi-root-forest.md](./tasks/T65-multi-root-forest.md) — ✅ B9 detached side-column
-61. [T66-position-expand-depth.md](./tasks/T66-position-expand-depth.md) — ✅ **P0** C2/C3 expand посади + depth
-62. [T67-multi-select.md](./tasks/T67-multi-select.md) — ✅ D2 Phase 1 (marquee — Phase 2 optional)
-63. [T68-org-period-display.md](./tasks/T68-org-period-display.md) — ✅ D4* період на організації
-64. [T69-node-double-click.md](./tasks/T69-node-double-click.md) — ✅ D5 dblclick → sidebar
-65. [T70-position-card-chrome.md](./tasks/T70-position-card-chrome.md) — ✅ E* chrome посад + org symbol contain
-66. [T71-gojs-to-dg-migration-plan.md](./tasks/T71-gojs-to-dg-migration-plan.md) — ✅ **план міграції GoJS→dg** (cutover queue complete)
-67. [PARITY-gojs-to-dg.md](./tasks/PARITY-gojs-to-dg.md) — ✅ parity ред. 2.2 (вимога→можливість)
-68. [T72-types-algorithms-agreement.md](./tasks/T72-types-algorithms-agreement.md) — ✅ узгоджені типи + алгоритми P0 (+ fitContain)
-69. [T74-node-media-lifecycle.md](./tasks/T74-node-media-lifecycle.md) — ✅ media lifecycle M0–M6
-70. [T75-rebuild-vs-repaint.md](./tasks/T75-rebuild-vs-repaint.md) — ✅ D1–D3 (selection repaint; LOD/theme rebuild by design)
-71. [T76-diagram-facade-stores.md](./tasks/T76-diagram-facade-stores.md) — ✅ D4 stores
-72. [REVIEW-dg-pr56-media-and-abstraction.md](./tasks/REVIEW-dg-pr56-media-and-abstraction.md) — ✅ D6 remediated
-73. [REVIEW-t74-t76-pocock-gof.md](./tasks/REVIEW-t74-t76-pocock-gof.md) — ✅ Pocock + GoF pass
-74. [T77-critique-remediation.md](./tasks/T77-critique-remediation.md) — ✅ M01–M11 + hanging `parentOrgId` (#59–#61)
-    - [M01](./tasks/T77-M01-contour-wire-or-delete.md) · [M02](./tasks/T77-M02-worker-error-listeners.md) · [M03](./tasks/T77-M03-pixihost-destroy-during-create.md) · [M04](./tasks/T77-M04-appenddata-dedupe.md) · [M05](./tasks/T77-M05-drag-grab-offset-grid-pitch.md) · [M06](./tasks/T77-M06-expand-nonroot-forest.md) · [M07](./tasks/T77-M07-lying-tests.md) · [M08](./tasks/T77-M08-validate-search-perf.md) · [M09](./tasks/T77-M09-dead-code-purge.md) · [M10](./tasks/T77-M10-silent-lies.md) · [M11](./tasks/T77-M11-crash-hardening.md)
-75. [T78-post-t77-critique.md](./tasks/T78-post-t77-critique.md) — 📋 повторний огляд після T77
+**Що робити далі** — [`AGENDA.md`](./AGENDA.md): ранжована черга з обґрунтуванням, чому саме цей хід.
+
+У `tasks/` лишається тільки живе: не почате, часткове й довідники, які тримаються синхронними з
+кодом. Завершене переїхало у [`archive/tasks-2026-09-02.md`](./archive/tasks-2026-09-02.md)
+вказівниками — 98 задач, повний текст кожної в історії git.
+
+| Задача | Про що | Статус |
+|---|---|---|
+| [T26-promote-overlay](./tasks/T26-promote-overlay.md) | Pixi + React promote overlay (TD07) | done (first slice) |
+| [T56-gojs-feature-inventory](./tasks/T56-gojs-feature-inventory.md) | GoJS reverse-engineering: інвентаризація функціоналу | draft — ⛔ для product selection (позначайте `[x]` що беремо; чек-бокси ставить продукт, не агент) |
+| [T61-group-recursion-tier3](./tasks/T61-group-recursion-tier3.md) | Рекурсія груп організацій у ярусі 3 (B8c) | planned · ⛔ заблоковано продуктом — перший пункт acceptance («макет затверджено») |
+| [T67-multi-select](./tasks/T67-multi-select.md) | Мультивибір вузлів (D2) | Phase 1 done · bulk-меню + host bulk bar (2026-08-25) |
+| [T70-position-card-chrome](./tasks/T70-position-card-chrome.md) | Chrome карток + геометрія знака організації (E* / 4231) | Phase 0 + Phase 1 + Phase 2 done (agreed in T73) |
+| [T71-gojs-to-dg-migration-plan](./tasks/T71-gojs-to-dg-migration-plan.md) | План міграції GoJS → Org Hierarchy SDK (`dg`) | ✅ cutover queue complete (2026-08-23) — залишок: T61 (макет), T67 Phase 2 (marquee, optional) |
+| [T80-contour-engines-ba-demo](./tasks/T80-contour-engines-ba-demo.md) | Два рушії контурів для порівняння BA | ✅ demo ready (2026-08-25) |
+| [T90-drag-smoothness](./tasks/T90-drag-smoothness.md) | Перетягування «не плавне»: гіпотеза виміряна й **спростована** | 🟡 виміряно, причина не підтверджена |
+| [T92-software-render-pan-cost](./tasks/T92-software-render-pan-cost.md) | Панорамування на програмному рендері: ≈9 fps, і це не про промоут | 🟡 лікування знайдене й виміряне (2026-09-02); лишилось число з цільового заліза |
+| [T98-auto-renderer-does-not-fall-back](./tasks/T98-auto-renderer-does-not-fall-back.md) | `renderer: 'auto'` не переходить на Canvas2D там, де WebGL програмний | 🔵 не почато |
+| [T101-e2e-flakes-only-local](./tasks/T101-e2e-flakes-only-local.md) | Флаки, які CI не може побачити: він ганяє послідовно, а розробник — ні | 🔵 не почато |
+| [T102-row-tree-depth-block-b](./tasks/T102-row-tree-depth-block-b.md) | row-tree: підняти підтриману глибину (блок Б) | не почато. Спека готова, приймальна таблиця написана. |
+| [T103-setdata-request-epoch](./tasks/T103-setdata-request-epoch.md) | `setData` не «виграє останній запит» | не почато. |
+| [T104-mutations-are-not-one-transaction](./tasks/T104-mutations-are-not-one-transaction.md) | мутація, рендер і колбек хоста — не одна транзакція | не почато. |
+| [T105-root-barrel-exposes-test-hooks](./tasks/T105-root-barrel-exposes-test-hooks.md) | кореневий барель віддає внутрішнє й тест-хуки | не почато. |
+| [T106-deepen-facades-drop-shallow-wrappers](./tasks/T106-deepen-facades-drop-shallow-wrappers.md) | великі фасади поруч із порожніми обгортками | не почато. Серйозність: Medium. |
+| [NODE-interactions-contract](./tasks/NODE-interactions-contract.md) | NODE interactions contract (mandatory) | active · Enforced by: `nodeInteractions.contract.test.ts`, `e2e/node-interactions.spec.ts` |
+| [PARITY-gojs-to-dg](./tasks/PARITY-gojs-to-dg.md) | Parity `gojs-diagram` → `dg`: вимога → можливість | 🟢 живий довідник, не задача — тримається синхронним із кодом, не закривається. |
+
+⚠️ `T80` має статус `✅ demo ready`, але лишається тут: за `AGENDA.md` це **відкрите продуктове
+рішення** (який рушій контурів лишаємо), а не закрита задача.
 
 ## Технічний борг
 
-- [CRITIQUE-dg_9352d52.md](./tech-debt/CRITIQUE-dg_9352d52.md) — повторний огляд після T77 → [T78](./tasks/T78-post-t77-critique.md)
-- [CRITIQUE-dg_907f.md](./tech-debt/CRITIQUE-dg_907f.md) — зведення 4 оглядів → [T77](./tasks/T77-critique-remediation.md) ✅
+- [CRITIQUE-dg_9352d52.md](./tech-debt/CRITIQUE-dg_9352d52.md) — повторний огляд після T77 → [T78](./archive/tasks-2026-09-02.md)
+- [CRITIQUE-dg_907f.md](./tech-debt/CRITIQUE-dg_907f.md) — зведення 4 оглядів → [T77](./archive/tasks-2026-09-02.md) ✅
 - [REVIEW-dg-805efee-architecture.md](./tech-debt/REVIEW-dg-805efee-architecture.md) — ✅ D1–D7 closed
 - [D5-orphan-position-layout.md](./tech-debt/D5-orphan-position-layout.md) — ✅ documented (not a bug)
 - [TD01-git-remote-and-ci.md](./tech-debt/TD01-git-remote-and-ci.md) — ✅ closed (`b2vv/dg`)

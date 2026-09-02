@@ -2,7 +2,7 @@
 
 **Базис:** `b2vv/dg@805efee` (`main`) · **Обсяг:** `packages/sdk/src` + `packages/core/src`  
 **Дата brief:** 2026-08-23 · **Статус remediation:** ✅ D1–D7 closed (2026-08-23)  
-**Деталі:** [T74](../tasks/T74-node-media-lifecycle.md) · [T75](../tasks/T75-rebuild-vs-repaint.md) · [T76](../tasks/T76-diagram-facade-stores.md) · [Pocock/GoF](../tasks/REVIEW-t74-t76-pocock-gof.md)
+**Деталі:** [T74](../archive/tasks-2026-09-02.md) · [T75](../archive/tasks-2026-09-02.md) · [T76](../archive/tasks-2026-09-02.md) · [Pocock/GoF](../archive/tasks-2026-09-02.md)
 
 ---
 

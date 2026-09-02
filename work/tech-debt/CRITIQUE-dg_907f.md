@@ -4,7 +4,7 @@
 **Метод:** чотири агенти з різними лінзами (AI-slop, дірки в логіці, зайва складність,
 непокриті edge cases), кожен читав код незалежно. Нижче — дедупліковане зведення.
 **Статус:** усі чотири огляди завершені.
-**Remediation:** [T77](../tasks/T77-critique-remediation.md) (M01–M11) · гілка `cursor/t77-critique-remediation-babc`
+**Remediation:** [T77](../archive/tasks-2026-09-02.md) (M01–M11) · гілка `cursor/t77-critique-remediation-babc`
 
 ## Scorecard (2026-08-24)
 

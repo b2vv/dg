@@ -55,7 +55,7 @@
 | Експорт | SVG, PNG, PDF, print | REQUIREMENTS §0 Q7 |
 | Bundler demo | Rsbuild | REQUIREMENTS §0 Q8 |
 
-Доведене в demo — **вікна, а не повні набори**: 100k org (400 намальованих, [`scenarios/scaleOrgs.ts`](../packages/demo/src/scenarios/scaleOrgs.ts), T48) і 1M посад на трьох ярусах ([`scenarios/scaleStaff.ts`](../packages/demo/src/scenarios/scaleStaff.ts), [T81](./tasks/T81-staff-1m-scale-tab.md)). Обидва таби друкують «вікно N з M» і чесно кажуть, коли шуканого немає у вікні (T81 §Чесність).
+Доведене в demo — **вікна, а не повні набори**: 100k org (400 намальованих, [`scenarios/scaleOrgs.ts`](../packages/demo/src/scenarios/scaleOrgs.ts), T48) і 1M посад на трьох ярусах ([`scenarios/scaleStaff.ts`](../packages/demo/src/scenarios/scaleStaff.ts), [T81](./archive/tasks-2026-09-02.md)). Обидва таби друкують «вікно N з M» і чесно кажуть, коли шуканого немає у вікні (T81 §Чесність).
 
 ### 1.2 Два сімейства діаграм
 
@@ -156,7 +156,7 @@ Host
 
 **`LayoutPatch` виріс** до п'яти типів; `position-reparent` несе і старого, і нового керівника, щоб хост міг застосувати зміну без діфа й відкотити її.
 
-**Правило шарів після T82:** `data/` → `contour/`, `layout/` → `render/` → `state/` + фасад. Єдина навмисна залежність «назовні» — `state/ViewStateStore` читає типи LOD/теми з `render/` (view state сидить **над** рендерером). ([T82](./tasks/T82-module-split.md))
+**Правило шарів після T82:** `data/` → `contour/`, `layout/` → `render/` → `state/` + фасад. Єдина навмисна залежність «назовні» — `state/ViewStateStore` читає типи LOD/теми з `render/` (view state сидить **над** рендерером). ([T82](./archive/tasks-2026-09-02.md))
 
 ### 2.3 WASM: що живе
 
@@ -185,7 +185,7 @@ Pipeline у `contour.rs`: cluster → flood → G5 notch → G6 far-side → G7 
 
 **14 табів** ([`app/tabs.ts`](../packages/demo/src/app/tabs.ts)): Variant B (канон магнетизму QA), Staff tree, Orgs · Figma/GoJS, Staff · Figma / Magnetic / Flood / GoJS, Staff · 1M, **Staff · Brigade**, Flat orgs, 100k orgs, Mapper, Worker. Конфіг табу — чиста функція [`app/tabConfigs.ts`](../packages/demo/src/app/tabConfigs.ts); ознаки табу (`family`, `contourControls`, `orgTree`, `reloadsOnContourSlider`) — таблиця `TAB_META`; фікстури — [`scenarios/mockups.ts`](../packages/demo/src/scenarios/mockups.ts) (барель). `?e2e=1` → `window.__demoE2e` ([`app/e2eBridge.ts`](../packages/demo/src/app/e2eBridge.ts)) + DOM anchors. Alias SDK на **source**, не `dist`.
 
-**Демо-фікстури цивільні навмисно** — сторінка публічна (GitHub Pages), військових назв з Figma в них немає ([MOCKUP-styles-review](./tasks/MOCKUP-styles-review.md) правило 1).
+**Демо-фікстури цивільні навмисно** — сторінка публічна (GitHub Pages), військових назв з Figma в них немає ([MOCKUP-styles-review](./archive/tasks-2026-09-02.md) правило 1).
 
 **Два стенди на штатці роблять різну роботу, і плутати їх дорого:**
 
@@ -194,7 +194,7 @@ Pipeline у `contour.rs`: cluster → flood → G5 notch → G6 far-side → G7 
 | `Staff · 1M` | 1 000 000 адрес, вікно ≤ 4000 посад, дерево з розгалуженням 8 | **хард-тест**: вікно, пошук по мільйону, вартість перебудови |
 | `Staff · Brigade` | 84 посади, штаб-структура, змішані ешелони | **форма продукту**: саме на ній вимірюють фази рендера |
 
-Чому це в брифінгу: три умовні задачі оптимізації були відкриті за числом **1,5 с**, знятим із `Staff · 1M`, і закриті за **9,5–12,7 мс** на `Brigade` — різниця була не в обсязі, а в **формі зв'язків** (зірка проти дерева). Вердикт по продуктивності, знятий не з тієї фікстури, коштував би зміни публічного API рендера ([звіт T88](./reports/viewport-window/report.md) §15, §17, §19; [T96](./tasks/T96-scale-staff-real-hierarchy.md)).
+Чому це в брифінгу: три умовні задачі оптимізації були відкриті за числом **1,5 с**, знятим із `Staff · 1M`, і закриті за **9,5–12,7 мс** на `Brigade` — різниця була не в обсязі, а в **формі зв'язків** (зірка проти дерева). Вердикт по продуктивності, знятий не з тієї фікстури, коштував би зміни публічного API рендера ([звіт T88](./reports/viewport-window/report.md) §15, §17, §19; [T96](./archive/tasks-2026-09-02.md)).
 
 **Вікно за камерою — патерн хоста.** `app/viewportWindow.ts`: `resolveWindowRange` (чиста арифметика) + `RebuildScheduler`, який серіалізує перебудови промісним хвостом, **не** прапорцем «зайнято». SDK у цьому не бере участі, крім `onViewportChange` і `setData`.
 
@@ -204,7 +204,7 @@ Pipeline у `contour.rs`: cluster → flood → G5 notch → G6 far-side → G7 
 
 Обов'язкові політики: [`work/TDD.md`](./TDD.md) (Red-Green-Refactor, success **і** failure), [`work/CODING_STANDARDS.md`](./CODING_STANDARDS.md) (KISS > SOLID; без `enum`/`any`; `satisfies`; `assertNever` на discriminated union; функції ≤ ~40 рядків; Law of Demeter). Zod у стандартах згаданий як межа валідації — **у залежностях немає**.
 
-**У репо з'явився лінтер** — `oxlint --max-warnings 0` (+ `oxfmt`), і він у CI. До цього кожне питання про іменування, `any` чи мертвий імпорт трималось на людському рев'ю; тепер частина стандартів виконувана, і **її не треба перевіряти очима на рев'ю** ([T85](./tasks/T85-lint-debt.md), [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)).
+**У репо з'явився лінтер** — `oxlint --max-warnings 0` (+ `oxfmt`), і він у CI. До цього кожне питання про іменування, `any` чи мертвий імпорт трималось на людському рев'ю; тепер частина стандартів виконувана, і **її не треба перевіряти очима на рев'ю** ([T85](./archive/tasks-2026-09-02.md), [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)).
 
 | Патерн | Де | Правило |
 |--------|----|---------|
@@ -287,7 +287,7 @@ GitHub Issues на `b2vv/dg` **порожні**; живий беклог — `wo
 | # | Суть | Джерело |
 |---|------|---------|
 | 1 | ~~`cell-flood` не доходить до експорту~~ — **закрито 2026-08-26**: SVG рахує flood тими самими входами, що й канвас; коли рушій не може відпрацювати, шар порожній + причина в `onDiagnostic`. Правило: SVG ніколи не малює рушієм, якого не використав канвас | `export/svgExport.ts`, [T80](./tasks/T80-contour-engines-ba-demo.md), [цикл](./reports/flood-export/) |
-| 2 | ~~Візуальні бейзлайни застаріли~~ — **закрито 2026-08-25**: усі 5 знімків перезняті в контейнері `playwright:v1.62.1-noble` під `linux/amd64` (як CI), галерея `node-compare` теж; повторний прогін без `--update-snapshots` дав 16/16 | [MOCKUP-styles-review §Перегенеровано](./tasks/MOCKUP-styles-review.md) |
+| 2 | ~~Візуальні бейзлайни застаріли~~ — **закрито 2026-08-25**: усі 5 знімків перезняті в контейнері `playwright:v1.62.1-noble` під `linux/amd64` (як CI), галерея `node-compare` теж; повторний прогін без `--update-snapshots` дав 16/16 | [MOCKUP-styles-review §Перегенеровано](./archive/tasks-2026-09-02.md) |
 | 3 | ~~Shared module-level воркери~~ — **закрито 2026-08-26**: `worker/WorkerChannel.ts`, кожна діаграма має власний канал і звільняє його на `destroy()`; модульні `configure*` лишились для прямих викликів | `worker/WorkerChannel.ts`, `render/twoDiagrams.contract.test.ts` |
 | 4 | Promote-HTML не входить у SVG/PNG/PDF | `react/createReactPromoteOverlay.ts` |
 | 5 | Немає e2e на **export / mapper**. По D&D і promote e2e з'явились (`t67-multiselect-manual`, `promote-near`), по D&D переприв'язки — контрактні тести + ручна проходка, e2e немає | `e2e/` |
@@ -359,7 +359,7 @@ GitHub issue tracker не використовувати як карту, пок
 
 ## 8. Правила для наступної імплементації
 
-1. Прочитати цей файл + тікет, який чіпаєш. Контур/export/org-tree → ще [T78](./tasks/T78-post-t77-critique.md), [T79](./tasks/T79-g2-m2-paint-notch.md), [T80](./tasks/T80-contour-engines-ba-demo.md) і [CRITIQUE-9352d52](./tech-debt/CRITIQUE-dg_9352d52.md).
+1. Прочитати цей файл + тікет, який чіпаєш. Контур/export/org-tree → ще [T78](./archive/tasks-2026-09-02.md), [T79](./archive/tasks-2026-09-02.md), [T80](./tasks/T80-contour-engines-ba-demo.md) і [CRITIQUE-9352d52](./tech-debt/CRITIQUE-dg_9352d52.md).
 2. Словник з `CONTEXT.md`. Новий термін — `/domain-modeling`, не синонім зі avoid-списку.
 3. TDD: failing success **і** failure до production. Баг на канвасі — цілити `paintMagneticGroups` / member boxes / `ContourPainter`, а не `computeAllContours`.
 4. **Третій вигляд контуру — це третій рушій за прапорцем**, а не правка кільця в наявному. Обидва наявні шляхи мають тести; який лишиться — вирішує BA.
@@ -395,9 +395,9 @@ GitHub issue tracker не використовувати як карту, пок
 | Алгоритми / API | `work/SPEC.md` |
 | Глосарій | `CONTEXT.md` |
 | Задачі / борг | `work/README.md`, `work/tasks/`, `work/tech-debt/` |
-| Критика post-T77 і її закриття | `work/tech-debt/CRITIQUE-dg_9352d52.md`, `work/tasks/T78-post-t77-critique.md` |
+| Критика post-T77 і її закриття | `work/tech-debt/CRITIQUE-dg_9352d52.md`, `work/archive/tasks-2026-09-02.md` |
 | Два рушії контуру | `work/tasks/T80-contour-engines-ba-demo.md` |
-| Розбивка модулів | `work/tasks/T82-module-split.md` |
+| Розбивка модулів | `work/archive/tasks-2026-09-02.md` |
 | Фасад | `packages/sdk/src/OrgHierarchyDiagram.ts` (публічний барель — `index.ts`) |
 | Paint контуру | `packages/sdk/src/render/contour/` (`paintMagneticGroups.ts`, `ContourPainter.ts`, `floodContourEngine.ts`) |
 | WASM contour / row-tree | `packages/core/src/contour.rs`, `ploeg_layout.rs`, `org_layout.rs` |

@@ -4,8 +4,8 @@
 **Метод:** чотири агенти з різними лінзами (AI-slop, дірки в логіці, зайва складність,
 непокриті edge cases), кожен читав код незалежно. Нижче — дедупліковане зведення.
 **Статус:** усі чотири огляди завершені.
-**Попередній цикл:** [CRITIQUE-dg_907f.md](./CRITIQUE-dg_907f.md) → [T77](../tasks/T77-critique-remediation.md) (M01–M11 ✅, #57–#61).
-**Remediation:** [T78](../tasks/T78-post-t77-critique.md)
+**Попередній цикл:** [CRITIQUE-dg_907f.md](./CRITIQUE-dg_907f.md) → [T77](../archive/tasks-2026-09-02.md) (M01–M11 ✅, #57–#61).
+**Remediation:** [T78](../archive/tasks-2026-09-02.md)
 
 T77 закрив аварії (worker/PixiHost/drag grab-offset, hanging `parentOrgId`, dishonest PNG stub,
 fillet invert, typed promote keys, NaN layout metrics). Цей прохід питає: **що лишилось або з’явилось після фіксів.**
