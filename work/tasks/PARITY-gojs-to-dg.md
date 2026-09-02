@@ -1,5 +1,8 @@
 # Parity `gojs-diagram` → `dg`: вимога → можливість
 
+**Статус:** 🟢 живий довідник, не задача — тримається синхронним із кодом, не закривається.
+Міграційна черга закрита (`🔴 міграційні: 0`); відкритого лишилось ~2 🟡 (B2 matrix edge cases,
+text-glyph padding) і один 🔴 поза міграцією — B8c → [T61](./T61-group-recursion-tier3.md).  
 **Редакція:** 2.2 (синхронізовано з cutover queue complete, 2026-08-23)  
 **Ліворуч:** прод `gojs-diagram` / `modules/{org-hierarchy,positions}`  
 **Праворуч:** `b2vv/dg`  
