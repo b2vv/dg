@@ -26,6 +26,9 @@ export default defineConfig({
         // gesture racing a rebuild — never about a regression. Run it where its
         // numbers are wanted: `npm run measure:motion`.
         '**/t87-motion.spec.ts',
+        // Same reason: T92 compares the *environment's* two renderers, so its
+        // numbers describe the machine. `npm run measure:renderer`.
+        '**/t92-software-pan.spec.ts',
       ],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
