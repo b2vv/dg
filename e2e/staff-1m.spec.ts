@@ -110,6 +110,13 @@ test.describe('1M staff scale tab', () => {
     // It said «showing 0» under twenty visible rows until the browser showed it.
     await expect(page.locator('#status')).toContainText('showing 20');
 
+    // T99: it must still be there a moment later. Typing the query resizes the
+    // visible area, which slides the window, which used to write over the answer
+    // the user had just asked for — measured at 520 ms of life. State and
+    // messages now write to different nodes, so the slide cannot reach this.
+    await page.waitForTimeout(2500);
+    await expect(page.locator('#status')).toContainText('showing 20');
+
     // Scrolling loads the next page rather than a spacer sized to 25 000 rows.
     await panel.locator('.rows').evaluate((el) => {
       el.scrollTop = el.scrollHeight;

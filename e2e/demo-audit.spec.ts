@@ -95,6 +95,28 @@ test.describe('demo audit (T33)', () => {
     await expect(page.locator('#status')).not.toContainText('staff · window');
   });
 
+  test('the zoom readout follows the camera, not just the zoom buttons', async ({ page }) => {
+    // Each caller used to paste the zoom into its own sentence, so the number was
+    // only as fresh as the last message: a wheel, a pinch or a host calling
+    // setZoom left it frozen. The panel read 0.15 with the camera at 1.6 (T99).
+    await page.goto('/?e2e=1');
+    await page.getByTestId('diagram-ready').waitFor({ timeout: 60_000 });
+    const status = page.locator('#status');
+
+    await page.evaluate(() => {
+      const b = (window as unknown as { __demoE2e: { setZoom(v: number): void } }).__demoE2e;
+      b.setZoom(1.6);
+    });
+    await expect(status).toContainText('zoom 1.60');
+
+    // …and it keeps following, rather than latching onto one value.
+    await page.evaluate(() => {
+      const b = (window as unknown as { __demoE2e: { setZoom(v: number): void } }).__demoE2e;
+      b.setZoom(0.7);
+    });
+    await expect(status).toContainText('zoom 0.70');
+  });
+
   test('one set of on-diagram zoom controls', async ({ page }) => {
     await page.goto('/');
     await page.waitForTimeout(2500);

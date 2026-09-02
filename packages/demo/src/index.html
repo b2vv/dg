@@ -48,7 +48,13 @@
         <button type="button" id="export-print">Print</button>
       </div>
     </div>
-    <span id="status" class="status">Init…</span>
+    <!-- One element, two writers that must not overwrite each other: a
+         **message** (search, error, menu) and **state** (zoom, and the window on
+         the 1M tab). They used to share one string, so a window slide silently
+         ate the search result the user had just asked for — see T99. Kept as one
+         outer span on purpose: the header's height is load-bearing for the stage
+         size, and `#status`.textContent still reads as one line. -->
+    <span id="status" class="status"><span id="status-msg">Init…</span><span id="status-state"></span></span>
   </header>
 
   <main class="stage">

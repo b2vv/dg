@@ -186,10 +186,14 @@ export class App {
 
   private readonly mountEl: HTMLElement;
   private readonly statusEl: HTMLElement;
+  private readonly statusStateEl: HTMLElement;
+  /** Window state on the 1M tab; null on every other scene. */
+  private windowState: string | null = null;
 
   constructor() {
     this.mountEl = requireElement('diagram-mount');
-    this.statusEl = requireElement('status');
+    this.statusEl = requireElement('status-msg');
+    this.statusStateEl = requireElement('status-state');
   }
 
   async init(): Promise<void> {
@@ -353,10 +357,8 @@ export class App {
       this.mountBulkBar();
       this.setStatus(this.readyStatus());
       this.fitDiagramView();
-      this.setStatus(
-        `${this.tabLabel()} · zoom ${this.diagram.getZoom().toFixed(2)}` +
-          (this.revealNote ? ` · ${this.revealNote}` : ''),
-      );
+      this.refreshZoom();
+      this.setStatus(this.tabLabel() + (this.revealNote ? ` · ${this.revealNote}` : ''));
       this.mountSceneCaption();
       if (this.tab === 'staff-1m' && this.staffScaleWindow) {
         this.syncStaffWindowMarker(this.staffScaleWindow);
@@ -374,6 +376,9 @@ export class App {
     this.staffScheduler = null;
     this.staffNote = null;
     this.revealNote = null;
+    // The window belonged to the scene being dropped. Left behind, it would
+    // describe the old tab on the new one — which `demo-audit` checks by name.
+    this.setWindowState(null);
     this.promote?.dispose();
     this.promote = null;
     this.testAnchors?.dispose();
@@ -393,6 +398,8 @@ export class App {
   private diagramCallbacks(): OrgHierarchyCallbacks {
     return {
       onViewportChange: (_transform, meta) => {
+        // Its own node, so this cannot overwrite a message however often it runs.
+        this.refreshZoom();
         // Only on settled: rebuilding mid-gesture is what the reserve exists to
         // avoid. A resize counts as settled work too — it changes how much fits
         // without moving the camera, so nothing else would notice the new edge.
@@ -407,7 +414,7 @@ export class App {
         // and did not enter (§19), so the status is what keeps the emptiness from
         // being silent. Said here, at the request, rather than inside the rebuild:
         // the wait starts now, not when the queue gets to it.
-        this.setStatus(`staff · catching up to the camera — window ${range.start}…`);
+        this.setWindowState(`staff · catching up to the camera — window ${range.start}…`);
         this.staffScheduler?.request({ kind: 'slide', start: range.start });
       },
       /**
@@ -561,7 +568,7 @@ export class App {
       case 'mapper':
         return 'Mapper · load sample JSON or upload a file';
       default:
-        return `${this.tabLabel()} · zoom ${this.diagram?.getZoom().toFixed(2) ?? '—'}`;
+        return this.tabLabel();
     }
   }
 
@@ -574,7 +581,8 @@ export class App {
   /** E2e: layout staff canvas edges for current tab config (mockup staff tabs). */
   private zoomDiagram(factor: number): void {
     this.diagram?.zoomBy(factor);
-    this.setStatus(`${this.tab} · zoom ${this.diagram?.getZoom().toFixed(2) ?? '—'}`);
+    this.refreshZoom();
+    this.setStatus(this.tab);
   }
 
   /**
@@ -643,7 +651,8 @@ export class App {
       if (action === 'in') this.zoomDiagram(1.25);
       else if (action === 'out') this.zoomDiagram(0.8);
       else if (action === 'fit' && this.fitDiagramView({ animate: true })) {
-        this.setStatus(`${this.tabLabel()} · fit · zoom ${this.diagram?.getZoom().toFixed(2) ?? '—'}`);
+        this.refreshZoom();
+        this.setStatus(`${this.tabLabel()} · fit`);
       }
     });
     this.mountEl.appendChild(fab);
@@ -758,7 +767,7 @@ export class App {
   private settleStaffWindow(win: ScaleStaffWindow, status: string): void {
     this.mountSceneCaption();
     this.syncStaffWindowMarker(win);
-    this.setStatus(status);
+    this.setWindowState(status);
   }
 
   /**
@@ -1230,8 +1239,42 @@ export class App {
     setTimeout(() => toast.classList.remove('visible'), 4000);
   }
 
+  /**
+   * A **message**: something that just happened — a search, an export, a menu
+   * action, an error. Event-driven, last one wins, and that is fine because
+   * they describe events.
+   *
+   * State does **not** come through here. It used to, and the result was that a
+   * window slide — triggered by the search panel changing the visible area —
+   * overwrote the search result 520 ms after the user read it (T99).
+   */
   private setStatus(text: string): void {
     this.statusEl.textContent = text;
+  }
+
+  /**
+   * **State**: what is true right now rather than what just happened. The zoom
+   * always, and the window range on the 1M tab.
+   *
+   * Written to its own node, so no amount of state churn can clobber a message.
+   * `#status` still reads as one line — every assertion on it keeps working.
+   */
+  private setWindowState(text: string | null): void {
+    this.windowState = text;
+    this.renderStatusState();
+  }
+
+  private refreshZoom(): void {
+    this.renderStatusState();
+  }
+
+  private renderStatusState(): void {
+    const zoom = this.diagram?.getZoom();
+    const parts = [this.windowState, zoom == null ? null : `zoom ${zoom.toFixed(2)}`];
+    const tail = parts.filter((p): p is string => p != null).join(' · ');
+    const line = tail ? ` · ${tail}` : '';
+    if (this.statusStateEl.textContent === line) return;
+    this.statusStateEl.textContent = line;
   }
 }
 
