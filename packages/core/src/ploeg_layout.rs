@@ -9,16 +9,19 @@ use crate::types::{HierarchyNode, LayoutEdge, LayoutNode, LayoutOptions, LayoutR
 
 /// Layered tidy tree — як `WasmLayoutType::LayeredTidy` у diagram-lib.
 pub fn compute_ploeg_layered_layout(root: &HierarchyNode, opts: &LayoutOptions) -> LayoutResult {
-    let mut tree = TidyTree::with_layered_tidy(
-        opts.vertical_gap as f64,
-        opts.horizontal_gap as f64,
-    );
+    let mut tree =
+        TidyTree::with_layered_tidy(opts.vertical_gap as f64, opts.horizontal_gap as f64);
     let mut numeric_to_id: HashMap<usize, String> = HashMap::new();
     let mut parent_numeric: HashMap<usize, usize> = HashMap::new();
     let mut id_to_numeric: HashMap<String, usize> = HashMap::new();
     let mut source_by_num: HashMap<usize, &HierarchyNode> = HashMap::new();
     let mut next_id = 1usize;
 
+    // Ten parameters because the walk threads five mutable maps through the
+    // recursion. Bundling them is a real improvement — and it belongs to the
+    // work that makes this traversal iterative (the depth limit lives here),
+    // not to a lint sweep that would rewrite it twice.
+    #[allow(clippy::too_many_arguments)]
     fn walk<'a>(
         node: &'a HierarchyNode,
         parent_num: usize,
@@ -228,10 +231,7 @@ mod tests {
 
     #[test]
     fn ploeg_layered_parent_above_children() {
-        let root = org_node(
-            "root",
-            vec![org_node("a", vec![]), org_node("b", vec![])],
-        );
+        let root = org_node("root", vec![org_node("a", vec![]), org_node("b", vec![])]);
         let layout = compute_ploeg_layered_layout(&root, &opts());
         let by_id: HashMap<_, _> = layout.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
         assert!(by_id["a"].y > by_id["root"].y);
@@ -240,10 +240,7 @@ mod tests {
 
     #[test]
     fn ploeg_layered_siblings_same_row() {
-        let root = org_node(
-            "root",
-            vec![org_node("a", vec![]), org_node("b", vec![])],
-        );
+        let root = org_node("root", vec![org_node("a", vec![]), org_node("b", vec![])]);
         let layout = compute_ploeg_layered_layout(&root, &opts());
         let a = layout.nodes.iter().find(|n| n.id == "a").unwrap();
         let b = layout.nodes.iter().find(|n| n.id == "b").unwrap();

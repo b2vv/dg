@@ -17,7 +17,11 @@ pub fn build_from_flat(items: Vec<FlatNodeInput>) -> Result<HierarchyNode, Strin
 
     let map: HashMap<&str, &FlatNodeInput> = items.iter().map(|i| (i.id.as_str(), i)).collect();
 
-    fn build(id: &str, map: &HashMap<&str, &FlatNodeInput>, items: &[FlatNodeInput]) -> HierarchyNode {
+    fn build(
+        id: &str,
+        map: &HashMap<&str, &FlatNodeInput>,
+        items: &[FlatNodeInput],
+    ) -> HierarchyNode {
         let input = map[id];
         let children: Vec<HierarchyNode> = items
             .iter()

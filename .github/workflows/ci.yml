@@ -21,6 +21,21 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+
+      # Until now the Rust half had no enforced baseline at all: TypeScript got
+      # oxlint, `packages/core` got `cargo test` and human attention. The tree
+      # had drifted out of `rustfmt` and carried six clippy findings by the time
+      # anyone looked (structure audit §Medium).
+      - name: cargo fmt --check
+        run: cargo fmt --check
+
+      # `--all-targets` so the tests are linted too — that is where eight of the
+      # findings were. What stays allowed is allowed **at the site**, with the
+      # reason next to it, not muted repo-wide here.
+      - name: cargo clippy
+        run: cargo clippy --all-targets -- -D warnings
+
       - name: cargo test
         run: cargo test
 

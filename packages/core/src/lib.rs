@@ -1,20 +1,24 @@
-mod hierarchy;
 mod contour;
+mod hierarchy;
 mod org_layout;
 mod org_tree;
 mod ploeg_layout;
 mod types;
 
-use wasm_bindgen::prelude::*;
 use serde_wasm_bindgen::{from_value, to_value};
+use wasm_bindgen::prelude::*;
 
+pub use contour::{compute_all_contours, compute_dept_contour};
 pub use hierarchy::build_from_flat;
 pub use org_layout::compute_org_row_tree_layout;
 pub use org_tree::{extract_subtree, validate_org_hierarchy, OrgTreeError};
-pub use contour::{compute_dept_contour, compute_all_contours};
 pub use types::*;
 
 /// Row-tree layout для org: validate → subtree → Ploeg layered tidy
+// Eight parameters because they *are* the TS↔WASM contract for this call.
+// Collapsing them into one object changes the boundary the manifest calls out by
+// name, so it is a decision with a pipeline, not a lint fix.
+#[allow(clippy::too_many_arguments)]
 #[wasm_bindgen(js_name = computeOrgRowTreeLayout)]
 pub fn wasm_compute_org_row_tree_layout(
     organizations: JsValue,
@@ -26,8 +30,8 @@ pub fn wasm_compute_org_row_tree_layout(
     v_gap: Option<f64>,
     margin: Option<f64>,
 ) -> Result<JsValue, JsValue> {
-    let orgs: Vec<OrgFlatInput> = from_value(organizations)
-        .map_err(|e| JsValue::from_str(&format!("parse error: {e}")))?;
+    let orgs: Vec<OrgFlatInput> =
+        from_value(organizations).map_err(|e| JsValue::from_str(&format!("parse error: {e}")))?;
 
     let opts = LayoutOptions {
         direction: direction.unwrap_or_else(|| "vertical".into()),
@@ -58,10 +62,10 @@ pub fn wasm_compute_dept_contour(
     positions: JsValue,
     config: Option<JsValue>,
 ) -> Result<JsValue, JsValue> {
-    let positions: Vec<ContourPositionInput> = from_value(positions)
-        .map_err(|e| JsValue::from_str(&format!("parse error: {e}")))?;
+    let positions: Vec<ContourPositionInput> =
+        from_value(positions).map_err(|e| JsValue::from_str(&format!("parse error: {e}")))?;
     let cfg: ContourMagnetConfig = config
-        .map(|c| from_value(c))
+        .map(from_value)
         .transpose()
         .map_err(|e| JsValue::from_str(&format!("config error: {e}")))?
         .unwrap_or_default();
@@ -76,10 +80,10 @@ pub fn wasm_compute_all_contours(
     positions: JsValue,
     config: Option<JsValue>,
 ) -> Result<JsValue, JsValue> {
-    let positions: Vec<ContourPositionInput> = from_value(positions)
-        .map_err(|e| JsValue::from_str(&format!("parse error: {e}")))?;
+    let positions: Vec<ContourPositionInput> =
+        from_value(positions).map_err(|e| JsValue::from_str(&format!("parse error: {e}")))?;
     let cfg: ContourMagnetConfig = config
-        .map(|c| from_value(c))
+        .map(from_value)
         .transpose()
         .map_err(|e| JsValue::from_str(&format!("config error: {e}")))?
         .unwrap_or_default();

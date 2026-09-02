@@ -1,17 +1,14 @@
 use crate::hierarchy::build_from_flat;
-use crate::ploeg_layout::compute_ploeg_layered_layout;
 use crate::org_tree::{extract_subtree, validate_org_hierarchy, OrgTreeError};
-use crate::types::{
-    FlatNodeInput, LayoutOptions, OrgFlatInput, OrgRowTreeLayoutResult,
-};
+use crate::ploeg_layout::compute_ploeg_layered_layout;
+use crate::types::{FlatNodeInput, LayoutOptions, OrgFlatInput, OrgRowTreeLayoutResult};
 
 pub fn compute_org_row_tree_layout(
     organizations: Vec<OrgFlatInput>,
     expanded_root_id: &str,
     opts: &LayoutOptions,
 ) -> Result<OrgRowTreeLayoutResult, OrgTreeError> {
-    opts.validate()
-        .map_err(OrgTreeError::InvalidMetrics)?;
+    opts.validate().map_err(OrgTreeError::InvalidMetrics)?;
     validate_org_hierarchy(&organizations)?;
     let subtree = extract_subtree(&organizations, expanded_root_id)?;
 

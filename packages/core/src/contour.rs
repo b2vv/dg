@@ -14,10 +14,22 @@ struct Cell {
 impl Cell {
     fn neighbors4(self) -> [Cell; 4] {
         [
-            Cell { col: self.col, row: self.row - 1 },
-            Cell { col: self.col + 1, row: self.row },
-            Cell { col: self.col, row: self.row + 1 },
-            Cell { col: self.col - 1, row: self.row },
+            Cell {
+                col: self.col,
+                row: self.row - 1,
+            },
+            Cell {
+                col: self.col + 1,
+                row: self.row,
+            },
+            Cell {
+                col: self.col,
+                row: self.row + 1,
+            },
+            Cell {
+                col: self.col - 1,
+                row: self.row,
+            },
         ]
     }
 }
@@ -313,6 +325,8 @@ fn signed_area(path: &[(i32, i32)]) -> i64 {
     area
 }
 
+/// Test-only: the shipped build never calls this, the assertions below do.
+#[cfg(test)]
 fn count_true_corners(path: &[(i32, i32)]) -> u32 {
     if path.len() < 3 {
         return path.len() as u32;
@@ -551,10 +565,7 @@ fn trace_orthogonal_contour(inside: &HashSet<Cell>, _bbox: &BBox) -> Vec<(i32, i
 /// Chaikin corner cutting (G4 smooth).
 fn chaikin(points: &[(i32, i32)], iterations: u32) -> Vec<(f32, f32)> {
     if points.len() < 3 {
-        return points
-            .iter()
-            .map(|(x, y)| (*x as f32, *y as f32))
-            .collect();
+        return points.iter().map(|(x, y)| (*x as f32, *y as f32)).collect();
     }
 
     let mut current: Vec<(f32, f32)> = points.iter().map(|(x, y)| (*x as f32, *y as f32)).collect();
@@ -732,11 +743,10 @@ fn cluster_own_cells(own: &[Cell], magnet_radius: f32) -> Vec<Vec<Cell>> {
         }
     }
 
-    let mut groups: std::collections::HashMap<usize, Vec<Cell>> =
-        std::collections::HashMap::new();
-    for i in 0..n {
+    let mut groups: std::collections::HashMap<usize, Vec<Cell>> = std::collections::HashMap::new();
+    for (i, cell) in own.iter().enumerate().take(n) {
         let root = find(i, &mut parent);
-        groups.entry(root).or_default().push(own[i]);
+        groups.entry(root).or_default().push(*cell);
     }
     let mut out: Vec<Vec<Cell>> = groups.into_values().collect();
     out.sort_by(|a, b| {
@@ -767,6 +777,11 @@ pub fn compute_all_contours(
 
 #[cfg(test)]
 mod tests {
+    // These cases are literally «the default config, except this one field», and
+    // spelling that as a struct literal with `..Default::default()` buries the
+    // one line that matters. Scoped to the tests; the shipped code does not do this.
+    #![allow(clippy::field_reassign_with_default)]
+
     use super::*;
     use crate::types::ContourMagnetConfig;
 
@@ -882,11 +897,24 @@ mod tests {
             // Strict interior overlap with P4's right edge (exclude touching only at a corner).
             seg_lo < y1 - 1.0 && seg_hi > y0 + 1.0
         });
-        assert!(!wall, "G6: vertical wall right of P4 must be absent, path={}", r.path);
+        assert!(
+            !wall,
+            "G6: vertical wall right of P4 must be absent, path={}",
+            r.path
+        );
         let ceo_cx = 1.5 * cfg.cell_width;
         let ceo_cy = 1.5 * cfg.cell_height;
-        assert!(!point_in_poly(ceo_cx, ceo_cy, &r.points), "CEO must stay outside IT fill");
-        for (col, row, label) in [(0, 0, "P1"), (1, 0, "P2"), (2, 0, "P3"), (0, 2, "P5"), (2, 2, "P6")] {
+        assert!(
+            !point_in_poly(ceo_cx, ceo_cy, &r.points),
+            "CEO must stay outside IT fill"
+        );
+        for (col, row, label) in [
+            (0, 0, "P1"),
+            (1, 0, "P2"),
+            (2, 0, "P3"),
+            (0, 2, "P5"),
+            (2, 2, "P6"),
+        ] {
             let cx = (col as f32 + 0.5) * cfg.cell_width;
             let cy = (row as f32 + 0.5) * cfg.cell_height;
             assert!(
@@ -979,7 +1007,11 @@ mod tests {
         assert_eq!(rs.len(), 1);
         let r = &rs[0];
         let min_x = r.points.iter().map(|p| p.x).fold(f32::INFINITY, f32::min);
-        let max_x = r.points.iter().map(|p| p.x).fold(f32::NEG_INFINITY, f32::max);
+        let max_x = r
+            .points
+            .iter()
+            .map(|p| p.x)
+            .fold(f32::NEG_INFINITY, f32::max);
         // Own cell is [0, cell_w] — no mandatory exterior pad ring.
         assert!(
             min_x >= -1.0,
@@ -1092,9 +1124,17 @@ mod tests {
         let r = &rs[0];
         let ceo_cx = 1.5 * cfg.cell_width;
         let ceo_cy = 1.5 * cfg.cell_height;
-        assert!(!point_in_poly(ceo_cx, ceo_cy, &r.points), "CEO must stay outside");
-        for (col, row, label) in [(0, 0, "P1"), (1, 0, "P2"), (2, 0, "P3"), (0, 2, "P5"), (2, 2, "P6")]
-        {
+        assert!(
+            !point_in_poly(ceo_cx, ceo_cy, &r.points),
+            "CEO must stay outside"
+        );
+        for (col, row, label) in [
+            (0, 0, "P1"),
+            (1, 0, "P2"),
+            (2, 0, "P3"),
+            (0, 2, "P5"),
+            (2, 2, "P6"),
+        ] {
             let cx = (col as f32 + 0.5) * cfg.cell_width;
             let cy = (row as f32 + 0.5) * cfg.cell_height;
             assert!(
@@ -1201,7 +1241,10 @@ mod tests {
         // CEO center must NOT be inside IT fill.
         let ceo_cx = 1.5 * cfg.cell_width;
         let ceo_cy = 1.5 * cfg.cell_height;
-        assert!(!point_in_poly(ceo_cx, ceo_cy, &r.points), "CEO must be outside IT fill");
+        assert!(
+            !point_in_poly(ceo_cx, ceo_cy, &r.points),
+            "CEO must be outside IT fill"
+        );
     }
 
     /// A9: requesting 20 Chaikin iterations must match the cap of 8 (20 would OOM).
@@ -1223,4 +1266,3 @@ mod tests {
         );
     }
 }
-

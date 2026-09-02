@@ -5,7 +5,10 @@ use ts_rs::TS;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-export", derive(TS))]
-#[cfg_attr(feature = "ts-export", ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts"))]
+#[cfg_attr(
+    feature = "ts-export",
+    ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
+)]
 pub struct OrgFlatInput {
     pub id: String,
     #[serde(rename = "parentOrgId")]
@@ -15,7 +18,10 @@ pub struct OrgFlatInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-export", derive(TS))]
-#[cfg_attr(feature = "ts-export", ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts"))]
+#[cfg_attr(
+    feature = "ts-export",
+    ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
+)]
 pub struct FlatNodeInput {
     pub id: String,
     #[serde(rename = "parentId")]
@@ -31,7 +37,10 @@ pub struct FlatNodeInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-export", derive(TS))]
-#[cfg_attr(feature = "ts-export", ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts"))]
+#[cfg_attr(
+    feature = "ts-export",
+    ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
+)]
 pub struct HierarchyNode {
     pub id: String,
     pub label: String,
@@ -56,7 +65,10 @@ fn default_status() -> String {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-export", derive(TS))]
-#[cfg_attr(feature = "ts-export", ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts"))]
+#[cfg_attr(
+    feature = "ts-export",
+    ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
+)]
 pub struct LayoutOptions {
     pub direction: String,
     pub node_width: f32,
@@ -109,30 +121,36 @@ impl LayoutOptions {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-export", derive(TS))]
-#[cfg_attr(feature = "ts-export", ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts"))]
+#[cfg_attr(
+    feature = "ts-export",
+    ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
+)]
 pub struct LayoutNode {
-  pub id: String,
-  pub label: String,
-  #[serde(rename = "type")]
-  pub node_type: String,
-  pub position: Option<String>,
-  pub person: Option<String>,
-  pub department: Option<String>,
-  pub status: String,
-  pub x: f32,
-  pub y: f32,
-  pub width: f32,
-  pub height: f32,
-  pub depth: u32,
-  #[serde(rename = "parentId")]
-  pub parent_id: Option<String>,
-  #[serde(rename = "orgId")]
-  pub org_id: String,
+    pub id: String,
+    pub label: String,
+    #[serde(rename = "type")]
+    pub node_type: String,
+    pub position: Option<String>,
+    pub person: Option<String>,
+    pub department: Option<String>,
+    pub status: String,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    pub depth: u32,
+    #[serde(rename = "parentId")]
+    pub parent_id: Option<String>,
+    #[serde(rename = "orgId")]
+    pub org_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-export", derive(TS))]
-#[cfg_attr(feature = "ts-export", ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts"))]
+#[cfg_attr(
+    feature = "ts-export",
+    ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
+)]
 pub struct LayoutEdge {
     #[serde(rename = "fromId")]
     pub from_id: String,
@@ -143,7 +161,10 @@ pub struct LayoutEdge {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-export", derive(TS))]
-#[cfg_attr(feature = "ts-export", ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts"))]
+#[cfg_attr(
+    feature = "ts-export",
+    ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
+)]
 pub struct LayoutResult {
     pub nodes: Vec<LayoutNode>,
     pub edges: Vec<LayoutEdge>,
@@ -154,7 +175,10 @@ pub struct LayoutResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-export", derive(TS))]
-#[cfg_attr(feature = "ts-export", ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts"))]
+#[cfg_attr(
+    feature = "ts-export",
+    ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
+)]
 pub struct OrgRowTreeLayoutResult {
     pub mode: String,
     /// layout engine id, e.g. ploeg-layered-tidy (diagram-lib compatible)

@@ -61,8 +61,7 @@ pub fn validate_org_hierarchy(organizations: &[OrgFlatInput]) -> Result<(), OrgT
         if done.contains(org.id.as_str()) {
             continue;
         }
-        if let Some(cycle_id) =
-            walk_parent_chain(org.id.as_str(), &by_id, &mut done, &mut in_stack)
+        if let Some(cycle_id) = walk_parent_chain(org.id.as_str(), &by_id, &mut done, &mut in_stack)
         {
             return Err(OrgTreeError::Cycle(cycle_id.to_string()));
         }
@@ -116,10 +115,8 @@ pub fn extract_subtree<'a>(
     organizations: &'a [OrgFlatInput],
     root_id: &str,
 ) -> Result<Vec<&'a OrgFlatInput>, OrgTreeError> {
-    let by_id: HashMap<&str, &'a OrgFlatInput> = organizations
-        .iter()
-        .map(|o| (o.id.as_str(), o))
-        .collect();
+    let by_id: HashMap<&str, &'a OrgFlatInput> =
+        organizations.iter().map(|o| (o.id.as_str(), o)).collect();
 
     if !by_id.contains_key(root_id) {
         return Err(OrgTreeError::UnknownOrg(root_id.into()));
@@ -130,7 +127,10 @@ pub fn extract_subtree<'a>(
     while let Some(id) = stack.pop() {
         let org = by_id[id];
         result.push(org);
-        for child in organizations.iter().filter(|o| o.parent_org_id.as_deref() == Some(id)) {
+        for child in organizations
+            .iter()
+            .filter(|o| o.parent_org_id.as_deref() == Some(id))
+        {
             stack.push(child.id.as_str());
         }
     }
