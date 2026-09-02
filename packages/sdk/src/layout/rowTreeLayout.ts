@@ -25,22 +25,68 @@ function toOrgFlatInput(organizations: DiagramOrganization[]): OrgFlatInput[] {
   }));
 }
 
+/**
+ * Deepest expanded subtree the row-tree layout accepts, counting the expanded
+ * root as depth 1.
+ *
+ * This is a contract, not a measurement of what happens to survive. Past it the
+ * traversals below — and the two in Rust — run out of stack, and the way they
+ * run out matters: up to about 4 000 the module throws and lives, but past
+ * ~4 500 it traps with `memory access out of bounds` and every later call into
+ * WASM fails, `computeAllContours` included. `initContourWasm` holds one
+ * instance per process, so that is the whole SDK gone until the page reloads.
+ *
+ * 2 500 is the measured ceiling in Node, and the margin below the first
+ * observed failure (2 900) is thin — the limit moves with how much stack the
+ * caller already spent, and a worker or another engine gets less of it. Lower
+ * this number rather than defend it; `work/reports/row-tree-depth/spec.md` §4
+ * records the measurements and asks for a browser re-measure before this
+ * number is written into `docs/USAGE.md`.
+ */
+export const MAX_ROW_TREE_DEPTH = 2_500;
+
+/**
+ * Collect the expanded subtree, refusing anything deeper than
+ * {@link MAX_ROW_TREE_DEPTH}.
+ *
+ * Iterative on purpose: the recursion this replaces overflowed the stack before
+ * any check could run, so the guard had to live somewhere the guard itself
+ * could reach. The children index replaces a full scan of `organizations` per
+ * visited node, which is also what lets a 50 000-org chain be refused in
+ * milliseconds instead of seconds — it stops at the first node past the limit
+ * rather than walking the rest.
+ */
 function visibleOrgsForRowTree(
   organizations: DiagramOrganization[],
   expandedRootId: string,
 ): DiagramOrganization[] {
   const byId = new Map(organizations.map((o) => [o.id, o]));
+  const childrenByParent = new Map<string, DiagramOrganization[]>();
+  for (const org of organizations) {
+    if (!org.parentOrgId) continue;
+    const siblings = childrenByParent.get(org.parentOrgId);
+    if (siblings) siblings.push(org);
+    else childrenByParent.set(org.parentOrgId, [org]);
+  }
+
   const visible = new Set<string>();
-  const walk = (id: string) => {
-    if (!byId.has(id)) return;
-    visible.add(id);
-    const org = byId.get(id)!;
-    if (isOrgCollapsed(org)) return;
-    for (const child of organizations) {
-      if (child.parentOrgId === id) walk(child.id);
+  const pending: Array<{ id: string; depth: number }> = [{ id: expandedRootId, depth: 1 }];
+  while (pending.length > 0) {
+    const { id, depth } = pending.pop()!;
+    const org = byId.get(id);
+    if (!org) continue;
+    if (depth > MAX_ROW_TREE_DEPTH) {
+      throw new OrgHierarchyError(
+        `Organization tree too deep: reached depth ${depth} at ${id}, ` +
+          `maximum is ${MAX_ROW_TREE_DEPTH}`,
+      );
     }
-  };
-  walk(expandedRootId);
+    visible.add(id);
+    if (isOrgCollapsed(org)) continue;
+    for (const child of childrenByParent.get(id) ?? []) {
+      pending.push({ id: child.id, depth: depth + 1 });
+    }
+  }
   return organizations.filter((o) => visible.has(o.id));
 }
 

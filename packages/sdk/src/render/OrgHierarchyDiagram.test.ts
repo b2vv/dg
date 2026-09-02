@@ -117,4 +117,53 @@ describe('OrgHierarchyDiagram', () => {
     diagram.destroy();
     document.body.removeChild(container);
   });
+
+  /**
+   * Acceptance A7 — `work/reports/row-tree-depth/spec.md`. The guard lives in
+   * the layout, but a host never calls the layout: it calls `setData`. This
+   * pins that the refusal survives the trip through the facade rather than
+   * being swallowed into a blank canvas.
+   */
+  it('failure: setData rejects a too-deep org tree and leaves the diagram usable', async () => {
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: makeVariantBDiagram(),
+      theme: 'light',
+    });
+
+    // No positions: the renderer draws staff when there are any, and org
+    // layout is only reached when there are none (`DiagramRenderer.ts:349-353`).
+    const deep = {
+      ...makeVariantBDiagram(),
+      departments: [],
+      persons: [],
+      positions: [],
+      organizations: Array.from({ length: 3_000 }, (_, i) => ({
+        id: `org-${i}`,
+        name: `Org ${i}`,
+        groupIds: [] as string[],
+        collapsed: false,
+        ...(i > 0 ? { parentOrgId: `org-${i - 1}` } : {}),
+      })),
+    };
+
+    const err = await diagram.setData(deep).then(
+      () => null,
+      (e: Error) => e,
+    );
+    expect(err?.name).toBe('OrgHierarchyError');
+    expect(err?.message).toMatch(/too deep/i);
+
+    // The canvas is still there, and the instance still accepts good data.
+    expect(diagram.getCanvas()).toBeTruthy();
+    await diagram.setData(makeVariantBDiagram());
+    expect(diagram.getData().positions).toHaveLength(VARIANT_B_POSITIONS.length);
+
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
 });
