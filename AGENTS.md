@@ -38,10 +38,10 @@ measured list of what those gates miss. Global skills (`code-review`, `spec-flow
 of guessing, so no per-repo copy of them is needed. Format:
 `~/.agents/rules/repo-standards-manifest.md`.
 
-Two facts it records that shape every review here: this repo has **no lint of any kind** (no
-ESLint, no oxlint, no clippy, no formatter), and `packages/core` has **no documented Rust
-standard** — CI runs `cargo test` only. So TS style is checked by hand, and Rust is judged by
-general engineering practice alone.
+Two facts it records that shape every review here: TypeScript is checked by **oxlint** in CI and
+**oxfmt** is configured but is not a CI gate; `packages/core` still has **no documented Rust
+standard**, `cargo fmt` or `clippy` gate — CI runs `cargo test` only. Judge Rust by general
+engineering practice and do not apply the TypeScript-only Pocock rules to it.
 
 ### Pipeline
 
@@ -98,3 +98,19 @@ Default roles: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human
 ### Domain docs
 
 Single-context: root [`CONTEXT.md`](./CONTEXT.md) + `docs/adr/` (ADRs lazy). Also read `docs/REQUIREMENTS.md`, `work/SPEC.md`. See `docs/agents/domain.md`.
+
+## Durable work log
+
+For every substantial task, persist the work as it happens rather than reconstructing it at the
+end. Put long review artifacts, diagrams and lists in a durable file immediately; chat carries
+only the summary and the decision. On completion, write the detailed six-section report (plus
+post-deploy) to `work/reports/<topic>/` — see `## Артефакти` in `.claude/standards.md` for where
+each kind of artifact lives.
+
+Personal note-taking tooling belongs in an untracked `CLAUDE.local.md`, not here: a machine-local
+address or a private vault layout is not repository guidance, and this repo has already had one
+personal file reach git history.
+
+Before implementing, read `work/CTO-RESEARCH.md`. If it is older than current `main` by more than
+a few merged PRs, refresh the briefing before planning; when the briefing and a primary source
+disagree, update the briefing rather than trusting the cache.
