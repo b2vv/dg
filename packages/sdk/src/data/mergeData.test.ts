@@ -40,3 +40,22 @@ describe('mergeData', () => {
     expect(isDiagramData(null)).toBe(false);
   });
 });
+
+describe('isDiagramData rejects false-positive shapes (structure audit)', () => {
+  it('failure: the three names present but not arrays is not DiagramData', () => {
+    // This shape used to pass, and the error surfaced later and elsewhere —
+    // while seeding expansion from `data.positions`.
+    expect(isDiagramData({ organizations: null, persons: null, positions: null })).toBe(false);
+    expect(isDiagramData({ organizations: [], persons: [], positions: {} })).toBe(false);
+    expect(isDiagramData({ organizations: 1, persons: 2, positions: 3 })).toBe(false);
+  });
+
+  it('success: real DiagramData still passes', () => {
+    expect(isDiagramData(emptyDiagramData())).toBe(true);
+  });
+
+  it('failure: a raw payload with none of the names is still rejected', () => {
+    expect(isDiagramData({ rows: [] })).toBe(false);
+    expect(isDiagramData(null)).toBe(false);
+  });
+});

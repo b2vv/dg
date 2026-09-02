@@ -829,7 +829,7 @@ export class DiagramRenderer {
 
   /** Seats on the bare cell grid — no tiers, no org cards (mockups, tests). */
   private async renderPositionGrid(ctx: StaffSceneContext): Promise<void> {
-    const { data, theme, config, options } = ctx;
+    const { data, theme, config, options, epoch } = ctx;
     const insetX = (config.cellWidth - theme.person.width) / 2;
     const insetY = (config.cellHeight - theme.person.height) / 2;
 
@@ -853,6 +853,13 @@ export class DiagramRenderer {
       morphMs: options.contourMorphMs,
       memberBoxesByDept,
     });
+
+    // The staff and organisation paths check here; this one did not. Contour
+    // paint is async, so a newer render can clear the layers and start filling
+    // them while this call is suspended — `ContourPainter` drops its own stale
+    // session, but nothing stopped the rest of this method from mounting its
+    // cards into a scene that had already moved on (structure audit §Medium).
+    if (!this.isRenderCurrent(epoch)) return;
 
     this.dragGrid = { pitchX: config.cellWidth, pitchY: config.cellHeight, originX: 0, originY: 0, insetX, insetY };
 

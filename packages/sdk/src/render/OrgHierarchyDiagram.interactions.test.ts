@@ -372,7 +372,11 @@ describe('OrgHierarchyDiagram interactions', () => {
     const before = diagram.getData().organizations;
     await diagram.placeOrgAtMatrixCell('org1', 99, 99);
     expect(onLayoutChange).not.toHaveBeenCalled();
-    expect(diagram.getData().organizations).toBe(before);
+    // `getData()` returns a snapshot now, so reference identity is no longer
+    // available as the instrument — it was only ever available because the
+    // accessor leaked the live object, which is the defect that was fixed.
+    // Content equality is what «untouched» actually means here.
+    expect(diagram.getData().organizations).toEqual(before);
     diagram.destroy();
     document.body.removeChild(container);
   });
@@ -444,7 +448,11 @@ describe('bulk selection actions (T67 D2)', () => {
     const { container, diagram } = await mountOrgs();
     const before = diagram.getData().organizations;
     await diagram.setOrgsCollapsed([], true);
-    expect(diagram.getData().organizations).toBe(before);
+    // `getData()` returns a snapshot now, so reference identity is no longer
+    // available as the instrument — it was only ever available because the
+    // accessor leaked the live object, which is the defect that was fixed.
+    // Content equality is what «untouched» actually means here.
+    expect(diagram.getData().organizations).toEqual(before);
     diagram.destroy();
     container.remove();
   });
@@ -500,7 +508,11 @@ describe('revealPath renders before focusing (search → focus)', () => {
 
     const before = diagram.getData().organizations;
     expect(await diagram.revealPath('root')).toBe(true);
-    expect(diagram.getData().organizations).toBe(before);
+    // `getData()` returns a snapshot now, so reference identity is no longer
+    // available as the instrument — it was only ever available because the
+    // accessor leaked the live object, which is the defect that was fixed.
+    // Content equality is what «untouched» actually means here.
+    expect(diagram.getData().organizations).toEqual(before);
 
     diagram.destroy();
     container.remove();

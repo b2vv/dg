@@ -1,13 +1,23 @@
 import type { DiagramData } from './types.js';
 
-/** Structural check for «host passed DiagramData, not a raw payload». */
+/**
+ * Structural check for «host passed DiagramData, not a raw payload».
+ *
+ * The collections must be **arrays**, not merely present. Name-only checks let
+ * `{ organizations: null, persons: null, positions: null }` through, and the
+ * failure then surfaced far from its cause — while seeding expansion, on a
+ * `this.data.positions` that was never a list (structure audit §High).
+ *
+ * What this still cannot do is tell `DiagramData` from a raw payload that
+ * happens to carry the same three array-valued names. Deciding that by shape is
+ * guesswork; the fix is an explicit input mode on the public config, which is an
+ * API change and needs its own decision.
+ */
 export function isDiagramData(v: unknown): v is DiagramData {
+  if (typeof v !== 'object' || v === null) return false;
+  const o = v as Record<string, unknown>;
   return (
-    typeof v === 'object' &&
-    v !== null &&
-    'organizations' in v &&
-    'persons' in v &&
-    'positions' in v
+    Array.isArray(o.organizations) && Array.isArray(o.persons) && Array.isArray(o.positions)
   );
 }
 
