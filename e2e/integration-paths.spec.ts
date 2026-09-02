@@ -59,17 +59,68 @@ test.describe('host integration paths', () => {
     await expect(page.locator('#status')).toContainText('export');
   });
 
-  test('export: the Flood tab exports contours, not a silent button-group copy', async ({ page }) => {
-    await openTab(page, 'Staff · Flood');
-
+  /** Vertices in every `data-dept` ring of an exported SVG, ascending. */
+  async function deptRingVertices(page: Page, tab: string): Promise<number[]> {
+    await openTab(page, tab);
     const download = page.waitForEvent('download');
     await page.locator('#export-svg').click();
     const file = await download;
     const svgText = await (await import('node:fs/promises')).readFile((await file.path())!, 'utf8');
+    await expect(page.locator('#status')).toContainText('export');
+    return [...svgText.matchAll(/<path d="([^"]+)"[^>]*data-dept=/g)]
+      .map((m) => (m[1]!.match(/[ML]/g) ?? []).length)
+      .sort((a, b) => a - b);
+  }
 
-    // Контури в файлі є — тобто рушій сцени доїхав до експорту, а не був підмінений.
-    const deptPaths = [...svgText.matchAll(/data-dept="/g)].length;
-    expect(deptPaths).toBeGreaterThan(0);
+  test('export: the Flood tab exports flood geometry, not a silent button-group copy', async ({
+    page,
+  }) => {
+    // The previous version of this test asserted that `data-dept` paths exist.
+    // They always do: that attribute is written by the shared stroke layer for
+    // **either** engine (`svgExport.ts:340,412,460`), so the assertion could not
+    // fail for the reason its name gave — while guarding the exact regression
+    // that has already shipped twice (T80, T3/H1).
+    //
+    // What actually separates the two is the shape language. Measured, not
+    // assumed: button-group rings carry rounded corners and come out at 20-26
+    // vertices; cell-flood traces the polyomino orthogonally and comes out at
+    // 4-8. A rounded rectangle cannot be four points.
+    const flood = await deptRingVertices(page, 'Staff · Flood');
+    expect(flood.length).toBeGreaterThan(0);
+    expect(flood[0]).toBeLessThanOrEqual(8);
+
+    // The other half of the guard: if button-group ever starts emitting rings
+    // this simple, the discriminator above is dead and this line says so rather
+    // than letting the Flood test pass for the wrong reason.
+    const buttonGroup = await deptRingVertices(page, 'Staff · Magnetic');
+    expect(buttonGroup.length).toBeGreaterThan(0);
+    expect(buttonGroup[0]).toBeGreaterThanOrEqual(12);
+  });
+
+  test('export: PDF is a real PDF, not a renamed image', async ({ page }) => {
+    // The only export with no through-test until now, and the one most likely to
+    // be subtly wrong: there is no jspdf here — `pdfExport.ts` writes the object
+    // table, the xref and the trailer by hand.
+    await openTab(page, 'Staff · Figma');
+
+    const download = page.waitForEvent('download');
+    await page.locator('#export-pdf').click();
+    const file = await download;
+    expect(file.suggestedFilename()).toBe('org-diagram.pdf');
+    const bytes = await (await import('node:fs/promises')).readFile((await file.path())!);
+
+    expect(bytes.length).toBeGreaterThan(1_000);
+    // Header, and a trailer that actually terminates the file — a truncated
+    // write passes a size check and opens in nothing.
+    expect(bytes.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+    expect(bytes.subarray(-32).toString('latin1')).toContain('%%EOF');
+    // The xref offset the trailer promises must land inside the file.
+    const tail = bytes.subarray(-256).toString('latin1');
+    const startxref = Number(/startxref\s+(\d+)/.exec(tail)?.[1]);
+    expect(Number.isFinite(startxref)).toBe(true);
+    expect(startxref).toBeLessThan(bytes.length);
+    expect(bytes.subarray(startxref, startxref + 4).toString('latin1')).toBe('xref');
+
     await expect(page.locator('#status')).toContainText('export');
   });
 
