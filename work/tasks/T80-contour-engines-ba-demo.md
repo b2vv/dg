@@ -2,7 +2,7 @@
 
 **Пріоритет:** P1 · **Статус:** ✅ demo ready (2026-08-25)  
 **Замовник:** BA — вибирає, який вигляд лишити в продукті  
-**Пов'язано:** [T79](./T79-g2-m2-paint-notch.md), [T77-M01](./T77-M01-contour-wire-or-delete.md), `docs/REQUIREMENTS.md` §4.6.1
+**Пов'язано:** [T79](./T79-g2-m2-paint-notch.md), [T77-M01](../archive/tasks-2026-09-02.md), `docs/REQUIREMENTS.md` §4.6.1
 
 ---
 

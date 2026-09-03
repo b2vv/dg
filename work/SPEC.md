@@ -269,7 +269,7 @@ Expand-in-place (T20) =
 >
 > | `contourEngine` | Геометрія | Де живе |
 > |---|---|---|
-> | `'button-group'` (**default**) | union-find по `magnetRadius` + padded AABB, мінус виїмки під чужі картки (G2/M2, [T79](./archive/tasks-2026-09-02.md)) | `render/contour/paintMagneticGroups.ts` + `contourNotch.ts` |
+> | `'button-group'` (**default**) | union-find по `magnetRadius` + padded AABB, мінус виїмки під чужі картки (G2/M2, [T79](./tasks/T79-g2-m2-paint-notch.md)) | `render/contour/paintMagneticGroups.ts` + `contourNotch.ts` |
 > | `'cell-flood'` | цей самий Rust flood, поблочно на org, кільця мапляться на бокси карток | `render/contour/floodContourEngine.ts` |
 >
 > **Експорт малює тим самим рушієм, що й канвас** (2026-08-26): SVG рахує flood тими самими

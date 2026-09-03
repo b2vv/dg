@@ -359,7 +359,7 @@ GitHub issue tracker не використовувати як карту, пок
 
 ## 8. Правила для наступної імплементації
 
-1. Прочитати цей файл + тікет, який чіпаєш. Контур/export/org-tree → ще [T78](./archive/tasks-2026-09-02.md), [T79](./archive/tasks-2026-09-02.md), [T80](./tasks/T80-contour-engines-ba-demo.md) і [CRITIQUE-9352d52](./tech-debt/CRITIQUE-dg_9352d52.md).
+1. Прочитати цей файл + тікет, який чіпаєш. Контур/export/org-tree → ще [T78](./archive/tasks-2026-09-02.md), [T79](./tasks/T79-g2-m2-paint-notch.md), [T80](./tasks/T80-contour-engines-ba-demo.md) і [CRITIQUE-9352d52](./tech-debt/CRITIQUE-dg_9352d52.md).
 2. Словник з `CONTEXT.md`. Новий термін — `/domain-modeling`, не синонім зі avoid-списку.
 3. TDD: failing success **і** failure до production. Баг на канвасі — цілити `paintMagneticGroups` / member boxes / `ContourPainter`, а не `computeAllContours`.
 4. **Третій вигляд контуру — це третій рушій за прапорцем**, а не правка кільця в наявному. Обидва наявні шляхи мають тести; який лишиться — вирішує BA.

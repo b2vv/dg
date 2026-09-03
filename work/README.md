@@ -52,7 +52,7 @@ npm run dev          # http://localhost:3000
 
 У `tasks/` лишається тільки живе: не почате, часткове й довідники, які тримаються синхронними з
 кодом. Завершене переїхало у [`archive/tasks-2026-09-02.md`](./archive/tasks-2026-09-02.md)
-вказівниками — 98 задач, повний текст кожної в історії git.
+вказівниками — 97 задач, повний текст кожної в історії git.
 
 | Задача | Про що | Статус |
 |---|---|---|
@@ -62,6 +62,7 @@ npm run dev          # http://localhost:3000
 | [T67-multi-select](./tasks/T67-multi-select.md) | Мультивибір вузлів (D2) | Phase 1 done · bulk-меню + host bulk bar (2026-08-25) |
 | [T70-position-card-chrome](./tasks/T70-position-card-chrome.md) | Chrome карток + геометрія знака організації (E* / 4231) | Phase 0 + Phase 1 + Phase 2 done (agreed in T73) |
 | [T71-gojs-to-dg-migration-plan](./tasks/T71-gojs-to-dg-migration-plan.md) | План міграції GoJS → Org Hierarchy SDK (`dg`) | ✅ cutover queue complete (2026-08-23) — залишок: T61 (макет), T67 Phase 2 (marquee, optional) |
+| [T79-g2-m2-paint-notch](./tasks/T79-g2-m2-paint-notch.md) | G2 / M2 на paint-шляху (foreign ніколи не під заливкою) | ✅ done (2026-08-25) — **лишається тут**: SPEC і REQUIREMENTS цитують його як пояснення геометрії |
 | [T80-contour-engines-ba-demo](./tasks/T80-contour-engines-ba-demo.md) | Два рушії контурів для порівняння BA | ✅ demo ready (2026-08-25) |
 | [T90-drag-smoothness](./tasks/T90-drag-smoothness.md) | Перетягування «не плавне»: гіпотеза виміряна й **спростована** | 🟡 виміряно, причина не підтверджена |
 | [T92-software-render-pan-cost](./tasks/T92-software-render-pan-cost.md) | Панорамування на програмному рендері: ≈9 fps, і це не про промоут | 🟡 лікування знайдене й виміряне (2026-09-02); лишилось число з цільового заліза |
@@ -75,8 +76,10 @@ npm run dev          # http://localhost:3000
 | [NODE-interactions-contract](./tasks/NODE-interactions-contract.md) | NODE interactions contract (mandatory) | active · Enforced by: `nodeInteractions.contract.test.ts`, `e2e/node-interactions.spec.ts` |
 | [PARITY-gojs-to-dg](./tasks/PARITY-gojs-to-dg.md) | Parity `gojs-diagram` → `dg`: вимога → можливість | 🟢 живий довідник, не задача — тримається синхронним із кодом, не закривається. |
 
-⚠️ `T80` має статус `✅ demo ready`, але лишається тут: за `AGENDA.md` це **відкрите продуктове
-рішення** (який рушій контурів лишаємо), а не закрита задача.
+⚠️ Два файли лишаються тут попри `✅`. `T80` — за `AGENDA.md` це **відкрите продуктове рішення**
+(який рушій контурів лишаємо), а не закрита задача. `T79` — закритий, але `work/SPEC.md` і
+`docs/REQUIREMENTS.md` цитують його як пояснення геометрії G1/G2/M2; закрита задача, на яку
+спирається жива специфікація, лишається поруч із нею.
 
 ## Технічний борг
 

@@ -3,7 +3,7 @@
 **Пріоритет:** P1 (Phase 0 — **P0** через 4231 №3)  
 **Статус:** Phase 0 + Phase 1 + Phase 2 done (agreed in T73)  
 **Parity:** E1–E7, E10–E11 (§4 зображення)  
-**Узгодження:** [T72](./T72-types-algorithms-agreement.md) · [T73](./T73-remaining-agreements.md)  
+**Узгодження:** [T72](../archive/tasks-2026-09-02.md) · [T73](../archive/tasks-2026-09-02.md)  
 **Джерело:** скріни GoJS, 4231, 4245, parity ред. 2.1
 
 ---
@@ -72,7 +72,7 @@ Types already additive in `packages/sdk/src/data/types.ts` (T72). Implement pain
 
 **Out of Phase 2:** T65 detached placement; marquee; layout AABB changes; BE rename of E5 counts.
 
-Defaults / soft product Qs → [T73](./T73-remaining-agreements.md).
+Defaults / soft product Qs → [T73](../archive/tasks-2026-09-02.md).
 
 ---
 
