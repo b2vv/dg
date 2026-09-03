@@ -20,9 +20,11 @@
 
 ### ⚠️ `packages/core` (Rust) мірника не має
 
-Ні `rustfmt.toml`, ні `clippy.toml`, ні документованого Rust-стандарту; у CI по Rust іде
-лише `cargo test` (`.github/workflows/ci.yml`, job `rust`). Тобто половина репо судиться
-**нічим**, і рев'ю по ній не має на що спертись, крім загальної інженерної практики.
+Ні `rustfmt.toml`, ні `clippy.toml`, ні документованого Rust-стандарту. У CI по Rust з `21d3560`
+(2026-09-02) ідуть `cargo fmt --check` і `cargo clippy --all-targets -- -D warnings`, на додачу
+до `cargo test` (`.github/workflows/ci.yml`, job `rust`) — тобто дефолтні лінтери форматом і
+стилем **гейт**, а документованого стандарту (як `work/CODING_STANDARDS.md` для TS) досі нема, і
+рев'ю по ньому спирається на загальну інженерну практику.
 
 Це записано як стан, а не як норма — кандидат в агенду (`cto-agenda`).
 
@@ -50,8 +52,9 @@
 | `npm run build:wasm` | wasm-pack build + експорт TS-типів |
 | `npm run test:prod` | **post-deploy smoke по живому деплою** (`playwright.prod.config.ts`, без webServer; ціль — `PROD_URL`, дефолт Pages) |
 
-CI (`.github/workflows/ci.yml`) — три job: `rust` (cargo test), `sdk` (build:wasm → typecheck → test),
-`e2e` (build:wasm → playwright). Тригер: push у `main`/`master`/`cursor/**` і будь-який PR.
+CI (`.github/workflows/ci.yml`) — чотири job: `rust` (fmt --check → clippy -D warnings → test),
+`docs` (check:docs), `sdk` (build:wasm → typecheck → test), `e2e` (build:wasm → playwright).
+Тригер: push у `main`/`master`/`cursor/**` і будь-який PR.
 
 Ще два workflow:
 
@@ -76,9 +79,11 @@ CI (`.github/workflows/ci.yml`) — три job: `rust` (cargo test), `sdk` (buil
 - **Форматування є, але не форситься:** `oxfmt` налаштований під наявний стиль репо
   (`.oxfmtrc.json`), `npm run format` перевіряє. У CI **не** гейт: застосування зачепить 143 файли,
   і це свідомо відкладено, щоб не конфліктувати з гілками в польоті (T85).
-- ⚠️ **Застаріло, виправлено 2026-09-03:** рядок «`cargo fmt --check` / `clippy` по Rust як не
-  було, так і немає» був чинний до `21d3560` (2026-09-02) — відтоді обидва **в CI**, джоба `rust`.
-  Сам маніфест простояв із неправдою добу; його теж треба правити тим комітом, що міняє гейт.
+- ⚠️ **Застаріло було до `21d3560` (2026-09-02):** рядок «`cargo fmt --check` / `clippy` по
+  Rust як не було, так і немає» був чинний до того коміту — відтоді обидва **в CI**, джоба
+  `rust`. Сам маніфест (заголовок вище, § «`packages/core` мірника не має») простояв із цією
+  неправдою до 2026-09-03, коли й виправлений — доказ, що «правити в тому ж коміті, що міняє
+  гейт» саме тут не було дотримано.
 - Усе, що взагалі не виражається лінтером: одна причина для зміни, брехливі імена, коментарі
   проти коду, тихі обрізання, розходження «заявлено в WASM ↔ малює TS».
 - **Свіжість доки — частково ловиться з 2026-09-03** (`npm run check:docs`, джоба CI
