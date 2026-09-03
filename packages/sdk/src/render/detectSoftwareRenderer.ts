@@ -1,6 +1,3 @@
-/** Reads `UNMASKED_RENDERER_WEBGL`, or returns `null` when it cannot. */
-export type RendererStringReader = () => string | null;
-
 /**
  * The software rasteriser we recognised, or `null` when we learned nothing.
  *
@@ -101,7 +98,7 @@ function classify(value: unknown): string | null {
  * verdict. Tests build their own detector; no process-wide reset is exported,
  * and nothing new reaches the package barrel.
  */
-export function createSoftwareRendererDetector(read: RendererStringReader): RendererDetector {
+export function createSoftwareRendererDetector(read: () => string | null): RendererDetector {
   let memo: string | null | undefined;
   return () => {
     if (memo !== undefined) return memo;
