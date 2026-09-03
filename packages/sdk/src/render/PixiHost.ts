@@ -65,9 +65,16 @@ export function resolveRendererPreference(
   if (value === 'auto' || value === undefined) return resolveAuto(auto, detect);
   // A host on untyped JS can pass anything. Falling back silently would leave
   // "why is this diagram on canvas?" unanswerable, so the substitution is spoken.
+  const resolved = resolveAuto(auto, detect);
+  const substitution = `Unknown renderer '${String(value)}' — using 'auto' instead.`;
   return {
-    ...resolveAuto(auto, detect),
-    diagnostic: `Unknown renderer '${String(value)}' — using 'auto' instead.`,
+    ...resolved,
+    // Two independent things can be true here, and reporting one of them hides
+    // the other: the value was rejected *and* the renderer turned out to be
+    // software. Overwriting left a host staring at a canvas it could not explain.
+    diagnostic: resolved.diagnostic
+      ? `${substitution} ${resolved.diagnostic}`
+      : substitution,
   };
 }
 

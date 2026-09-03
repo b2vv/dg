@@ -17,7 +17,7 @@ describe('resolvePixiResolution', () => {
 
 describe('resolveRendererPreference — software fallback', () => {
   it('success: auto on a recognised software rasteriser asks for canvas outright', () => {
-    const resolved = resolveRendererPreference('auto', () => 'swiftshader');
+    const resolved = resolveRendererPreference('auto', () => 'ANGLE (Google, SwiftShader Device)');
     expect(resolved.preference).toEqual(['canvas']);
     expect(resolved.failIfMajorPerformanceCaveat).toBe(false);
   });
@@ -34,7 +34,7 @@ describe('resolveRendererPreference — software fallback', () => {
     let asked = 0;
     const spy = () => {
       asked += 1;
-      return 'swiftshader';
+      return 'ANGLE (Google, SwiftShader Device)';
     };
     expect(resolveRendererPreference('webgl', spy).preference).toEqual(['webgl']);
     expect(resolveRendererPreference('canvas', spy).preference).toEqual(['canvas']);
@@ -42,10 +42,20 @@ describe('resolveRendererPreference — software fallback', () => {
   });
 
   it('success: when the fallback fires, the host is told which renderer caused it', () => {
-    const resolved = resolveRendererPreference('auto', () => 'swiftshader');
+    const resolved = resolveRendererPreference('auto', () => 'ANGLE (Google, SwiftShader Device)');
     expect(resolved.diagnostic).toBeDefined();
-    expect(resolved.diagnostic).toContain('swiftshader');
+    expect(resolved.diagnostic).toContain('SwiftShader');
     expect(resolved.diagnostic).toContain('canvas');
+  });
+
+  it('failure: a bogus value on a software machine reports both facts, not one', () => {
+    // Two independent things happened: the host's value was rejected, and the
+    // renderer was recognised as software. Reporting only the first leaves the
+    // host reading 'using auto instead' beside a canvas it cannot explain.
+    const resolved = resolveRendererPreference('vulkan', () => 'llvmpipe');
+    expect(resolved.preference).toEqual(['canvas']);
+    expect(resolved.diagnostic).toContain('vulkan');
+    expect(resolved.diagnostic).toContain('llvmpipe');
   });
 
   it('failure: when nothing changed, nothing is said', () => {

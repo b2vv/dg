@@ -29,7 +29,9 @@ describe('createSoftwareRendererDetector', () => {
     const detect = createSoftwareRendererDetector(
       () => 'ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)), SwiftShader driver)',
     );
-    expect(detect()).toBe('swiftshader');
+    expect(detect()).toBe(
+      'ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)), SwiftShader driver)',
+    );
   });
 
   it('failure: a reader that throws yields unknown, and does not throw again on the next call', () => {
@@ -46,21 +48,24 @@ describe('createSoftwareRendererDetector', () => {
   });
 
   it('success: recognises the other software rasterisers by the strings drivers really report', () => {
-    const real: ReadonlyArray<readonly [string, string]> = [
-      ['ANGLE (Microsoft, Microsoft Basic Render Driver Direct3D11 vs_5_0 ps_5_0)', 'microsoft basic render'],
-      ['Mesa/X.org, llvmpipe (LLVM 15.0.7, 256 bits)', 'llvmpipe'],
-      ['ANGLE (Software Adapter)', 'software adapter'],
-      ['Apple Software Renderer', 'apple software renderer'],
+    const real = [
+      'ANGLE (Microsoft, Microsoft Basic Render Driver Direct3D11 vs_5_0 ps_5_0)',
+      'Mesa/X.org, llvmpipe (LLVM 15.0.7, 256 bits)',
+      'ANGLE (Software Adapter)',
+      'Apple Software Renderer',
+      'Gallium 0.4 on softpipe',
+      'Chromium Software Rasterizer',
     ];
-    for (const [value, marker] of real) {
-      // The marker comes back, not just a yes: the diagnostic names it to the host.
-      expect(createSoftwareRendererDetector(() => value)()).toBe(marker);
+    for (const value of real) {
+      // The driver's own string comes back, not our marker: a fragment of our
+      // own list would describe our matching rather than the host's machine.
+      expect(createSoftwareRendererDetector(() => value)()).toBe(value);
     }
   });
 
   it('success: matching ignores case, because vendors do not agree on it', () => {
-    expect(createSoftwareRendererDetector(() => 'LLVMPIPE (LLVM 15.0.7)')()).toBe('llvmpipe');
-    expect(createSoftwareRendererDetector(() => 'SwiftShader Device')()).toBe('swiftshader');
+    expect(createSoftwareRendererDetector(() => 'LLVMPIPE (LLVM 15.0.7)')()).toBe('LLVMPIPE (LLVM 15.0.7)');
+    expect(createSoftwareRendererDetector(() => 'SwiftShader Device')()).toBe('SwiftShader Device');
   });
 
   it('failure: a real GPU is never demoted — an unrecognised name means unknown', () => {
@@ -91,7 +96,8 @@ describe('createSoftwareRendererDetector', () => {
       calls += 1;
       return 'ANGLE (Google, SwiftShader Device)';
     });
-    expect([detect(), detect(), detect()]).toEqual(['swiftshader', 'swiftshader', 'swiftshader']);
+    const want = 'ANGLE (Google, SwiftShader Device)';
+    expect([detect(), detect(), detect()]).toEqual([want, want, want]);
     expect(calls).toBe(1);
   });
 
