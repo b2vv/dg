@@ -63,8 +63,9 @@ of guessing, so no per-repo copy of them is needed. Format:
 
 Two facts it records that shape every review here: TypeScript is checked by **oxlint** in CI and
 **oxfmt** is configured but is not a CI gate; `packages/core` still has **no documented Rust
-standard**, `cargo fmt` or `clippy` gate — CI runs `cargo test` only. Judge Rust by general
-engineering practice and do not apply the TypeScript-only Pocock rules to it.
+standard** — no `rustfmt.toml`/`clippy.toml`, no written convention — even though CI has gated on
+`cargo fmt --check` and `cargo clippy -D warnings` (plus `cargo test`) since `21d3560`. Judge Rust
+by general engineering practice and do not apply the TypeScript-only Pocock rules to it.
 
 ### Pipeline
 
