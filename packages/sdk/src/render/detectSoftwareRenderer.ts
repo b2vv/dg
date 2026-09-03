@@ -1,13 +1,15 @@
 /**
- * The software rasteriser we recognised, or `null` when we learned nothing.
+ * The renderer string, when we recognised it as a software rasteriser — or
+ * `null` when we learned nothing.
  *
  * `null` is not a weak "hardware": it means the question went unanswered, and
  * every caller must treat it as "leave today's behaviour alone". The one thing
  * this module must never do is demote a machine it failed to recognise.
  *
- * The name comes back with the verdict because the only question a host asks
- * afterwards is *why* the diagram is on canvas, and "software" is half an
- * answer where "swiftshader" is a whole one.
+ * The driver's own string comes back rather than the marker that matched it:
+ * the host's question is "what is my renderer?", and answering with a fragment
+ * of our own list ("microsoft basic render") describes our matching instead of
+ * their machine.
  *
  * Answers once per instance; see {@link createSoftwareRendererDetector}.
  */
@@ -21,7 +23,7 @@ export type RendererDetector = () => string | null;
  * not "is this GPU fast enough", which would need a threshold measured on the
  * customer's own hardware.
  */
-const SOFTWARE_RENDERER_MARKERS: readonly string[] = [
+const SOFTWARE_RENDERER_MARKERS = [
   // Chromium's bundled software rasteriser — the default in headless and on
   // machines where the GPU is blocklisted.
   'swiftshader',
@@ -35,7 +37,7 @@ const SOFTWARE_RENDERER_MARKERS: readonly string[] = [
   // Generic wording seen across drivers when no hardware path exists.
   'software rasterizer',
   'apple software renderer',
-];
+] as const satisfies readonly string[];
 
 /**
  * Asks a throwaway WebGL context who is drawing.
@@ -87,7 +89,7 @@ function classify(value: unknown): string | null {
   // `String.prototype.includes` on the least noisy path in the design.
   if (typeof value !== 'string' || value === '') return null;
   const haystack = value.toLowerCase();
-  return SOFTWARE_RENDERER_MARKERS.find((marker) => haystack.includes(marker)) ?? null;
+  return SOFTWARE_RENDERER_MARKERS.some((marker) => haystack.includes(marker)) ? value : null;
 }
 
 /**
