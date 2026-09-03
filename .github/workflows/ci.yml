@@ -39,6 +39,26 @@ jobs:
       - name: cargo test
         run: cargo test
 
+  docs:
+    name: Docs freshness
+    runs-on: ubuntu-latest
+    steps:
+      # Full history on purpose: the briefing-basis check counts commits since
+      # the sha `work/CTO-RESEARCH.md` claims, and a depth-1 checkout would make
+      # a true statement look unverifiable.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # No `npm ci`: the script uses node builtins only, so this job stays a few
+      # seconds and cannot be skipped for being slow.
+      - name: Docs freshness
+        run: npm run check:docs
+
   sdk:
     name: SDK + demo
     runs-on: ubuntu-latest

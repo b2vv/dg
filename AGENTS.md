@@ -19,8 +19,31 @@ npm run build:wasm
 npm run test:rust
 npm test
 npm run typecheck
+npm run check:docs
 npm run dev
 ```
+
+## Before pushing
+
+Run `npm run check:docs`. It is also a CI job, so a push that skips it fails there instead —
+the point of running it first is to find out in a second rather than after a round trip.
+
+It checks three things, each because that drift already happened here and nothing noticed:
+
+- **every relative `.md` link resolves.** Archiving closed tasks left thirteen dead links inside
+  the tasks that survived, and twelve more inside the archive index itself;
+- **no public method of `OrgHierarchyDiagram` is missing from `docs/USAGE.md`.** That file is not
+  merely documentation: the threshold below defines the public API as *what `docs/USAGE.md`
+  describes*, so a method absent from it cannot be seen by the rule that decides how carefully it
+  may be changed. Twenty-one were missing when the check went in — they are a named baseline that
+  may shrink and never grow;
+- **`work/CTO-RESEARCH.md` has not fallen more than 25 commits behind `HEAD`.** «More than a few
+  merged PRs» was the rule and was unmeasurable; 25 is what it means now.
+
+What the checker cannot judge stays yours: whether a document still says something **true**. This
+session found `T56` claiming two features were WASM ten days after they stopped being WASM, and no
+gate can catch that — only reading the claim next to the code can. When a change makes a document
+wrong, fix the document in the same commit.
 
 ## Agent skills
 
