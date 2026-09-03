@@ -57,6 +57,23 @@ const promote = createReactPromoteOverlay({
 });
 ```
 
+## Renderer on machines without a GPU
+
+`renderer: 'auto'` (the default) asks the browser to refuse a WebGL context it would have to
+emulate. That is a **hint, not a check** — and browsers answer it inconsistently. Measured on the
+same scene and the same gesture in headless Chromium with a software rasteriser: `'canvas'` held
+**60 fps**, while `'auto'` picked WebGL and delivered **8**.
+
+If the target machines have no hardware GPU — thin and zero clients, RDP sessions, terminals —
+pass the renderer explicitly:
+
+```ts
+const diagram = await OrgHierarchyDiagram.create(container, { data, renderer: 'canvas' });
+```
+
+Full table, the reason `'auto'` cannot promise this, and what `'webgl'` does instead:
+[`docs/USAGE.md` § `renderer`](./docs/USAGE.md).
+
 ## Scripts
 
 | Command | What |
