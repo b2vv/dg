@@ -15,6 +15,46 @@ describe('resolvePixiResolution', () => {
   });
 });
 
+describe('resolveRendererPreference — software fallback', () => {
+  it('success: auto on a recognised software rasteriser asks for canvas outright', () => {
+    const resolved = resolveRendererPreference('auto', () => 'swiftshader');
+    expect(resolved.preference).toEqual(['canvas']);
+    expect(resolved.failIfMajorPerformanceCaveat).toBe(false);
+  });
+
+  it('failure: a renderer we cannot place leaves the choice exactly as it was', () => {
+    // The regression this feature must not cause. Byte-for-byte the old result.
+    expect(resolveRendererPreference('auto', () => null)).toEqual({
+      preference: ['webgl', 'canvas'],
+      failIfMajorPerformanceCaveat: true,
+    });
+  });
+
+  it('failure: an explicit renderer is never second-guessed — nothing is even asked', () => {
+    let asked = 0;
+    const spy = () => {
+      asked += 1;
+      return 'swiftshader';
+    };
+    expect(resolveRendererPreference('webgl', spy).preference).toEqual(['webgl']);
+    expect(resolveRendererPreference('canvas', spy).preference).toEqual(['canvas']);
+    expect(asked).toBe(0);
+  });
+
+  it('success: when the fallback fires, the host is told which renderer caused it', () => {
+    const resolved = resolveRendererPreference('auto', () => 'swiftshader');
+    expect(resolved.diagnostic).toBeDefined();
+    expect(resolved.diagnostic).toContain('swiftshader');
+    expect(resolved.diagnostic).toContain('canvas');
+  });
+
+  it('failure: when nothing changed, nothing is said', () => {
+    // A diagnostic about a decision that was not taken teaches hosts to ignore
+    // the channel, so silence here is the feature.
+    expect(resolveRendererPreference('auto', () => null).diagnostic).toBeUndefined();
+  });
+});
+
 describe('resolveRendererPreference', () => {
   it('success: auto asks for webgl-then-canvas and lets the browser refuse software webgl', () => {
     expect(resolveRendererPreference('auto')).toEqual({

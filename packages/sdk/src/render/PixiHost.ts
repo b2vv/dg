@@ -1,6 +1,21 @@
 import { Application, Rectangle, RendererType } from 'pixi.js';
 import { DiagramRenderer } from './DiagramRenderer.js';
 import { Viewport, type ViewportTransform, type CameraMotionOptions } from './Viewport.js';
+import {
+  createSoftwareRendererDetector,
+  readUnmaskedRendererFromDom,
+  type RendererDetector,
+} from './detectSoftwareRenderer.js';
+
+/**
+ * One detector for the page: the renderer name cannot change while the document
+ * lives, and asking again would cost another throwaway context per diagram.
+ * Not exported — tests build their own and pass it in, so no process-wide reset
+ * joins the package barrel.
+ */
+const detectRenderer: RendererDetector = createSoftwareRendererDetector(
+  readUnmaskedRendererFromDom,
+);
 
 /**
  * Which engine draws the scene. `'auto'` lets the browser decide: Pixi walks
@@ -21,8 +36,20 @@ export interface ResolvedRendererPreference {
  * `'auto'` is best-effort, not a guarantee: the same Chromium refused a software
  * WebGL context under `--use-gl=swiftshader` on macOS and handed one out in a
  * GPU-less Linux container. Hosts that need certainty pass `'canvas'`.
+ *
+ * Because that hint is unreliable, `'auto'` also asks who is drawing and steps
+ * aside to Canvas2D when the answer is a known software rasteriser — worth ~7×
+ * the frame rate on such a machine (T92). A name we do not recognise is not a
+ * verdict: it leaves the choice exactly as it was, so no real GPU is demoted by
+ * a guess.
+ *
+ * @param detect injected in tests; production shares one memoised detector so
+ *   the renderer string costs a single throwaway context per page.
  */
-export function resolveRendererPreference(value?: unknown): ResolvedRendererPreference {
+export function resolveRendererPreference(
+  value?: unknown,
+  detect: RendererDetector = detectRenderer,
+): ResolvedRendererPreference {
   const auto: ResolvedRendererPreference = {
     preference: ['webgl', 'canvas'],
     failIfMajorPerformanceCaveat: true,
@@ -35,10 +62,36 @@ export function resolveRendererPreference(value?: unknown): ResolvedRendererPref
     // without WebGL rejects the mount instead of quietly drawing on canvas.
     return { preference: ['webgl'], failIfMajorPerformanceCaveat: false };
   }
-  if (value === 'auto' || value === undefined) return auto;
+  if (value === 'auto' || value === undefined) return resolveAuto(auto, detect);
   // A host on untyped JS can pass anything. Falling back silently would leave
   // "why is this diagram on canvas?" unanswerable, so the substitution is spoken.
-  return { ...auto, diagnostic: `Unknown renderer '${String(value)}' — using 'auto' instead.` };
+  return {
+    ...resolveAuto(auto, detect),
+    diagnostic: `Unknown renderer '${String(value)}' — using 'auto' instead.`,
+  };
+}
+
+/**
+ * The `'auto'` branch, after the host has declined to choose.
+ *
+ * Silent when nothing changed: a diagnostic about a decision that was not taken
+ * teaches hosts to ignore the channel.
+ */
+function resolveAuto(
+  auto: ResolvedRendererPreference,
+  detect: RendererDetector,
+): ResolvedRendererPreference {
+  const software = detect();
+  if (!software) return auto;
+  return {
+    preference: ['canvas'],
+    failIfMajorPerformanceCaveat: false,
+    // Names the rasteriser, not just the fact: the host's next question is
+    // always "why is this on canvas?", and "software" is half of that answer.
+    diagnostic:
+      `Software renderer '${software}' detected — drawing on 'canvas'. ` +
+      `Pass renderer: 'canvas' explicitly if you want this without detection.`,
+  };
 }
 
 export interface PixiHostOptions {
