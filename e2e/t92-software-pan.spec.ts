@@ -100,7 +100,7 @@ async function open(page: Page, renderer: 'webgl' | 'canvas' | 'auto'): Promise<
   // gets — and therefore the only arm that describes the product's behaviour.
   await page.goto(renderer === 'auto' ? '/?e2e=1' : `/?e2e=1&renderer=${renderer}`);
   await page.getByRole('button', { name: 'Staff · 1M' }).click();
-  await page.getByTestId('diagram-ready').waitFor({ timeout: 60_000 });
+  await page.getByTestId('diagram-ready').waitFor({ timeout: 180_000 });
   await page.evaluate(() => {
     const b = (window as unknown as { __demoE2e: { setZoom(v: number): void } }).__demoE2e;
     b.setZoom(1.37);
@@ -115,7 +115,16 @@ async function open(page: Page, renderer: 'webgl' | 'canvas' | 'auto'): Promise<
 }
 
 test('T92 — pan cost: software WebGL vs Canvas2D on the same scene', async ({ page }) => {
-  test.setTimeout(240_000);
+  // Six arms over a 1M-staff scene, and the whole point of the stand is to run
+  // on a zero client — hardware slower than a developer laptop by definition,
+  // and slow in exactly the way being measured. On an idle laptop the six arms
+  // take about 126 s; the previous budget of 240 s left under a 2x margin for a
+  // machine expected to be several times slower.
+  //
+  // T92 gets one attempt on the customer's machine. A budget that has to be
+  // right the first time should be generous, not tight — a stand that times out
+  // there costs another round of scheduling, and reports nothing.
+  test.setTimeout(1_200_000);
 
   const measure = async (renderer: 'webgl' | 'canvas' | 'auto') => {
     const kind = await open(page, renderer);

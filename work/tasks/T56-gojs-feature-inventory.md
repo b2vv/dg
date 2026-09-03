@@ -1,7 +1,8 @@
 # T56 — GoJS reverse-engineering: інвентаризація функціоналу
 
 **Пріоритет:** P2 (планування parity / roadmap)  
-**Статус:** draft — ⛔ **для product selection** (позначайте `[x]` що беремо; чек-бокси ставить продукт, не агент)  
+**Статус:** ✅ звірено з кодом (2026-09-03) — див. §19; далі ⛔ **для product selection**
+(позначайте `[x]` що беремо; чек-бокси ставить продукт, не агент)  
 **Джерела:** [gojs.net](https://gojs.net/latest/), samples (orgChartEditor, orgChartStatic, orgChartAssistants), intro/learn, API
 
 ---
@@ -252,12 +253,12 @@
 |----|------|-----------|--------|
 | T54 | Playwright e2e smoke | P1 | ✅ done |
 | T55 | testId + DOM anchors | P1 | ✅ done |
-| T57 | Overview minimap (GoJS Overview parity) | P2 | backlog |
-| T58 | Search highlight collection | P2 | backlog |
-| T59 | Undo/redo для org expand + drag | P2 | backlog |
-| T60 | Org drag-reparent (LinkingTool parity) | P3 | backlog |
+| T57 | Overview minimap (GoJS Overview parity) | P2 | backlog — файлу задачі немає, це ідея |
+| T58 | Search highlight collection | P2 | backlog — файлу задачі немає, це ідея |
+| T59 | Undo/redo для org expand + drag | P2 | backlog — файлу задачі немає, це ідея |
+| T60 | Org drag-reparent (LinkingTool parity) | P3 | backlog — файлу задачі немає, це ідея |
 | T61 | Assistant / LastParents **або** group recursion — див. [T61-group-recursion-tier3.md](./T61-group-recursion-tier3.md) | P3 | backlog |
-| T63–T70 | Міграційні gaps GoJS→dg — див. [T71](./T71-gojs-to-dg-migration-plan.md) | P0–P2 | planned |
+| T63–T70 | Міграційні gaps GoJS→dg — див. [T71](./T71-gojs-to-dg-migration-plan.md) | P0–P2 | ✅ **закрито** (cutover queue complete, 2026-08-23); залишок — T61, заблокований макетом |
 
 > **Нумерація:** T53–T56 зайняті зданими тікетами `dg`. Міграційні gaps починаються з **T63**; B8c = **T61**; індекс плану = **T71**.
 > Assistants (старий T61 у §15) при колізії перенести в **T72** при старті імплементації.
@@ -294,13 +295,13 @@
 
 - [x] **C1 Grid snap drag** — person move between cells
 - [x] **C2 Report lines (admin)** — ortho edges + arrows
-- [x] **C3 Dept contours** — WASM blob + magnetism
+- [x] **C3 Dept contours** — контур відділу з магнетизмом · ⚠️ опис застарів: за замовчуванням це **TypeScript** (`button-group`), WASM лише для `cell-flood`, див. §19
 - [x] **C4 Staff 3-tier canvas** — org cards + drill
 - [x] **C5 Staff org expand-in-place** — ▼/▲ under card
 - [ ] **C6 Vacant position styling** — dashed / placeholder avatar
 - [ ] **C7 Multi-report (matrix mgmt)** — кілька ліній на одну позицію
 - [ ] **C8 Link draw / relink** — interactive report line edit
-- [ ] **C9 Block move** — shift department block разом
+- [ ] **C9 Block move** — shift department block разом · 🟢 **вже є** (`OrgHierarchyDiagram.shiftBlock`), див. §19
 - [ ] **C10 Headcount badge** — FTE / vacant count on org card
 
 ### D. Search & selection
@@ -309,7 +310,7 @@
 - [x] **D2 revealPath / focusNode** — expand + pan
 - [x] **D3 testId search** — T55 in haystack
 - [ ] **D4 Highlight all matches** — dim non-matches → T58
-- [ ] **D5 Multi-select** — Shift+click, marquee
+- [ ] **D5 Multi-select** — Shift+click, marquee · 🟢 **Shift/Ctrl+click вже є** (T67 Phase 1, `toggleSelection`, e2e `t67-multiselect-manual`); лишається **лише marquee**, див. §19
 - [ ] **D6 Selection scope export** — PNG/SVG лише subtree
 - [ ] **D7 Recent / pinned nodes** — sidebar shortcuts
 - [ ] **D8 Fuzzy search** — typo tolerance
@@ -319,7 +320,7 @@
 - [x] **E1 Context menu (React)** — T52 ⋮ + right-click
 - [x] **E2 Expand / collapse / focus** — menu actions wired
 - [ ] **E3 Copy id / copy subtree JSON** — clipboard helpers
-- [ ] **E4 Bulk actions** — collapse selected, export selected
+- [ ] **E4 Bulk actions** — collapse selected, export selected · 🟢 **вже є** (`bulkContextMenuItems` у публічному барелі + bulk expand/collapse), див. §19
 - [ ] **E5 Custom menu items** — host inject via callback (partial ✅)
 - [ ] **E6 Permissions** — hide actions by role (host-side)
 
@@ -345,7 +346,7 @@
 
 - [x] **H1 100k org window** — sliding window + search jump
 - [x] **H2 Worker search index**
-- [x] **H3 Worker contour + layout WASM**
+- [x] **H3 Worker contour + layout WASM** · ⚠️ опис застарів: розкладка так, **контур — ні**; round-trip прибрано з paint-шляху рішенням B, див. §19
 - [ ] **H4 Incremental render** — patch layers без full clear
 - [ ] **H5 Virtual scrolling for flat matrix** — не materialize off-screen
 - [ ] **H6 Suspended diagram** — pause layout during bulk import
@@ -400,4 +401,69 @@
 
 Документ — planning only. Оновлювати після major releases SDK.
 
-**Останнє оновлення:** T54/T55 done — e2e + testId anchors in SDK/demo.
+**Останнє оновлення:** 2026-09-03 — звірка §16 з кодом, див. §19. Три пункти виявились уже зробленими, два описи застарілими.
+
+---
+
+## 19. Звірка з кодом — 2026-09-03 (завершена)
+
+Документ заявляв себе як мапу для розстановки пріоритетів, і частина мапи розійшлася з кодом.
+Звірено **весь** §16 — і незакриті пункти, і закриті. **Чек-бокси вибору не чіпані**: їх ставить
+продукт. Виправлено лише твердження про факт.
+
+### Зроблене, а в каталозі стоїть як не взяте — 7 пунктів
+
+| Пункт | Що насправді | Де в коді |
+|---|---|---|
+| **C6** Vacant styling | ✅ пунктирна рамка + мітка + колір + порожні ініціали | `PersonNode.ts:447`, `personCardContent.ts:97-107` |
+| **C8** Link draw / relink | ✅ інтерактивна переприв'язка керівника (T91) | `interaction/positionReparent.ts` |
+| **C9** Block move | ✅ | `OrgHierarchyDiagram.shiftBlock` |
+| **D5** Multi-select | ✅ Shift/Ctrl+click · ❌ marquee | `toggleSelection`; e2e `t67-multiselect-manual.spec.ts` |
+| **E4** Bulk actions | ✅ | `bulkContextMenuItems` (публічний барель) + bulk expand/collapse |
+| **E5** Custom menu items | ✅ повністю, не «partial» | `onContextMenu` повертає `MenuItem[] \| false` |
+| **G4** Audit log hook | ✅ через колбек | `onLayoutChange(patch: LayoutPatch)` |
+
+Сім пунктів продукт міг би «обрати в роботу» вдруге.
+
+### Часткове — половина є, і саме це треба знати при виборі
+
+| Пункт | Є | Немає |
+|---|---|---|
+| **F5** Animation on layout change | морф контуру, твін камери | морф позицій вузлів |
+| **G2** Optimistic UI + rollback | `revealPath`, `reparentPosition` | `movePersonToCell`, `shiftBlock` — відкоту немає (**T104**) |
+| **H5** Virtual scrolling | вікна в демо (`viewportWindow`, `scaleOrgs`) | це не фіча SDK, а код демо |
+| **F8** Emblem / photo lazy load | асинхронне завантаження з плейсхолдерами (`MediaService`, `placeholders.ts`) | відкладання за в'юпортом |
+| **I5** WCAG | `aria` в React-оверлеях | фокус-рінг і aria на анкерах канви |
+
+### Описи, що застаріли
+
+- **C3 «WASM blob + magnetism»** — за замовчуванням контур малює **TypeScript** (`button-group`);
+  WASM лише якщо хост обрав `cell-flood`. Розійшлося з рішенням B (`T77-M01`, 2026-08-24).
+- **H3 «Worker contour + layout WASM»** — розкладка справді WASM, **контур — ні**: round-trip
+  прибрано з paint-шляху тим самим рішенням.
+
+Обидва описи брехали десять днів — рівно те, чого `AGENDA` боялася, кажучи «пріоритети
+розставлятимуться по неправдивій мапі».
+
+### Підтверджено як не зроблене
+
+`A1` minimap · `A4` breadcrumb · `A5` deep-link · `A6` keyboard nav · `B5` collapse to level N ·
+`B6` reparent **організації** (є лише `reparentPosition` для посади) · `B7`/`B8` assistants /
+LastParents · `B9` inline edit · `B10` matrix reorder drag · `C7` multi-report · `C10` headcount
+badge · `D4` highlight matches · `D6` subtree export · `D7` recent/pinned · `D8` fuzzy ·
+`E3` copy id · `E6` permissions · `F4` tooltips · `F6` node templates · `F7` edge labels ·
+`G1` undo/redo (у коді лише згадка в коментарі `callbacks.ts:17`) · `G3` dirty flag ·
+`H6` suspended · `H7` memory telemetry · `I3` embed API · `I4` SSR · `J1`–`J6`.
+
+### Дві знахідки, ширші за цей документ
+
+**🔴 Три публічні мутатори не описані в `docs/USAGE.md`** — `shiftBlock`, `movePersonToCell`,
+`reparentPosition`. `.claude/standards.md` § «Поріг пайплайна» визначає публічний API саме як
+«те, що описує `docs/USAGE.md`», отже поріг **не бачить** три методи, які хост може викликати —
+і це рівно ті три, навколо яких `T104` описує відсутність транзакційності. Записано в `T104`.
+
+**⚠️ `H4` Incremental render: публічний API без споживача.** `contour/incremental.ts`
+експортується з кореневого бареля (`index.ts:65,77`), але рендерер його не використовує — він
+чистить шари (`DiagramRenderer`, `this.layers.clear()`), а round-trip прибрано рішенням B.
+Тобто пункт лишається **не зробленим як фіча**, хоча API для нього стирчить назовні. Це матеріал
+для `T105` (кореневий барель віддає внутрішнє).
