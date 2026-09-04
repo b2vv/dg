@@ -8,7 +8,7 @@ Guidance for coding agents working in **Org Hierarchy SDK** (`b2vv/dg`).
 - `packages/sdk` — `@org-hierarchy/sdk` (Pixi render, workers, export, React context menu)
 - `packages/demo` — Rsbuild demo (`npm run dev`)
 - Spec / TDD / standards: `work/SPEC.md`, `work/TDD.md`, `work/CODING_STANDARDS.md`
-- Before implement: [`work/CTO-RESEARCH.md`](./work/CTO-RESEARCH.md) (product, seams, infra, risks). No live P0 — T78 is closed; the open queue is product decisions, see the briefing §7.
+- Before implement: [`work/CTO-RESEARCH.md`](./work/CTO-RESEARCH.md) (product, seams, infra, risks). No live P0. The open queue is a mix — agent-ready structural debt (T101, T102 block Б, T103–T106) and product decisions (T80, T56); see the briefing §7 and [`work/AGENDA.md`](./work/AGENDA.md) for the recommended next move.
 - Public API in use: [`docs/USAGE.md`](./docs/USAGE.md) — what hosts call and what they get back.
 
 ## Commands
