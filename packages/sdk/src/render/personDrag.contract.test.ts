@@ -121,6 +121,11 @@ describe('person drag contract (T77-M05)', () => {
     node.emit('globalpointermove', pointerEvent({ x: start.x + 160, y: start.y }));
     node.emit('pointerup', pointerEvent({ x: start.x + 160, y: start.y }));
 
+    // Awaited since T104: the patch is announced *after* the frame that draws
+    // it, not before. The drop is still reported exactly once — what changed is
+    // that it is no longer reported for a move the render might yet refuse.
+    await new Promise((r) => { setTimeout(r, 80); });
+
     expect(onDrop).toHaveBeenCalledTimes(1);
     expect(onDrop.mock.calls[0][0]).toMatchObject({ type: 'position-move' });
     diagram.destroy();

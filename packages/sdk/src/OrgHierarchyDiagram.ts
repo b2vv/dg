@@ -268,6 +268,15 @@ export class OrgHierarchyDiagram {
   private workerFactory: () => Worker = createTransformWorker;
   private workerPool: WorkerPool | null = null;
   private lastRenderFailure: RenderFailure | null = null;
+  /**
+   * The data the last successful frame drew — the only state known to be on
+   * screen, and therefore the only honest target for a rollback (T104).
+   *
+   * Not `before` captured per call: two mutators in flight capture snapshots
+   * that already contain each other's edits, so restoring "mine" in `catch`
+   * order leaves the earlier edit applied and undrawn.
+   */
+  private lastDrawnData: DiagramData | null = null;
   /** Bumped per `searchAll` so a late answer can tell it is late. */
   private searchEpoch = 0;
   private callbacks: OrgHierarchyCallbacks = {};
@@ -601,6 +610,31 @@ export class OrgHierarchyDiagram {
    * Coalesce concurrent renders (T75 D2). Overlapping callers share one promise;
    * a dirty flag schedules exactly one follow-up pass after the in-flight work.
    */
+  /**
+   * Apply a data edit, draw it, and only then tell the host.
+   *
+   * The order is the whole point (T104). Announcing before the frame let a
+   * host act on an edit that a failed render then undid, and no second call
+   * ever took it back — `onLayoutChange` carries a delta, and a delta cannot
+   * be re-fired to cancel itself the way `revealPath` re-fires a state.
+   *
+   * Safe to key on our own failure only since the coalescer began answering
+   * each caller about its own pass; before that, this `catch` could fire for
+   * a frame that drew perfectly well.
+   */
+  private async commitDataChange(next: DiagramData, patch: LayoutPatch): Promise<void> {
+    const drawn = this.lastDrawnData;
+    this.data = next;
+    try {
+      await this.render();
+    } catch (err) {
+      // Back to what is on screen, not to what this caller happened to see.
+      if (drawn) this.data = drawn;
+      throw err;
+    }
+    this.callbacks.onLayoutChange?.(patch);
+  }
+
   private async render(): Promise<void> {
     if (!this.host || this.destroyed) return;
     await this.renderCoalesce.schedule();
@@ -723,6 +757,7 @@ export class OrgHierarchyDiagram {
     try {
       await pending;
       this.lastRenderFailure = null;
+      this.lastDrawnData = this.data;
     } catch (error) {
       const failure: RenderFailure = {
         reason: error instanceof Error ? error.message : String(error),
@@ -885,13 +920,10 @@ export class OrgHierarchyDiagram {
   }
 
   async reorderOrg(orgId: string, newIndex: number): Promise<void> {
-    this.data = {
-      ...this.data,
-      organizations: swapMatrixOrder(this.data.organizations, orgId, newIndex),
-    };
-    const patch: LayoutPatch = { type: 'matrix-reorder', orgId, newIndex };
-    this.callbacks.onLayoutChange?.(patch);
-    await this.render();
+    await this.commitDataChange(
+      { ...this.data, organizations: swapMatrixOrder(this.data.organizations, orgId, newIndex) },
+      { type: 'matrix-reorder', orgId, newIndex },
+    );
   }
 
   /** Foreign/outside-matrix org at (row,col) ejects current occupant to overflow */
@@ -908,16 +940,10 @@ export class OrgHierarchyDiagram {
     if (placement.organizations === this.data.organizations) return;
 
     const { ejectedOrgId } = placement;
-    this.data = { ...this.data, organizations: placement.organizations };
-    const patch: LayoutPatch = {
-      type: 'matrix-cell',
-      orgId,
-      row: cell.row,
-      col: cell.col,
-      ejectedOrgId,
-    };
-    this.callbacks.onLayoutChange?.(patch);
-    await this.render();
+    await this.commitDataChange(
+      { ...this.data, organizations: placement.organizations },
+      { type: 'matrix-cell', orgId, row: cell.row, col: cell.col, ejectedOrgId },
+    );
   }
 
   /**
@@ -1550,7 +1576,6 @@ export class OrgHierarchyDiagram {
    * reports a reporting line it never drew is worse than one that refused.
    */
   async reparentPosition(positionId: string, managerId: string): Promise<void> {
-    const before = this.data;
     const knownIds = new Set(this.data.positions.map((p) => p.id));
     const fromManagerId = adminParentsOf(this.data.reportLines).get(positionId) ?? null;
     let reportLines: DiagramReportLine[];
@@ -1562,38 +1587,29 @@ export class OrgHierarchyDiagram {
       if (err instanceof InteractionError) return;
       throw err;
     }
-    this.data = { ...this.data, reportLines };
-    const patch: LayoutPatch = {
-      type: 'position-reparent',
-      positionId,
-      fromManagerId,
-      toManagerId: managerId,
-    };
-    this.callbacks.onLayoutChange?.(patch);
-    try {
-      await this.render();
-    } catch (err) {
-      this.data = before;
-      throw err;
-    }
+    await this.commitDataChange(
+      { ...this.data, reportLines },
+      { type: 'position-reparent', positionId, fromManagerId, toManagerId: managerId },
+    );
   }
 
   async movePersonToCell(positionId: string, col: number, row: number): Promise<void> {
+    let positions;
     try {
-      this.data = {
-        ...this.data,
-        positions: movePositionToCell(this.data.positions, positionId, col, row),
-      };
+      positions = movePositionToCell(this.data.positions, positionId, col, row);
     } catch (err) {
       if (err instanceof InteractionError) {
+        // A refused move is an ordinary outcome: redraw what is already true
+        // and say nothing, because nothing changed.
         await this.render();
         return;
       }
       throw err;
     }
-    const patch: LayoutPatch = { type: 'position-move', positionId, col, row };
-    this.callbacks.onLayoutChange?.(patch);
-    await this.render();
+    await this.commitDataChange(
+      { ...this.data, positions },
+      { type: 'position-move', positionId, col, row },
+    );
   }
 
   async shiftBlock(seedPositionId: string, deltaLevel: number): Promise<void> {
@@ -1602,9 +1618,10 @@ export class OrgHierarchyDiagram {
       seedPositionId,
       deltaLevel,
     );
-    this.data = { ...this.data, positions };
-    this.callbacks.onLayoutChange?.({ type: 'block-shift', positionIds, deltaLevel });
-    await this.render();
+    await this.commitDataChange(
+      { ...this.data, positions },
+      { type: 'block-shift', positionIds, deltaLevel },
+    );
   }
 
   async export(options: ExportOptions): Promise<Blob | string> {
