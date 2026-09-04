@@ -76,6 +76,11 @@ for (const file of markdownFiles()) {
  * Methods that are public in TypeScript but were already undocumented when
  * this gate went in. The list is a debt baseline: it may shrink, never grow.
  * Removing a name from here is the act of documenting the method.
+ *
+ * 21 → 16 on 2026-09-05: the five mutators went out with T104. They had to —
+ * the pipeline threshold defines the public API as «what `docs/USAGE.md`
+ * describes», so the three with the worst failure semantics in the codebase
+ * were also the least protected by process until they were written down.
  */
 const UNDOCUMENTED_BASELINE = new Set([
   'focusByTestId',
@@ -87,17 +92,12 @@ const UNDOCUMENTED_BASELINE = new Set([
   'getStaffFocus',
   'getZoom',
   'listTestAnchors',
-  'movePersonToCell',
   'openContextMenu',
-  'placeOrgAtMatrixCell',
-  'reorderOrg',
-  'reparentPosition',
   'resolveTestId',
   'runContextMenuAction',
   'setStaffFocus',
   'setTheme',
   'setViewport',
-  'shiftBlock',
   'subscribePromoteSync',
 ]);
 

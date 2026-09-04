@@ -35,8 +35,9 @@ It checks three things, each because that drift already happened here and nothin
 - **no public method of `OrgHierarchyDiagram` is missing from `docs/USAGE.md`.** That file is not
   merely documentation: the threshold below defines the public API as *what `docs/USAGE.md`
   describes*, so a method absent from it cannot be seen by the rule that decides how carefully it
-  may be changed. Twenty-one were missing when the check went in — they are a named baseline that
-  may shrink and never grow;
+  may be changed. Twenty-one were missing when the check went in — a named baseline that may shrink
+  and never grow. **Sixteen now:** T104 documented the five mutators, which it had to, since the
+  three with the worst failure semantics in the tree were formally below the threshold until then;
 - **`work/CTO-RESEARCH.md` has not fallen more than 25 commits behind `HEAD`.** «More than a few
   merged PRs» was the rule and was unmeasurable; 25 is what it means now.
 

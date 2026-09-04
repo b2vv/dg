@@ -45,7 +45,7 @@
 | `npm run typecheck` | tsc по sdk + emit types + demo |
 | `npm test` | unit sdk + demo |
 | `npm run test:e2e` | Playwright smoke |
-| `npm run check:docs` | **свіжість доки, перед пушем** (джоба CI `Docs freshness`): биті `.md`-лінки · публічний метод `OrgHierarchyDiagram` поза `docs/USAGE.md` (базова лінія на 21 метод, може лише зменшуватись) · `work/CTO-RESEARCH.md` далі ніж 25 комітів від `HEAD` |
+| `npm run check:docs` | **свіжість доки, перед пушем** (джоба CI `Docs freshness`): биті `.md`-лінки · публічний метод `OrgHierarchyDiagram` поза `docs/USAGE.md` (базова лінія 21 → **16** (T104 задокументував п'ять мутаторів), може лише зменшуватись) · `work/CTO-RESEARCH.md` далі ніж 25 комітів від `HEAD` |
 | `npm run compare:nodes` | візуальне порівняння вузлів |
 | `npm run test:verify` | усі вище одним прогоном (lint · check:docs · typecheck · test · e2e · compare:nodes) |
 | `npm run test:rust` | `cargo test` у `packages/core` |
