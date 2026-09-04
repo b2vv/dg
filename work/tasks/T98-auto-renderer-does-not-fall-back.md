@@ -1,8 +1,8 @@
 # T98 — `renderer: 'auto'` не переходить на Canvas2D там, де WebGL програмний
 
-**Пріоритет:** P1 · **Статус:** ✅ **зроблено (2026-09-04)** — варіант 1 у `main`-кандидаті — варіант 1 через `spec-flow`,
-гілка `t98-auto-software-fallback`, артефакти в
-[`work/reports/auto-software-fallback/`](../reports/auto-software-fallback/tasks.md).
+**Пріоритет:** P1 · **Статус:** ✅ **зроблено (2026-09-04)** — варіант 1 через `spec-flow`,
+злито в `main` через [PR #78](https://github.com/b2vv/dg/pull/78) (rebase; гілка видалена).
+Артефакти: [`work/reports/auto-software-fallback/`](../reports/auto-software-fallback/report.md).
 Варіант 3 зроблено 2026-09-02. **Відкладання варіанта 1 знято**: воно було круговим (чекали
 число з T92, а T92 чекав це рішення), і GATE 2 зняв пробу, тож тонкого порогу — а з ним і
 потреби в числі — більше немає.

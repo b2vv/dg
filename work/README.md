@@ -64,15 +64,17 @@ npm run dev          # http://localhost:3000
 | [T71-gojs-to-dg-migration-plan](./tasks/T71-gojs-to-dg-migration-plan.md) | План міграції GoJS → Org Hierarchy SDK (`dg`) | ✅ cutover queue complete (2026-08-23) — залишок: T61 (макет), T67 Phase 2 (marquee, optional) |
 | [T79-g2-m2-paint-notch](./tasks/T79-g2-m2-paint-notch.md) | G2 / M2 на paint-шляху (foreign ніколи не під заливкою) | ✅ done (2026-08-25) — **лишається тут**: SPEC і REQUIREMENTS цитують його як пояснення геометрії |
 | [T80-contour-engines-ba-demo](./tasks/T80-contour-engines-ba-demo.md) | Два рушії контурів для порівняння BA | ✅ demo ready (2026-08-25) |
-| [T90-drag-smoothness](./tasks/T90-drag-smoothness.md) | Перетягування «не плавне»: гіпотеза виміряна й **спростована** | 🟡 виміряно, причина не підтверджена |
-| [T92-software-render-pan-cost](./tasks/T92-software-render-pan-cost.md) | Панорамування на програмному рендері: ≈9 fps, і це не про промоут | 🟡 лікування знайдене й виміряне (2026-09-02); лишилось число з цільового заліза |
-| [T98-auto-renderer-does-not-fall-back](./tasks/T98-auto-renderer-does-not-fall-back.md) | `renderer: 'auto'` не переходить на Canvas2D там, де WebGL програмний | 🔵 не почато |
-| [T101-e2e-flakes-only-local](./tasks/T101-e2e-flakes-only-local.md) | Флаки, які CI не може побачити: він ганяє послідовно, а розробник — ні | 🔵 не почато |
+| [T90-drag-smoothness](./tasks/T90-drag-smoothness.md) | Перетягування «не плавне»: гіпотеза виміряна й **спростована** | ✅ закрито виміром (2026-08-29) — роботи не лишилось; тримається як запис, щоб ніхто не почав спочатку |
+| [T92-software-render-pan-cost](./tasks/T92-software-render-pan-cost.md) | Панорамування на програмному рендері: ≈9 fps, і це не про промоут | ✅ закрито (2026-09-04) — **не числом**: критерій «число з цільового заліза» знято, бо існував заради порогу, якого в дизайні немає (T98) |
+| [T98-auto-renderer-does-not-fall-back](./tasks/T98-auto-renderer-does-not-fall-back.md) | `renderer: 'auto'` не переходить на Canvas2D там, де WebGL програмний | ✅ зроблено (2026-09-04, PR #78) — впізнавання за іменем рушія; ⚠️ критерій «0 кадрів > 33 мс» не зелений, див. звіт |
+| [T101-e2e-flakes-only-local](./tasks/T101-e2e-flakes-only-local.md) | Флаки, які CI не може побачити | 🔵 не почато · ⚠️ **гіпотезу «винна паралельність» спростовано 2026-09-04** — падає й на `--workers=1`; перший пункт робіт міряє не ту вісь |
 | [T102-row-tree-depth-block-b](./tasks/T102-row-tree-depth-block-b.md) | row-tree: підняти підтриману глибину (блок Б) | не почато. Спека готова, приймальна таблиця написана. |
 | [T103-setdata-request-epoch](./tasks/T103-setdata-request-epoch.md) | `setData` не «виграє останній запит» | не почато. |
 | [T104-mutations-are-not-one-transaction](./tasks/T104-mutations-are-not-one-transaction.md) | мутація, рендер і колбек хоста — не одна транзакція | не почато. |
 | [T105-root-barrel-exposes-test-hooks](./tasks/T105-root-barrel-exposes-test-hooks.md) | кореневий барель віддає внутрішнє й тест-хуки | не почато. |
 | [T106-deepen-facades-drop-shallow-wrappers](./tasks/T106-deepen-facades-drop-shallow-wrappers.md) | великі фасади поруч із порожніми обгортками | не почато. Серйозність: Medium. |
+| [T107-magnetic-contour-cost](./tasks/T107-magnetic-contour-cost.md) | Магнітний контур: 66% кадру йшло на копіювання масивів | ✅ виконано (2026-09-03) — 14,0 → 5,1 мс у TS; WASM-порт відхилено виміром |
+| [T108-search-answer-lost-on-canvas](./tasks/T108-search-answer-lost-on-canvas.md) | Відповідь пошуку губиться на Canvas2D: фікс T99 не тримається на іншому рушії | 🔵 не почато — знайдено як наслідок T98 |
 | [NODE-interactions-contract](./tasks/NODE-interactions-contract.md) | NODE interactions contract (mandatory) | active · Enforced by: `nodeInteractions.contract.test.ts`, `e2e/node-interactions.spec.ts` |
 | [PARITY-gojs-to-dg](./tasks/PARITY-gojs-to-dg.md) | Parity `gojs-diagram` → `dg`: вимога → можливість | 🟢 живий довідник, не задача — тримається синхронним із кодом, не закривається. |
 
