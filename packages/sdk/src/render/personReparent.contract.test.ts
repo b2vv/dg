@@ -347,6 +347,38 @@ describe('seat re-parent by drag (T91)', () => {
     container.remove();
   });
 
+  it('T104: a reparent that was rolled back must not leave the host told it happened', async () => {
+    const patches: LayoutPatch[] = [];
+    const container = document.createElement('div');
+    container.style.width = '900px';
+    container.style.height = '700px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: treeData(),
+      staffCurrentOrgId: 'org1',
+      useWorker: false,
+      callbacks: { onLayoutChange: (p) => patches.push(p), onRenderFailed: () => {} },
+    });
+    const internals = diagram as unknown as Internals;
+    const before = internals.data.reportLines;
+
+    const renderer = internals.host.renderer as unknown as {
+      render: (...args: unknown[]) => Promise<void>;
+    };
+    renderer.render = () => Promise.reject(new Error('layout exploded'));
+
+    await expect(diagram.reparentPosition('b', 'c')).rejects.toThrow('layout exploded');
+
+    // Row 24 already proves the data goes back. This is the other half: the host
+    // was told about the edit *before* the render, and nothing takes it back —
+    // so the host and the diagram now disagree, silently.
+    expect(internals.data.reportLines).toBe(before);
+    expect(patches).toHaveLength(0);
+
+    diagram.destroy();
+    container.remove();
+  });
+
   it('row 13: below the near band the gesture pans instead of re-parenting', async () => {
     const patches: LayoutPatch[] = [];
     const { container, diagram, nodeFor, toGlobal } = await mountTree((p) => patches.push(p));
