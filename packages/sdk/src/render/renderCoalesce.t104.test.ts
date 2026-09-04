@@ -14,7 +14,9 @@ describe('createRenderCoalesce — what a caller is told about', () => {
       pass += 1;
       if (pass === 1) {
         // Hold pass 1 open long enough for a second caller to join.
-        await new Promise<void>((r) => gate.push(r));
+        await new Promise<void>((r) => {
+          gate.push(r);
+        });
         return;
       }
       throw new Error('pass 2 exploded');
