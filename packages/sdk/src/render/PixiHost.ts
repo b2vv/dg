@@ -43,6 +43,8 @@ export interface ResolvedRendererPreference {
  * verdict: it leaves the choice exactly as it was, so no real GPU is demoted by
  * a guess.
  *
+ * @param value what the host asked for; anything unrecognised behaves as `'auto'`
+ *   and says so in `diagnostic`.
  * @param detect injected in tests; production shares one memoised detector so
  *   the renderer string costs a single throwaway context per page.
  */
