@@ -56,6 +56,14 @@ export interface OrgHierarchyCallbacks {
    * Return items to replace defaults, `false` to cancel, or void to keep defaults.
    */
   onContextMenu?(request: ContextMenuRequest): MenuItem[] | false | void;
+  /**
+   * A layout edit that **has been drawn** (T104).
+   *
+   * Fires after the frame that shows it, not before: a patch you receive is
+   * already in the data and on the screen. When the render fails, or the edit
+   * is rolled back before its frame, the patch is not sent at all and the
+   * mutator that made it rejects instead — see `docs/USAGE.md` §9.
+   */
   onLayoutChange?(patch: LayoutPatch): void;
   onOrgModeChange?(mode: OrgDisplayMode): void;
   onSelectionChange?(nodes: NodeRef[]): void;

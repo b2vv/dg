@@ -94,6 +94,10 @@ describe('person drag contract (T77-M05)', () => {
     node.emit('globalpointermove', pointerEvent({ x: start.x + 1, y: start.y + 1 }));
     node.emit('pointerup', pointerEvent({ x: start.x + 1, y: start.y + 1 }));
 
+    // Awaited since T104: the patch is deferred to after the frame, so a bare
+    // assertion here would pass because nothing had run yet, not because
+    // nothing was reported.
+    await new Promise((r) => { setTimeout(r, 80); });
     expect(onDrop).not.toHaveBeenCalled();
     diagram.destroy();
     container.remove();
