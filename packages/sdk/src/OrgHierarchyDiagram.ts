@@ -277,16 +277,6 @@ export class OrgHierarchyDiagram {
    * order leaves the earlier edit applied and undrawn.
    */
   private lastDrawnData: DiagramData | null = null;
-  /**
-   * Bumped by every rollback, so a mutator can tell whether its edit survived
-   * to the frame that drew (T104).
-   *
-   * A neighbour's rollback restores the last drawn data — which discards *our*
-   * edit too, since ours was layered on theirs. Our own pass then draws that
-   * restored state and succeeds, so our outcome alone cannot tell us the edit
-   * is gone. The counter is what tells us.
-   */
-  private rollbackEpoch = 0;
   /** Bumped per `searchAll` so a late answer can tell it is late. */
   private searchEpoch = 0;
   private callbacks: OrgHierarchyCallbacks = {};
@@ -617,10 +607,6 @@ export class OrgHierarchyDiagram {
   }
 
   /**
-   * Coalesce concurrent renders (T75 D2). Overlapping callers share one promise;
-   * a dirty flag schedules exactly one follow-up pass after the in-flight work.
-   */
-  /**
    * Apply a data edit, draw it, and only then tell the host.
    *
    * The order is the whole point (T104). Announcing before the frame let a
@@ -633,24 +619,27 @@ export class OrgHierarchyDiagram {
    * a frame that drew perfectly well.
    */
   private async commitDataChange(next: DiagramData, patch: LayoutPatch): Promise<void> {
-    const drawn = this.lastDrawnData;
-    const epoch = this.rollbackEpoch;
     this.data = next;
     try {
       await this.render();
     } catch (err) {
-      // Back to what is on screen, not to what this caller happened to see.
-      if (drawn) this.data = drawn;
-      this.rollbackEpoch += 1;
+      // Undo only what is still ours to undo. `this.data !== next` means a later
+      // mutator wrote on top of us and its frame is what the screen will show —
+      // restoring our target there would replace a drawn state with an older
+      // one, which is the very divergence this method exists to prevent.
+      //
+      // And the target is read here, not at entry: at entry it would be this
+      // caller's private snapshot, which by now may predate a neighbour's frame.
+      if (this.data === next && this.lastDrawnData) this.data = this.lastDrawnData;
       throw err;
     }
-    if (this.rollbackEpoch !== epoch) {
-      // Our frame drew, but it drew a state a neighbour restored — our edit was
-      // undone on the way. Reporting the patch here would be the original bug
-      // reached from the other side, and resolving quietly would claim an edit
-      // that is not in the data.
+    if (this.lastDrawnData !== next) {
+      // Our frame resolved, but the state on screen is not ours. Either a
+      // neighbour's rollback took our edit with it, or nothing drew at all
+      // (unmounted, destroyed, stopped) — and in every one of those cases
+      // announcing the patch would claim something the diagram cannot show.
       throw new Error(
-        `OrgHierarchyDiagram: '${patch.type}' was rolled back with a failed render before it drew`,
+        `OrgHierarchyDiagram: '${patch.type}' never reached the screen and was not applied`,
       );
     }
     this.callbacks.onLayoutChange?.(patch);
@@ -677,8 +666,12 @@ export class OrgHierarchyDiagram {
     const reportLinesNow = this.data.reportLines;
     host.renderer.canReparent = (positionId, managerId) =>
       canReparent(reportLinesNow, positionId, managerId, knownPositionIds);
+    // Captured before the await, because that is the state the renderer is
+    // handed. Reading `this.data` afterwards would record whatever a mutator
+    // wrote *during* the frame — a state nobody drew (T104 review).
+    const drawing = this.data;
     await this.reportIfRenderFails(
-      host.renderer.render(this.data, this.nodeTheme, resolved, this.renderConfig, {
+      host.renderer.render(drawing, this.nodeTheme, resolved, this.renderConfig, {
       lod: this.viewState.lodLevel,
       orgLayout: this.viewState.orgLayout,
       staff: this.viewState.staffCurrentOrgId
@@ -755,6 +748,7 @@ export class OrgHierarchyDiagram {
         void this.reparentPosition(positionId, managerId);
       },
       }),
+      drawing,
     );
     // The scene changed; nothing paints on its own any more (T84).
     host.requestPaint();
@@ -774,11 +768,11 @@ export class OrgHierarchyDiagram {
    * poll for that is how a diagram ends up describing a tree it never drew
    * (T97 defense; `revealPath` is the first caller that relies on it).
    */
-  private async reportIfRenderFails(pending: Promise<void>): Promise<void> {
+  private async reportIfRenderFails(pending: Promise<void>, drawing: DiagramData): Promise<void> {
     try {
       await pending;
       this.lastRenderFailure = null;
-      this.lastDrawnData = this.data;
+      this.lastDrawnData = drawing;
     } catch (error) {
       const failure: RenderFailure = {
         reason: error instanceof Error ? error.message : String(error),

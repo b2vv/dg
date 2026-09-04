@@ -32,18 +32,29 @@ export function createRenderCoalesce(run: () => Promise<void>): RenderCoalesce {
   };
 
   /**
-   * When a pass settles, the queued one becomes the pass in flight.
+   * Takes the in-flight slot **synchronously** as the queued pass begins.
    *
-   * Swallows here only to drive the promotion; the rejection itself still
-   * reaches whoever holds that pass's promise.
+   * Without this the slot moved a microtask later than the pass started, and a
+   * caller arriving in that gap was handed a pass that had already read the
+   * state — so its own edit was not in the frame it was told about. Only shows
+   * up with three callers; two never reach the gap.
    */
-  const promoteAfter = (pass: Promise<void>): void => {
+  const runQueued = async (): Promise<void> => {
+    inFlight = queued;
+    queued = null;
+    await runPass();
+  };
+
+  /**
+   * Free the slot once nothing follows. Guarded on `queued` because between a
+   * pass settling and its successor starting the slot must stay occupied —
+   * otherwise a caller in between starts a second concurrent pass.
+   */
+  const clearWhenIdle = (pass: Promise<void>): void => {
     void pass
       .catch(() => {})
       .then(() => {
-        inFlight = queued;
-        queued = null;
-        if (inFlight) promoteAfter(inFlight);
+        if (inFlight === pass && !queued) inFlight = null;
       });
   };
 
@@ -57,15 +68,20 @@ export function createRenderCoalesce(run: () => Promise<void>): RenderCoalesce {
       if (stopped) return Promise.resolve();
 
       if (!inFlight) {
-        inFlight = runPass();
-        promoteAfter(inFlight);
-        return inFlight;
+        const pass = runPass();
+        inFlight = pass;
+        clearWhenIdle(pass);
+        return pass;
       }
 
-      // A failed pass must not block the next one: the state that follows is
-      // still owed a frame, and refusing to draw it would strand the diagram on
-      // whatever the failure left behind.
-      queued ??= inFlight.then(runPass, runPass);
+      if (!queued) {
+        // A failed pass must not block the next one: the state that follows is
+        // still owed a frame, and refusing to draw it would strand the diagram
+        // on whatever the failure left behind.
+        const next = inFlight.then(runQueued, runQueued);
+        queued = next;
+        clearWhenIdle(next);
+      }
       return queued;
     },
   };

@@ -7,7 +7,7 @@ import { createRenderCoalesce } from './renderCoalesce.js';
  * work, so this pins that down first — no DOM, no diagram, seconds to run.
  */
 describe('createRenderCoalesce — what a caller is told about', () => {
-  it('failure: a caller whose pass succeeded is still handed the next pass failure', async () => {
+  it('success: a caller whose pass drew is not handed the next pass failure', async () => {
     let pass = 0;
     const gate: Array<() => void> = [];
     const coalesce = createRenderCoalesce(async () => {
@@ -23,8 +23,8 @@ describe('createRenderCoalesce — what a caller is told about', () => {
     });
 
     const first = coalesce.schedule();
-    // B arrives while pass 1 is in flight: it only sets `dirty` and gets the
-    // same promise back — which is the whole point being measured.
+    // B arrives while pass 1 is in flight, so its state is drawn by the
+    // follow-up pass — and it is that pass's verdict B must be given.
     const second = coalesce.schedule();
     gate[0]?.();
 
@@ -88,5 +88,43 @@ describe('createRenderCoalesce — a pass that draws someone else’s rollback',
     // frame drew the rolled-back state. Nothing in B's own outcome says so.
     expect(drawn).toEqual(['D0']);
     await expect(second).resolves.toBeUndefined();
+  });
+});
+
+describe('createRenderCoalesce — three callers, not two', () => {
+  it('success: each of three is answered by the pass that drew its state', async () => {
+    // Two callers can hide an off-by-one: with three, a caller that joins the
+    // *queued* pass must get a third pass, not the one already running.
+    const drawn: string[] = [];
+    const gate: Array<() => void> = [];
+    let state = 'A';
+    const coalesce = createRenderCoalesce(async () => {
+      const seen = state;
+      await new Promise<void>((r) => {
+        gate.push(r);
+      });
+      drawn.push(seen);
+    });
+
+    const first = coalesce.schedule();
+    state = 'B';
+    const second = coalesce.schedule();
+
+    // Let pass 1 finish so the queued pass actually starts running.
+    gate[0]?.();
+    await first;
+
+    // C arrives once the follow-up is already under way: its state cannot be in
+    // that pass, so it must be promised a further one.
+    state = 'C';
+    const third = coalesce.schedule();
+    expect(third).not.toBe(second);
+
+    gate[1]?.();
+    await second;
+    gate[2]?.();
+    await third;
+
+    expect(drawn).toEqual(['A', 'B', 'C']);
   });
 });
