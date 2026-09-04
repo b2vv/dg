@@ -347,6 +347,49 @@ describe('seat re-parent by drag (T91)', () => {
     container.remove();
   });
 
+  it('T104: an edit wiped by a neighbour rollback is not announced either', async () => {
+    // The same lie from the other side. This caller's own frame draws fine —
+    // it is the *previous* caller's rollback that takes this edit with it, and
+    // a successful outcome would otherwise look like proof the edit landed.
+    const patches: LayoutPatch[] = [];
+    const container = document.createElement('div');
+    container.style.width = '900px';
+    container.style.height = '700px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: treeData(),
+      staffCurrentOrgId: 'org1',
+      useWorker: false,
+      callbacks: { onLayoutChange: (p) => patches.push(p), onRenderFailed: () => {} },
+    });
+    const internals = diagram as unknown as Internals;
+    const drawn = internals.data;
+
+    const renderer = internals.host.renderer as unknown as {
+      render: (...args: unknown[]) => Promise<void>;
+    };
+    let pass = 0;
+    const ok = renderer.render.bind(renderer);
+    renderer.render = (...args: unknown[]) => {
+      pass += 1;
+      return pass === 1 ? Promise.reject(new Error('layout exploded')) : ok(...args);
+    };
+
+    // A fails and rolls back; B rides the follow-up pass, which draws the
+    // restored state — so B's edit is gone even though B's frame succeeded.
+    const first = diagram.reparentPosition('b', 'c');
+    const second = diagram.shiftBlock('b', 1);
+
+    await expect(first).rejects.toThrow('layout exploded');
+    await expect(second).rejects.toThrow('rolled back');
+
+    expect(internals.data).toBe(drawn);
+    expect(patches).toHaveLength(0);
+
+    diagram.destroy();
+    container.remove();
+  });
+
   it('T104: a reparent that was rolled back must not leave the host told it happened', async () => {
     const patches: LayoutPatch[] = [];
     const container = document.createElement('div');
