@@ -277,6 +277,16 @@ export class OrgHierarchyDiagram {
    * order leaves the earlier edit applied and undrawn.
    */
   private lastDrawnData: DiagramData | null = null;
+  /**
+   * Bumped by every rollback, so a mutator can tell whether its edit survived
+   * to the frame that drew (T104).
+   *
+   * A neighbour's rollback restores the last drawn data — which discards *our*
+   * edit too, since ours was layered on theirs. Our own pass then draws that
+   * restored state and succeeds, so our outcome alone cannot tell us the edit
+   * is gone. The counter is what tells us.
+   */
+  private rollbackEpoch = 0;
   /** Bumped per `searchAll` so a late answer can tell it is late. */
   private searchEpoch = 0;
   private callbacks: OrgHierarchyCallbacks = {};
@@ -624,13 +634,24 @@ export class OrgHierarchyDiagram {
    */
   private async commitDataChange(next: DiagramData, patch: LayoutPatch): Promise<void> {
     const drawn = this.lastDrawnData;
+    const epoch = this.rollbackEpoch;
     this.data = next;
     try {
       await this.render();
     } catch (err) {
       // Back to what is on screen, not to what this caller happened to see.
       if (drawn) this.data = drawn;
+      this.rollbackEpoch += 1;
       throw err;
+    }
+    if (this.rollbackEpoch !== epoch) {
+      // Our frame drew, but it drew a state a neighbour restored — our edit was
+      // undone on the way. Reporting the patch here would be the original bug
+      // reached from the other side, and resolving quietly would claim an edit
+      // that is not in the data.
+      throw new Error(
+        `OrgHierarchyDiagram: '${patch.type}' was rolled back with a failed render before it drew`,
+      );
     }
     this.callbacks.onLayoutChange?.(patch);
   }
