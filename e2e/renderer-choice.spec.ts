@@ -161,12 +161,7 @@ test.describe('renderer choice (T83)', () => {
       () => !!document.createElement('canvas').getContext('webgl2'),
     );
 
-    if (!webglObtainable) {
-      // Nothing can produce WebGL here. What a pin must never do is report
-      // 'webgl' anyway — it has to fail out loud.
-      expect(pinnedWebgl.kind).not.toBe('webgl');
-      expect(pinnedWebgl.error).toContain("renderer 'webgl'");
-    } else {
+    if (webglObtainable) {
       // A pin is a pin: `'webgl'` accepts a software context on purpose
       // (docs/USAGE.md § renderer), even where auto declined it.
       expect(pinnedWebgl.kind).toBe('webgl');
@@ -176,6 +171,11 @@ test.describe('renderer choice (T83)', () => {
         // are right — auto protected the frame rate, the pin was honoured.
         expect(auto.kind).toBe('canvas');
       }
+    } else {
+      // Nothing can produce WebGL here. What a pin must never do is report
+      // 'webgl' anyway — it has to fail out loud.
+      expect(pinnedWebgl.kind).not.toBe('webgl');
+      expect(pinnedWebgl.error).toContain("renderer 'webgl'");
     }
   });
 
