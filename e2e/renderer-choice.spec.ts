@@ -77,6 +77,33 @@ const browserGrantsRealWebgl = (page: Page) =>
         .getContext('webgl2', { failIfMajorPerformanceCaveat: true }),
   );
 
+/**
+ * Asked the same way the SDK asks, but by hand: is the driver behind WebGL a
+ * software rasteriser? Since T98 this — not the caveat hint above — is what
+ * decides `'auto'`, because the hint is inconsistent (the same Chromium refused
+ * a software context on macOS and granted one in a GPU-less container).
+ *
+ * Deliberately re-derived here from the raw string rather than imported from
+ * `detectSoftwareRenderer.ts`: importing the answer would only prove the SDK
+ * agrees with itself.
+ */
+const browserDrawsInSoftware = (page: Page) =>
+  page.evaluate(() => {
+    const gl = document.createElement('canvas').getContext('webgl2');
+    const info = gl?.getExtension('WEBGL_debug_renderer_info');
+    if (!gl || !info) return false;
+    const name = String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL) ?? '').toLowerCase();
+    return [
+      'swiftshader',
+      'llvmpipe',
+      'softpipe',
+      'microsoft basic render',
+      'software adapter',
+      'software rasterizer',
+      'apple software renderer',
+    ].some((marker) => name.includes(marker));
+  });
+
 test.describe('renderer choice (T83)', () => {
   test('row 2: a host that pins canvas gets canvas, and no WebGL context exists', async ({
     page,
@@ -101,10 +128,16 @@ test.describe('renderer choice (T83)', () => {
     const pinned = await bridge(page).probe('canvas');
     expect(pinned).toEqual({ kind: 'canvas', error: null });
 
-    // The auto neighbour must land where the *browser's* verdict points, not
-    // wherever the pinned one went.
+    // The auto neighbour must land on its own verdict, not wherever the pinned
+    // one went. Since T98 that verdict comes from the renderer's *name*: a known
+    // software rasteriser means canvas, and only an unrecognised one falls back
+    // to what the browser is willing to grant.
     const auto = await bridge(page).probe(undefined);
-    const expected = (await browserGrantsRealWebgl(page)) ? 'webgl' : 'canvas';
+    const expected = (await browserDrawsInSoftware(page))
+      ? 'canvas'
+      : (await browserGrantsRealWebgl(page))
+        ? 'webgl'
+        : 'canvas';
     expect(auto.kind).toBe(expected);
 
     // …and the pinned one is unmoved by the neighbour that came after it.
@@ -118,16 +151,31 @@ test.describe('renderer choice (T83)', () => {
     const auto = await bridge(page).probe(undefined);
     const pinnedWebgl = await bridge(page).probe('webgl');
 
-    if (auto.kind === 'canvas') {
-      // The page's WebGL verdict is cached by Pixi and ignores the flag a later
-      // mount passes, so a pinned 'webgl' cannot get WebGL here. What it must
-      // never do is report 'webgl' anyway — it has to fail out loud.
+    // ⚠️ The condition is *can this page get a WebGL context at all*, and since
+    // T98 that is no longer the same question as "what did auto choose".
+    // Auto now steps aside on a software rasteriser the browser is perfectly
+    // willing to hand out — and by asking Pixi for canvas outright it stops
+    // seeding Pixi's page-wide WebGL verdict, so the later pin gets a fresh
+    // answer instead of an inherited refusal.
+    const webglObtainable = await page.evaluate(
+      () => !!document.createElement('canvas').getContext('webgl2'),
+    );
+
+    if (!webglObtainable) {
+      // Nothing can produce WebGL here. What a pin must never do is report
+      // 'webgl' anyway — it has to fail out loud.
       expect(pinnedWebgl.kind).not.toBe('webgl');
       expect(pinnedWebgl.error).toContain("renderer 'webgl'");
     } else {
-      // Where WebGL is genuinely available, pinning it is simply honoured.
+      // A pin is a pin: `'webgl'` accepts a software context on purpose
+      // (docs/USAGE.md § renderer), even where auto declined it.
       expect(pinnedWebgl.kind).toBe('webgl');
       expect(pinnedWebgl.error).toBeNull();
+      if (await browserDrawsInSoftware(page)) {
+        // The case this row exists for after T98: the two disagree, and both
+        // are right — auto protected the frame rate, the pin was honoured.
+        expect(auto.kind).toBe('canvas');
+      }
     }
   });
 
