@@ -375,7 +375,7 @@ GitHub Issues на `b2vv/dg` **порожні**; живий беклог — `wo
 | — | `isDiagramData` пропускав `{organizations: null, …}` — падало пізніше й деінде | ✅ закрито: колекції мусять бути масивами | `data/mergeData.ts` |
 | — | `renderPositionGrid` чекав paint контуру без epoch-перевірки — новіший рендер міг очистити шари під час підвислого await старішого | ✅ закрито: та сама гвардія, що вже мали staff/org-шляхи | `render/DiagramRenderer.ts` |
 | T103 | `setData` не «виграє останній запит»: жодна зі стадій мапінгу/нормалізації/перебудови індексу не має epoch; `SearchIndexService.rebuildForScale` привласнює той проміс, що завершився останнім, не найновіший | 🔵 не почато, High | `SearchIndexService.ts:44-53` |
-| T104 | Мутація, рендер і колбек хоста — не одна транзакція; `movePersonToCell`/`shiftBlock` не відкочують узагалі, `reparentPosition` відкочує дані, але колбек уже пішов | 🔵 не почато, High | `OrgHierarchyDiagram.ts:1552,1581,1599` |
+| T104 | ~~Мутація, рендер і колбек хоста — не одна транзакція~~ ✅ **закрито 2026-09-05.** Коренева причина була не в мутаторах, а в `renderCoalesce`: він віддавав промі́с усієї сесії, тож викликач з успішним кадром отримував чуже відхилення. Усі **шість** місць тепер повідомляють після кадру | ✅ закрито | [звіт](./reports/mutation-transaction/report.md) |
 | T105 | Кореневий барель віддає `resetContourWasmForTests`/`setContourWasmLoaderForTests` — процес-wide перемикач як частина споживацького інтерфейсу — **вище порога пайплайна** (публічний API) | 🔵 не почато, Medium | `index.ts:53-54` |
 | T106 | Два файли тримають майже все: `OrgHierarchyDiagram.ts` 1 664 рядки, `DiagramRenderer.ts` 1 139, поруч із тонкими `DataStore`/`ViewStateStore` | 🔵 не почато, Medium | — |
 

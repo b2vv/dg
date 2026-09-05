@@ -70,11 +70,12 @@ npm run dev          # http://localhost:3000
 | [T101-e2e-flakes-only-local](./tasks/T101-e2e-flakes-only-local.md) | Флаки, які CI не може побачити | 🔵 не почато · ⚠️ **гіпотезу «винна паралельність» спростовано 2026-09-04** — падає й на `--workers=1`; перший пункт робіт міряє не ту вісь |
 | [T102-row-tree-depth-block-b](./tasks/T102-row-tree-depth-block-b.md) | row-tree: підняти підтриману глибину (блок Б) | не почато. Спека готова, приймальна таблиця написана. |
 | [T103-setdata-request-epoch](./tasks/T103-setdata-request-epoch.md) | `setData` не «виграє останній запит» | не почато. |
-| [T104-mutations-are-not-one-transaction](./tasks/T104-mutations-are-not-one-transaction.md) | мутація, рендер і колбек хоста — не одна транзакція | 🟠 у роботі · ⚠️ **постановку змінено виміром 2026-09-04**: шість місць, не три; коренева причина в `renderCoalesce`, тож порядок робіт **перевернутий** |
+| [T104-mutations-are-not-one-transaction](./tasks/T104-mutations-are-not-one-transaction.md) | мутація, рендер і колбек хоста — не одна транзакція | ✅ зроблено (2026-09-05) — усі **шість** місць повідомляють після кадру; коренева причина була в `renderCoalesce`, не в мутаторах |
 | [T105-root-barrel-exposes-test-hooks](./tasks/T105-root-barrel-exposes-test-hooks.md) | кореневий барель віддає внутрішнє й тест-хуки | не почато. |
 | [T106-deepen-facades-drop-shallow-wrappers](./tasks/T106-deepen-facades-drop-shallow-wrappers.md) | великі фасади поруч із порожніми обгортками | не почато. Серйозність: Medium. |
 | [T107-magnetic-contour-cost](./tasks/T107-magnetic-contour-cost.md) | Магнітний контур: 66% кадру йшло на копіювання масивів | ✅ виконано (2026-09-03) — 14,0 → 5,1 мс у TS; WASM-порт відхилено виміром |
 | [T108-search-answer-lost-on-canvas](./tasks/T108-search-answer-lost-on-canvas.md) | Відповідь пошуку губиться на Canvas2D: фікс T99 не тримається на іншому рушії | 🔵 не почато — знайдено як наслідок T98 |
+| [T109-toggle-staff-org-has-no-transaction](./tasks/T109-toggle-staff-org-has-no-transaction.md) | `toggleStaffOrg` міняє стан і малює, без відкоту | 🔵 не почато · P3 — знайдено як наслідок T104; контракту не порушує, бо колбека не шле |
 | [NODE-interactions-contract](./tasks/NODE-interactions-contract.md) | NODE interactions contract (mandatory) | active · Enforced by: `nodeInteractions.contract.test.ts`, `e2e/node-interactions.spec.ts` |
 | [PARITY-gojs-to-dg](./tasks/PARITY-gojs-to-dg.md) | Parity `gojs-diagram` → `dg`: вимога → можливість | 🟢 живий довідник, не задача — тримається синхронним із кодом, не закривається. |
 
