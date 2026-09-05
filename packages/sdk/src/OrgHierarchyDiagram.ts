@@ -620,19 +620,7 @@ export class OrgHierarchyDiagram {
    */
   private async commitDataChange(next: DiagramData, patch: LayoutPatch): Promise<void> {
     this.data = next;
-    try {
-      await this.render();
-    } catch (err) {
-      // Undo only what is still ours to undo. `this.data !== next` means a later
-      // mutator wrote on top of us and its frame is what the screen will show —
-      // restoring our target there would replace a drawn state with an older
-      // one, which is the very divergence this method exists to prevent.
-      //
-      // And the target is read here, not at entry: at entry it would be this
-      // caller's private snapshot, which by now may predate a neighbour's frame.
-      if (this.data === next && this.lastDrawnData) this.data = this.lastDrawnData;
-      throw err;
-    }
+    await this.drawOrRestore(next);
     if (this.lastDrawnData !== next) {
       // Our frame resolved, but the state on screen is not ours. Either a
       // neighbour's rollback took our edit with it, or nothing drew at all
@@ -643,6 +631,31 @@ export class OrgHierarchyDiagram {
       );
     }
     this.callbacks.onLayoutChange?.(patch);
+  }
+
+  /**
+   * Draw, and on failure put the data back to what is on screen.
+   *
+   * Shared by every edit path, including the expand toggles, which mutate the
+   * derived `staffExpandedPositionIds` set as well as `this.data` — restoring
+   * the data without re-deriving that set would leave the two disagreeing.
+   * `seedExpandedPositionsFromData` already exists for exactly that, so the
+   * rollback reuses it rather than snapshotting a second thing.
+   *
+   * Undoes only what is still ours: `this.data !== next` means a later mutator
+   * wrote on top and its frame is what the screen will show, so restoring our
+   * target there would replace a drawn state with an older one.
+   */
+  private async drawOrRestore(next: DiagramData): Promise<void> {
+    try {
+      await this.render();
+    } catch (err) {
+      if (this.data === next && this.lastDrawnData) {
+        this.data = this.lastDrawnData;
+        this.seedExpandedPositionsFromData();
+      }
+      throw err;
+    }
   }
 
   private async render(): Promise<void> {
@@ -1083,8 +1096,11 @@ export class OrgHierarchyDiagram {
     const expandedIds = this.viewState.staffExpandedPositionIds;
     if (expandedIds.has(positionId) || position.expanded === true) {
       this.setPositionExpandedFlag(positionId, false);
+      // Announced after the frame, like every other edit path (T104): a host
+      // told about a collapse the render then refused had no way to hear it
+      // taken back.
+      await this.drawOrRestore(this.data);
       this.emitPositionExpand(positionId, false, [positionId]);
-      await this.render();
       this.panToNode(positionId, { animate: true });
       return false;
     }
@@ -1097,9 +1113,9 @@ export class OrgHierarchyDiagram {
     for (const id of evicted) this.setPositionExpandedFlag(id, false);
     this.setPositionExpandedFlag(positionId, true);
 
+    await this.drawOrRestore(this.data);
     for (const id of evicted) this.emitPositionExpand(id, false, [id]);
     this.emitPositionExpand(positionId, true, [positionId, ...evicted]);
-    await this.render();
     this.panToNode(positionId, { animate: true });
     return true;
   }

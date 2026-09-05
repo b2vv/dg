@@ -70,6 +70,49 @@ async function mount(extra: { maxExpandedPositions?: number } = {}) {
 }
 
 describe('OrgHierarchyDiagram position expand (T66)', () => {
+  it('failure: T104 — an expand the render refuses is neither announced nor kept', async () => {
+    const { container, diagram, onPositionExpandChange } = await mount();
+    const internals = diagram as unknown as {
+      host: { renderer: { render: (...a: unknown[]) => Promise<void> } };
+      data: unknown;
+      viewState: { staffExpandedPositionIds: Set<string> };
+    };
+    const drawn = internals.data;
+    const ok = internals.host.renderer.render.bind(internals.host.renderer);
+
+    internals.host.renderer.render = () => Promise.reject(new Error('layout exploded'));
+    await expect(diagram.togglePositionExpand('root')).rejects.toThrow('layout exploded');
+
+    // Nothing announced: the host must not hear about an expand that was undone.
+    expect(onPositionExpandChange).not.toHaveBeenCalled();
+    // Data back to the last drawn frame...
+    expect(internals.data).toBe(drawn);
+    // ...and the derived set with it. It is a separate mutable Set, so a
+    // data-only rollback would leave the two disagreeing — which is why the
+    // rollback re-seeds it from the restored data.
+    expect(diagram.getStaffExpandedPositionIds()).toEqual([]);
+    expect([...internals.viewState.staffExpandedPositionIds]).toEqual([]);
+
+    // Collapse is a separate branch, and the first draft of this test passed
+    // while that branch was broken — so it gets its own pass. Draw normally,
+    // expand for real, then refuse the frame that would collapse it.
+    internals.host.renderer.render = ok;
+    expect(await diagram.togglePositionExpand('root')).toBe(true);
+    expect(diagram.getStaffExpandedPositionIds()).toEqual(['root']);
+    const expanded = internals.data;
+    onPositionExpandChange.mockClear();
+
+    internals.host.renderer.render = () => Promise.reject(new Error('collapse exploded'));
+    await expect(diagram.togglePositionExpand('root')).rejects.toThrow('collapse exploded');
+    expect(onPositionExpandChange).not.toHaveBeenCalled();
+    expect(internals.data).toBe(expanded);
+    expect(diagram.getStaffExpandedPositionIds()).toEqual(['root']);
+
+    diagram.destroy();
+    container.remove();
+  });
+
+
   it('success: togglePositionExpand reveals admin children', async () => {
     const { container, diagram, onPositionExpandChange } = await mount();
     expect(diagram.getStaffExpandedPositionIds()).toEqual([]);
