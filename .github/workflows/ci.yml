@@ -59,6 +59,9 @@ jobs:
       - name: Docs freshness
         run: npm run check:docs
 
+      - name: Gate's own tests
+        run: npm run test:scripts
+
   sdk:
     name: SDK + demo
     runs-on: ubuntu-latest

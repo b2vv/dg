@@ -24,6 +24,7 @@
  * Exit code 0 = every check held. Run: `npm run check:docs`.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { barrelProblems } from './barrelSurface.mjs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join, relative, resolve } from 'node:path';
 
@@ -81,7 +82,8 @@ for (const file of markdownFiles()) {
  * this gate went in. The list is a debt baseline: it may shrink, never grow.
  * Removing a name from here is the act of documenting the method.
  *
- * 21 → 16 on 2026-09-05: the five mutators went out with T104. They had to —
+ * 21 → 16 on 2026-09-05 (the five mutators went out with T104), 16 → 15 on
+ * 2026-09-06 when the note below finally got acted on for `getData`. They had to —
  * the pipeline threshold defines the public API as «what `docs/USAGE.md`
  * describes», so the three with the worst failure semantics in the codebase
  * were also the least protected by process until they were written down.
@@ -185,60 +187,19 @@ if (basis) {
  * re-exported `resetContourWasmForTests` and `setContourWasmLoaderForTests` —
  * two functions that mutate the *process-wide* WASM loader and cache
  * (`contour/bridge.ts:106,112`), so one consumer reaches every diagram in the
- * host app. All nine test files that use them import from `contour/bridge.js`
+ * host app. All ten test files that use them import from `contour/bridge.js`
  * directly; none took them from the barrel. The convention already held in
- * five other places in the SDK — the barrel was the exception.
+ * three other places in the SDK — the barrel was the exception.
  *
- * This reads the *text*, not a runtime namespace, on purpose: an
- * `import * as` sees only value exports, and the barrel has 15 `export type`
- * blocks, so an `export type { FooForTests }` would be invisible to it.
- *
- * What it guards is the *naming convention*, not «no test hooks in the
- * barrel»: a hook named `__setLoader` would walk straight past it. No machine
- * check for «this is a test hook» exists, so the promise is narrowed to what
- * it actually catches.
+ * The scan itself lives in `barrelSurface.mjs`, where it has its own test.
  */
 const BARREL = 'packages/sdk/src/index.ts';
-let barrel = null;
 try {
-  barrel = readFileSync(join(ROOT, BARREL), 'utf8');
+  problems.push(...barrelProblems(readFileSync(join(ROOT, BARREL), 'utf8'), BARREL));
 } catch {
   // Unreadable is a failure, not an uptrace: a barrel nobody can read is a
   // barrel whose contents nobody has checked.
   problems.push(`${BARREL} не читається — склад публічного барелю неперевірений`);
-}
-if (barrel !== null) {
-  // Comments are stripped first, so that naming the removed hooks in a comment
-  // above the exports cannot turn this gate permanently red.
-  const code = barrel.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-  const exported = new Set();
-  for (const m of code.matchAll(/export\s+(?:type\s+)?\{([^}]*)\}/g)) {
-    for (const part of m[1].split(',')) {
-      const name = part.trim().split(/\s+as\s+/).pop()?.trim();
-      if (name) exported.add(name);
-    }
-  }
-  for (const m of code.matchAll(
-    /export\s+(?:declare\s+)?(?:async\s+)?(?:function|const|let|class|type|interface|enum)\s+([A-Za-z0-9_$]+)/g,
-  )) {
-    exported.add(m[1]);
-  }
-
-  if (/export\s+\*/.test(code)) {
-    problems.push(
-      `${BARREL}: зірковий реекспорт (\`export *\`) робить склад барелю неперевірним текстом`,
-    );
-  }
-  if (exported.size === 0) {
-    // A sentinel: an empty barrel would otherwise be the greenest possible state.
-    problems.push(`${BARREL}: не знайдено жодного експорту — перевірка складу барелю сліпа`);
-  }
-  for (const name of [...exported].filter((n) => n.endsWith('ForTests')).sort()) {
-    problems.push(
-      `тестовий хук у публічному барелі: ${name} — тримайте скидач у своєму модулі ` +
-        '(конвенція діє в п’яти інших місцях SDK)',
-    );
-  }
 }
 
 // ── report ──────────────────────────────────────────────────────────────────

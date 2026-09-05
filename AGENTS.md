@@ -28,7 +28,7 @@ npm run dev
 Run `npm run check:docs`. It is also a CI job, so a push that skips it fails there instead —
 the point of running it first is to find out in a second rather than after a round trip.
 
-It checks three things, each because that drift already happened here and nothing noticed:
+It checks four things, each because that drift already happened here and nothing noticed:
 
 - **every relative `.md` link resolves.** Archiving closed tasks left thirteen dead links inside
   the tasks that survived, and twelve more inside the archive index itself;
@@ -36,8 +36,15 @@ It checks three things, each because that drift already happened here and nothin
   merely documentation: the threshold below defines the public API as *what `docs/USAGE.md`
   describes*, so a method absent from it cannot be seen by the rule that decides how carefully it
   may be changed. Twenty-one were missing when the check went in — a named baseline that may shrink
-  and never grow. **Sixteen now:** T104 documented the five mutators, which it had to, since the
+  and never grow. **Fifteen now:** T104 documented the five mutators, which it had to, since the
   three with the worst failure semantics in the tree were formally below the threshold until then;
+  T105 then dropped `getData`, which the script had been reporting as documented for a day;
+- **no export of the public barrel ends in `ForTests`.** `packages/sdk/src/index.ts` re-exported
+  two hooks that mutate the process-wide WASM loader, so one consumer reached every diagram in the
+  host app; the name said «for tests» and the export said «for everyone». The scan reads the
+  barrel's **text** — a runtime namespace would not see `export type { FooForTests }` — and lives
+  in `scripts/barrelSurface.mjs`, which is the one part of this gate with **its own tests**
+  (`npm run test:scripts`, stdlib `node --test`, run by the same CI job);
 - **`work/CTO-RESEARCH.md` has not fallen more than 25 commits behind `HEAD`.** «More than a few
   merged PRs» was the rule and was unmeasurable; 25 is what it means now.
 
