@@ -573,18 +573,53 @@ export class OrgHierarchyDiagram {
     await this.contextMenu.run(itemId, request);
   }
 
-  private async applyConfig<TRaw>(config: OrgHierarchyConfig<TRaw>): Promise<void> {
+  /**
+   * Run the host's mappers and hand the result back — **without** touching
+   * shared state (T103).
+   *
+   * The split is the whole fix: this awaits host code, and awaiting is where a
+   * newer request can overtake. Writing `this.data` here meant the call that
+   * finished last won, which is the slowest one rather than the latest one.
+   */
+  private async mapConfig<TRaw>(config: OrgHierarchyConfig<TRaw>): Promise<DiagramData> {
     const { mappers, data } = config;
-
     if (mappers?.toDiagram && !isDiagramData(data)) {
       const mapped = await mappers.toDiagram(data as TRaw);
-      this.data = mappers.normalize ? await mappers.normalize(mapped) : mapped;
-    } else if (isDiagramData(data)) {
-      this.data = mappers?.normalize ? await mappers.normalize(data) : data;
-    } else {
-      throw new Error('Provide DiagramData or data + mappers.toDiagram');
+      return mappers.normalize ? await mappers.normalize(mapped) : mapped;
     }
+    if (isDiagramData(data)) {
+      return mappers?.normalize ? await mappers.normalize(data) : data;
+    }
+    throw new Error('Provide DiagramData or data + mappers.toDiagram');
+  }
+
+  private async applyConfig<TRaw>(config: OrgHierarchyConfig<TRaw>): Promise<void> {
+    this.data = await this.mapConfig(config);
     this.seedExpandedPositionsFromData();
+  }
+
+  /**
+   * Bumped by every `setData` — the ingest counterpart of the render epoch.
+   *
+   * Only `setData` bumps it. Appends read it but do not raise it, so a stream
+   * of chunks does not cancel itself while a `setData` still cancels the whole
+   * stream: `setData` means "here is the entire state", and a chunk that
+   * predates it does not belong to that state.
+   */
+  private dataEpoch = 0;
+
+  /**
+   * Whether this ingest is still the newest one (T103).
+   *
+   * Being overtaken is the mechanism working, not a fault — the documented
+   * pattern is `void diagram.setData(...)` on every camera move, so overlap is
+   * the normal case rather than the exception. Rejecting would turn our own
+   * recommendation into a source of unhandled rejections; the overtaken call
+   * simply stops, and stays silent so the host never hears about data it does
+   * not have. A host that needs to know which one landed watches `onDataMapped`.
+   */
+  private ingestIsCurrent(epoch: number): boolean {
+    return this.dataEpoch === epoch;
   }
 
   /** Sync interactive expand set from mapper/`position.expanded` flags. */
@@ -1005,8 +1040,16 @@ export class OrgHierarchyDiagram {
   ): Promise<void> {
     const t0 =
       typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
-    await this.applyConfig({ data, mappers } as OrgHierarchyConfig<TRaw>);
-    await this.searchService.rebuildForScale(this.data);
+    const epoch = ++this.dataEpoch;
+    // Mapped aside, committed only if still current: data and index land
+    // together or not at all, so a search can never answer from an index built
+    // for data the screen no longer holds.
+    const next = await this.mapConfig({ data, mappers } as OrgHierarchyConfig<TRaw>);
+    if (!this.ingestIsCurrent(epoch)) return;
+    this.data = next;
+    this.seedExpandedPositionsFromData();
+    await this.searchService.rebuildForScale(this.data, () => this.ingestIsCurrent(epoch));
+    if (!this.ingestIsCurrent(epoch)) return;
     this.applySelection(null);
     const ms =
       (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()) - t0;
@@ -1035,6 +1078,7 @@ export class OrgHierarchyDiagram {
   }
 
   async appendData<TRaw>(chunk: TRaw, mappers?: DiagramMappers<TRaw>): Promise<void> {
+    const epoch = this.dataEpoch;
     let patch: Partial<DiagramData>;
     if (mappers?.append) {
       patch = await mappers.append(chunk);
@@ -1043,6 +1087,10 @@ export class OrgHierarchyDiagram {
     } else {
       throw new InteractionError('appendData requires mappers.append or mappers.toDiagram');
     }
+    // Read, not raised: appends accumulate, so they must not cancel each other
+    // — but a `setData` that arrived while this chunk was mapping replaces the
+    // whole state, and merging into it would resurrect data the host dropped.
+    if (!this.ingestIsCurrent(epoch)) return;
     const known = this.searchService.current ? knownSearchIds(this.data) : null;
     this.data = mergePartial(this.data, patch);
     await this.searchService.append(this.data, patch, known);

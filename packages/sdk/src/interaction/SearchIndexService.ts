@@ -41,7 +41,13 @@ export class SearchIndexService {
   }
 
   /** Size-aware build: sync under the threshold, worker/pool above it. */
-  async rebuildForScale(data: DiagramData): Promise<void> {
+  /**
+   * @param isCurrent asked again **after** the build, before the index is
+   *   adopted (T103). Without it `this.index` went to whichever build finished
+   *   last, so the newest data could end up paired with an older index — and a
+   *   search would answer from something the screen no longer shows.
+   */
+  async rebuildForScale(data: DiagramData, isCurrent?: () => boolean): Promise<void> {
     const n = data.organizations.length + data.positions.length;
     if (n < ASYNC_THRESHOLD) {
       this.rebuild(data);
@@ -49,7 +55,9 @@ export class SearchIndexService {
     }
     const { useWorker, pool, workerFactory } = this.scale();
     this.client ??= createSearchWorkerClient({ workerFactory, fallbackToMainThread: true });
-    this.index = await this.client.buildForScale(data, { useWorker, pool });
+    const built = await this.client.buildForScale(data, { useWorker, pool });
+    if (isCurrent && !isCurrent()) return;
+    this.index = built;
   }
 
   /**
