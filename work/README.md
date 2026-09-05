@@ -74,7 +74,7 @@ npm run dev          # http://localhost:3000
 | [T105-root-barrel-exposes-test-hooks](./tasks/T105-root-barrel-exposes-test-hooks.md) | кореневий барель віддає внутрішнє й тест-хуки | не почато. |
 | [T106-deepen-facades-drop-shallow-wrappers](./tasks/T106-deepen-facades-drop-shallow-wrappers.md) | великі фасади поруч із порожніми обгортками | не почато. Серйозність: Medium. |
 | [T107-magnetic-contour-cost](./tasks/T107-magnetic-contour-cost.md) | Магнітний контур: 66% кадру йшло на копіювання масивів | ✅ виконано (2026-09-03) — 14,0 → 5,1 мс у TS; WASM-порт відхилено виміром |
-| [T108-search-answer-lost-on-canvas](./tasks/T108-search-answer-lost-on-canvas.md) | Відповідь пошуку губиться на Canvas2D: фікс T99 не тримається на іншому рушії | 🔵 не почато — знайдено як наслідок T98 |
+| [T108-search-answer-lost-on-canvas](./tasks/T108-search-answer-lost-on-canvas.md) | Відповідь пошуку губиться на Canvas2D | ✅ зроблено (2026-09-05) — причина не в рушії: `onOrgModeChange` писав **стан** у канал повідомлень; пін знято |
 | [T109-toggle-staff-org-has-no-transaction](./tasks/T109-toggle-staff-org-has-no-transaction.md) | `toggleStaffOrg` міняє стан і малює, без відкоту | 🔵 не почато · P3 — знайдено як наслідок T104; контракту не порушує, бо колбека не шле |
 | [NODE-interactions-contract](./tasks/NODE-interactions-contract.md) | NODE interactions contract (mandatory) | active · Enforced by: `nodeInteractions.contract.test.ts`, `e2e/node-interactions.spec.ts` |
 | [PARITY-gojs-to-dg](./tasks/PARITY-gojs-to-dg.md) | Parity `gojs-diagram` → `dg`: вимога → можливість | 🟢 живий довідник, не задача — тримається синхронним із кодом, не закривається. |
