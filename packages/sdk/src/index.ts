@@ -50,8 +50,6 @@ export {
   computeDeptContour,
   computeAllContours,
   initContourWasm,
-  resetContourWasmForTests,
-  setContourWasmLoaderForTests,
   WasmLoadError,
   VARIANT_B_POSITIONS,
 } from './contour/bridge.js';
@@ -278,6 +276,7 @@ export {
   buildSpineBusPaths,
   buildSpineBusEdgesForForest,
   assertOrgLayoutMetrics,
+  OrgHierarchyError,
 } from './layout/index.js';
 export type {
   OrgDisplayMode,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@rstest/core';
-import { OrgHierarchyDiagram } from '../index.js';
+import { OrgHierarchyDiagram, OrgHierarchyError } from '../index.js';
 import { VARIANT_B_POSITIONS } from '../contour/bridge.js';
 
 function makeVariantBDiagram() {
@@ -155,7 +155,7 @@ describe('OrgHierarchyDiagram', () => {
       () => null,
       (e: Error) => e,
     );
-    expect(err?.name).toBe('OrgHierarchyError');
+    expect(err).toBeInstanceOf(OrgHierarchyError);
     expect(err?.message).toMatch(/too deep/i);
 
     // The canvas is still there, and the instance still accepts good data.
