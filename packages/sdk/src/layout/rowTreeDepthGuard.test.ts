@@ -1,5 +1,8 @@
 import { describe, expect, it } from '@rstest/core';
 import { computeOrgRowTreeLayout } from './rowTreeLayout.js';
+// Deliberately the barrel, not './orgTree.js': what this pins is that a host
+// can catch the guard by type, and a host only ever sees the barrel.
+import { OrgHierarchyError } from '../index.js';
 import { computeAllContours } from '../contour/bridge.js';
 import type { DiagramOrganization } from '../data/types.js';
 
@@ -34,7 +37,7 @@ describe('row-tree depth guard', () => {
       (e: Error) => e,
     );
     expect(err).not.toBeNull();
-    expect(err!.name).toBe('OrgHierarchyError');
+    expect(err).toBeInstanceOf(OrgHierarchyError);
     expect(err!.message).toMatch(/2501/);
     expect(err!.message).toMatch(/2500/);
   });
@@ -45,7 +48,7 @@ describe('row-tree depth guard', () => {
       (e: Error) => e,
     );
     expect(err).not.toBeNull();
-    expect(err!.name).toBe('OrgHierarchyError');
+    expect(err).toBeInstanceOf(OrgHierarchyError);
   });
 
   it('success: the layout still works after a refusal', async () => {
@@ -74,7 +77,7 @@ describe('row-tree depth guard', () => {
       (e: Error) => e,
     );
     const ms = performance.now() - t0;
-    expect(err?.name).toBe('OrgHierarchyError');
+    expect(err).toBeInstanceOf(OrgHierarchyError);
     // It used to take 12.8 s to reach the trap. The guard stops at the first
     // node past the limit, so the remaining 47 500 are never walked.
     expect(ms).toBeLessThan(500);
