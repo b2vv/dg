@@ -279,6 +279,15 @@ export class OrgHierarchyDiagram {
   private lastDrawnData: DiagramData | null = null;
   /** Bumped per `searchAll` so a late answer can tell it is late. */
   private searchEpoch = 0;
+  /**
+   * Bumped by every `setData` — the ingest counterpart of {@link searchEpoch}.
+   *
+   * Only `setData` bumps it. Appends read it but do not raise it, so a stream
+   * of chunks does not cancel itself while a `setData` still cancels the whole
+   * stream: `setData` means "here is the entire state", and a chunk that
+   * predates it does not belong to that state.
+   */
+  private dataEpoch = 0;
   private callbacks: OrgHierarchyCallbacks = {};
   private readonly searchService = new SearchIndexService(() => ({
     useWorker: this.useWorker,
@@ -376,7 +385,8 @@ export class OrgHierarchyDiagram {
       instance.workerPool = new WorkerPool(workerFactory, poolSize);
     }
 
-    await instance.applyConfig(config);
+    instance.data = await instance.mapConfig(config);
+    instance.seedExpandedPositionsFromData();
 
     // Before the first render, not after it. `revealPath` and `setOrgsCollapsed`
     // can do this from outside, but only once a frame already exists — the user
@@ -593,20 +603,6 @@ export class OrgHierarchyDiagram {
     throw new Error('Provide DiagramData or data + mappers.toDiagram');
   }
 
-  private async applyConfig<TRaw>(config: OrgHierarchyConfig<TRaw>): Promise<void> {
-    this.data = await this.mapConfig(config);
-    this.seedExpandedPositionsFromData();
-  }
-
-  /**
-   * Bumped by every `setData` — the ingest counterpart of the render epoch.
-   *
-   * Only `setData` bumps it. Appends read it but do not raise it, so a stream
-   * of chunks does not cancel itself while a `setData` still cancels the whole
-   * stream: `setData` means "here is the entire state", and a chunk that
-   * predates it does not belong to that state.
-   */
-  private dataEpoch = 0;
 
   /**
    * Whether this ingest is still the newest one (T103).
@@ -1041,15 +1037,19 @@ export class OrgHierarchyDiagram {
     const t0 =
       typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
     const epoch = ++this.dataEpoch;
-    // Mapped aside, committed only if still current: data and index land
-    // together or not at all, so a search can never answer from an index built
-    // for data the screen no longer holds.
+    // Both awaits happen before anything shared is written, so the commit below
+    // has no `await` inside it. That is what makes «data and index together»
+    // true rather than merely intended: an epoch decides *which* index is
+    // adopted, but only the absence of an await decides *when*, and a search
+    // landing in that gap is the exact bug this task exists to remove.
     const next = await this.mapConfig({ data, mappers } as OrgHierarchyConfig<TRaw>);
     if (!this.ingestIsCurrent(epoch)) return;
-    this.data = next;
-    this.seedExpandedPositionsFromData();
-    await this.searchService.rebuildForScale(this.data, () => this.ingestIsCurrent(epoch));
+    const index = await this.searchService.buildForScale(next);
     if (!this.ingestIsCurrent(epoch)) return;
+
+    this.data = next;
+    this.searchService.adopt(index);
+    this.seedExpandedPositionsFromData();
     this.applySelection(null);
     const ms =
       (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()) - t0;
@@ -1092,8 +1092,15 @@ export class OrgHierarchyDiagram {
     // whole state, and merging into it would resurrect data the host dropped.
     if (!this.ingestIsCurrent(epoch)) return;
     const known = this.searchService.current ? knownSearchIds(this.data) : null;
-    this.data = mergePartial(this.data, patch);
-    await this.searchService.append(this.data, patch, known);
+    const merged = mergePartial(this.data, patch);
+    const index = await this.searchService.append(merged, patch, known);
+    // Re-checked after the build for the same reason as `setData`: a `setData`
+    // that landed during it owns the state now, and adopting here would pair
+    // its data with an index built from the roster it replaced.
+    if (!this.ingestIsCurrent(epoch)) return;
+
+    this.data = merged;
+    this.searchService.adopt(index);
     await this.render();
   }
 

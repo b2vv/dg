@@ -25,7 +25,9 @@ describe('SearchIndexService', () => {
     const before = service.current;
     const patch = { organizations: [{ id: 'o9', name: 'Maple Court', groupIds: [] }] };
     const merged = { ...base, organizations: [...base.organizations, ...patch.organizations] };
-    await service.append(merged, patch, knownSearchIds(base));
+    // Adopted by the caller since T103: `append` builds and returns, so the
+    // facade can commit data and index with no await between them.
+    service.adopt(await service.append(merged, patch, knownSearchIds(base)));
     expect(service.current).not.toBe(before);
     expect(service.query('maple').map((r) => r.label)).toContain('Maple Court');
     expect(service.query('cedar')).toHaveLength(1);
@@ -36,7 +38,9 @@ describe('SearchIndexService', () => {
     const base = dataWith(['Cedar Lake']);
     service.rebuild(base);
     const patch = { organizations: [{ id: 'o0', name: 'Renamed Lake', groupIds: [] }] };
-    await service.append({ ...base, organizations: patch.organizations }, patch, knownSearchIds(base));
+    service.adopt(
+      await service.append({ ...base, organizations: patch.organizations }, patch, knownSearchIds(base)),
+    );
     expect(service.query('cedar')).toEqual([]);
     expect(service.query('renamed').map((r) => r.label)).toContain('Renamed Lake');
   });
