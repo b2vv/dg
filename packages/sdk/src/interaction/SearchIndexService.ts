@@ -40,24 +40,33 @@ export class SearchIndexService {
     this.index = buildSearchIndex(data);
   }
 
-  /** Size-aware build: sync under the threshold, worker/pool above it. */
   /**
-   * @param isCurrent asked again **after** the build, before the index is
-   *   adopted (T103). Without it `this.index` went to whichever build finished
-   *   last, so the newest data could end up paired with an older index — and a
-   *   search would answer from something the screen no longer shows.
+   * Build the index for `data` and **return** it — nothing shared is touched.
+   *
+   * Returning instead of assigning is what lets a caller commit the data and
+   * the index with no `await` between them (T103). While the assignment lived
+   * in here, the caller had already written `this.data` and was waiting on this
+   * build — a window in which a search answered from the previous index about
+   * data the screen no longer held. That is the very defect this task exists
+   * to remove, and an epoch check could not close it: it guards *which* index
+   * is adopted, not *when*.
    */
-  async rebuildForScale(data: DiagramData, isCurrent?: () => boolean): Promise<void> {
+  async buildForScale(data: DiagramData): Promise<SearchIndex> {
     const n = data.organizations.length + data.positions.length;
-    if (n < ASYNC_THRESHOLD) {
-      this.rebuild(data);
-      return;
-    }
+    if (n < ASYNC_THRESHOLD) return buildSearchIndex(data);
     const { useWorker, pool, workerFactory } = this.scale();
     this.client ??= createSearchWorkerClient({ workerFactory, fallbackToMainThread: true });
-    const built = await this.client.buildForScale(data, { useWorker, pool });
-    if (isCurrent && !isCurrent()) return;
-    this.index = built;
+    return this.client.buildForScale(data, { useWorker, pool });
+  }
+
+  /** Adopt a built index. Synchronous on purpose — see {@link buildForScale}. */
+  adopt(index: SearchIndex): void {
+    this.index = index;
+  }
+
+  /** Size-aware build **and** adopt, for callers with nothing to keep in step. */
+  async rebuildForScale(data: DiagramData): Promise<void> {
+    this.adopt(await this.buildForScale(data));
   }
 
   /**
@@ -70,13 +79,15 @@ export class SearchIndexService {
     data: DiagramData,
     patch: Partial<DiagramData>,
     known: ReadonlySet<string> | null,
-  ): Promise<void> {
+  ): Promise<SearchIndex> {
     const index = this.index;
     if (!index || !known || patchUpdatesKnownEntities(patch, known)) {
-      await this.rebuildForScale(data);
-      return;
+      // Returned, not adopted: this branch awaits, and adopting here would let
+      // a `setData` that landed meanwhile be overwritten by an index built from
+      // pre-`setData` data (T103 review).
+      return this.buildForScale(data);
     }
-    this.index = mergeSearchIndexes([
+    return mergeSearchIndexes([
       index,
       buildSearchIndex({
         organizations: patch.organizations ?? [],
