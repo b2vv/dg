@@ -57,6 +57,29 @@ export interface DemoE2eBridge {
    * diagram — the demo itself only ever mounts one.
    */
   probeSecondDiagram(renderer?: string): Promise<{ kind: string | null; error: string | null }>;
+  /**
+   * Every `onLayoutChange` the host received, with the **rendered** geometry as
+   * it stood when the patch arrived (T104).
+   *
+   * The contract under test is "a patch means it is already on screen", and the
+   * only way to observe that from outside is to catch the drawn boxes at the
+   * instant of the callback. A jsdom test cannot: it has no layout to read.
+   */
+  getLayoutPatchLog(): Array<{
+    patch: unknown;
+    anchors: Array<{ testId: string; x: number; y: number }>;
+  }>;
+  /**
+   * Move a seat to a grid cell through the public SDK method (T104).
+   *
+   * Deliberately not a gesture: the drag is already covered by
+   * `personDrag.contract.test.ts`. What jsdom cannot provide is a **real
+   * layout** at the moment the patch fires, and that is what this exists to let
+   * a browser check. Resolves to the error message when the edit throws.
+   */
+  moveSeat(positionId: string, col: number, row: number): Promise<string | null>;
+  /** Rendered node boxes right now — the before-picture a patch is compared to. */
+  getAnchors(): Array<{ testId: string; x: number; y: number; width: number; height: number }>;
 }
 
 export interface E2eBridgeDeps {
@@ -69,6 +92,11 @@ export interface E2eBridgeDeps {
   config(): OrgHierarchyConfig<unknown>;
   /** What the recent staff window rebuilds cost (T88.8). */
   staffRebuilds(): StaffRebuildRecord[];
+  /** Patches recorded with the geometry drawn at the time (T104). */
+  layoutPatchLog(): Array<{
+    patch: unknown;
+    anchors: Array<{ testId: string; x: number; y: number }>;
+  }>;
 }
 
 /** Install the bridge on `window`. Only called in `?e2e=1` mode. */
@@ -96,6 +124,20 @@ export function installDemoE2eBridge(deps: E2eBridgeDeps): void {
     getRendererKind: () => diagram.getRendererKind(),
     getStaffLayoutEdges: () => staffLayoutEdgesFor(deps.config()),
     probeSecondDiagram: (renderer) => probeSecondDiagram(renderer),
+    getLayoutPatchLog: () => deps.layoutPatchLog(),
+    moveSeat: (positionId, col, row) =>
+      diagram
+        .movePersonToCell(positionId, col, row)
+        .then(() => null)
+        .catch((e: unknown) => (e instanceof Error ? e.message : String(e))),
+    getAnchors: () =>
+      diagram.listTestAnchors().map((a) => ({
+        testId: a.testId,
+        x: Math.round(a.world.x),
+        y: Math.round(a.world.y),
+        width: Math.round(a.world.width),
+        height: Math.round(a.world.height),
+      })),
   };
   (window as unknown as { __demoE2e?: DemoE2eBridge }).__demoE2e = bridge;
 }

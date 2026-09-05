@@ -8,6 +8,7 @@ import {
   type DiagramData,
   type SearchAllResult,
   type FlatDiagramRow,
+  type LayoutPatch,
 } from '@org-hierarchy/sdk';
 import {
   createReactContextMenuHost,
@@ -122,6 +123,14 @@ export interface StaffRebuildRecord {
 
 export class App {
   private diagram: OrgHierarchyDiagram | null = null;
+  /**
+   * Patches the host was told about, each with the rendered geometry as it
+   * stood at that instant (T104, `?e2e=1` only). Empty in production.
+   */
+  private readonly layoutPatchLog: Array<{
+    patch: LayoutPatch;
+    anchors: Array<{ testId: string; x: number; y: number }>;
+  }> = [];
   private tab: DemoTab = 'variant-b';
   private theme: 'light' | 'dark' = 'light';
   private contourControls: ContourControls = { paddingCells: 1, smoothIterations: 2 };
@@ -397,6 +406,25 @@ export class App {
 
   private diagramCallbacks(): OrgHierarchyCallbacks {
     return {
+      // Recorded only under `?e2e=1`: T104 says a patch means "already drawn",
+      // and the only way to check that from outside is to look at the rendered
+      // geometry at the instant the patch arrives. jsdom cannot — it has no
+      // layout — so this seam is what lets a real browser prove the ordering.
+      onLayoutChange: this.e2eMode
+        ? (patch) => {
+            const diagram = this.diagram;
+            this.layoutPatchLog.push({
+              patch,
+              anchors: diagram
+                ? diagram.listTestAnchors().map((a) => ({
+                    testId: a.testId,
+                    x: Math.round(a.world.x),
+                    y: Math.round(a.world.y),
+                  }))
+                : [],
+            });
+          }
+        : undefined,
       onViewportChange: (_transform, meta) => {
         // Its own node, so this cannot overwrite a message however often it runs.
         this.refreshZoom();
@@ -539,6 +567,7 @@ export class App {
     });
     this.mountEl.setAttribute('data-testid', 'diagram-ready');
     installDemoE2eBridge({
+      layoutPatchLog: () => this.layoutPatchLog,
       diagram,
       clickOrg: (orgId) => this.handleOrgNodeClick(orgId),
       scaleWindowStart: () => this.scaleWindow?.startIndex ?? null,
