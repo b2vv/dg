@@ -40,7 +40,10 @@ const layout = (list: Anchor[]) =>
 
 test.describe('T104 — a layout patch means the frame already drew', () => {
   test('the patch carries a layout that already moved', async ({ page }) => {
-    await page.goto('/?e2e=1');
+    // No leading slash: it would drop the base path, and against a deployment
+    // served from a subdirectory that lands on the domain root instead
+    // (`prod-smoke.spec.ts:13` learned this first; this test repeated it).
+    await page.goto('?e2e=1');
     await expect(page.locator('[data-testid="diagram-ready"]')).toBeVisible({ timeout: 60_000 });
 
     // Nothing edited yet, so nothing may have been announced.
