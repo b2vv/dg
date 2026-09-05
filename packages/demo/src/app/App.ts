@@ -198,6 +198,15 @@ export class App {
   private readonly statusStateEl: HTMLElement;
   /** Window state on the 1M tab; null on every other scene. */
   private windowState: string | null = null;
+  /**
+   * Which mode the scene is in — state, not an event (T108).
+   *
+   * T99 moved the window range out of the message channel and left this behind,
+   * so a search answer still got clobbered: the slide the search triggers calls
+   * `onOrgModeChange`, whose handler wrote `tab · mode · theme` as a message.
+   * Same defect T99 named, one writer further along.
+   */
+  private modeState: string | null = null;
 
   constructor() {
     this.mountEl = requireElement('diagram-mount');
@@ -530,11 +539,13 @@ export class App {
         this.setStatus(`context · ${request.node.ref.kind} · ${label}`);
       },
       onOrgModeChange: (mode) => {
-        if (this.tab === 'scale-100k' && this.scaleWindow) {
-          this.setStatus(this.scaleWindowStatus(mode));
-          return;
-        }
-        this.setStatus(`${this.tab} · ${mode} · ${this.theme}`);
+        // State, so it goes to the state node: describing the scene is not
+        // reporting an event, and a slide must never overwrite an answer.
+        this.setModeState(
+          this.tab === 'scale-100k' && this.scaleWindow
+            ? this.scaleWindowStatus(mode)
+            : `${this.tab} · ${mode} · ${this.theme}`,
+        );
       },
       onLayoutDiagnostics: (messages) => {
         // The `Renderer: …` line is always present (T83) and is not a warning.
@@ -1293,13 +1304,23 @@ export class App {
     this.renderStatusState();
   }
 
+  /** See {@link modeState}. Same channel as the window range and the zoom. */
+  private setModeState(text: string | null): void {
+    this.modeState = text;
+    this.renderStatusState();
+  }
+
   private refreshZoom(): void {
     this.renderStatusState();
   }
 
   private renderStatusState(): void {
     const zoom = this.diagram?.getZoom();
-    const parts = [this.windowState, zoom == null ? null : `zoom ${zoom.toFixed(2)}`];
+    const parts = [
+      this.modeState,
+      this.windowState,
+      zoom == null ? null : `zoom ${zoom.toFixed(2)}`,
+    ];
     const tail = parts.filter((p): p is string => p != null).join(' · ');
     const line = tail ? ` · ${tail}` : '';
     if (this.statusStateEl.textContent === line) return;

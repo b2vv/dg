@@ -7,12 +7,10 @@ import { expect, test } from '@playwright/test';
 test.describe('1M staff scale tab', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    // Pinned on purpose since T98. These rows are about the window and the search,
-    // not about which engine draws them — and leaving the engine to `'auto'` made
-    // them change path underneath us: on CI the renderer is SwiftShader, so
-    // `'auto'` now picks Canvas2D, where T99's fix does not hold (T108).
-    // Pinning keeps this file testing what it was written to test.
-    await page.goto('/?e2e=1&renderer=webgl');
+    // Pin removed with T108: the canvas path no longer eats the search answer,
+    // so these rows can go back to `'auto'` and once again exercise whatever
+    // engine the environment actually gives them.
+    await page.goto('/?e2e=1');
     await expect(page.locator('[data-testid="diagram-ready"]')).toBeVisible({ timeout: 60_000 });
     await page.getByRole('button', { name: 'Staff · 1M', exact: true }).click();
     // The window marker, not the status line. The tab label is transient: the
@@ -145,12 +143,10 @@ test.describe('1M staff scale tab', () => {
 test.describe('the window follows the camera (T88)', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    // Pinned on purpose since T98. These rows are about the window and the search,
-    // not about which engine draws them — and leaving the engine to `'auto'` made
-    // them change path underneath us: on CI the renderer is SwiftShader, so
-    // `'auto'` now picks Canvas2D, where T99's fix does not hold (T108).
-    // Pinning keeps this file testing what it was written to test.
-    await page.goto('/?e2e=1&renderer=webgl');
+    // Pin removed with T108: the canvas path no longer eats the search answer,
+    // so these rows can go back to `'auto'` and once again exercise whatever
+    // engine the environment actually gives them.
+    await page.goto('/?e2e=1');
     await page.getByRole('button', { name: 'Staff · 1M' }).click();
     await page.getByTestId('diagram-ready').waitFor({ timeout: 60_000 });
   });
