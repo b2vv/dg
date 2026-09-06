@@ -1,4 +1,4 @@
-import type { DiagramPosition } from '../data/types.js';
+import type { DiagramPosition, GridCell } from '../data/types.js';
 import { InteractionError } from './types.js';
 
 export interface GridSnap {
@@ -44,6 +44,83 @@ export function snapWorldToCell(
 
 export function isValidGridCell(col: number, row: number): boolean {
   return Number.isInteger(col) && Number.isInteger(row) && col >= 0 && row >= 0;
+}
+
+/**
+ * What a drop on a cell means once the seat already sitting there is counted.
+ *
+ * One shape, two consumers — the drag preview and the commit — so «what the
+ * user sees» and «what is written» cannot drift apart (plan §1). `ask` is the
+ * only outcome the SDK cannot settle on its own.
+ */
+export type SeatDrop =
+  | { kind: 'free' }
+  | { kind: 'push'; occupantId: string; to: GridCell }
+  | { kind: 'swap'; occupantId: string }
+  | { kind: 'ask'; occupantId: string; pushTargets: GridCell[] };
+
+function sameCell(a: GridCell, b: GridCell): boolean {
+  return a.col === b.col && a.row === b.row;
+}
+
+/**
+ * Decide what dropping `positionId` on `target` does. Pure: no data is changed.
+ *
+ * `from` is the seat's **authored** cell, not where the gesture started: the
+ * only thing crossing the render boundary is the target cell
+ * (`onPersonDragEnd(positionId, col, row)`), so a preview that measured the
+ * gesture and a commit that measured the data would answer differently on the
+ * first L-shaped drag (plan §2).
+ *
+ * The direction is `sign(target − from)` per axis. Exactly one non-zero axis is
+ * an answer the SDK can act on; two (a diagonal) is not, and neither is a cell
+ * that already holds two seats — those ask. There is no chain: when the cell
+ * behind the occupant is taken or outside the grid, the two seats swap.
+ *
+ * Occupancy is counted **inside one org block**, matching the layout that
+ * reports the overlap (`layout/staff/orgBlockLayout.ts`).
+ */
+export function resolveSeatDrop(input: {
+  positions: DiagramPosition[];
+  positionId: string;
+  target: GridCell;
+  from: GridCell | undefined;
+}): SeatDrop {
+  const { positions, positionId, target, from } = input;
+  const mover = positions.find((p) => p.id === positionId);
+  if (!mover) {
+    throw new InteractionError(`Unknown position ${positionId}`);
+  }
+  // Dropped where it was picked up: nothing moves, and nothing is asked.
+  if (from && sameCell(from, target)) return { kind: 'free' };
+
+  const block = positions.filter(
+    (p) => p.id !== positionId && p.organizationId === mover.organizationId,
+  );
+  const occupants = block.filter((p) => p.gridCell && sameCell(p.gridCell, target));
+  if (occupants.length === 0) return { kind: 'free' };
+
+  // The mover is not in `block`, so the cell it vacates counts as free.
+  const isFree = (cell: GridCell): boolean =>
+    isValidGridCell(cell.col, cell.row) &&
+    !block.some((p) => p.gridCell && sameCell(p.gridCell, cell));
+
+  const stepCol = from ? Math.sign(target.col - from.col) : 0;
+  const stepRow = from ? Math.sign(target.row - from.row) : 0;
+  const candidates: GridCell[] = [
+    ...(stepCol === 0 ? [] : [{ col: target.col + stepCol, row: target.row }]),
+    ...(stepRow === 0 ? [] : [{ col: target.col, row: target.row + stepRow }]),
+  ];
+  const pushTargets = candidates.filter((cell) => isFree(cell));
+  const occupantId = occupants[0]!.id;
+
+  // Two seats in one cell (legacy overlap) or an ambiguous direction: the SDK
+  // is not entitled to pick, so it asks.
+  if (occupants.length > 1 || candidates.length !== 1) {
+    return { kind: 'ask', occupantId, pushTargets };
+  }
+  const to = pushTargets[0];
+  return to ? { kind: 'push', occupantId, to } : { kind: 'swap', occupantId };
 }
 
 /** Apply grid move; rejects invalid cells. */
