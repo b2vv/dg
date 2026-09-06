@@ -7,13 +7,19 @@
 ```
 work/
   README.md              ← цей файл (навігація)
+  AGENDA.md              ← ранжована черга: що брати наступним і чому не інше
   CTO-RESEARCH.md        ← брифінг перед імплементацією (продукт, код, інфра, ризики)
   SPEC.md                ← специфікація + алгоритми + §13 стандарти TS
   TDD.md                 ← політика: тести ПЕРЕД кодом (success + failure)
   CODING_STANDARDS.md    ← Clean Code / Architecture / SOLID / DRY / KISS / GoF (TS)
   tech-debt/             ← зафіксований технічний борг
   tasks/                 ← детальні задачі для розробки
+  reports/<topic>/       ← spec / plan / звіт по темі (див. `.claude/standards.md` §Артефакти)
+  archive/               ← завершені задачі вказівниками, повний текст — в історії git
 ```
+
+**Питання до хост-проєкту**, на які не можна відповісти зсередини цього репо, живуть у
+[`reports/host-integration/questions.md`](./reports/host-integration/questions.md).
 
 **Перед кодом:** [CTO-RESEARCH.md](./CTO-RESEARCH.md). Живого P0 немає — T78 закрито; черга ходів у [AGENDA.md](./AGENDA.md).
 
@@ -63,7 +69,7 @@ npm run dev          # http://localhost:3000
 | [T70-position-card-chrome](./tasks/T70-position-card-chrome.md) | Chrome карток + геометрія знака організації (E* / 4231) | Phase 0 + Phase 1 + Phase 2 done (agreed in T73) |
 | [T71-gojs-to-dg-migration-plan](./tasks/T71-gojs-to-dg-migration-plan.md) | План міграції GoJS → Org Hierarchy SDK (`dg`) | ✅ cutover queue complete (2026-08-23) — залишок: T61 (макет), T67 Phase 2 (marquee, optional) |
 | [T79-g2-m2-paint-notch](./tasks/T79-g2-m2-paint-notch.md) | G2 / M2 на paint-шляху (foreign ніколи не під заливкою) | ✅ done (2026-08-25) — **лишається тут**: SPEC і REQUIREMENTS цитують його як пояснення геометрії |
-| [T80-contour-engines-ba-demo](./tasks/T80-contour-engines-ba-demo.md) | Два рушії контурів для порівняння BA | ✅ demo ready (2026-08-25) |
+| [T80-contour-engines-ba-demo](./tasks/T80-contour-engines-ba-demo.md) | Два рушії контурів для порівняння BA | 🟢 розвилку закрито 2026-09-06 рішенням продукту — лишається `button-group`; **прибирання `cell-flood` окремою задачею не заведено** |
 | [T90-drag-smoothness](./tasks/T90-drag-smoothness.md) | Перетягування «не плавне»: гіпотеза виміряна й **спростована** | ✅ закрито виміром (2026-08-29) — роботи не лишилось; тримається як запис, щоб ніхто не почав спочатку |
 | [T92-software-render-pan-cost](./tasks/T92-software-render-pan-cost.md) | Панорамування на програмному рендері: ≈9 fps, і це не про промоут | ✅ закрито (2026-09-04) — **не числом**: критерій «число з цільового заліза» знято, бо існував заради порогу, якого в дизайні немає (T98) |
 | [T98-auto-renderer-does-not-fall-back](./tasks/T98-auto-renderer-does-not-fall-back.md) | `renderer: 'auto'` не переходить на Canvas2D там, де WebGL програмний | ✅ зроблено (2026-09-04, PR #78) — впізнавання за іменем рушія; ⚠️ критерій «0 кадрів > 33 мс» не зелений, див. звіт |
@@ -76,13 +82,20 @@ npm run dev          # http://localhost:3000
 | [T107-magnetic-contour-cost](./tasks/T107-magnetic-contour-cost.md) | Магнітний контур: 66% кадру йшло на копіювання масивів | ✅ виконано (2026-09-03) — 14,0 → 5,1 мс у TS; WASM-порт відхилено виміром |
 | [T108-search-answer-lost-on-canvas](./tasks/T108-search-answer-lost-on-canvas.md) | Відповідь пошуку губиться на Canvas2D | ✅ зроблено (2026-09-05) — причина не в рушії: `onOrgModeChange` писав **стан** у канал повідомлень; пін знято |
 | [T109-toggle-staff-org-has-no-transaction](./tasks/T109-toggle-staff-org-has-no-transaction.md) | `toggleStaffOrg` міняє стан і малює, без відкоту | 🔵 не почато · P3 — знайдено як наслідок T104; контракту не порушує, бо колбека не шле |
+| [T110-changelog-died-at-0.2.0](./tasks/T110-changelog-died-at-0.2.0.md) | CHANGELOG мовчить про десять комітів публічного API | 🔵 не почато · Medium — застарілий документ гірший за порожній |
+| [T111-move-onto-occupied-cell](./tasks/T111-move-onto-occupied-cell.md) | drop у зайняту клітину приймається — дві картки в одній точці | 🔵 не почато · **P1** — спека й план готові: [reports/seat-collision](./reports/seat-collision/) |
+| [T112-demo-tab-consolidation](./tasks/T112-demo-tab-consolidation.md) | звести демо з 14 вкладок до шести | 🔵 не почато · P2 — ⛔ заблоковано продуктом: 12 e2e-спеків і об'єднання `Orgs` потребують рішення |
+| [T113-collapsed-children-should-be-a-matrix](./tasks/T113-collapsed-children-should-be-a-matrix.md) | згорнуті діти лягають стрічкою, а не матрицею | 🔵 не почато · **P1** — специфікацію виправлено 2026-09-06, лишився код |
+| [T114-flat-orgs-null-on-first-paint](./tasks/T114-flat-orgs-null-on-first-paint.md) | чотири помилки сторінки на старті вкладки `Flat orgs` | 🔵 не почато · P3 — знайдено прогоном T113, окрема причина |
 | [NODE-interactions-contract](./tasks/NODE-interactions-contract.md) | NODE interactions contract (mandatory) | active · Enforced by: `nodeInteractions.contract.test.ts`, `e2e/node-interactions.spec.ts` |
 | [PARITY-gojs-to-dg](./tasks/PARITY-gojs-to-dg.md) | Parity `gojs-diagram` → `dg`: вимога → можливість | 🟢 живий довідник, не задача — тримається синхронним із кодом, не закривається. |
 
-⚠️ Два файли лишаються тут попри `✅`. `T80` — за `AGENDA.md` це **відкрите продуктове рішення**
-(який рушій контурів лишаємо), а не закрита задача. `T79` — закритий, але `work/SPEC.md` і
-`docs/REQUIREMENTS.md` цитують його як пояснення геометрії G1/G2/M2; закрита задача, на яку
-спирається жива специфікація, лишається поруч із нею.
+⚠️ Два файли лишаються тут попри закритий статус. `T80` — розвилку закрито 2026-09-06 («C-подібного
+контуру немає — є магнітний у департаментах»), але **робота, яку це рішення відкриває**, ще не
+заведена: прибирання `cell-flood` зачіпає 23 TS-файли й `contour.rs`, тож задача тримається тут як
+вхід у цю роботу, а не як архів. `T79` — закритий, але `work/SPEC.md` і `docs/REQUIREMENTS.md`
+цитують його як пояснення геометрії G1/G2/M2; закрита задача, на яку спирається жива специфікація,
+лишається поруч із нею.
 
 ## Технічний борг
 

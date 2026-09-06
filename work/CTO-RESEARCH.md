@@ -27,7 +27,7 @@ SHA, записаний у документі репо, переживе `merge`
 
 🔴 **Найважливіше з цієї серії — не самі фікси, а патерн.** У **чотирьох** задачах поспіль виміряна причина виявилась **не тією**, що заявляла задача: T98 чекав числа, яке було не потрібне; T104 описував три мутатори, а причина була в `renderCoalesce`; T103 просив епоху, а вікно закривала не епоха, а відсутність `await` між двома записами; T108 звинувачував таймінг Canvas2D, а винним був **стан у каналі повідомлень**, і рушій ні до чого. Практичне: **формулювання задачі — гіпотеза, не діагноз**; перший крок будь-якої з них — відтворити й зміряти, а не планувати від тексту.
 
-**Архітектурний факт №1 — сцена більше не малює себе сама.** `autoStart: false`, спільного ticker'а немає, і **кожен** шлях, що рухає пікселі, зобов'язаний попросити `requestPaint` ([`render/PixiHost.ts:229-231`](../packages/sdk/src/render/PixiHost.ts), T84). Наслідок для будь-якої нової фічі: намалював у обхід — картинка не оновиться, і жоден тест на дані цього не помітить. Драг картки просить фарбу явно ([`render/personInteractions.ts`](../packages/sdk/src/render/personInteractions.ts)).
+**Архітектурний факт №1 — сцена більше не малює себе сама.** `autoStart: false` ([`render/PixiHost.ts:293`](../packages/sdk/src/render/PixiHost.ts)), спільного ticker'а немає, і **кожен** шлях, що рухає пікселі, зобов'язаний попросити `requestPaint` ([там само, `:229-231`](../packages/sdk/src/render/PixiHost.ts), T84). Наслідок для будь-якої нової фічі: намалював у обхід — картинка не оновиться, і жоден тест на дані цього не помітить. Драг картки просить фарбу явно ([`render/personInteractions.ts`](../packages/sdk/src/render/personInteractions.ts)).
 
 **Архітектурний факт №2 — `renderer: 'auto'` більше не пасивний, і його мовчання значуще.** Полотно піднімається на WebGL або Canvas2D, вибір видно назовні (`getRendererKind()`), і під софтверним GL Canvas2D свідомо кращий (T83). **Змінилось 2026-09-04 (T98):** `'auto'` тепер сам читає `UNMASKED_RENDERER_WEBGL` через тимчасовий від'єднаний контекст і йде на Canvas2D, якщо ім'я містить відомий програмний растеризатор ([`render/detectSoftwareRenderer.ts`](../packages/sdk/src/render/detectSoftwareRenderer.ts)).
 
@@ -84,7 +84,7 @@ poisoning, T107), а не спростувало старе. Лишено як �
 
 Один `DiagramData`, два layout engines і два візуальні контракти. Зміна focus org / сімейства скидає session. ([SPEC §2.2.2](./SPEC.md))
 
-**Організації** — усі collapsed → **matrix** (sparse grid, TS); ≥1 expanded → **row-tree** (Ploeg WASM `computeOrgRowTreeLayout`). Перемикач `detectOrgMode` / `isOrgCollapsed` ([`layout/orgMode.ts`](../packages/sdk/src/layout/orgMode.ts)).
+**Організації** — правило **локальне**: набір братів (діти одного батька), усі члени якого **згорнуті** → **matrix** (sparse grid, TS); ≥1 брат **розгорнутий** → **row-tree** (Ploeg WASM `computeOrgRowTreeLayout`). ⚠️ **Код досі реалізує стару глобальну редакцію** («усі org collapsed»): `detectOrgMode` вирішує один раз на всю діаграму ([`layout/orgMode.ts`](../packages/sdk/src/layout/orgMode.ts)) — [T113](./tasks/T113-collapsed-children-should-be-a-matrix.md), специфікацію виправлено 2026-09-06.
 
 **Штатка — три яруси** (поточна org завжди в ярусі 2). Per-org coords: matrix / tree / **hybrid anchors** (default). Drill = `focusStaffOrg`; expand-in-place = `toggleStaffOrgExpand` (T20). ([SPEC §2.2](./SPEC.md))
 
