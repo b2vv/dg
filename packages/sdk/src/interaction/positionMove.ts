@@ -123,7 +123,14 @@ export function resolveSeatDrop(input: {
   return to ? { kind: 'push', occupantId, to } : { kind: 'swap', occupantId };
 }
 
-/** Apply grid move; rejects invalid cells. */
+/**
+ * Apply grid move; rejects invalid cells.
+ *
+ * ⚠️ T111-K2: rejects **any** target cell already held by another seat of the
+ * same org block — `push`/`swap` are not committed yet (plan §6, K2). Until K3
+ * lands, a collision is a plain refusal: the caller (`movePersonToCell` /
+ * the drag drop) is expected to make that refusal visible, not swallow it.
+ */
 export function movePositionToCell(
   positions: DiagramPosition[],
   positionId: string,
@@ -136,6 +143,18 @@ export function movePositionToCell(
   const idx = positions.findIndex((p) => p.id === positionId);
   if (idx < 0) {
     throw new InteractionError(`Unknown position ${positionId}`);
+  }
+  const mover = positions[idx]!;
+  const occupant = positions.find(
+    (p) =>
+      p.id !== positionId &&
+      p.organizationId === mover.organizationId &&
+      p.gridCell &&
+      p.gridCell.col === col &&
+      p.gridCell.row === row,
+  );
+  if (occupant) {
+    throw new InteractionError(`Cell (${col}, ${row}) already taken by ${occupant.id}`);
   }
   const next = positions.slice();
   const cur = next[idx]!;

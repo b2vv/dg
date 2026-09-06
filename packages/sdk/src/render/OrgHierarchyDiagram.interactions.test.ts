@@ -125,6 +125,19 @@ describe('OrgHierarchyDiagram interactions', () => {
     document.body.removeChild(container);
   });
 
+  it('failure: movePersonToCell onto an occupied cell rejects and leaves data unchanged (T111-K2, A1, A7)', async () => {
+    // P2 already sits at (1, 0) in `makeData()` — dropping P1 there must be a
+    // visible refusal (a rejected promise), not the old silent catch that
+    // returned as if nothing happened.
+    const { container, diagram } = await mount();
+    const before = diagram.getData().positions;
+    await expect(diagram.movePersonToCell('P1', 1, 0)).rejects.toThrow(InteractionError);
+    await expect(diagram.movePersonToCell('P1', 1, 0)).rejects.toThrow(/taken by P2/);
+    expect(diagram.getData().positions).toEqual(before);
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
+
   it('failure: appendData without mapper throws', async () => {
     const { container, diagram } = await mount();
     await expect(diagram.appendData({ x: 1 })).rejects.toThrow(InteractionError);

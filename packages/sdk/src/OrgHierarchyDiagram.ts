@@ -786,7 +786,18 @@ export class OrgHierarchyDiagram {
           }
         : undefined,
       onPersonDragEnd: (positionId, col, row) => {
-        void this.movePersonToCell(positionId, col, row);
+        // `movePersonToCell` no longer swallows `InteractionError` (T111-K2):
+        // the drop is a fire-and-forget gesture with no promise the caller
+        // awaits, so an uncaught rejection here would be an unhandled
+        // rejection rather than a visible refusal. Precedent:
+        // `export/exportDiagram.ts:96`.
+        this.movePersonToCell(positionId, col, row).catch((err: unknown) => {
+          if (err instanceof InteractionError) {
+            console.warn(`[org-hierarchy] ${err.message}`);
+            return;
+          }
+          throw err;
+        });
       },
       onPersonReparent: (positionId, managerId) => {
         void this.reparentPosition(positionId, managerId);
@@ -1679,16 +1690,20 @@ export class OrgHierarchyDiagram {
     );
   }
 
+  /**
+   * A refused move (T111-K2: the target cell is already held) still redraws
+   * what is already true — a stale frame would show the drop as having
+   * happened — but no longer swallows the failure. `InteractionError`
+   * propagates so the caller can make the refusal visible (`SPEC.md:202`,
+   * A7); see the `onPersonDragEnd` wiring below for the drag path's handling.
+   */
   async movePersonToCell(positionId: string, col: number, row: number): Promise<void> {
     let positions;
     try {
       positions = movePositionToCell(this.data.positions, positionId, col, row);
     } catch (err) {
       if (err instanceof InteractionError) {
-        // A refused move is an ordinary outcome: redraw what is already true
-        // and say nothing, because nothing changed.
         await this.render();
-        return;
       }
       throw err;
     }

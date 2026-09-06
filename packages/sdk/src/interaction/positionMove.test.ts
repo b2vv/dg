@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@rstest/core';
 import type { DiagramPosition } from '../data/types.js';
-import { resolveSeatDrop } from './positionMove.js';
+import { movePositionToCell, resolveSeatDrop } from './positionMove.js';
+import { InteractionError } from './types.js';
 
 function seat(id: string, cell: { col: number; row: number } | null, orgId = 'org1'): DiagramPosition {
   return {
@@ -200,5 +201,33 @@ describe('resolveSeatDrop', () => {
         from: undefined,
       }),
     ).toThrow('Unknown position nope');
+  });
+});
+
+describe('movePositionToCell occupancy guard', () => {
+  it('success: an empty cell is still moved into', () => {
+    const next = movePositionToCell(block(), 'a', 4, 4);
+    expect(next.find((p) => p.id === 'a')?.gridCell).toEqual({ col: 4, row: 4 });
+  });
+
+  it('success: the same cell in another org block is not taken', () => {
+    const positions = [seat('mover', { col: 0, row: 1 }), seat('other', { col: 1, row: 1 }, 'org2')];
+    expect(movePositionToCell(positions, 'mover', 1, 1).find((p) => p.id === 'mover')?.gridCell).toEqual(
+      { col: 1, row: 1 },
+    );
+  });
+
+  it('failure: a cell held by a seat of the same block is refused', () => {
+    // The guard sits here rather than in each caller: `movePersonToCell` and the
+    // drop that ends a drag both come through this function (T111).
+    expect(() => movePositionToCell(block(), 'a', 1, 0)).toThrow(InteractionError);
+    expect(() => movePositionToCell(block(), 'a', 1, 0)).toThrow(/taken by b/);
+  });
+
+  it('failure: staying in its own cell is not a collision with itself', () => {
+    expect(movePositionToCell(block(), 'd', 1, 1).find((p) => p.id === 'd')?.gridCell).toEqual({
+      col: 1,
+      row: 1,
+    });
   });
 });
