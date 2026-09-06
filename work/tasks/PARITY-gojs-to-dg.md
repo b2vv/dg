@@ -8,6 +8,18 @@ text-glyph padding) і один 🔴 поза міграцією — B8c → [T6
 **Праворуч:** `b2vv/dg`  
 **Індекс задач:** [T71-gojs-to-dg-migration-plan.md](./T71-gojs-to-dg-migration-plan.md)
 
+🔴 **Поправка 2026-09-06 — D9 перерахований, «🔴 міграційні: 0» вище не перевірене повторно.**
+Свіже читання **реального** коду хоста `cassiopeia-admin-ui` (не переказу) показало: D9
+(«D&D reparent») був позначений і хибно (`❓ мертвий у GoJS` — насправді живий і в org, і в
+positions), і завищено (`✅ 100% у dg` — org-level reparent відсутній повністю, position-reparent
+не захищає корінь, move/merge/clone-structure нема). Рядок D9 виправлено нижче; нові тікети —
+[T116](./T116-org-level-reparent-missing.md), [T117](./T117-position-reparent-root-guard-and-cross-org-actions.md).
+Повний метод і решта знахідок (не лише D9) — окремі звіти:
+[`org-diagram-parity.md`](../reports/host-integration/org-diagram-parity.md),
+[`positions-diagram-parity.md`](../reports/host-integration/positions-diagram-parity.md).
+Решту рядків (окрім D9) **не** перераховано цим проходом — «🔴 міграційні: 0» в §3 нижче
+може бути так само застарілим, це не перевірялось.
+
 > Порівнюємо **«що зобов’язані показати користувачу»**, не механізм із механізмом.  
 > GoJS-обходи → §1 (не мігрують).  
 > **Нумерація тікетів `dg`:** T53–T56 уже зайняті зданими тікетами; gaps = **T63–T70**, B8c = **T61**.
@@ -86,7 +98,7 @@ text-glyph padding) і один 🔴 поза міграцією — B8c → [T6
 | D5 | Dblclick → sidebar | 📋 замовник | `onNodeDoubleClick` wired (demo + tests); host must subscribe | ✅ 100 | **T69** |
 | D6 | Search + focus | 📋 | worker + revealPath | ✅ 100 | T18 |
 | D7–D8 | Fullscreen / timeline | 📋🧬 | host | ✅ n/a | — |
-| D9 | D&D reparent | ❓ мертвий у GoJS | ✅ у `dg` | ✅ 100 | T04/T17 |
+| D9 | D&D reparent | 📋🧬 живий і в org, і в positions | 🟡 часткова — org-level reparent взагалі відсутній; position-reparent не захищає корінь, немає move(cross-org)/merge/clone | 🟡 60 | T04/T17, **гапи → T116, T117** |
 
 ### E. Вигляд картки (+ §4 зображення)
 
