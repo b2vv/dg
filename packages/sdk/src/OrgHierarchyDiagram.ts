@@ -1,4 +1,9 @@
-import type { DiagramData, DiagramOrganization, DiagramReportLine } from './data/types.js';
+import type {
+  DiagramData,
+  DiagramOrganization,
+  DiagramReportLine,
+  GridCell,
+} from './data/types.js';
 import { isDiagramData, mergePartial } from './data/mergeData.js';
 import { applyInitialExpand } from './data/initialExpand.js';
 import type { DiagramMappers } from './mappers/types.js';
@@ -64,6 +69,7 @@ import type {
   HostSearchPage,
   RenderFailure,
   InitialExpandResult,
+  SeatDropChoice,
 } from './callbacks.js';
 import type { ViewportTransform } from './render/Viewport.js';
 import { createTransformWorker, WorkerPool } from './worker/index.js';
@@ -72,6 +78,7 @@ import {
   resolveOrganizationIdForNode,
   resolveSeatDrop,
   applySeatDrop,
+  type SeatDrop,
   shiftPositionBlock,
   type NodeRef,
   type SearchResult,
@@ -1710,6 +1717,94 @@ export class OrgHierarchyDiagram {
    * T111-K5. Until then, a diagonal drag or a legacy double-occupied cell has
    * no automatic answer, and the SDK is not entitled to guess one.
    */
+  /**
+   * One seat collision open at a time. A second colliding drop while the host
+   * still holds the first question would be answered against a board the first
+   * answer is about to change.
+   */
+  private seatCollisionPending = false;
+
+  /**
+   * Ask the host to settle a collision the SDK will not guess at, then check
+   * the answer against the data **as it is now** rather than as it was when
+   * the question was asked (plan §4).
+   *
+   * Everything here refuses by throwing: with no handler (the SDK's named
+   * default), on a cancel, on a second question, on an answer that names a
+   * cell nobody offered, and on a board that moved under the dialog. Applying
+   * a stale answer by `occupantId` would recreate the very overlap this task
+   * removes, by the "correct" path.
+   */
+  private async settleSeatCollision(
+    positionId: string,
+    target: GridCell,
+    ask: Extract<SeatDrop, { kind: 'ask' }>,
+  ): Promise<Exclude<SeatDrop, { kind: 'ask' }>> {
+    const handler = this.callbacks.onSeatCollision;
+    if (!handler) {
+      await this.render();
+      throw new InteractionError(
+        `Cell (${target.col}, ${target.row}) needs a choice between ${positionId} and ${ask.occupantId}, and no onSeatCollision handler is set`,
+      );
+    }
+    if (this.seatCollisionPending) {
+      await this.render();
+      throw new InteractionError(
+        `Another seat collision is already awaiting a choice; drop on (${target.col}, ${target.row}) refused`,
+      );
+    }
+
+    let choice: SeatDropChoice | null;
+    this.seatCollisionPending = true;
+    try {
+      choice = await handler({
+        positionId,
+        target,
+        occupantId: ask.occupantId,
+        pushTargets: ask.pushTargets,
+      });
+    } finally {
+      this.seatCollisionPending = false;
+    }
+
+    if (!choice) {
+      // A dismissed dialog is a cancel, not a choice (spec A5).
+      await this.render();
+      throw new InteractionError(
+        `Seat collision on (${target.col}, ${target.row}) was cancelled`,
+      );
+    }
+
+    // Re-resolve, because `await` gave the rest of the app a turn: another
+    // `setData`, another drop, a host mutation. The question we asked may
+    // describe a board that no longer exists.
+    const mover = this.data.positions.find((p) => p.id === positionId);
+    const fresh = resolveSeatDrop({
+      positions: this.data.positions,
+      positionId,
+      target,
+      from: mover?.gridCell,
+    });
+    if (fresh.kind !== 'ask' || fresh.occupantId !== ask.occupantId) {
+      await this.render();
+      throw new InteractionError(
+        `The data moved while the seat collision on (${target.col}, ${target.row}) was open; the answer no longer applies`,
+      );
+    }
+
+    if (choice.kind === 'swap') return { kind: 'swap', occupantId: fresh.occupantId };
+
+    const offered = fresh.pushTargets.some(
+      (c) => c.col === choice.to.col && c.row === choice.to.row,
+    );
+    if (!offered) {
+      throw new InteractionError(
+        `Cell (${choice.to.col}, ${choice.to.row}) was not among the push targets offered for this collision`,
+      );
+    }
+    return { kind: 'push', occupantId: fresh.occupantId, to: choice.to };
+  }
+
   async movePersonToCell(positionId: string, col: number, row: number): Promise<void> {
     const target = { col, row };
     let drop;
@@ -1723,10 +1818,7 @@ export class OrgHierarchyDiagram {
       throw err;
     }
     if (drop.kind === 'ask') {
-      await this.render();
-      throw new InteractionError(
-        `Cell (${col}, ${row}) needs a choice between ${positionId} and ${drop.occupantId} (T111-K5)`,
-      );
+      drop = await this.settleSeatCollision(positionId, target, drop);
     }
     let positions;
     try {

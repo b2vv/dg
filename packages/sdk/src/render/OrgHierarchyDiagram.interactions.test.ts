@@ -3,6 +3,11 @@ import { OrgHierarchyDiagram } from '../index.js';
 import type { DiagramData } from '../data/types.js';
 import { InteractionError } from '../interaction/index.js';
 import { VARIANT_B_POSITIONS } from '../contour/bridge.js';
+import type {
+  LayoutPatch,
+  OrgHierarchyCallbacks,
+  SeatCollisionRequest,
+} from '../callbacks.js';
 
 function makeData() {
   return {
@@ -727,5 +732,175 @@ describe('appendData search index (streaming)', () => {
 
     diagram.destroy();
     container.remove();
+  });
+});
+
+/**
+ * T111-K5 — `onSeatCollision`: the one case the SDK is not entitled to decide
+ * on its own (plan §4/§5, spec A5/A6). The host draws the choice; the SDK asks
+ * and then re-checks, because the data can move while the modal is open.
+ *
+ * P1(0,0) → P4's cell (1,1) in `makeData()` is the diagonal entry that makes
+ * `resolveSeatDrop` answer `ask` — the same drop the K3 test above refuses.
+ */
+async function mountWithCollision(
+  onSeatCollision?: OrgHierarchyCallbacks['onSeatCollision'],
+) {
+  const container = document.createElement('div');
+  container.style.width = '800px';
+  container.style.height = '600px';
+  document.body.appendChild(container);
+  const patches: LayoutPatch[] = [];
+  const diagram = await OrgHierarchyDiagram.create(container, {
+    data: makeData(),
+    staffCurrentOrgId: 'org1',
+    useWorker: false,
+    callbacks: {
+      onLayoutChange: (patch) => patches.push(patch),
+      ...(onSeatCollision ? { onSeatCollision } : {}),
+    },
+  });
+  return { container, diagram, patches };
+}
+
+describe('OrgHierarchyDiagram seat collision choice (T111-K5)', () => {
+  it('success: the host answers swap and both seats move in one patch', async () => {
+    const seen: SeatCollisionRequest[] = [];
+    const { container, diagram, patches } = await mountWithCollision(async (req) => {
+      seen.push(req);
+      return { kind: 'swap' };
+    });
+
+    await diagram.movePersonToCell('P1', 1, 1);
+
+    // The SDK asked, and asked about the right pair.
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({ positionId: 'P1', occupantId: 'P4', target: { col: 1, row: 1 } });
+    expect(seen[0]?.pushTargets.length).toBeGreaterThan(0);
+
+    const cellOf = (id: string) => diagram.getData().positions.find((p) => p.id === id)?.gridCell;
+    expect(cellOf('P1')).toEqual({ col: 1, row: 1 });
+    expect(cellOf('P4')).toEqual({ col: 0, row: 0 });
+    // One patch, naming the seat that was displaced (A3's contract).
+    const moves = patches.filter((p) => p.type === 'position-move');
+    expect(moves).toHaveLength(1);
+    expect(moves[0]).toMatchObject({ positionId: 'P1', displacedPositionId: 'P4' });
+
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
+
+  it('success: the host answers push and the occupant goes to the named cell', async () => {
+    let offered: readonly { col: number; row: number }[] = [];
+    const { container, diagram } = await mountWithCollision(async (req) => {
+      offered = req.pushTargets;
+      const to = req.pushTargets[0];
+      return to ? { kind: 'push', to } : null;
+    });
+
+    await diagram.movePersonToCell('P1', 1, 1);
+
+    const cellOf = (id: string) => diagram.getData().positions.find((p) => p.id === id)?.gridCell;
+    expect(cellOf('P1')).toEqual({ col: 1, row: 1 });
+    expect(cellOf('P4')).toEqual(offered[0]);
+
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
+
+  it('failure: the host cancels and the data is byte for byte what it was (A5)', async () => {
+    const { container, diagram, patches } = await mountWithCollision(async () => null);
+    const before = diagram.getData().positions;
+
+    await expect(diagram.movePersonToCell('P1', 1, 1)).rejects.toThrow(InteractionError);
+
+    expect(diagram.getData().positions).toEqual(before);
+    expect(patches.filter((p) => p.type === 'position-move')).toHaveLength(0);
+
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
+
+  it('failure: no handler at all refuses rather than guessing (A6)', async () => {
+    const { container, diagram, patches } = await mountWithCollision();
+    const before = diagram.getData().positions;
+
+    await expect(diagram.movePersonToCell('P1', 1, 1)).rejects.toThrow(/needs a choice/);
+
+    expect(diagram.getData().positions).toEqual(before);
+    expect(patches.filter((p) => p.type === 'position-move')).toHaveLength(0);
+
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
+
+  it('failure: data that moved while the modal was open refuses instead of applying a stale answer', async () => {
+    // The trap plan §4 names in red: the answer describes a board that no
+    // longer exists, and applying it by `occupantId` would recreate the very
+    // overlap this whole task removes — by the "correct" path.
+    let diagramRef: OrgHierarchyDiagram | null = null;
+    const { container, diagram, patches } = await mountWithCollision(async () => {
+      // While the host "shows a modal", the occupant is moved out from under it.
+      await diagramRef?.movePersonToCell('P4', 3, 3);
+      return { kind: 'swap' };
+    });
+    diagramRef = diagram;
+
+    await expect(diagram.movePersonToCell('P1', 1, 1)).rejects.toThrow(InteractionError);
+
+    const cellOf = (id: string) => diagram.getData().positions.find((p) => p.id === id)?.gridCell;
+    // P4's own move stands; P1 never moved, because the answer was stale.
+    expect(cellOf('P4')).toEqual({ col: 3, row: 3 });
+    expect(cellOf('P1')).toEqual({ col: 0, row: 0 });
+    expect(patches.filter((p) => p.type === 'position-move' && p.positionId === 'P1')).toHaveLength(0);
+
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
+
+  it('failure: a push to a cell that was never offered is refused', async () => {
+    // The host is the one drawing the choice, but it does not get to invent a
+    // destination: an unoffered cell may be occupied, or outside the block.
+    const { container, diagram } = await mountWithCollision(async () => ({
+      kind: 'push',
+      to: { col: 9, row: 9 },
+    }));
+    const before = diagram.getData().positions;
+
+    await expect(diagram.movePersonToCell('P1', 1, 1)).rejects.toThrow(InteractionError);
+    expect(diagram.getData().positions).toEqual(before);
+
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
+
+  it('failure: a second collision while one is open is refused rather than queued', async () => {
+    // Two open questions about the same board cannot both be answered against
+    // it — the second answer would be judged against data the first is about
+    // to change (plan §4).
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    let calls = 0;
+    const { container, diagram } = await mountWithCollision(async () => {
+      calls += 1;
+      await gate;
+      return { kind: 'swap' };
+    });
+
+    const first = diagram.movePersonToCell('P1', 1, 1);
+    // The same colliding drop again: to be refused it has to reach the
+    // handler, so it must resolve to `ask` too — a vertical drop would have
+    // been settled by `resolveSeatDrop` and never asked anything.
+    const second = diagram.movePersonToCell('P1', 1, 1);
+
+    await expect(second).rejects.toThrow(InteractionError);
+    release();
+    await first;
+
+    expect(calls).toBe(1);
+    diagram.destroy();
+    document.body.removeChild(container);
   });
 });

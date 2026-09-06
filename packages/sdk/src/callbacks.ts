@@ -1,3 +1,4 @@
+import type { GridCell } from './data/types.js';
 import type { OrgDisplayMode } from './layout/index.js';
 import type { MenuItem, NodeRef } from './interaction/types.js';
 import type { ContextMenuRequest } from './interaction/contextMenuPayload.js';
@@ -35,6 +36,34 @@ export type LayoutPatch =
       fromManagerId: string | null;
       toManagerId: string;
     };
+
+/**
+ * The one seat collision the SDK is not entitled to settle on its own.
+ *
+ * `resolveSeatDrop` answers `push` or `swap` whenever the gesture names a
+ * direction and exactly one seat is in the way. It asks only when it would
+ * otherwise be guessing: a diagonal drop (no single direction) or a cell that
+ * already holds more than one seat (legacy overlap). See `docs/USAGE.md`.
+ */
+export interface SeatCollisionRequest {
+  /** The seat being dropped. */
+  positionId: string;
+  /** The cell it was dropped on. */
+  target: GridCell;
+  /** The seat already sitting there. */
+  occupantId: string;
+  /**
+   * Cells the occupant could legally be pushed into, in the SDK's own order.
+   *
+   * A `push` answer **must** name one of these: the host draws the choice, but
+   * it does not get to invent a destination, which could be occupied or
+   * outside the block. Empty means only a swap is available.
+   */
+  pushTargets: readonly GridCell[];
+}
+
+/** How the host wants a {@link SeatCollisionRequest} settled. */
+export type SeatDropChoice = { kind: 'swap' } | { kind: 'push'; to: GridCell };
 
 /** Why the visible area changed. A resize moves no camera (T88). */
 export type ViewportChangeReason = 'camera' | 'resize';
@@ -78,6 +107,24 @@ export interface OrgHierarchyCallbacks {
    */
   onLayoutChange?(patch: LayoutPatch): void;
   onOrgModeChange?(mode: OrgDisplayMode): void;
+  /**
+   * Settle a seat collision the SDK will not guess at (T111).
+   *
+   * **Optional on purpose.** A host that edits in bulk — an optimistic draft
+   * with undo, the way `cassiopeia-admin-ui` works — would rather act and let
+   * the user undo than answer a modal on every drag. Without this callback the
+   * SDK's own policy applies, and that policy is to **refuse**: the move is
+   * rejected and the data is untouched, never a guess.
+   *
+   * Resolve with `null` to cancel — a dismissed dialog is a cancel, not a
+   * choice. The answer is re-checked against the data before it is applied:
+   * if the board moved while the dialog was open, the move is refused rather
+   * than applied to a seat that is no longer where the question said it was.
+   *
+   * One question at a time: a second colliding drop while this promise is
+   * pending is refused rather than queued.
+   */
+  onSeatCollision?(request: SeatCollisionRequest): Promise<SeatDropChoice | null>;
   onSelectionChange?(nodes: NodeRef[]): void;
   /** Fired when a context-menu item is activated (SDK defaults or host menu). */
   onContextMenuAction?(item: MenuItem, request: ContextMenuRequest): void;
