@@ -1,7 +1,7 @@
 # spec — `renderer: 'auto'` мусить сам піти на Canvas2D, коли WebGL програмний
 
-**Задача:** [T98](../../tasks/T98-auto-renderer-does-not-fall-back.md) варіант 1 ·
-закриває [T92](../../tasks/T92-software-render-pan-cost.md)
+**Задача:** [T98](../../archive/tasks-2026-09-06.md) варіант 1 ·
+закриває [T92](../../archive/tasks-2026-09-06.md)
 **Гілка:** `t98-auto-software-fallback` · **База:** `0f47928`
 **Поріг:** ⚠️ **вище** — `renderer` описаний у `docs/USAGE.md`, а `.claude/standards.md:118`
 визначає публічний API SDK саме як «те, що описує `docs/USAGE.md`». Повний цикл.

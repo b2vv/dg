@@ -57,8 +57,12 @@ npm run dev          # http://localhost:3000
 **Що робити далі** — [`AGENDA.md`](./AGENDA.md): ранжована черга з обґрунтуванням, чому саме цей хід.
 
 У `tasks/` лишається тільки живе: не почате, часткове й довідники, які тримаються синхронними з
-кодом. Завершене переїхало у [`archive/tasks-2026-09-02.md`](./archive/tasks-2026-09-02.md)
-вказівниками — 97 задач, повний текст кожної в історії git.
+кодом. Завершене переїхало вказівниками у два свіпи —
+[`archive/tasks-2026-09-02.md`](./archive/tasks-2026-09-02.md) (97 задач) і
+[`archive/tasks-2026-09-06.md`](./archive/tasks-2026-09-06.md) (T90, T92, T98, T107, T108);
+повний текст кожної — в історії git. Критерій переїзду не «закрито», а **«закрито і на це ніхто
+не спирається»**: тому `T79`, `T80`, `T103`, `T104`, `T26` лишаються тут попри закритий статус —
+їх цитує жива дока.
 
 | Задача | Про що | Статус |
 |---|---|---|
@@ -70,17 +74,12 @@ npm run dev          # http://localhost:3000
 | [T71-gojs-to-dg-migration-plan](./tasks/T71-gojs-to-dg-migration-plan.md) | План міграції GoJS → Org Hierarchy SDK (`dg`) | ✅ cutover queue complete (2026-08-23) — залишок: T61 (макет), T67 Phase 2 (marquee, optional) |
 | [T79-g2-m2-paint-notch](./tasks/T79-g2-m2-paint-notch.md) | G2 / M2 на paint-шляху (foreign ніколи не під заливкою) | ✅ done (2026-08-25) — **лишається тут**: SPEC і REQUIREMENTS цитують його як пояснення геометрії |
 | [T80-contour-engines-ba-demo](./tasks/T80-contour-engines-ba-demo.md) | Два рушії контурів для порівняння BA | 🟢 розвилку закрито 2026-09-06 рішенням продукту — лишається `button-group`; **прибирання `cell-flood` окремою задачею не заведено** |
-| [T90-drag-smoothness](./tasks/T90-drag-smoothness.md) | Перетягування «не плавне»: гіпотеза виміряна й **спростована** | ✅ закрито виміром (2026-08-29) — роботи не лишилось; тримається як запис, щоб ніхто не почав спочатку |
-| [T92-software-render-pan-cost](./tasks/T92-software-render-pan-cost.md) | Панорамування на програмному рендері: ≈9 fps, і це не про промоут | ✅ закрито (2026-09-04) — **не числом**: критерій «число з цільового заліза» знято, бо існував заради порогу, якого в дизайні немає (T98) |
-| [T98-auto-renderer-does-not-fall-back](./tasks/T98-auto-renderer-does-not-fall-back.md) | `renderer: 'auto'` не переходить на Canvas2D там, де WebGL програмний | ✅ зроблено (2026-09-04, PR #78) — впізнавання за іменем рушія; ⚠️ критерій «0 кадрів > 33 мс» не зелений, див. звіт |
 | [T101-e2e-flakes-only-local](./tasks/T101-e2e-flakes-only-local.md) | Флаки, які CI не може побачити | 🔵 не почато · ⚠️ **гіпотезу «винна паралельність» спростовано 2026-09-04** — падає й на `--workers=1`; перший пункт робіт міряє не ту вісь |
 | [T102-row-tree-depth-block-b](./tasks/T102-row-tree-depth-block-b.md) | row-tree: підняти підтриману глибину (блок Б) | не почато. Спека готова, приймальна таблиця написана. |
 | [T103-setdata-request-epoch](./tasks/T103-setdata-request-epoch.md) | `setData` не «виграє останній запит» | ✅ зроблено (2026-09-05) — виграє останній, дані й індекс комітяться **разом** |
 | [T104-mutations-are-not-one-transaction](./tasks/T104-mutations-are-not-one-transaction.md) | мутація, рендер і колбек хоста — не одна транзакція | ✅ зроблено (2026-09-05) — усі **шість** місць повідомляють після кадру; коренева причина була в `renderCoalesce`, не в мутаторах |
 | [T105-root-barrel-exposes-test-hooks](./tasks/T105-root-barrel-exposes-test-hooks.md) | кореневий барель віддає внутрішнє й тест-хуки | не почато. |
 | [T106-deepen-facades-drop-shallow-wrappers](./tasks/T106-deepen-facades-drop-shallow-wrappers.md) | великі фасади поруч із порожніми обгортками | не почато. Серйозність: Medium. |
-| [T107-magnetic-contour-cost](./tasks/T107-magnetic-contour-cost.md) | Магнітний контур: 66% кадру йшло на копіювання масивів | ✅ виконано (2026-09-03) — 14,0 → 5,1 мс у TS; WASM-порт відхилено виміром |
-| [T108-search-answer-lost-on-canvas](./tasks/T108-search-answer-lost-on-canvas.md) | Відповідь пошуку губиться на Canvas2D | ✅ зроблено (2026-09-05) — причина не в рушії: `onOrgModeChange` писав **стан** у канал повідомлень; пін знято |
 | [T109-toggle-staff-org-has-no-transaction](./tasks/T109-toggle-staff-org-has-no-transaction.md) | `toggleStaffOrg` міняє стан і малює, без відкоту | 🔵 не почато · P3 — знайдено як наслідок T104; контракту не порушує, бо колбека не шле |
 | [T110-changelog-died-at-0.2.0](./tasks/T110-changelog-died-at-0.2.0.md) | CHANGELOG мовчить про десять комітів публічного API | 🔵 не почато · Medium — застарілий документ гірший за порожній |
 | [T111-move-onto-occupied-cell](./tasks/T111-move-onto-occupied-cell.md) | drop у зайняту клітину приймається — дві картки в одній точці | 🔵 не почато · **P1** — спека й план готові: [reports/seat-collision](./reports/seat-collision/) |
