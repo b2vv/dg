@@ -51,7 +51,8 @@ import type {
   StaffZoneStyle,
 } from './types.js';
 import { defaultRenderConfig } from './types.js';
-import type { DiagramData, DiagramOrganization } from '../data/types.js';
+import type { DiagramData, DiagramOrganization, DiagramPosition } from '../data/types.js';
+import { resolveSeatDrop } from '../interaction/positionMove.js';
 import type { LodLevel } from './lod.js';
 import { mapStaffEdgeBoxesForLod, mapPositionNodesToStaffEdgeBoxes } from './visualEdgeBox.js';
 import {
@@ -187,6 +188,14 @@ export class DiagramRenderer {
   });
   /** Active grid for person drag snap (staff pitch or bare cell). */
   private dragGrid: DragGrid | null = null;
+  /**
+   * The positions the last `render()` call drew — read only to resolve a seat
+   * drop for the drag preview (T111-K4a). `render()` itself stays untouched:
+   * this is the one place downstream of it that needs the data outside the
+   * call, since `previewDrag` fires on every pointer move, long after
+   * `render()`'s own `data` argument has gone out of scope.
+   */
+  private currentPositions: DiagramPosition[] = [];
   /** Body double-tap tracker (T69); chrome / canvas resets it. */
   private readonly nodeDoubleTap = new DoubleTapTracker();
   /**
@@ -217,7 +226,20 @@ export class DiagramRenderer {
     rememberBox: (box) => this.rememberBox(box),
     dragGrid: () => this.dragGrid,
     currentLod: () => this.lastLod,
-    previewDrag: (positionId, col, row) => this.contours.previewDrag(positionId, col, row),
+    // Resolve the same `SeatDrop` the commit will (T111-K4a, plan §1's "one
+    // clean function, two consumers"): `movePersonToCell`
+    // (OrgHierarchyDiagram.ts) is the other caller of `resolveSeatDrop`, over
+    // the same `positions` shape. `from` is the seat's *authored* cell, not
+    // the drag gesture — matching `resolveSeatDrop`'s own contract (plan §2)
+    // so an L-shaped drag cannot show one thing here and commit another.
+    previewDrag: (positionId, col, row) => {
+      const target = { col, row };
+      const mover = this.currentPositions.find((p) => p.id === positionId);
+      const drop = mover
+        ? resolveSeatDrop({ positions: this.currentPositions, positionId, target, from: mover.gridCell })
+        : ({ kind: 'free' } as const);
+      this.contours.previewDrag(positionId, target, drop);
+    },
     restoreContours: () => this.contours.restoreAfterFailedDrag(),
     requestPaint: () => this.onNeedsPaint?.(),
     dropTargetAt: (x, y, skipId) => {
@@ -326,6 +348,7 @@ export class DiagramRenderer {
   ): Promise<void> {
     if (this.destroyed) return;
     const epoch = ++this.renderEpoch;
+    this.currentPositions = data.positions;
     this.contours.reset();
     this.chromeBounds = null;
     this.contourWorld = null;
