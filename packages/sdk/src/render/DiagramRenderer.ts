@@ -3,7 +3,7 @@ import { LayerManager } from './LayerManager.js';
 import { DropTargetIndex } from './dropTargetIndex.js';
 import { nodeEntityKey, parseNodeEntityKey } from '../interaction/nodeKey.js';
 import { SceneRegistry, type NodeWorldBox } from './SceneRegistry.js';
-import { ContourPainter } from './contour/ContourPainter.js';
+import { ContourPainter, projectedOccupantMove } from './contour/ContourPainter.js';
 import {
   PersonInteractions,
   type DragGrid,
@@ -52,7 +52,7 @@ import type {
 } from './types.js';
 import { defaultRenderConfig } from './types.js';
 import type { DiagramData, DiagramOrganization, DiagramPosition } from '../data/types.js';
-import { resolveSeatDrop } from '../interaction/positionMove.js';
+import { resolveSeatDrop, type SeatDrop } from '../interaction/positionMove.js';
 import type { LodLevel } from './lod.js';
 import { mapStaffEdgeBoxesForLod, mapPositionNodesToStaffEdgeBoxes } from './visualEdgeBox.js';
 import {
@@ -239,8 +239,12 @@ export class DiagramRenderer {
         ? resolveSeatDrop({ positions: this.currentPositions, positionId, target, from: mover.gridCell })
         : ({ kind: 'free' } as const);
       this.contours.previewDrag(positionId, target, drop);
+      // Same resolved drop, second layer: the ring above, the neighbour's own
+      // card here (T111-K4b).
+      this.previewCardDisplacement(positionId, drop);
     },
     restoreContours: () => this.contours.restoreAfterFailedDrag(),
+    restoreCards: () => this.restoreCards(),
     requestPaint: () => this.onNeedsPaint?.(),
     dropTargetAt: (x, y, skipId) => {
       // `SceneRegistry` re-keys every box to `kind:id`, so both the id we skip
@@ -302,6 +306,66 @@ export class DiagramRenderer {
 
   getPromotedNodeIds(): readonly string[] {
     return this.scene.listPromotedIds();
+  }
+
+  /**
+   * The neighbour the drag preview has moved out of the way, and where its
+   * card sat before we touched it (T111-K4b).
+   *
+   * Held as the *pre-move* coordinates rather than a delta so putting it back
+   * is an assignment, not arithmetic that has to stay in step with however
+   * many times the pointer crossed a cell boundary.
+   */
+  private displacedCard: { id: string; x: number; y: number } | null = null;
+
+  /**
+   * Show the resolved drop on the **sprite** layer: the neighbour's own card
+   * moves to the cell the projection puts it in.
+   *
+   * `ContourPainter.previewDrag` already moves the contour model for the same
+   * drop; without this the ring rebuilds correctly while the card it is drawn
+   * around stays put, and the dragged card simply covers it — which is the
+   * half of the reported defect K4a did not close (spec A9).
+   *
+   * Any previously displaced card is put back first: within one gesture the
+   * resolved occupant changes as the pointer moves, and a neighbour left
+   * parked in a cell nobody chose would show a layout no drop can produce.
+   */
+  private previewCardDisplacement(positionId: string, drop: SeatDrop): void {
+    this.restoreCards();
+    const grid = this.dragGrid;
+    if (!grid) return;
+    const mover = this.currentPositions.find((p) => p.id === positionId);
+    const move = projectedOccupantMove(drop, mover?.gridCell);
+    if (!move) return;
+    const occupant = this.currentPositions.find((p) => p.id === move.occupantId);
+    const from = occupant?.gridCell;
+    // No authored cell for the occupant means nothing to measure the move
+    // from; leave its card alone rather than guessing a home for it.
+    if (!from) return;
+    const view = this.scene.getView('position', move.occupantId);
+    if (!view) return;
+    this.displacedCard = { id: move.occupantId, x: view.x, y: view.y };
+    view.position.set(
+      view.x + (move.to.col - from.col) * grid.pitchX,
+      view.y + (move.to.row - from.row) * grid.pitchY,
+    );
+  }
+
+  /**
+   * Undo {@link previewCardDisplacement}. Safe to call when nothing is
+   * displaced, which is most of the time — both drag cancel paths call it
+   * unconditionally rather than each deciding whether it applies.
+   */
+  private restoreCards(): void {
+    const displaced = this.displacedCard;
+    this.displacedCard = null;
+    if (!displaced) return;
+    const view = this.scene.getView('position', displaced.id);
+    // The scene may have been rebuilt under us (a commit landed, `setData`
+    // ran); the fresh card is already where the data says, so there is
+    // nothing to restore.
+    if (view) view.position.set(displaced.x, displaced.y);
   }
 
   private registerView(kind: NodeWorldBox['kind'], id: string, view: Container): void {

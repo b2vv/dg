@@ -44,6 +44,8 @@ function harness(grid: DragGrid | null = GRID) {
   const personLayer = new Container();
   const previews: Array<[string, number, number]> = [];
   const restores: number[] = [];
+  /** T111-K4b: neighbour-card restores, counted separately from contour ones. */
+  const cardRestores: number[] = [];
   const boxes: string[] = [];
   const paints: number[] = [];
   const interactions = new PersonInteractions({
@@ -56,6 +58,7 @@ function harness(grid: DragGrid | null = GRID) {
     currentLod: () => 'near' as const,
     previewDrag: (id, col, row) => previews.push([id, col, row]),
     restoreContours: () => restores.push(1),
+    restoreCards: () => cardRestores.push(1),
     requestPaint: () => paints.push(1),
     // This harness exercises the `move` mode only, so the re-parent seams are
     // inert here — `personReparent.contract.test.ts` drives them for real.

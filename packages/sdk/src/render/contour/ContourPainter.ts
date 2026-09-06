@@ -461,9 +461,21 @@ export class ContourPainter {
  * is leaving; without a known origin for the mover there is nowhere sound to
  * put the occupant, so it is left where it started.
  */
-function projectedOccupantMove(
+/**
+ * Where the *other* seat ends up under a resolved drop, if it moves at all.
+ *
+ * Exported because the sprite layer (T111-K4b) has to place the neighbour's
+ * card at exactly the cell this contour projection puts its member box in.
+ * Two copies of this switch would be two chances for the ring and the card to
+ * disagree — the very split plan §1 exists to prevent.
+ *
+ * `moverBase` is only read for its cell, so it is typed as such: the contour
+ * session passes a `ContourPositionInput`, the renderer a `DiagramPosition`'s
+ * `gridCell`, and neither needs to know about the other.
+ */
+export function projectedOccupantMove(
   drop: SeatDrop,
-  moverBase: ContourPositionInput | undefined,
+  moverBase: { col: number; row: number } | undefined,
 ): { occupantId: string; to: GridCell } | undefined {
   switch (drop.kind) {
     case 'free':

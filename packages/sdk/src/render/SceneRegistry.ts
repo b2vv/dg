@@ -54,6 +54,20 @@ export class SceneRegistry {
     );
   }
 
+  /**
+   * The Pixi view registered for one entity, or `undefined` when the scene
+   * holds no card for it.
+   *
+   * Deliberately narrower than {@link getBox}: that one falls back across
+   * kinds for a bare id, because callers hand it ids out of host data. This
+   * one is asked only by code that already knows what it is looking at (the
+   * drag preview moving a neighbouring seat, T111-K4b), and a silent
+   * cross-kind match there would move whatever sprite happened to answer.
+   */
+  getView(kind: NodeWorldBox['kind'], id: string): Container | undefined {
+    return this.views.get(nodeEntityKey(kind, id));
+  }
+
   listBoxes(): readonly NodeWorldBox[] {
     return [...this.boxes.values()];
   }
