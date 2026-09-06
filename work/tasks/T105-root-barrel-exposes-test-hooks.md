@@ -1,6 +1,11 @@
 # T105 — кореневий барель віддає внутрішнє й тест-хуки
 
-**Статус:** у роботі — гілка `t105-barrel-test-hooks`, артефакти в `work/reports/barrel-surface/`.
+**Статус:** ✅ **зроблено (2026-09-06)** — злито в `main` через [PR #82](https://github.com/b2vv/dg/pull/82),
+звіт: [`work/reports/barrel-surface/report.md`](../reports/barrel-surface/report.md).
+Прибрано два `*ForTests`; `OrgHierarchyError` експортований; межа публічного API — `docs/USAGE.md` §15;
+повернення хуків стереже четверта перевірка `check:docs` (скан має власні тести, `npm run test:scripts`).
+**Не закрито цією задачею:** розніс адаптерів по підшляхах (був поза скоупом) і CHANGELOG за десять
+комітів — [T110](./T110-changelog-died-at-0.2.0.md).
 **Серйозність:** Medium — але **вище порога пайплайна**, тому інлайн-планом не робиться.
 **Джерело:** `work/reports/structure-audit/report.md` §2, якір підтверджено §7.1.
 
