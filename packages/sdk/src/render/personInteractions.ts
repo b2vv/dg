@@ -81,6 +81,8 @@ export interface PersonInteractionDeps {
   currentLod(): LodLevel;
   previewDrag(positionId: string, col: number, row: number): void;
   restoreContours(): void;
+  /** Put back any neighbour card the drag preview moved aside (T111-K4b). */
+  restoreCards(): void;
   /** Card nearest the pointer within the magnet radius, excluding the dragged one. */
   dropTargetAt(x: number, y: number, skipId: string): string | undefined;
   /** May `positionId` be made to report to `managerId`? */
@@ -260,6 +262,11 @@ export class PersonInteractions {
         // coordinate (T91 rows 18-20).
         this.deps.clearDropPreview();
         node.position.set(originX, originY);
+        // A re-parent never runs the seat preview (the branch above returns
+        // before `previewDrag`), so there is normally nothing displaced — but
+        // this path also ends drags that began as a seat move, and leaving a
+        // neighbour parked would outlive the gesture that moved it.
+        this.deps.restoreCards();
         this.deps.requestPaint();
         if (moved && targetId && this.deps.canDropOn(positionId, targetId)) {
           options.onPersonReparent?.(positionId, targetId);
@@ -268,6 +275,7 @@ export class PersonInteractions {
       }
       if (!moved) {
         node.position.set(originX, originY);
+        this.deps.restoreCards();
         this.deps.requestPaint();
         return;
       }
@@ -275,6 +283,9 @@ export class PersonInteractions {
       if (snap.col < 0 || snap.row < 0) {
         node.position.set(originX, originY);
         this.deps.restoreContours();
+        // The neighbour the preview pushed aside goes home too — the contour
+        // and the card are two layers of one projection (T111-K4b, spec A10).
+        this.deps.restoreCards();
         this.deps.requestPaint();
         return;
       }

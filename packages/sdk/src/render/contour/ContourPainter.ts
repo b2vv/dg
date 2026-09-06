@@ -22,7 +22,8 @@ import type {
 import type { ContourMagnetConfig, ContourPositionInput } from '../../contour/bridge.js';
 import type { ContourMemberBox } from './contourClearance.js';
 import type { LodLevel } from '../lod.js';
-import type { DiagramData } from '../../data/types.js';
+import type { DiagramData, GridCell } from '../../data/types.js';
+import type { SeatDrop } from '../../interaction/positionMove.js';
 
 const DEFAULT_MORPH_MS = 160;
 
@@ -369,25 +370,128 @@ export class ContourPainter {
     this.refresh(true);
   }
 
-  /** Live preview while a card is dragged to (col,row). */
-  previewDrag(positionId: string, col: number, row: number): void {
+  /**
+   * Live preview while a card is dragged to `target` — shows the seat-drop
+   * `resolveSeatDrop` already settled on (T111-K4a, plan §3), not just where
+   * the dragged card landed. `push`/`swap` move **two** entries in the
+   * contour model; `ask` is shown as `swap` (the one applicable preview —
+   * `resolveSeatDrop`'s answer is not final for `ask`, plan §3).
+   *
+   * Recomputed from `session.baseInputs`/`baseMemberBoxesByDept` — the
+   * authored state a session starts with and never mutates — on **every**
+   * call rather than as a delta on the previous frame. A delta would drift
+   * when the resolved kind changes mid-drag (push on one frame, swap the
+   * next, as the pointer crosses a cell boundary): recomputing from the same
+   * origin every time makes that drift structurally impossible instead of
+   * merely rare.
+   */
+  previewDrag(positionId: string, target: GridCell, drop: SeatDrop): void {
     const session = this.session;
-    if (!session || col < 0 || row < 0) return;
-    const prev = session.inputs.find((p) => p.id === positionId);
-    const dCol = col - (prev?.col ?? col);
-    const dRow = row - (prev?.row ?? row);
-    session.inputs = session.inputs.map((p) => (p.id === positionId ? { ...p, col, row } : p));
-    session.memberBoxesByDept = offsetMemberBoxesForGridMove(
-      session.memberBoxesByDept,
-      positionId,
-      dCol,
-      dRow,
-      session.magnet.cellWidth ?? 0,
-      session.magnet.cellHeight ?? 0,
+    if (!session || target.col < 0 || target.row < 0) return;
+
+    const moverBase = session.baseInputs.find((p) => p.id === positionId);
+    let inputs = session.baseInputs.map((p) => ({ ...p }));
+    let boxes = cloneMemberBoxes(session.baseMemberBoxesByDept);
+
+    inputs = inputs.map((p) =>
+      p.id === positionId ? { ...p, col: target.col, row: target.row } : p,
     );
+    if (moverBase) {
+      boxes = offsetMemberBoxesForGridMove(
+        boxes,
+        positionId,
+        target.col - moverBase.col,
+        target.row - moverBase.row,
+        session.magnet.cellWidth ?? 0,
+        session.magnet.cellHeight ?? 0,
+      );
+    }
+
+    const occupantMove = projectedOccupantMove(drop, moverBase);
+    if (occupantMove) {
+      const occupantBase = session.baseInputs.find((p) => p.id === occupantMove.occupantId);
+      if (occupantBase) {
+        inputs = inputs.map((p) =>
+          p.id === occupantMove.occupantId
+            ? { ...p, col: occupantMove.to.col, row: occupantMove.to.row }
+            : p,
+        );
+        boxes = offsetMemberBoxesForGridMove(
+          boxes,
+          occupantMove.occupantId,
+          occupantMove.to.col - occupantBase.col,
+          occupantMove.to.row - occupantBase.row,
+          session.magnet.cellWidth ?? 0,
+          session.magnet.cellHeight ?? 0,
+        );
+      }
+      // No entry for the occupant in this session (stale id, race with a data
+      // change) — leave it untouched rather than inventing a position for it.
+    }
+
+    session.inputs = inputs;
+    session.memberBoxesByDept = boxes;
     session.previewGen += 1;
     this.refresh(true);
   }
+
+  /**
+   * Test seam: this position's projected cell and member-box origin, if the
+   * session currently knows about it. `ContourPainter` is not part of the
+   * public barrel, so this is not public API surface.
+   */
+  previewState(positionId: string): { col: number; row: number; box?: { x: number; y: number } } | undefined {
+    const session = this.session;
+    if (!session) return undefined;
+    const input = session.inputs.find((p) => p.id === positionId);
+    if (!input) return undefined;
+    const box = [...session.memberBoxesByDept.values()]
+      .flat()
+      .find((b) => b.positionId === positionId);
+    return { col: input.col, row: input.row, box: box ? { x: box.x, y: box.y } : undefined };
+  }
+}
+
+/**
+ * Where the seat a drop displaces should preview to, given the mover's
+ * authored cell. `free` displaces nobody. `push` sends the occupant to the
+ * cell `resolveSeatDrop` already found free. `swap` — and `ask`, shown as a
+ * swap because it is the only preview `resolveSeatDrop`'s answer supports
+ * before the user picks (plan §3) — sends the occupant to the cell the mover
+ * is leaving; without a known origin for the mover there is nowhere sound to
+ * put the occupant, so it is left where it started.
+ */
+/**
+ * Where the *other* seat ends up under a resolved drop, if it moves at all.
+ *
+ * Exported because the sprite layer (T111-K4b) has to place the neighbour's
+ * card at exactly the cell this contour projection puts its member box in.
+ * Two copies of this switch would be two chances for the ring and the card to
+ * disagree — the very split plan §1 exists to prevent.
+ *
+ * `moverBase` is only read for its cell, so it is typed as such: the contour
+ * session passes a `ContourPositionInput`, the renderer a `DiagramPosition`'s
+ * `gridCell`, and neither needs to know about the other.
+ */
+export function projectedOccupantMove(
+  drop: SeatDrop,
+  moverBase: { col: number; row: number } | undefined,
+): { occupantId: string; to: GridCell } | undefined {
+  switch (drop.kind) {
+    case 'free':
+      return undefined;
+    case 'push':
+      return { occupantId: drop.occupantId, to: drop.to };
+    case 'swap':
+    case 'ask':
+      return moverBase ? { occupantId: drop.occupantId, to: { col: moverBase.col, row: moverBase.row } } : undefined;
+    default:
+      return assertNeverSeatDrop(drop);
+  }
+}
+
+function assertNeverSeatDrop(x: never): never {
+  throw new Error(`Unexpected SeatDrop kind: ${String((x as SeatDrop).kind)}`);
 }
 
 /** Seats per department — drives `minContourMembers` and the blob badge. */

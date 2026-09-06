@@ -104,7 +104,7 @@ describe('ContourPainter', () => {
     await p.paint(request());
     const before = blobs(layers.departments).map((b) => b.getDrawnPoints().length);
 
-    p.previewDrag('P1', 5, 5);
+    p.previewDrag('P1', { col: 5, row: 5 }, { kind: 'free' });
     const moved = blobs(layers.departments).map((b) => b.getDrawnPoints().length);
     expect(moved).not.toEqual(before);
 
@@ -114,10 +114,118 @@ describe('ContourPainter', () => {
 
   it('failure: without a session, preview and restore are no-ops rather than throwing', () => {
     const { painter: p, layers } = painter();
-    expect(() => p.previewDrag('P1', 1, 1)).not.toThrow();
+    expect(() => p.previewDrag('P1', { col: 1, row: 1 }, { kind: 'free' })).not.toThrow();
     expect(() => p.restoreAfterFailedDrag()).not.toThrow();
     expect(() => p.reset()).not.toThrow();
     expect(blobs(layers.departments)).toEqual([]);
+  });
+
+  // T111-K4a: previewDrag now takes an already-resolved SeatDrop (plan §3 / spec A9)
+  // instead of a bare (col,row) — the projection shows push/swap/ask exactly the
+  // way `resolveSeatDrop` decided, not just where the dragged card landed.
+  describe('T111-K4a seat-collision projection', () => {
+    it('success: push moves both the dragged seat and the occupant it displaces', async () => {
+      const { painter: p } = painter();
+      await p.paint(request());
+
+      p.previewDrag(
+        'P1',
+        { col: 1, row: 0 },
+        { kind: 'push', occupantId: 'P2', to: { col: 0, row: 1 } },
+      );
+
+      expect(p.previewState('P1')).toMatchObject({ col: 1, row: 0 });
+      expect(p.previewState('P2')).toMatchObject({ col: 0, row: 1 });
+      // P3 (CEO) is not part of this drop — stays put.
+      expect(p.previewState('P3')).toMatchObject({ col: 2, row: 0 });
+    });
+
+    it('success: swap sends the occupant to the dragged seat\'s authored cell', async () => {
+      const { painter: p } = painter();
+      await p.paint(request());
+
+      p.previewDrag('P1', { col: 1, row: 0 }, { kind: 'swap', occupantId: 'P2' });
+
+      expect(p.previewState('P1')).toMatchObject({ col: 1, row: 0 });
+      // P1's authored cell was (0,0) — that's where P2 goes.
+      expect(p.previewState('P2')).toMatchObject({ col: 0, row: 0 });
+    });
+
+    it('success: ask is projected as a swap — the safe, applicable preview (plan §3)', async () => {
+      const { painter: p } = painter();
+      await p.paint(request());
+
+      p.previewDrag(
+        'P1',
+        { col: 1, row: 0 },
+        { kind: 'ask', occupantId: 'P2', pushTargets: [] },
+      );
+
+      expect(p.previewState('P1')).toMatchObject({ col: 1, row: 0 });
+      expect(p.previewState('P2')).toMatchObject({ col: 0, row: 0 });
+    });
+
+    it('success: the occupant\'s member box moves too, not just its grid cell', async () => {
+      const { painter: p } = painter();
+      await p.paint(request());
+      const baseBox = p.previewState('P2')?.box;
+
+      p.previewDrag('P1', { col: 1, row: 0 }, { kind: 'swap', occupantId: 'P2' });
+
+      const movedBox = p.previewState('P2')?.box;
+      expect(baseBox).toBeDefined();
+      expect(movedBox).toBeDefined();
+      expect(movedBox).not.toEqual(baseBox);
+    });
+
+    it('success: restoring after a failed drag puts both seats back byte-for-byte (A10)', async () => {
+      const { painter: p } = painter();
+      await p.paint(request());
+      const baseline = ['P1', 'P2', 'P3'].map((id) => p.previewState(id));
+
+      p.previewDrag(
+        'P1',
+        { col: 1, row: 0 },
+        { kind: 'push', occupantId: 'P2', to: { col: 0, row: 1 } },
+      );
+      expect(['P1', 'P2', 'P3'].map((id) => p.previewState(id))).not.toEqual(baseline);
+
+      p.restoreAfterFailedDrag();
+      expect(['P1', 'P2', 'P3'].map((id) => p.previewState(id))).toEqual(baseline);
+    });
+
+    it('success: recomputes from the authored cell every call, so push→swap mid-drag does not drift', async () => {
+      const { painter: p } = painter();
+      await p.paint(request());
+
+      // Frame 1: resolved as push.
+      p.previewDrag(
+        'P1',
+        { col: 1, row: 0 },
+        { kind: 'push', occupantId: 'P2', to: { col: 0, row: 1 } },
+      );
+      // Frame 2 (pointer kept moving): resolved as swap instead.
+      p.previewDrag('P1', { col: 1, row: 0 }, { kind: 'swap', occupantId: 'P2' });
+
+      // If frame 2 were an incremental delta on top of frame 1's already-moved
+      // P2, this would land somewhere other than P1's authored cell.
+      expect(p.previewState('P2')).toMatchObject({ col: 0, row: 0 });
+    });
+
+    it('failure: an occupant id absent from the session is ignored — the mover still moves', async () => {
+      const { painter: p } = painter();
+      await p.paint(request());
+
+      expect(() =>
+        p.previewDrag(
+          'P1',
+          { col: 1, row: 0 },
+          { kind: 'push', occupantId: 'ghost', to: { col: 9, row: 9 } },
+        ),
+      ).not.toThrow();
+      expect(p.previewState('P1')).toMatchObject({ col: 1, row: 0 });
+      expect(p.previewState('ghost')).toBeUndefined();
+    });
   });
 
   it('failure: cell-flood without a world transform paints nothing and says why', async () => {

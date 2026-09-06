@@ -38,10 +38,16 @@
 
 ### 2.1 Організації
 
-| Стан | Режим |
+🔴 **Виправлено 2026-09-06.** Умова **локальна**, не глобальна: матрицею лягає **набір братів**
+(діти одного батька), усі **члени** якого згорнуті. Попередня редакція («усі org collapsed») була окремим випадком і тому
+виглядала правильною. Код досі реалізує стару — [T113](../work/tasks/T113-collapsed-children-should-be-a-matrix.md).
+
+| Стан **набору братів** | Режим |
 |------|-------|
-| Усі org **collapsed** | **Matrix** — sparse зв'язки між org |
-| ≥1 org **expanded** | **Row-tree** — ряд 1, 2, 3… (depth) |
+| **усі** брати **collapsed** | **Matrix** — sparse зв'язки між org |
+| ≥1 брат **expanded** | **Row-tree** — ряд 1, 2, 3… (depth) |
+
+Правило застосовується до **кожного** набору братів, включно з верхнім рівнем.
 
 ### 2.2 Штатка
 
@@ -603,7 +609,8 @@ interface OrgHierarchyCallbacks {
 - [x] `mount(el, { data, mappers })` → `OrgHierarchyDiagram.create`
 
 ### Фаза 2 — Org modes
-- [x] Matrix collapsed / row-tree expanded
+- [x] Matrix collapsed / row-tree expanded — ⚠️ **за старою, глобальною редакцією правила**;
+      локальну (набір братів) код ще не реалізує, див. §2.1 і [T113](../work/tasks/T113-collapsed-children-should-be-a-matrix.md)
 - [x] Search + path expand
 - [x] D&D порядку org у matrix
 - [x] Theme-aware org symbols (+ textures T23)

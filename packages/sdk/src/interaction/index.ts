@@ -26,8 +26,11 @@ export {
   snapWorldToCell,
   isValidGridCell,
   movePositionToCell,
+  resolveSeatDrop,
+  applySeatDrop,
   shiftPositionBlock,
   type GridSnap,
+  type SeatDrop,
 } from './positionMove.js';
 export {
   adminParentsOf,
