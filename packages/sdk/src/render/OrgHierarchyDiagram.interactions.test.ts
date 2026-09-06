@@ -125,15 +125,148 @@ describe('OrgHierarchyDiagram interactions', () => {
     document.body.removeChild(container);
   });
 
-  it('failure: movePersonToCell onto an occupied cell rejects and leaves data unchanged (T111-K2, A1, A7)', async () => {
-    // P2 already sits at (1, 0) in `makeData()` — dropping P1 there must be a
-    // visible refusal (a rejected promise), not the old silent catch that
-    // returned as if nothing happened.
+  it('failure: movePersonToCell onto a diagonal collision (ask) rejects and leaves data unchanged (T111-K3, A1, A4, A7)', async () => {
+    // P1(0,0) → P4's cell (1,1) in `makeData()` is a diagonal entry: two
+    // candidate push cells ({2,1} and {1,2}), both free — `resolveSeatDrop`
+    // is not entitled to pick one, so it asks. `onSeatCollision` lands in
+    // K5; until then this must still be a visible refusal, not the old
+    // silent catch and not a guess.
     const { container, diagram } = await mount();
     const before = diagram.getData().positions;
-    await expect(diagram.movePersonToCell('P1', 1, 0)).rejects.toThrow(InteractionError);
-    await expect(diagram.movePersonToCell('P1', 1, 0)).rejects.toThrow(/taken by P2/);
+    await expect(diagram.movePersonToCell('P1', 1, 1)).rejects.toThrow(InteractionError);
+    await expect(diagram.movePersonToCell('P1', 1, 1)).rejects.toThrow(/needs a choice/);
     expect(diagram.getData().positions).toEqual(before);
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
+
+  it('success: movePersonToCell pushes the occupant when the far cell is free (T111-K3, A2, A3)', async () => {
+    // P2(1,0) dropped onto P3(2,0): direction is +col, and (3,0) is free, so
+    // P3 is pushed there rather than the drop being refused (T111-K2's blunt
+    // guard is gone for this case).
+    const onLayoutChange = rstest.fn();
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: makeData(),
+      staffCurrentOrgId: 'org1',
+      useWorker: false,
+      callbacks: { onLayoutChange },
+    });
+    await diagram.movePersonToCell('P2', 2, 0);
+    expect(onLayoutChange).toHaveBeenCalledTimes(1);
+    expect(onLayoutChange).toHaveBeenCalledWith({
+      type: 'position-move',
+      positionId: 'P2',
+      col: 2,
+      row: 0,
+      displacedPositionId: 'P3',
+    });
+    const positions = diagram.getData().positions;
+    expect(positions.find((p) => p.id === 'P2')?.gridCell).toEqual({ col: 2, row: 0 });
+    expect(positions.find((p) => p.id === 'P3')?.gridCell).toEqual({ col: 3, row: 0 });
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
+
+  it('success: movePersonToCell swaps when there is nowhere to push (T111-K3, A2, A4)', async () => {
+    // P1(0,0) dropped onto P2(1,0): direction is +col, but (2,0) is taken by
+    // P3, so there is nowhere to push — P1 and P2 swap instead. This is the
+    // exact drop the old T111-K2 guard used to refuse outright.
+    const onLayoutChange = rstest.fn();
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: makeData(),
+      staffCurrentOrgId: 'org1',
+      useWorker: false,
+      callbacks: { onLayoutChange },
+    });
+    await diagram.movePersonToCell('P1', 1, 0);
+    expect(onLayoutChange).toHaveBeenCalledTimes(1);
+    expect(onLayoutChange).toHaveBeenCalledWith({
+      type: 'position-move',
+      positionId: 'P1',
+      col: 1,
+      row: 0,
+      displacedPositionId: 'P2',
+    });
+    const positions = diagram.getData().positions;
+    expect(positions.find((p) => p.id === 'P1')?.gridCell).toEqual({ col: 1, row: 0 });
+    expect(positions.find((p) => p.id === 'P2')?.gridCell).toEqual({ col: 0, row: 0 });
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
+
+  it('failure: a push never draws a frame with only one of the two seats moved (T111-K3, A3)', async () => {
+    // T103 rule: the property is observed *inside* the window, not inferred
+    // from the settled result — a render override pauses on the first frame
+    // and the assertions run while it is still paused (pattern:
+    // setDataEpoch.contract.test.ts «mid-commit … never a mixed pair»).
+    const { container, diagram } = await mount();
+    const internals = diagram as unknown as {
+      data: DiagramData;
+      host: { renderer: { render: (...args: unknown[]) => Promise<void> } };
+    };
+    const renderer = internals.host.renderer;
+    const original = renderer.render.bind(renderer);
+    let renderCalls = 0;
+    let release: (() => void) | undefined;
+    renderer.render = async (...args: unknown[]) => {
+      renderCalls += 1;
+      if (renderCalls === 1) {
+        // The window: by the time the *first* (and, this test asserts,
+        // only) frame is drawn, both seats already show the resolved
+        // state — never a half-applied push, which is exactly where the
+        // old bug put two cards in one cell.
+        const p2 = internals.data.positions.find((p) => p.id === 'P2');
+        const p3 = internals.data.positions.find((p) => p.id === 'P3');
+        expect(p2?.gridCell).toEqual({ col: 2, row: 0 });
+        expect(p3?.gridCell).toEqual({ col: 3, row: 0 });
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      }
+      return original(...(args as Parameters<typeof original>));
+    };
+
+    const pending = diagram.movePersonToCell('P2', 2, 0);
+    while (!release) {
+      await new Promise((r) => {
+        setTimeout(r, 5);
+      });
+    }
+    release();
+    await pending;
+
+    // One transaction, one frame — not a first pass for the mover and a
+    // second, corrective one for the pushed occupant.
+    expect(renderCalls).toBe(1);
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
+
+  it('failure: a render that fails mid-push restores both seats, not just one (T111-K3, A3)', async () => {
+    const { container, diagram } = await mount();
+    const internals = diagram as unknown as {
+      data: DiagramData;
+      host: { renderer: { render: (...args: unknown[]) => Promise<void> } };
+    };
+    const before = internals.data;
+    internals.host.renderer.render = () => Promise.reject(new Error('layout exploded'));
+
+    await expect(diagram.movePersonToCell('P2', 2, 0)).rejects.toThrow('layout exploded');
+
+    // Rolled back as one object — there is no way for P2 to have moved
+    // while P3 stayed, or vice versa, because the commit was never split.
+    expect(internals.data).toBe(before);
+    const positions = diagram.getData().positions;
+    expect(positions.find((p) => p.id === 'P2')?.gridCell).toEqual({ col: 1, row: 0 });
+    expect(positions.find((p) => p.id === 'P3')?.gridCell).toEqual({ col: 2, row: 0 });
     diagram.destroy();
     document.body.removeChild(container);
   });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@rstest/core';
 import type { DiagramPosition } from '../data/types.js';
-import { movePositionToCell, resolveSeatDrop } from './positionMove.js';
+import { applySeatDrop, movePositionToCell, resolveSeatDrop } from './positionMove.js';
 import { InteractionError } from './types.js';
 
 function seat(id: string, cell: { col: number; row: number } | null, orgId = 'org1'): DiagramPosition {
@@ -229,5 +229,48 @@ describe('movePositionToCell occupancy guard', () => {
       col: 1,
       row: 1,
     });
+  });
+});
+
+describe('applySeatDrop (T111-K3)', () => {
+  it('success: push moves the mover and the pushed occupant in one array', () => {
+    const positions = block();
+    const target = { col: 2, row: 0 };
+    const drop = resolveSeatDrop({ positions, positionId: 'b', target, from: { col: 1, row: 0 } });
+    if (drop.kind === 'ask') throw new Error('unexpected ask');
+    expect(drop).toEqual({ kind: 'push', occupantId: 'c', to: { col: 3, row: 0 } });
+
+    const next = applySeatDrop(positions, 'b', target, drop);
+    expect(next.find((p) => p.id === 'b')?.gridCell).toEqual({ col: 2, row: 0 });
+    expect(next.find((p) => p.id === 'c')?.gridCell).toEqual({ col: 3, row: 0 });
+    // Nobody else in the block moved.
+    expect(next.find((p) => p.id === 'a')?.gridCell).toEqual({ col: 0, row: 0 });
+    expect(next.find((p) => p.id === 'd')?.gridCell).toEqual({ col: 1, row: 1 });
+  });
+
+  it('success: swap exchanges gridCell between mover and occupant in one array', () => {
+    const positions = block();
+    const target = { col: 1, row: 0 };
+    const drop = resolveSeatDrop({ positions, positionId: 'a', target, from: { col: 0, row: 0 } });
+    if (drop.kind === 'ask') throw new Error('unexpected ask');
+    expect(drop).toEqual({ kind: 'swap', occupantId: 'b' });
+
+    const next = applySeatDrop(positions, 'a', target, drop);
+    expect(next.find((p) => p.id === 'a')?.gridCell).toEqual({ col: 1, row: 0 });
+    expect(next.find((p) => p.id === 'b')?.gridCell).toEqual({ col: 0, row: 0 });
+    // Nobody else in the block moved.
+    expect(next.find((p) => p.id === 'c')?.gridCell).toEqual({ col: 2, row: 0 });
+  });
+
+  it('failure: swap against an unknown occupant throws', () => {
+    expect(() =>
+      applySeatDrop(block(), 'a', { col: 1, row: 0 }, { kind: 'swap', occupantId: 'ghost' }),
+    ).toThrow(/Unknown position ghost/);
+  });
+
+  it('failure: swap of an unknown mover throws', () => {
+    expect(() =>
+      applySeatDrop(block(), 'ghost', { col: 1, row: 0 }, { kind: 'swap', occupantId: 'b' }),
+    ).toThrow(/Unknown position ghost/);
   });
 });

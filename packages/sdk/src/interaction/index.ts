@@ -27,6 +27,7 @@ export {
   isValidGridCell,
   movePositionToCell,
   resolveSeatDrop,
+  applySeatDrop,
   shiftPositionBlock,
   type GridSnap,
   type SeatDrop,

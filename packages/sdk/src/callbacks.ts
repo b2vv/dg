@@ -4,7 +4,19 @@ import type { ContextMenuRequest } from './interaction/contextMenuPayload.js';
 import type { ViewportTransform } from './render/Viewport.js';
 
 export type LayoutPatch =
-  | { type: 'position-move'; positionId: string; col: number; row: number }
+  /**
+   * A seat moved to (col,row). `displacedPositionId` names the seat that was
+   * pushed or swapped out of the way (T111-K3) — undefined for a `free` drop
+   * onto an empty cell. Precedent: `matrix-cell` carries `ejectedOrgId` the
+   * same way.
+   */
+  | {
+      type: 'position-move';
+      positionId: string;
+      col: number;
+      row: number;
+      displacedPositionId?: string;
+    }
   | { type: 'matrix-reorder'; orgId: string; newIndex: number }
   | { type: 'matrix-cell'; orgId: string; row: number; col: number; ejectedOrgId?: string }
   | { type: 'block-shift'; positionIds: string[]; deltaLevel: number }

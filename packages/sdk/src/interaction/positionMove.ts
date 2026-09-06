@@ -123,13 +123,88 @@ export function resolveSeatDrop(input: {
   return to ? { kind: 'push', occupantId, to } : { kind: 'swap', occupantId };
 }
 
+function assertNever(x: never): never {
+  throw new Error(`Unexpected SeatDrop kind: ${String(x)}`);
+}
+
+/**
+ * Apply a resolved `SeatDrop` to `positions`. Pure — no data changes until the
+ * caller commits the result. `ask` carries no mutation of its own (the caller
+ * must resolve the question first, or refuse), so it is excluded at the type
+ * level rather than handled here.
+ *
+ * `push` and `swap` both move **two** seats, but as one returned array — the
+ * caller commits it in a single `commitDataChange` (plan §4), so there is
+ * never a frame where only one of the two has moved (spec A3).
+ */
+export function applySeatDrop(
+  positions: DiagramPosition[],
+  positionId: string,
+  target: GridCell,
+  drop: Exclude<SeatDrop, { kind: 'ask' }>,
+): DiagramPosition[] {
+  switch (drop.kind) {
+    case 'free':
+      return movePositionToCell(positions, positionId, target.col, target.row);
+    case 'push': {
+      // The occupant vacates first, into a cell `resolveSeatDrop` already
+      // proved free, so the mover's target cell is empty by the time it moves
+      // — both calls go through the same occupancy guard as any other move.
+      const vacated = movePositionToCell(positions, drop.occupantId, drop.to.col, drop.to.row);
+      return movePositionToCell(vacated, positionId, target.col, target.row);
+    }
+    case 'swap': {
+      // A true exchange: both cells are occupied at once, so neither move can
+      // go through `movePositionToCell`'s guard one at a time — it is built
+      // as one array instead.
+      const mover = positions.find((p) => p.id === positionId);
+      const occupant = positions.find((p) => p.id === drop.occupantId);
+      if (!mover) {
+        throw new InteractionError(`Unknown position ${positionId}`);
+      }
+      if (!occupant) {
+        throw new InteractionError(`Unknown position ${drop.occupantId}`);
+      }
+      const moverFrom = mover.gridCell;
+      if (!moverFrom) {
+        throw new InteractionError(`Position ${positionId} has no cell to swap from`);
+      }
+      return positions.map((p) => {
+        if (p.id === positionId) {
+          return {
+            ...p,
+            gridCell: target,
+            layoutX: undefined,
+            layoutY: undefined,
+            layoutCoords: undefined,
+          };
+        }
+        if (p.id === drop.occupantId) {
+          return {
+            ...p,
+            gridCell: moverFrom,
+            layoutX: undefined,
+            layoutY: undefined,
+            layoutCoords: undefined,
+          };
+        }
+        return p;
+      });
+    }
+    default:
+      return assertNever(drop);
+  }
+}
+
 /**
  * Apply grid move; rejects invalid cells.
  *
  * ⚠️ T111-K2: rejects **any** target cell already held by another seat of the
- * same org block — `push`/`swap` are not committed yet (plan §6, K2). Until K3
- * lands, a collision is a plain refusal: the caller (`movePersonToCell` /
- * the drag drop) is expected to make that refusal visible, not swallow it.
+ * same org block. This guard stays in place after K3: `applySeatDrop` reuses
+ * it for `free` and `push` (defence in depth against a direct call with an
+ * arbitrary `col`/`row` that never went through `resolveSeatDrop`), and
+ * `swap` builds its own array precisely because two seats *are* meant to
+ * cross paths through occupied cells here.
  */
 export function movePositionToCell(
   positions: DiagramPosition[],

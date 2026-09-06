@@ -70,7 +70,8 @@ import { createTransformWorker, WorkerPool } from './worker/index.js';
 import {
   revealOrgPath,
   resolveOrganizationIdForNode,
-  movePositionToCell,
+  resolveSeatDrop,
+  applySeatDrop,
   shiftPositionBlock,
   type NodeRef,
   type SearchResult,
@@ -1691,25 +1692,55 @@ export class OrgHierarchyDiagram {
   }
 
   /**
-   * A refused move (T111-K2: the target cell is already held) still redraws
-   * what is already true — a stale frame would show the drop as having
-   * happened — but no longer swallows the failure. `InteractionError`
-   * propagates so the caller can make the refusal visible (`SPEC.md:202`,
-   * A7); see the `onPersonDragEnd` wiring below for the drag path's handling.
+   * A refused move — an invalid cell, or a collision `resolveSeatDrop` cannot
+   * settle on its own (`ask`) — still redraws what is already true (a stale
+   * frame would show the drop as having happened) but no longer swallows the
+   * failure. `InteractionError` propagates so the caller can make the
+   * refusal visible (`SPEC.md:202`, A7); see the `onPersonDragEnd` wiring
+   * below for the drag path's handling.
+   *
+   * `push`/`swap` move two seats, but as **one** `commitDataChange` (T111-K3,
+   * plan §4): `applySeatDrop` returns both already relocated in a single
+   * array, so there is never a frame with only one of them moved (spec A3).
+   * `displacedPositionId` on the patch carries `resolveSeatDrop`'s
+   * `occupantId` — the same shape as `ejectedOrgId` on `matrix-cell`
+   * (`callbacks.ts`).
+   *
+   * `ask` is refused here rather than answered: `onSeatCollision` lands in
+   * T111-K5. Until then, a diagonal drag or a legacy double-occupied cell has
+   * no automatic answer, and the SDK is not entitled to guess one.
    */
   async movePersonToCell(positionId: string, col: number, row: number): Promise<void> {
-    let positions;
+    const target = { col, row };
+    let drop;
     try {
-      positions = movePositionToCell(this.data.positions, positionId, col, row);
+      const mover = this.data.positions.find((p) => p.id === positionId);
+      drop = resolveSeatDrop({ positions: this.data.positions, positionId, target, from: mover?.gridCell });
     } catch (err) {
       if (err instanceof InteractionError) {
         await this.render();
       }
       throw err;
     }
+    if (drop.kind === 'ask') {
+      await this.render();
+      throw new InteractionError(
+        `Cell (${col}, ${row}) needs a choice between ${positionId} and ${drop.occupantId} (T111-K5)`,
+      );
+    }
+    let positions;
+    try {
+      positions = applySeatDrop(this.data.positions, positionId, target, drop);
+    } catch (err) {
+      if (err instanceof InteractionError) {
+        await this.render();
+      }
+      throw err;
+    }
+    const displacedPositionId = drop.kind === 'free' ? undefined : drop.occupantId;
     await this.commitDataChange(
       { ...this.data, positions },
-      { type: 'position-move', positionId, col, row },
+      { type: 'position-move', positionId, col, row, displacedPositionId },
     );
   }
 
