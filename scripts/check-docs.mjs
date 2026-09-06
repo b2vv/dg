@@ -25,6 +25,7 @@
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { barrelProblems } from './barrelSurface.mjs';
+import { seatCollisionDocProblems } from './seatCollisionDocs.mjs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join, relative, resolve } from 'node:path';
 
@@ -196,6 +197,10 @@ if (basis) {
 const BARREL = 'packages/sdk/src/index.ts';
 try {
   problems.push(...barrelProblems(readFileSync(join(ROOT, BARREL), 'utf8'), BARREL));
+  // T111 / spec A8: the seat-collision contract is prose as much as it is
+  // types — in particular *why* seats and organizations answer an occupied
+  // cell differently, which no signature can state.
+  problems.push(...seatCollisionDocProblems(readFileSync(join(ROOT, 'docs/USAGE.md'), 'utf8')));
 } catch {
   // Unreadable is a failure, not an uptrace: a barrel nobody can read is a
   // barrel whose contents nobody has checked.
