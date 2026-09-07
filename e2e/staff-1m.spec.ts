@@ -79,6 +79,7 @@ test.describe('1M staff scale tab', () => {
                 __demoE2e?: {
                   getStaffRebuilds?(): Array<{ from: number; to: number; size: number }>;
                   getStaffAskLog?(): Array<Record<string, number | string | boolean>>;
+                  getStaffFocusLog?(): Array<Record<string, number | string | boolean>>;
                 };
               }
             ).__demoE2e;
@@ -108,7 +109,11 @@ test.describe('1M staff scale tab', () => {
             const askStr = ask
               ? `span=${ask.span} capped=${ask.capped} screen=${ask.screenW}x${ask.screenH} scale=${ask.scale} wallBase=${ask.wallBase}`
               : 'ask=none';
-            return `seat=${seat} rebuilds=${log.length} lastRange=${range} ${askStr}`;
+            const focus = (bridge?.getStaffFocusLog?.() ?? []).at(-1);
+            const focusStr = focus
+              ? `materialized=${focus.materialized} target=${focus.target} aimed=${focus.aimed} camScale=${focus.scale}`
+              : 'focus=none';
+            return `seat=${seat} rebuilds=${log.length} lastRange=${range} ${askStr} ${focusStr}`;
           }),
         { timeout: 30_000 },
       )
