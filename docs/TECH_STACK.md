@@ -78,7 +78,7 @@ const chunks = await pool.mapChunks('flatRowsToDiagram', rawRows, 50_000);
 ```
 packages/
   core/   # Rust WASM (Ploeg row-tree, dept flood)
-  sdk/    # @org-hierarchy/sdk 0.2.0 — дані, мапери, worker, Pixi-рендер, експорт
+  sdk/    # @org-hierarchy/sdk 0.3.0 — дані, мапери, worker, Pixi-рендер, експорт
   demo/   # приватний Rsbuild-стенд, 14 табів (не публікується)
 ```
 

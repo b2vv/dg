@@ -81,7 +81,7 @@ npm run dev          # http://localhost:3000
 | [T105-root-barrel-exposes-test-hooks](./tasks/T105-root-barrel-exposes-test-hooks.md) | кореневий барель віддає внутрішнє й тест-хуки | не почато. |
 | [T106-deepen-facades-drop-shallow-wrappers](./tasks/T106-deepen-facades-drop-shallow-wrappers.md) | великі фасади поруч із порожніми обгортками | не почато. Серйозність: Medium. |
 | [T109-toggle-staff-org-has-no-transaction](./tasks/T109-toggle-staff-org-has-no-transaction.md) | `toggleStaffOrg` міняє стан і малює, без відкоту | 🔵 не почато · P3 — знайдено як наслідок T104; контракту не порушує, бо колбека не шле |
-| [T110-changelog-died-at-0.2.0](./tasks/T110-changelog-died-at-0.2.0.md) | CHANGELOG мовчить про десять комітів публічного API | 🔵 не почато · Medium — застарілий документ гірший за порожній |
+| [T110-changelog-died-at-0.2.0](./tasks/T110-changelog-died-at-0.2.0.md) | CHANGELOG мовчить про десять комітів публічного API | ✅ закрито 2026-09-07 · 13 записів, версія `0.3.0`, гейт свідомо не доданий |
 | [T111-move-onto-occupied-cell](./tasks/T111-move-onto-occupied-cell.md) | drop у зайняту клітину приймається — дві картки в одній точці | 🔵 не почато · **P1** — спека й план готові: [reports/seat-collision](./reports/seat-collision/) |
 | [T112-demo-tab-consolidation](./tasks/T112-demo-tab-consolidation.md) | звести демо з 14 вкладок до шести | 🔵 не почато · P2 — ⛔ заблоковано продуктом: 12 e2e-спеків і об'єднання `Orgs` потребують рішення |
 | [T113-collapsed-children-should-be-a-matrix](./tasks/T113-collapsed-children-should-be-a-matrix.md) | згорнуті діти лягають стрічкою, а не матрицею | 🔵 не почато · **P1** — специфікацію виправлено 2026-09-06, лишився код |
