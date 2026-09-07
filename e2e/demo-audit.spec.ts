@@ -6,6 +6,31 @@ import { expect, test } from '@playwright/test';
  * screenshot baselines; these are the structural ones.
  */
 test.describe('demo audit (T33)', () => {
+  /**
+   * T114 — page errors were collected on exactly one tab.
+   *
+   * `prod-smoke.spec.ts` listens for `pageerror`, but only on the default tab;
+   * this file listened for `response` and saw HTTP failures alone. So a tab
+   * could throw on its first frame for as long as it liked and nothing said a
+   * word — `Flat orgs` did, four times.
+   *
+   * The list is deliberately every tab rather than the one that was broken: a
+   * gate aimed at the known defect stops being a gate the moment it is fixed.
+   */
+  const TABS = ['flat-orgs', 'scale-100k', 'mockup-staff-magnetic'] as const;
+
+  for (const tab of TABS) {
+    test(`switching to ${tab} raises no page errors`, async ({ page }) => {
+      const errors: string[] = [];
+      page.on('pageerror', (e) => { errors.push(e.message); });
+      await page.goto('/?e2e=1');
+      await page.locator(`[data-tab="${tab}"]`).click();
+      await page.getByTestId('diagram-ready').waitFor({ timeout: 30_000 });
+      await page.waitForTimeout(1500);
+      expect(errors, `page errors on ${tab}`).toEqual([]);
+    });
+  }
+
   test('cold load requests nothing that 404s', async ({ page }) => {
     const failed: string[] = [];
     page.on('response', (r) => {

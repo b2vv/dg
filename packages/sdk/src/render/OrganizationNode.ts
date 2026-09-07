@@ -601,7 +601,14 @@ export class OrganizationNodeView extends Container {
     }
 
     const texture = await this.loadTexture(url, this.mediaRevision);
-    if (!texture || this.destroyed) {
+    // T114: destroyed **before** the fallback, not inside it. The check used to
+    // fall into the branch that draws, so a node torn down while its texture
+    // was still in flight went on laying out chrome and text on Pixi objects
+    // whose internals were already gone — four page errors on the first frame
+    // of `Flat orgs`, thrown from `layoutTexts` and `layoutChromeBadges`.
+    // Nothing to draw on, so nothing is drawn.
+    if (this.destroyed) return;
+    if (!texture) {
       this.symbolSprite.visible = false;
       this.symbolLayout = resolveOrgSymbolLayout(this.org, style, {
         lod,
