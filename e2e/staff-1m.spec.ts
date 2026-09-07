@@ -77,20 +77,25 @@ test.describe('1M staff scale tab', () => {
             const bridge = (
               window as unknown as {
                 __demoE2e?: {
-                  getStaffRebuilds?(): unknown[];
-                  getScaleWindowStart?(): number | null;
+                  getStaffRebuilds?(): Array<{ from: number; to: number }>;
                 };
               }
             ).__demoE2e;
             // One string, not an object: `toMatchObject` prints only the keys
             // it was asked about, so the numbers that explain the failure were
-            // collected and then hidden. Encoded this way the report carries
-            // all three.
+            // collected and then hidden.
+            //
+            // ⚠️ The range comes from the last **staff** rebuild, not from
+            // `getScaleWindowStart()`. That accessor reports the `scale-100k`
+            // window (`App.ts` — `this.scaleWindow`), which is legitimately
+            // null on this tab; reading it here produced a `-1` that looked
+            // like a broken window and was nothing of the sort.
             const seat =
               document.querySelector('[data-testid="node-scale-focus-seat"]') !== null;
-            const rebuilds = bridge?.getStaffRebuilds?.().length ?? -1;
-            const start = bridge?.getScaleWindowStart?.() ?? -1;
-            return `seat=${seat} rebuilds=${rebuilds} windowStart=${start}`;
+            const log = bridge?.getStaffRebuilds?.() ?? [];
+            const last = log.at(-1);
+            const range = last ? `${last.from}…${last.to}` : 'none';
+            return `seat=${seat} rebuilds=${log.length} lastRange=${range}`;
           }),
         { timeout: 30_000 },
       )
