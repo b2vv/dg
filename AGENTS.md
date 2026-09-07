@@ -8,7 +8,7 @@ Guidance for coding agents working in **Org Hierarchy SDK** (`b2vv/dg`).
 - `packages/sdk` — `@org-hierarchy/sdk` (Pixi render, workers, export, React context menu)
 - `packages/demo` — Rsbuild demo (`npm run dev`)
 - Spec / TDD / standards: `work/SPEC.md`, `work/TDD.md`, `work/CODING_STANDARDS.md`
-- Before implement: [`work/CTO-RESEARCH.md`](./work/CTO-RESEARCH.md) (product, seams, infra, risks). No live P0. The open queue is a mix — agent-ready work (T117 gap 1, T101, T102 block Б, T106, T109, T110, T113) and decisions that are the product's to make, not an agent's (T116's seven forks, T117 gap 2, T80, T56); see the briefing §7 and [`work/AGENDA.md`](./work/AGENDA.md) for the recommended next move. Read §5 of the briefing's verdict before assuming the host consumes this SDK — it does not.
+- Before implement: [`work/CTO-RESEARCH.md`](./work/CTO-RESEARCH.md) (product, seams, infra, risks). No live P0. The open queue is a mix — agent-ready work (T80's removal, T101, T102 block Б, T106, T109, T114, T115) and decisions that are the product's to make, not an agent's (T116's seven forks, T117 gap 2, T112's tabs, T56); see the briefing §7 and [`work/AGENDA.md`](./work/AGENDA.md) for the recommended next move. Read §5 of the briefing's verdict before assuming the host consumes this SDK — it does not.
 - Public API in use: [`docs/USAGE.md`](./docs/USAGE.md) — what hosts call and what they get back.
 
 ## Commands
