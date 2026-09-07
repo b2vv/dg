@@ -63,7 +63,38 @@ test.describe('1M staff scale tab', () => {
     // `setData`, and the tab label was written by the reload that no longer runs.
     await expect(page.locator('#status')).toContainText('window', { timeout: 60_000 });
     // The window re-centred: the focus seat exists again, around the new index.
-    await expect(page.getByTestId('node-scale-focus-seat')).toBeVisible({ timeout: 30_000 });
+    //
+    // Polled through a state object rather than asserted on the locator, because
+    // this is the step that flakes (T101) and «element not visible» says nothing
+    // about *why*. On failure Playwright prints the last polled value, so the
+    // report carries whether the window rebuilt at all and where it landed —
+    // which is the difference between «the rebuild never happened» and «it
+    // happened and the seat is elsewhere».
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const bridge = (
+              window as unknown as {
+                __demoE2e?: {
+                  getStaffRebuilds?(): unknown[];
+                  getScaleWindowStart?(): number | null;
+                };
+              }
+            ).__demoE2e;
+            // One string, not an object: `toMatchObject` prints only the keys
+            // it was asked about, so the numbers that explain the failure were
+            // collected and then hidden. Encoded this way the report carries
+            // all three.
+            const seat =
+              document.querySelector('[data-testid="node-scale-focus-seat"]') !== null;
+            const rebuilds = bridge?.getStaffRebuilds?.().length ?? -1;
+            const start = bridge?.getScaleWindowStart?.() ?? -1;
+            return `seat=${seat} rebuilds=${rebuilds} windowStart=${start}`;
+          }),
+        { timeout: 30_000 },
+      )
+      .toMatch(/^seat=true/);
     await expect(page.locator('.scene-caption')).toContainText('window');
   });
 
