@@ -15,3 +15,43 @@ tasks.md: К1..К6 з "Готово, коли" критеріями. Ledger: о�
 ДАЛІ: читаю код packages/sdk/src/layout/ — rowTreeLayout.ts, layoutBridge.ts (wasm bridge),
 matrixGrid.ts, spineBusEdges.ts, siblingOrgGroups.ts, types.ts, і row-tree-depth/spec.md
 (WASM poisoning class).
+
+ФАКТ: plan.md живий — файл ЗМІНЮВАВСЯ під час цього прогону конкурентно (182→214 рядків,
+рядки з'їхали). Зафіксовані рядки нижче — з поточної версії (перевірено wc -l = 214,
+tasks.md = 75, spec.md = 193 незмінний). §3.1 тепер має ТРИ діри (не дві, як у заголовку —
+косметична незбіжність заголовка, не блокер): Дірка 1 (plan.md:125-137, порядок гвардії),
+Дірка 2 (plan.md:139-151, parentId/depth після розгортання), Дірка 3 (plan.md:163-168, у
+другої перевірки глибини нема обчислювального дому — К3 додає акумулятор і повертає maxDepth
+з visibleOrgsForRowTree, rowTreeLayout.ts:59-91). Синтетичні id: stale-текст (plan.md:134/169
+у старій версії) уже виправлений у поточній plan.md:201 і в tasks.md:26-28 — реальний дизайн
+підтверджено кодом (validateOrgHierarchy у TS orgTree.ts:10-40 і Rust org_tree.rs, обидва
+ловлять цикл/дублікат/unknown parent, не панікують — Result<JsValue,JsValue> у lib.rs:32-34).
+
+ФАКТ (Q2, WASM): rowTreeLayout.ts:46 MAX_ROW_TREE_DEPTH=2500, коментар :28-45 називає точний
+клас дефекту (WASM traps after ~4500, отруює процес — той самий клас, що row-tree-depth/spec.md).
+Гвардія в visibleOrgsForRowTree (rowTreeLayout.ts:59-91) кидає ДО WASM. Rust-сторона теж валідує
+(org_layout.rs:12 validate_org_hierarchy) — подвійний захист. Дірка 3 (plan.md:163-168) явно
+проектує, де саме К3 бере maxDepth для другої перевірки.
+
+ФАКТ (Q3, гонка): T113 не чіпає OrgHierarchyDiagram.ts. setData (OrgHierarchyDiagram.ts:1062-1093)
+має dataEpoch/ingestIsCurrent (:617-628) — переможець післякраяльний "was ingested last", не
+"finished last". render() (:701-704) делегує в renderCoalesce.schedule() (render/renderCoalesce.ts,
+створюється :315) — конкурентні виклики render коалесяться в один прохід над найсвіжішим
+this.data, знятим синхронно (:725 `const drawing = this.data`, до await). computeOrgRowTreeLayout
+сам по собі чиста функція без module-level мутабельного стану (лише initContourWasm — singleton,
+читання). WASM-виклик синхронний всередині (без await в Rust), тож інтерліву немає. Висновок:
+детермінізм тримається наявною T103-інфрою, план про це мовчить обґрунтовано — не дірка.
+
+ФАКТ (Q4, межі): n=2 — no-op, названо вголос spec.md:190-193 (ceil(√2)=2 ⇒ той самий ряд).
+n=0, org без parentOrgId, батько поза payload — явно вимагається tasks.md:17 (К1 "Готово, коли").
+n=1 = A2 (spec.md:100). "жодної" (n=0 як порожній діаграма) не назване окремо ніде явно —
+найслабший з чотирьох, але tasks.md:17 покриває "n=0" буквально для самого набору.
+
+ФАКТ (Q5, rollback): plan.md:188-192 — тільки "revert гілки цілком", з одним конкретним
+прикладом чому по кроках не можна (К5: доку про getOrgMode лишиться без уточнення). НЕ пройдено
+по кожному з К1-К6 окремо, як вимагає питання. Залежності: К3 імпортує К2 (тесту немає), К2 dead
+без К3 — частковий revert точки К1/К2/К3 ламає компіляцію/дає мертвий код без пояснення в плані.
+Це реальна тонка ділянка: висновок вірний (revert цілком), але обґрунтування дане лише для
+одного кроку з шести, не для решти. Вердикт: НЕ закрито.
+
+ДАЛІ: пишу фінальну таблицю п'яти питань у відповідь оркестратору.
