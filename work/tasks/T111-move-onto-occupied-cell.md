@@ -2,8 +2,10 @@
 
 **Пріоритет:** P1 · **Статус:** ✅ **ЗАКРИТО 2026-09-07** — гілка `t111-seat-collision`,
 сім комітів (`c219c38` К1 · `3f2f862` К2 · `af17dc1` К3 · `8a1082c` К4a · `66ea22f` К4b ·
-`f3c1247` К5 · `aa6f381` К6). A1–A10 закриті. Гейти: 941 тест, typecheck, check:docs,
-test:scripts 13/13. ⚠️ Гілка **не пушена й не змержена**.
+`f3c1247` К5 · `aa6f381` К6). A1–A10 закриті **юнітами**; e2e-половина мірника A1 і A9 не
+написана — див. [`report.md` §2](../reports/seat-collision/report.md#2-протестовані-сценарії).
+Гейти: 941 тест, typecheck, check:docs, test:scripts 13/13.
+**Змержено** в `main` як `31b98b3` і запушено 2026-09-07.
 Хід робіт і уроки — [`work/reports/gojs-parity-wave/progress.md`](../reports/gojs-parity-wave/progress.md).
 **Підстава:** спостереження користувача (2026-09-06, запис з телефону, `b2vv.github.io`,
 вкладка **Staff · Magnetic**): «є проблема з артефактами та обтіканням контуру» і «після зміни
@@ -11,7 +13,9 @@ test:scripts 13/13. ⚠️ Гілка **не пушена й не змержен
 **Відтворено:** так, детерміновано, скриптом (нижче). Обидві скарги — **один** дефект.
 **Артефакти:** [`spec.md`](../reports/seat-collision/spec.md) (сценарії й acceptance),
 [`plan.md`](../reports/seat-collision/plan.md) (порядок робіт),
-[`_agent-critic.md`](../reports/seat-collision/_agent-critic.md) (критика, закрита).
+[`_agent-critic.md`](../reports/seat-collision/_agent-critic.md) (критика, закрита),
+[`report.md`](../reports/seat-collision/report.md) (звіт: дельта до плану, приймальна таблиця
+з фактом, прогалини).
 
 ## Що не так
 
