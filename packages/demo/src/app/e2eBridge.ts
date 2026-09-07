@@ -60,6 +60,8 @@ export interface DemoE2eBridge {
    * are the ones the window was actually built from.
    */
   getStaffAskLog(): Array<Record<string, number | string | boolean>>;
+  /** What each jump aimed at and whether `focusNode` landed it (T118). */
+  getStaffFocusLog(): Array<Record<string, number | string | boolean>>;
   getStaffLayoutEdges(): Promise<Array<{ fromId: string; toId: string; kind: string }>>;
   /** Soft render warnings — a silently empty contour layer must show up here. */
   getLayoutDiagnostics(): string[];
@@ -109,6 +111,7 @@ export interface E2eBridgeDeps {
   staffRebuilds(): StaffRebuildRecord[];
   windowStateLog(): string[];
   staffAskLog(): Array<Record<string, number | string | boolean>>;
+  staffFocusLog(): Array<Record<string, number | string | boolean>>;
   /** Patches recorded with the geometry drawn at the time (T104). */
   layoutPatchLog(): Array<{
     patch: unknown;
@@ -139,6 +142,7 @@ export function installDemoE2eBridge(deps: E2eBridgeDeps): void {
     getStaffRebuilds: () => deps.staffRebuilds(),
     getWindowStateLog: () => deps.windowStateLog(),
     getStaffAskLog: () => deps.staffAskLog(),
+    getStaffFocusLog: () => deps.staffFocusLog(),
     getLayoutDiagnostics: () => [...diagram.getLayoutDiagnostics()],
     getRendererKind: () => diagram.getRendererKind(),
     getStaffLayoutEdges: () => staffLayoutEdgesFor(deps.config()),

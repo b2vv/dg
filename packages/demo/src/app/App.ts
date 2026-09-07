@@ -160,6 +160,14 @@ export class App {
    * reports the value that would have been right. Only the decision point
    * knows what was actually used.
    */
+  /** What each jump aimed at, and whether it landed (T118). */
+  private staffFocusLog: Array<{
+    focusIndex: number;
+    materialized: boolean;
+    target: string;
+    aimed: boolean;
+    scale: number;
+  }> = [];
   private staffAskLog: Array<{
     kind: string;
     span: number;
@@ -605,6 +613,7 @@ export class App {
       staffRebuilds: () => [...this.staffRebuildLog],
       windowStateLog: () => [...this.windowStateLog],
       staffAskLog: () => [...this.staffAskLog],
+      staffFocusLog: () => [...this.staffFocusLog],
     });
   }
 
@@ -913,6 +922,17 @@ export class App {
     const target = next.focusMaterialized ? `pos-${focusIndex}` : `pos-${next.startIndex}`;
     const aimed = await diagram.focusNode(target);
     if (!this.stillLive(diagram)) return;
+    // T118: the three values between «the window contains the target» and «the
+    // test can see the card». Recorded here because a race read afterwards
+    // reports the settled answer, not the one that was acted on.
+    this.staffFocusLog.push({
+      focusIndex,
+      materialized: next.focusMaterialized,
+      target,
+      aimed,
+      scale: Number(diagram.getViewport().scale.toFixed(4)),
+    });
+    if (this.staffFocusLog.length > 100) this.staffFocusLog.shift();
     // After the camera, not before: focusing selects the seat, and the selection
     // callback writes a status of its own.
     this.settleStaffWindow(next, this.staffJumpStatus(next, focusIndex, { target, aimed }));
