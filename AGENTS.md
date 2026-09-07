@@ -8,7 +8,7 @@ Guidance for coding agents working in **Org Hierarchy SDK** (`b2vv/dg`).
 - `packages/sdk` — `@org-hierarchy/sdk` (Pixi render, workers, export, React context menu)
 - `packages/demo` — Rsbuild demo (`npm run dev`)
 - Spec / TDD / standards: `work/SPEC.md`, `work/TDD.md`, `work/CODING_STANDARDS.md`
-- Before implement: [`work/CTO-RESEARCH.md`](./work/CTO-RESEARCH.md) (product, seams, infra, risks). No live P0. The open queue is a mix — agent-ready structural debt (T101, T102 block Б, T103–T106) and product decisions (T80, T56); see the briefing §7 and [`work/AGENDA.md`](./work/AGENDA.md) for the recommended next move.
+- Before implement: [`work/CTO-RESEARCH.md`](./work/CTO-RESEARCH.md) (product, seams, infra, risks). No live P0. The open queue is a mix — agent-ready work (T117 gap 1, T101, T102 block Б, T106, T109, T110, T113) and decisions that are the product's to make, not an agent's (T116's seven forks, T117 gap 2, T80, T56); see the briefing §7 and [`work/AGENDA.md`](./work/AGENDA.md) for the recommended next move. Read §5 of the briefing's verdict before assuming the host consumes this SDK — it does not.
 - Public API in use: [`docs/USAGE.md`](./docs/USAGE.md) — what hosts call and what they get back.
 
 ## Commands
@@ -28,7 +28,7 @@ npm run dev
 Run `npm run check:docs`. It is also a CI job, so a push that skips it fails there instead —
 the point of running it first is to find out in a second rather than after a round trip.
 
-It checks four things, each because that drift already happened here and nothing noticed:
+It checks five things, each because that drift already happened here and nothing noticed:
 
 - **every relative `.md` link resolves.** Archiving closed tasks left thirteen dead links inside
   the tasks that survived, and twelve more inside the archive index itself;
@@ -43,10 +43,21 @@ It checks four things, each because that drift already happened here and nothing
   two hooks that mutate the process-wide WASM loader, so one consumer reached every diagram in the
   host app; the name said «for tests» and the export said «for everyone». The scan reads the
   barrel's **text** — a runtime namespace would not see `export type { FooForTests }` — and lives
-  in `scripts/barrelSurface.mjs`, which is the one part of this gate with **its own tests**
-  (`npm run test:scripts`, stdlib `node --test`, run by the same CI job);
+  in `scripts/barrelSurface.mjs`, which carries **its own tests** (`npm run test:scripts`, stdlib
+  `node --test`, run by the same CI job);
 - **`work/CTO-RESEARCH.md` has not fallen more than 25 commits behind `HEAD`.** «More than a few
-  merged PRs» was the rule and was unmeasurable; 25 is what it means now.
+  merged PRs» was the rule and was unmeasurable; 25 is what it means now;
+- **`docs/USAGE.md` still describes `onSeatCollision` and `displacedPositionId`.** T111 made a
+  drop onto an occupied seat push, swap or ask, and the half of that contract a host must
+  implement lives in prose — nothing in the type system makes the doc mention either name. In
+  `scripts/seatCollisionDocs.mjs`, with five tests of its own, one of which runs the gate against
+  the **real** `docs/USAGE.md`: a unit test that only ever saw fixtures would stay green through
+  the exact drift the module exists to catch.
+
+Two checks therefore carry their own tests, not one — **thirteen tests** in that CI job. Both live
+in sibling modules that `check-docs.mjs` imports, and a third check with tests must be written the
+same way: `check-docs.mjs` itself runs at the top level and ends in `process.exit`, so it cannot
+be imported.
 
 What the checker cannot judge stays yours: whether a document still says something **true**. This
 session found `T56` claiming two features were WASM ten days after they stopped being WASM, and no
