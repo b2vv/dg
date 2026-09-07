@@ -324,6 +324,14 @@ describe('chainCollapsedGrids / unchainGridNodes (T113 K2)', () => {
     expect(out.find((n) => n.id === 'c2')?.parentId).toBe('c0');
   });
 
+  it('failure: with no grids the nodes come back untouched, same as chaining', () => {
+    // The symmetric early return. Its twin on `chainCollapsedGrids` was
+    // asserted and this one was not — an asymmetry worth closing, because a
+    // scene with no grid at all is the common case, not the rare one.
+    const nodes = laidOut();
+    expect(unchainGridNodes({ nodes, grids: [] })).toEqual(nodes);
+  });
+
   it('failure: the node list is not mutated', () => {
     const nodes = laidOut();
     const before = JSON.stringify(nodes);
