@@ -1,7 +1,12 @@
 import { describe, expect, it } from '@rstest/core';
-import { planCollapsedSiblingGrids } from './collapsedSiblingGrid.js';
+import {
+  chainCollapsedGrids,
+  planCollapsedSiblingGrids,
+  unchainGridNodes,
+} from './collapsedSiblingGrid.js';
 import { DEFAULT_ORG_LAYOUT_OPTIONS } from './types.js';
 import type { DiagramOrganization } from '../data/types.js';
+import type { OrgLayoutNode } from './types.js';
 
 /**
  * T113 K1 — which sibling sets become a grid, and of what shape.
@@ -195,5 +200,155 @@ describe('planCollapsedSiblingGrids (T113 K1)', () => {
       options: opts,
     });
     expect(grids[0]).toMatchObject({ cols: 2, rows: 1 });
+  });
+});
+
+/**
+ * T113 K2 — the set travels to the layout as chains and comes back as a grid.
+ *
+ * There are **no synthetic ids**: a chain re-parents the real organizations and
+ * nothing else. The first plan said otherwise in two places; GATE 2 caught the
+ * contradiction, and the shape that survives is the smaller one.
+ */
+describe('chainCollapsedGrids / unchainGridNodes (T113 K2)', () => {
+  const nineUnderRoot = () => {
+    const organizations = rootWithCollapsedChildren(9);
+    const grids = planCollapsedSiblingGrids({ organizations, options: opts });
+    return { organizations, grids };
+  };
+
+  it('success: nine members become three chains of three', () => {
+    const { organizations, grids } = nineUnderRoot();
+    const chained = chainCollapsedGrids({ organizations, grids });
+    const parentOf = (id: string) => chained.find((o) => o.id === id)?.parentOrgId;
+    // reading order c0..c8 over 3 columns: c0 c1 c2 / c3 c4 c5 / c6 c7 c8
+    expect([parentOf('c0'), parentOf('c1'), parentOf('c2')]).toEqual(['root', 'root', 'root']);
+    expect([parentOf('c3'), parentOf('c4'), parentOf('c5')]).toEqual(['c0', 'c1', 'c2']);
+    expect([parentOf('c6'), parentOf('c7'), parentOf('c8')]).toEqual(['c3', 'c4', 'c5']);
+  });
+
+  it('success: a short last row leaves shorter chains, not a hole in the middle', () => {
+    const organizations = rootWithCollapsedChildren(5);
+    const grids = planCollapsedSiblingGrids({ organizations, options: opts });
+    const chained = chainCollapsedGrids({ organizations, grids });
+    const parentOf = (id: string) => chained.find((o) => o.id === id)?.parentOrgId;
+    // 3 columns: c0 c1 c2 / c3 c4 — the third column is one deep, the others two
+    expect([parentOf('c0'), parentOf('c1'), parentOf('c2')]).toEqual(['root', 'root', 'root']);
+    expect([parentOf('c3'), parentOf('c4')]).toEqual(['c0', 'c1']);
+  });
+
+  it('success: every id in the output existed in the input — no synthetic nodes', () => {
+    const { organizations, grids } = nineUnderRoot();
+    const chained = chainCollapsedGrids({ organizations, grids });
+    expect(chained.map((o) => o.id).sort()).toEqual(organizations.map((o) => o.id).sort());
+  });
+
+  it('failure: the input is not mutated', () => {
+    const { organizations, grids } = nineUnderRoot();
+    const before = JSON.stringify(organizations);
+    chainCollapsedGrids({ organizations, grids });
+    expect(JSON.stringify(organizations)).toBe(before);
+  });
+
+  it('failure: with no grids the organizations come back untouched', () => {
+    const organizations = rootWithCollapsedChildren(1);
+    expect(chainCollapsedGrids({ organizations, grids: [] })).toEqual(organizations);
+  });
+
+  /** What the layout would hand back for a 2x2 grid under an expanded root. */
+  const laidOut = (): OrgLayoutNode[] => [
+    { id: 'root', orgId: 'root', x: 100, y: 0, width: 200, height: 64, depth: 1 },
+    { id: 'c0', orgId: 'c0', x: 0, y: 100, width: 200, height: 64, depth: 2, parentId: 'root' },
+    { id: 'c1', orgId: 'c1', x: 240, y: 100, width: 200, height: 64, depth: 2, parentId: 'root' },
+    { id: 'c2', orgId: 'c2', x: 0, y: 200, width: 200, height: 64, depth: 3, parentId: 'c0' },
+    { id: 'c3', orgId: 'c3', x: 240, y: 200, width: 200, height: 64, depth: 3, parentId: 'c1' },
+  ];
+
+  const fourGrid = () => {
+    const organizations = rootWithCollapsedChildren(4);
+    return planCollapsedSiblingGrids({ organizations, options: opts });
+  };
+
+  it('success: unchaining restores the real parent for every member', () => {
+    const out = unchainGridNodes({ nodes: laidOut(), grids: fourGrid() });
+    for (const id of ['c0', 'c1', 'c2', 'c3']) {
+      expect(out.find((n) => n.id === id)?.parentId).toBe('root');
+    }
+  });
+
+  it('success: unchaining puts every member on one depth — the parent`s plus one', () => {
+    // The chain depth is a fact about the transport, not about the tree. Row-tree
+    // promises "rows by depth", so leaving 3 on the lower row would be a lie in
+    // the public result.
+    const out = unchainGridNodes({ nodes: laidOut(), grids: fourGrid() });
+    for (const id of ['c0', 'c1', 'c2', 'c3']) {
+      expect(out.find((n) => n.id === id)?.depth).toBe(2);
+    }
+  });
+
+  it('success: unchaining fills matrixRow and matrixCol in reading order', () => {
+    const out = unchainGridNodes({ nodes: laidOut(), grids: fourGrid() });
+    const cell = (id: string) => {
+      const n = out.find((x) => x.id === id);
+      return [n?.matrixRow, n?.matrixCol];
+    };
+    expect(cell('c0')).toEqual([0, 0]);
+    expect(cell('c1')).toEqual([0, 1]);
+    expect(cell('c2')).toEqual([1, 0]);
+    expect(cell('c3')).toEqual([1, 1]);
+  });
+
+  it('success: coordinates are left exactly where the layout put them', () => {
+    const before = laidOut();
+    const out = unchainGridNodes({ nodes: before, grids: fourGrid() });
+    for (const n of before) {
+      const after = out.find((x) => x.id === n.id);
+      expect([after?.x, after?.y]).toEqual([n.x, n.y]);
+    }
+  });
+
+  it('failure: nodes outside any grid keep their parent and depth', () => {
+    const out = unchainGridNodes({ nodes: laidOut(), grids: fourGrid() });
+    const root = out.find((n) => n.id === 'root');
+    expect(root?.parentId).toBeUndefined();
+    expect(root?.depth).toBe(1);
+    expect(root?.matrixRow).toBeUndefined();
+  });
+
+  it('failure: a grid whose parent is missing from the nodes leaves them alone', () => {
+    // Defensive rather than expected: inventing a depth from a parent nobody
+    // laid out would put the member on a row that does not exist.
+    const nodes = laidOut().filter((n) => n.id !== 'root');
+    const out = unchainGridNodes({ nodes, grids: fourGrid() });
+    expect(out.find((n) => n.id === 'c2')?.depth).toBe(3);
+    expect(out.find((n) => n.id === 'c2')?.parentId).toBe('c0');
+  });
+
+  it('failure: the node list is not mutated', () => {
+    const nodes = laidOut();
+    const before = JSON.stringify(nodes);
+    unchainGridNodes({ nodes, grids: fourGrid() });
+    expect(JSON.stringify(nodes)).toBe(before);
+  });
+
+  it('success: chaining then unchaining is identity on parentage', () => {
+    // The round trip is the whole contract: whatever the transport does in
+    // between, the host must not be able to tell it happened.
+    const { organizations, grids } = nineUnderRoot();
+    const chained = chainCollapsedGrids({ organizations, grids });
+    const nodes: OrgLayoutNode[] = chained.map((o, i) => ({
+      id: o.id,
+      orgId: o.id,
+      x: i * 10,
+      y: i * 10,
+      width: 200,
+      height: 64,
+      depth: 1,
+      ...(o.parentOrgId === undefined ? {} : { parentId: o.parentOrgId }),
+    }));
+    const out = unchainGridNodes({ nodes, grids });
+    for (const id of ['c0', 'c3', 'c6', 'c8']) {
+      expect(out.find((n) => n.id === id)?.parentId).toBe('root');
+    }
   });
 });

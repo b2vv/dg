@@ -1,7 +1,7 @@
 import type { DiagramOrganization } from '../data/types.js';
 import { resolveMatrixDimensions } from './matrixGrid.js';
 import { isOrgCollapsed } from './orgMode.js';
-import type { OrgLayoutOptions } from './types.js';
+import type { OrgLayoutNode, OrgLayoutOptions } from './types.js';
 
 /**
  * A set of siblings that lays out as a grid instead of a row (T113).
@@ -86,4 +86,98 @@ export function planCollapsedSiblingGrids(input: {
     grids.push({ parentId, memberIds: orderedMembers(members), cols, rows });
   }
   return grids;
+}
+
+/**
+ * Rewrite the sets as chains, so the tidy layout draws each column as a stack.
+ *
+ * A column of the grid **is** a chain in tree terms: the layout centres a lone
+ * child under its parent, so `cols` chains hung off one parent come out as a
+ * grid, and the width is computed by the layout rather than by us
+ * (`ploeg_layered_sibling_chains_form_a_grid` in `packages/core` pins this).
+ *
+ * The alternative — one synthetic node the size of the whole grid block — is
+ * not available: the WASM boundary carries a single `nodeWidth`/`nodeHeight`
+ * for the entire tree, so a node of a different size cannot be expressed
+ * without widening that contract and the Rust behind it.
+ *
+ * ⚠️ **No synthetic ids.** Only `parentOrgId` changes; the set of organizations
+ * is the same one that came in, which is why nothing has to be stripped on the
+ * way back out.
+ */
+export function chainCollapsedGrids(input: {
+  organizations: readonly DiagramOrganization[];
+  grids: readonly CollapsedSiblingGrid[];
+}): DiagramOrganization[] {
+  const { organizations, grids } = input;
+  if (grids.length === 0) return [...organizations];
+
+  /** id → the member above it in its column, for every member of every grid. */
+  const chainParent = new Map<string, string>();
+  for (const grid of grids) {
+    grid.memberIds.forEach((id, i) => {
+      const above = grid.memberIds[i - grid.cols];
+      if (above !== undefined) chainParent.set(id, above);
+    });
+  }
+
+  return organizations.map((org) => {
+    const above = chainParent.get(org.id);
+    return above === undefined ? org : { ...org, parentOrgId: above };
+  });
+}
+
+/**
+ * Undo {@link chainCollapsedGrids} on the laid-out nodes.
+ *
+ * Coordinates are left exactly as the layout produced them — that is the whole
+ * point of sending chains through it. What is restored is everything the chain
+ * distorted about *meaning*: the real parent, and one depth for the whole set.
+ *
+ * Depth matters more than it looks. The chain depth is a fact about the
+ * transport, and row-tree tells hosts it lays out "rows by depth"; reporting a
+ * member of the second grid row as one level deeper would be a lie in the
+ * public result rather than a detail.
+ *
+ * `matrixRow`/`matrixCol` are filled from the same reading order, reusing the
+ * fields the matrix layout already populates rather than inventing a parallel
+ * pair.
+ */
+export function unchainGridNodes(input: {
+  nodes: readonly OrgLayoutNode[];
+  grids: readonly CollapsedSiblingGrid[];
+}): OrgLayoutNode[] {
+  const { nodes, grids } = input;
+  if (grids.length === 0) return [...nodes];
+
+  const depthById = new Map(nodes.map((n) => [n.id, n.depth]));
+  const restored = new Map<string, { parentId: string; depth: number; row: number; col: number }>();
+
+  for (const grid of grids) {
+    const parentDepth = depthById.get(grid.parentId);
+    // A grid whose parent nobody laid out is left alone: inventing a depth from
+    // a parent that is not on the canvas would place the member on a row that
+    // does not exist.
+    if (parentDepth === undefined) continue;
+    grid.memberIds.forEach((id, i) => {
+      restored.set(id, {
+        parentId: grid.parentId,
+        depth: parentDepth + 1,
+        row: Math.floor(i / grid.cols),
+        col: i % grid.cols,
+      });
+    });
+  }
+
+  return nodes.map((node) => {
+    const fix = restored.get(node.id);
+    if (!fix) return node;
+    return {
+      ...node,
+      parentId: fix.parentId,
+      depth: fix.depth,
+      matrixRow: fix.row,
+      matrixCol: fix.col,
+    };
+  });
 }
