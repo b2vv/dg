@@ -1,5 +1,10 @@
 import type { DiagramOrganization, DiagramOrgLink } from '../data/types.js';
 import { computeMatrixLayout } from './matrixLayout.js';
+import {
+  chainCollapsedGrids,
+  planCollapsedSiblingGrids,
+  unchainGridNodes,
+} from './collapsedSiblingGrid.js';
 import { detectOrgMode, findExpandedRootIds, isOrgCollapsed } from './orgMode.js';
 import { validateOrgHierarchy } from './orgTree.js';
 import { OrgHierarchyError } from './orgTree.js';
@@ -59,7 +64,7 @@ export const MAX_ROW_TREE_DEPTH = 2_500;
 function visibleOrgsForRowTree(
   organizations: DiagramOrganization[],
   expandedRootId: string,
-): DiagramOrganization[] {
+): { visible: DiagramOrganization[]; maxDepth: number } {
   const byId = new Map(organizations.map((o) => [o.id, o]));
   const childrenByParent = new Map<string, DiagramOrganization[]>();
   for (const org of organizations) {
@@ -70,6 +75,10 @@ function visibleOrgsForRowTree(
   }
 
   const visible = new Set<string>();
+  // Returned rather than only compared: T113 hangs a grid's rows below the set,
+  // and the second guard needs a number to add them to. A check that can only
+  // throw cannot answer «how deep is this really».
+  let maxDepth = 0;
   const pending: Array<{ id: string; depth: number }> = [{ id: expandedRootId, depth: 1 }];
   while (pending.length > 0) {
     const { id, depth } = pending.pop()!;
@@ -82,12 +91,13 @@ function visibleOrgsForRowTree(
       );
     }
     visible.add(id);
+    if (depth > maxDepth) maxDepth = depth;
     if (isOrgCollapsed(org)) continue;
     for (const child of childrenByParent.get(id) ?? []) {
       pending.push({ id: child.id, depth: depth + 1 });
     }
   }
-  return organizations.filter((o) => visible.has(o.id));
+  return { visible: organizations.filter((o) => visible.has(o.id)), maxDepth };
 }
 
 export async function computeOrgRowTreeLayout(
@@ -101,9 +111,24 @@ export async function computeOrgRowTreeLayout(
   if (!organizations.some((o) => o.id === expandedRootId)) {
     throw new OrgHierarchyError(`Unknown organization: ${expandedRootId}`);
   }
-  const visible = visibleOrgsForRowTree(organizations, expandedRootId);
+  const { visible, maxDepth } = visibleOrgsForRowTree(organizations, expandedRootId);
 
-  const raw = await computeOrgRowTreeLayoutWasm(toOrgFlatInput(visible), expandedRootId, {
+  // T113: a set of siblings that is entirely collapsed lays out as a grid, and
+  // travels to the layout as one chain per column (`collapsedSiblingGrid.ts`).
+  const grids = planCollapsedSiblingGrids({ organizations: visible, options: opts });
+  const extraRows = grids.reduce((deepest, g) => Math.max(deepest, g.rows - 1), 0);
+  if (maxDepth + extraRows > MAX_ROW_TREE_DEPTH) {
+    // Its own message on purpose. The tree the host sent is inside the limit;
+    // what pushed it over is a grid the host never asked for, and the old
+    // wording would have blamed the data.
+    throw new OrgHierarchyError(
+      `Organization tree too deep once collapsed siblings are laid out as a grid: ` +
+        `depth ${maxDepth} plus ${extraRows} grid row(s) exceeds ${MAX_ROW_TREE_DEPTH}`,
+    );
+  }
+  const forLayout = chainCollapsedGrids({ organizations: visible, grids });
+
+  const raw = await computeOrgRowTreeLayoutWasm(toOrgFlatInput(forLayout), expandedRootId, {
     direction: 'vertical',
     nodeWidth: opts.nodeWidth,
     nodeHeight: opts.nodeHeight,
@@ -114,16 +139,19 @@ export async function computeOrgRowTreeLayout(
 
   return {
     mode: 'row-tree',
-    nodes: raw.nodes.map((n) => ({
-      id: n.id,
-      orgId: n.orgId,
-      x: n.x,
-      y: n.y,
-      width: n.width,
-      height: n.height,
-      depth: n.depth,
-      parentId: n.parentId ?? undefined,
-    })),
+    nodes: unchainGridNodes({
+      nodes: raw.nodes.map((n) => ({
+        id: n.id,
+        orgId: n.orgId,
+        x: n.x,
+        y: n.y,
+        width: n.width,
+        height: n.height,
+        depth: n.depth,
+        parentId: n.parentId ?? undefined,
+      })),
+      grids,
+    }),
     edges: raw.edges.map((e) => ({
       fromId: e.fromId,
       toId: e.toId,
