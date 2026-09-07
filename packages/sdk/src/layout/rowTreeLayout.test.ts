@@ -278,6 +278,36 @@ describe('a collapsed-sibling grid is wired by a spine (T113 K4)', () => {
     }
   });
 
+  it('success: the members of a row hang off ONE shared bus, not a path each', async () => {
+    // The third clause of A6, and the one the first pass of these tests missed:
+    // «every path of the set shares a bus segment». Reachability and endpoints
+    // were asserted; sharing was not, so nine separate paths would have passed.
+    const layout = await computeOrgRowTreeLayout(rootWith(4), 'root');
+    const points = (path: string) =>
+      [...path.matchAll(/[ML]\s*(-?\d+(?:\.\d+)?)[ ,]+(-?\d+(?:\.\d+)?)/g)].map((m) => ({
+        x: Number(m[1]),
+        y: Number(m[2]),
+      }));
+
+    // A bus is the horizontal run the builder emits between its own endpoints.
+    const buses = layout.edges
+      .filter((e) => e.fromId.includes('__bus'))
+      .map((e) => points(e.path))
+      .filter((p) => p.length >= 2 && Math.abs(p[0]!.y - p[1]!.y) < 0.01)
+      .map((p) => ({ y: p[0]!.y, x1: Math.min(p[0]!.x, p[1]!.x), x2: Math.max(p[0]!.x, p[1]!.x) }));
+
+    // Two grid rows, so two buses — not one per member.
+    expect(buses).toHaveLength(2);
+
+    for (let i = 0; i < 4; i += 1) {
+      const start = points(layout.edges.find((e) => e.toId === `c${i}`)!.path)[0]!;
+      const onABus = buses.some(
+        (b) => Math.abs(b.y - start.y) < 0.01 && start.x >= b.x1 - 1 && start.x <= b.x2 + 1,
+      );
+      expect(onABus, `riser into c${i} does not start on a bus`).toBe(true);
+    }
+  });
+
   it('failure: a set that is not a grid keeps one edge per child, as before', async () => {
     // The regression half: nothing about ordinary row-tree wiring changes.
     const orgs = rootWith(4);
