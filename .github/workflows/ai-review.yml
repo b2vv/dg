@@ -1,13 +1,31 @@
 name: AI review
 
-# Two independent reviewers on every PR. They run as separate jobs on separate
-# runners, so neither sees the other's findings — and neither saw how the code
-# was written. That blindness is the point: the reviewer reads the task, the
-# diff and the yardstick from scratch, the way a new colleague would.
+# Two independent reviewers. They run as separate jobs on separate runners, so
+# neither sees the other's findings — and neither saw how the code was written.
+# That blindness is the point: the reviewer reads the task, the diff and the
+# yardstick from scratch, the way a new colleague would.
+#
+# ⚠️ DORMANT since 2026-09-08, and deliberately so. `ANTHROPIC_API_KEY` is not
+# in this repo's secrets and is not going to be, so the preflight below would
+# skip both jobs on every single pull request. Two checks that are permanently
+# «skipping» are worse than no checks: a skipped entry nobody can act on trains
+# the eye to stop reading the list, which is the same failure as a red that
+# always flakes.
+#
+# So the trigger is manual rather than `pull_request`. The file stays because
+# the prompts are the expensive part and they are correct; the day a key exists,
+# restoring the four lines below is the whole of the work.
+#
+#   on:
+#     pull_request:
+#       types: [opened, synchronize, reopened]
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'PR number to review'
+        required: true
 
 permissions:
   contents: read
@@ -15,7 +33,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: ai-review-${{ github.event.pull_request.number }}
+  group: ai-review-${{ inputs.pr }}
   cancel-in-progress: true
 
 jobs:
@@ -53,7 +71,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
             REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.pull_request.number }}
+            PR NUMBER: ${{ inputs.pr }}
 
             Review this pull request against THIS repo's documented yardstick.
             The PR branch is already checked out.
@@ -122,7 +140,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
             REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.pull_request.number }}
+            PR NUMBER: ${{ inputs.pr }}
 
             A second, independent review. You have NOT seen the standards pass
             and must not try to reproduce it — style and naming are not yours.
