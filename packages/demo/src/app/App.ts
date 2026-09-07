@@ -150,6 +150,8 @@ export class App {
    * than the thing being measured. Two ranges give the same answer for free.
    */
   private staffRebuildLog: StaffRebuildRecord[] = [];
+  /** Every window status ever shown, so a transient one can still be asserted (T101). */
+  private windowStateLog: string[] = [];
   /** Did the ceiling cut the last ask short? Row 10 needs the status to say so. */
   private staffWindowCapped = false;
   /**
@@ -584,6 +586,7 @@ export class App {
       scaleWindowStart: () => this.scaleWindow?.startIndex ?? null,
       config: () => this.buildConfig(),
       staffRebuilds: () => [...this.staffRebuildLog],
+      windowStateLog: () => [...this.windowStateLog],
     });
   }
 
@@ -1301,6 +1304,15 @@ export class App {
    */
   private setWindowState(text: string | null): void {
     this.windowState = text;
+    // T101: appended, not just displayed. Several e2e tests waited for a status
+    // that exists only while a rebuild is in flight, and under load it is the
+    // poller that starves rather than the app — so the message was true, brief,
+    // and missed. A log turns «did it say this» from a race into a question
+    // with an answer. Bounded because it is a dev seam, not a feature.
+    if (text !== null) {
+      this.windowStateLog.push(text);
+      if (this.windowStateLog.length > 200) this.windowStateLog.shift();
+    }
     this.renderStatusState();
   }
 
