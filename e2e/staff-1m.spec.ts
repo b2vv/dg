@@ -374,9 +374,25 @@ test.describe('the window follows the camera (T88)', () => {
 
     // The wait has to be named while it lasts. Skeletons were the planned answer
     // and did not enter, so the status is the whole of «not silent».
-    await expect(page.locator('#status')).toContainText('catching up to the camera', {
-      timeout: 20_000,
-    });
+    //
+    // Asserted against the log rather than the live element (T101). The message
+    // is true only while the rebuild is in flight, and under load it is
+    // Playwright's poller that starves, not the app — so the status was shown,
+    // was correct, and was missed, roughly one full run in seven. Asking «was
+    // it ever said» has an answer; asking «is it saying it right now» is a race
+    // the harness can lose without anything being wrong.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const bridge = (
+              window as unknown as { __demoE2e?: { getWindowStateLog?(): string[] } }
+            ).__demoE2e;
+            return (bridge?.getWindowStateLog?.() ?? []).join('\n');
+          }),
+        { timeout: 20_000 },
+      )
+      .toContain('catching up to the camera');
     // And it must not stay that way: the window lands and says where it is.
     await expect(page.locator('#status')).toContainText(/window \d+…\d+ \//, { timeout: 30_000 });
   });

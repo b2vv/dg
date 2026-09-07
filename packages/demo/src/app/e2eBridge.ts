@@ -45,6 +45,14 @@ export interface DemoE2eBridge {
    * which one a record was without paying for a set intersection.
    */
   getStaffRebuilds(): StaffRebuildRecord[];
+  /**
+   * Every window status the demo has shown, oldest first (T101).
+   *
+   * A test that waits for a transient message races the app: the status is
+   * true for a moment, and under contention Playwright can look on either side
+   * of it. Reading the log asks «was it ever said», which has an answer.
+   */
+  getWindowStateLog(): string[];
   getStaffLayoutEdges(): Promise<Array<{ fromId: string; toId: string; kind: string }>>;
   /** Soft render warnings — a silently empty contour layer must show up here. */
   getLayoutDiagnostics(): string[];
@@ -92,6 +100,7 @@ export interface E2eBridgeDeps {
   config(): OrgHierarchyConfig<unknown>;
   /** What the recent staff window rebuilds cost (T88.8). */
   staffRebuilds(): StaffRebuildRecord[];
+  windowStateLog(): string[];
   /** Patches recorded with the geometry drawn at the time (T104). */
   layoutPatchLog(): Array<{
     patch: unknown;
@@ -120,6 +129,7 @@ export function installDemoE2eBridge(deps: E2eBridgeDeps): void {
     },
     getPromotedNodeIds: () => [...diagram.getPromotedNodeIds()],
     getStaffRebuilds: () => deps.staffRebuilds(),
+    getWindowStateLog: () => deps.windowStateLog(),
     getLayoutDiagnostics: () => [...diagram.getLayoutDiagnostics()],
     getRendererKind: () => diagram.getRendererKind(),
     getStaffLayoutEdges: () => staffLayoutEdgesFor(deps.config()),
