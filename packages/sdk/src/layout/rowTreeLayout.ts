@@ -116,12 +116,13 @@ function visibleOrgsForRowTree(
  * down to the same `busGap`, so the two matrices in this product are drawn by
  * the same geometry rather than by two lookalikes.
  */
-function withGridSpines(
-  edges: OrgLayoutResult['edges'],
-  nodes: OrgLayoutResult['nodes'],
-  grids: readonly CollapsedSiblingGrid[],
-  opts: Required<OrgLayoutOptions>,
-): OrgLayoutResult['edges'] {
+function withGridSpines(input: {
+  edges: OrgLayoutResult['edges'];
+  nodes: OrgLayoutResult['nodes'];
+  grids: readonly CollapsedSiblingGrid[];
+  opts: Required<OrgLayoutOptions>;
+}): OrgLayoutResult['edges'] {
+  const { edges, nodes, grids, opts } = input;
   if (grids.length === 0) return edges;
 
   const members = new Set(grids.flatMap((g) => g.memberIds));
@@ -191,8 +192,8 @@ export async function computeOrgRowTreeLayout(
   return {
     mode: 'row-tree',
     nodes,
-    edges: withGridSpines(
-      raw.edges.map((e) => ({
+    edges: withGridSpines({
+      edges: raw.edges.map((e) => ({
         fromId: e.fromId,
         toId: e.toId,
         path: e.path,
@@ -201,7 +202,7 @@ export async function computeOrgRowTreeLayout(
       nodes,
       grids,
       opts,
-    ),
+    }),
     width: raw.width,
     height: raw.height,
   };

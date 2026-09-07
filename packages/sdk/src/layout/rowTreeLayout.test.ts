@@ -146,6 +146,46 @@ describe('collapsed siblings lay out as a grid (T113 K3)', () => {
     expect(overlaps).toEqual([]);
   });
 
+  it('failure: no two nodes overlap when grids sit on more than one level', async () => {
+    // The single-scene version of this check proves the geometry only where it
+    // was written. Two grids on different levels is where a mistake would
+    // actually show: the deeper one grows downward into space the layout
+    // separated for a set it thought was one row deep.
+    const orgs: DiagramOrganization[] = [org('root'), org('a', 'root'), org('b', 'root')];
+    for (let i = 0; i < 4; i += 1) {
+      orgs.push({
+        id: `a${i}`, name: `a${i}`, groupIds: [], parentOrgId: 'a', collapsed: true, matrixOrder: i,
+      });
+    }
+    for (let i = 0; i < 9; i += 1) {
+      orgs.push({
+        id: `b${i}`, name: `b${i}`, groupIds: [], parentOrgId: 'b', collapsed: true, matrixOrder: i,
+      });
+    }
+    const layout = await computeOrgRowTreeLayout(orgs, 'root');
+    const overlaps: string[] = [];
+    for (let i = 0; i < layout.nodes.length; i += 1) {
+      for (let j = i + 1; j < layout.nodes.length; j += 1) {
+        const p1 = layout.nodes[i]!;
+        const p2 = layout.nodes[j]!;
+        if (
+          p1.x < p2.x + p2.width &&
+          p2.x < p1.x + p1.width &&
+          p1.y < p2.y + p2.height &&
+          p2.y < p1.y + p1.height
+        ) {
+          overlaps.push(`${p1.orgId}/${p2.orgId}`);
+        }
+      }
+    }
+    expect(overlaps).toEqual([]);
+    // …and both sets really did become grids, or the check above proves nothing
+    // `/^b\d/`, not `startsWith('b')`: the parent is called `b` too, and
+    // counting its row made the assertion read 4 where the grid has 3.
+    const bRows = layout.nodes.filter((n) => /^b\d/.test(n.orgId)).map((n) => Math.round(n.y));
+    expect(new Set(bRows).size).toBe(3);
+  });
+
   it('failure: one expanded sibling keeps the old single row', async () => {
     const orgs = rootWith(4);
     orgs[2] = { ...orgs[2]!, collapsed: false };
