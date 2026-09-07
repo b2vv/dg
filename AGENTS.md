@@ -28,7 +28,7 @@ npm run dev
 Run `npm run check:docs`. It is also a CI job, so a push that skips it fails there instead —
 the point of running it first is to find out in a second rather than after a round trip.
 
-It checks five things, each because that drift already happened here and nothing noticed:
+It checks six things, each because that drift already happened here and nothing noticed:
 
 - **every relative `.md` link resolves.** Archiving closed tasks left thirteen dead links inside
   the tasks that survived, and twelve more inside the archive index itself;
@@ -54,10 +54,17 @@ It checks five things, each because that drift already happened here and nothing
   the **real** `docs/USAGE.md`: a unit test that only ever saw fixtures would stay green through
   the exact drift the module exists to catch.
 
-Two checks therefore carry their own tests, not one — **thirteen tests** in that CI job. Both live
-in sibling modules that `check-docs.mjs` imports, and a third check with tests must be written the
-same way: `check-docs.mjs` itself runs at the top level and ends in `process.exit`, so it cannot
-be imported.
+- **`docs/USAGE.md` still says what `getOrgMode` is the mode of.** T113 made the layout rule
+  local — any sibling set that is entirely collapsed becomes a grid, at every level — so the word
+  «mode» acquired a second reading while the two accessors kept their old one. This check is
+  deliberately **structural, not a term list**: T113 adds no public identifier, so asking whether
+  some name appears would pass on a document that explains nothing. It requires a named section
+  and both accessors qualified *inside it*, in `scripts/orgModeDocs.mjs`.
+
+Three checks therefore carry their own tests — **nineteen tests** in that CI job. All three live
+in sibling modules that `check-docs.mjs` imports, and a fourth must be written the same way:
+`check-docs.mjs` itself runs at the top level and ends in `process.exit`, so it cannot be
+imported.
 
 What the checker cannot judge stays yours: whether a document still says something **true**. This
 session found `T56` claiming two features were WASM ten days after they stopped being WASM, and no
