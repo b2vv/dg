@@ -45,6 +45,7 @@ import {
   adminParentsOf,
   canReparent,
   reparentPosition,
+  rosterOf,
 } from './interaction/positionReparent.js';
 import { resolveContextMenuNodeData } from './interaction/contextMenuPayload.js';
 import {
@@ -711,13 +712,13 @@ export class OrgHierarchyDiagram {
       this.nodeTheme.canvasBackground ?? canvasBackgroundForTheme(resolved),
     );
     // Rebound on every render, because a drop changes the report lines the
-    // answer depends on — and every drop is followed by a render. The id set is
+    // answer depends on — and every drop is followed by a render. The roster is
     // built here rather than inside the closure so a drag that sweeps across
     // the wall does not rebuild it once per target.
-    const knownPositionIds = new Set(this.data.positions.map((p) => p.id));
+    const roster = rosterOf(this.data.positions);
     const reportLinesNow = this.data.reportLines;
     host.renderer.canReparent = (positionId, managerId) =>
-      canReparent(reportLinesNow, positionId, managerId, knownPositionIds);
+      canReparent(reportLinesNow, positionId, managerId, roster);
     // Captured before the await, because that is the state the renderer is
     // handed. Reading `this.data` afterwards would record whatever a mutator
     // wrote *during* the frame — a state nobody drew (T104 review).
@@ -808,7 +809,16 @@ export class OrgHierarchyDiagram {
         });
       },
       onPersonReparent: (positionId, managerId) => {
-        void this.reparentPosition(positionId, managerId);
+        // Same shape as `onPersonDragEnd` above, and for the same reason:
+        // `reparentPosition` no longer swallows `InteractionError` (T117 Gap
+        // 1), and nobody awaits this gesture's promise.
+        this.reparentPosition(positionId, managerId).catch((err: unknown) => {
+          if (err instanceof InteractionError) {
+            console.warn(`[org-hierarchy] ${err.message}`);
+            return;
+          }
+          throw err;
+        });
       },
       }),
       drawing,
@@ -1679,19 +1689,27 @@ export class OrgHierarchyDiagram {
    * The rollback mirrors `revealPath` (T97): if the render that follows draws
    * nothing, the data goes back to what it described, because a diagram that
    * reports a reporting line it never drew is worse than one that refused.
+   *
+   * A refusal is **visible** (T117 Gap 1, the same lesson as T111-K2): the
+   * `InteractionError` propagates instead of being swallowed. It used to return
+   * silently and without even a `render()`, which left the caller unable to
+   * tell a refused drop from an applied one, and the two neighbouring mutators
+   * behaving differently for no reason a reader could find. No `render()` is
+   * needed on this path — unlike `movePersonToCell`, nothing here has moved the
+   * card: the reparent gesture returns it home itself before the drop is
+   * reported (`render/personInteractions.ts`), so the frame on screen is
+   * already the true one. See the `onPersonReparent` wiring for how the drag
+   * path keeps a fire-and-forget gesture from becoming an unhandled rejection.
    */
   async reparentPosition(positionId: string, managerId: string): Promise<void> {
-    const knownIds = new Set(this.data.positions.map((p) => p.id));
+    const roster = rosterOf(this.data.positions);
     const fromManagerId = adminParentsOf(this.data.reportLines).get(positionId) ?? null;
-    let reportLines: DiagramReportLine[];
-    try {
-      reportLines = reparentPosition(this.data.reportLines, positionId, managerId, knownIds);
-    } catch (err) {
-      // A refused drop is an ordinary outcome of the gesture, not a fault: the
-      // preview already told the user, and there is nothing to redraw.
-      if (err instanceof InteractionError) return;
-      throw err;
-    }
+    const reportLines: DiagramReportLine[] = reparentPosition(
+      this.data.reportLines,
+      positionId,
+      managerId,
+      roster,
+    );
     await this.commitDataChange(
       { ...this.data, reportLines },
       { type: 'position-reparent', positionId, fromManagerId, toManagerId: managerId },

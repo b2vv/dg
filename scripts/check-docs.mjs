@@ -195,16 +195,21 @@ if (basis) {
  * The scan itself lives in `barrelSurface.mjs`, where it has its own test.
  */
 const BARREL = 'packages/sdk/src/index.ts';
+const USAGE = 'docs/USAGE.md';
 try {
-  problems.push(...barrelProblems(readFileSync(join(ROOT, BARREL), 'utf8'), BARREL));
-  // T111 / spec A8: the seat-collision contract is prose as much as it is
-  // types — in particular *why* seats and organizations answer an occupied
-  // cell differently, which no signature can state.
-  problems.push(...seatCollisionDocProblems(readFileSync(join(ROOT, 'docs/USAGE.md'), 'utf8')));
+  problems.push(
+    ...barrelProblems(readFileSync(join(ROOT, BARREL), 'utf8'), BARREL),
+    // T111 / spec A8: the seat-collision contract is prose as much as it is
+    // types — in particular *why* seats and organizations answer an occupied
+    // cell differently, which no signature can state.
+    ...seatCollisionDocProblems(readFileSync(join(ROOT, USAGE), 'utf8')),
+  );
 } catch {
-  // Unreadable is a failure, not an uptrace: a barrel nobody can read is a
-  // barrel whose contents nobody has checked.
-  problems.push(`${BARREL} не читається — склад публічного барелю неперевірений`);
+  // Unreadable is a failure, not an uptrace: a file nobody can read is a file
+  // whose contents nobody has checked. Both are named because either read can
+  // be the one that threw, and blaming the barrel for an unreadable USAGE.md
+  // would send the reader to the wrong file.
+  problems.push(`${BARREL} або ${USAGE} не читається — перевірку не виконано`);
 }
 
 // ── report ──────────────────────────────────────────────────────────────────

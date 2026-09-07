@@ -1,4 +1,4 @@
-import type { DiagramReportLine } from '../data/types.js';
+import type { DiagramPosition, DiagramReportLine } from '../data/types.js';
 import { InteractionError } from './types.js';
 
 /**
@@ -16,11 +16,46 @@ import { InteractionError } from './types.js';
  */
 
 /** Why a drop target cannot be accepted, or `null` when it can. */
-export type ReparentRefusal = 'self' | 'cycle' | 'unchanged' | 'unknown';
+export type ReparentRefusal = 'self' | 'cycle' | 'unchanged' | 'unknown' | 'root';
 
 export interface ReparentCheck {
   ok: boolean;
   refusal: ReparentRefusal | null;
+}
+
+/**
+ * Who exists, and which of them is the structural root of a structure.
+ *
+ * One object rather than two `ReadonlySet<string>` parameters, and the reason
+ * is not tidiness: two adjacent sets of the same type swap silently at a
+ * callsite, and neither the compiler nor a test would say so. Naming them as
+ * fields also makes `headIds` **impossible to forget** — an optional guard
+ * input is one that stops running the day a caller omits it, which is the same
+ * argument that made `knownIds` required in the first place.
+ */
+export interface SeatRoster {
+  knownIds: ReadonlySet<string>;
+  headIds: ReadonlySet<string>;
+}
+
+/**
+ * Build the roster from the seats themselves, so no caller assembles it by
+ * hand and no two callers disagree about who counts as a head.
+ *
+ * Called once where the data is read, not per drag frame: `canReparent` runs on
+ * every pointer move of a drag, and rebuilding sets from a million seats there
+ * is the cost this shape exists to avoid.
+ */
+export function rosterOf(
+  positions: readonly Pick<DiagramPosition, 'id' | 'isHead'>[],
+): SeatRoster {
+  const knownIds = new Set<string>();
+  const headIds = new Set<string>();
+  for (const p of positions) {
+    knownIds.add(p.id);
+    if (p.isHead === true) headIds.add(p.id);
+  }
+  return { knownIds, headIds };
 }
 
 /** Admin parent of every seat: `toId → fromId`, across all organisations. */
@@ -38,23 +73,35 @@ export function adminParentsOf(reports: readonly DiagramReportLine[]): Map<strin
 /**
  * May `positionId` be made to report to `managerId`?
  *
- * Refuses four things, and says which: an id nothing answers to, the seat
- * itself, a seat that already is its manager (nothing would change, so no patch
- * should be emitted), and any descendant — walking up from the proposed manager
- * and meeting the dragged seat is precisely what a cycle looks like from here.
+ * Refuses five things, and says which: an id nothing answers to, the structural
+ * root, the seat itself, a seat that already is its manager (nothing would
+ * change, so no patch should be emitted), and any descendant — walking up from
+ * the proposed manager and meeting the dragged seat is precisely what a cycle
+ * looks like from here.
  *
- * `knownIds` is required rather than optional on purpose: an existence check
- * that callers may omit is one that stops running the day someone forgets it.
+ * The root guard is on the seat being **moved**, never on the seat it is
+ * dropped onto (T117 Gap 1). A head that may not be moved is not a head nobody
+ * may report to — reporting to the head is the ordinary case, and refusing it
+ * would break the common gesture in the name of protecting the rare one. The
+ * host this mirrors draws the same line: it disables move/merge/delete **on**
+ * its `HierarchyRoot`, not drops onto it.
+ *
+ * `root` is answered before `self` and `unchanged` so the refusal stays a
+ * property of the seat rather than of the target: a head is immovable wherever
+ * it was dropped, and an answer that changed with the target would read as if
+ * some other target might have worked.
  */
 export function checkReparent(
   reports: readonly DiagramReportLine[],
   positionId: string,
   managerId: string,
-  knownIds: ReadonlySet<string>,
+  roster: SeatRoster,
 ): ReparentCheck {
+  const { knownIds, headIds } = roster;
   if (!knownIds.has(positionId) || !knownIds.has(managerId)) {
     return { ok: false, refusal: 'unknown' };
   }
+  if (headIds.has(positionId)) return { ok: false, refusal: 'root' };
   if (positionId === managerId) return { ok: false, refusal: 'self' };
   const parents = adminParentsOf(reports);
   if (parents.get(positionId) === managerId) return { ok: false, refusal: 'unchanged' };
@@ -77,9 +124,9 @@ export function canReparent(
   reports: readonly DiagramReportLine[],
   positionId: string,
   managerId: string,
-  knownIds: ReadonlySet<string>,
+  roster: SeatRoster,
 ): boolean {
-  return checkReparent(reports, positionId, managerId, knownIds).ok;
+  return checkReparent(reports, positionId, managerId, roster).ok;
 }
 
 /**
@@ -93,9 +140,9 @@ export function reparentPosition(
   reports: readonly DiagramReportLine[],
   positionId: string,
   managerId: string,
-  knownIds: ReadonlySet<string>,
+  roster: SeatRoster,
 ): DiagramReportLine[] {
-  const check = checkReparent(reports, positionId, managerId, knownIds);
+  const check = checkReparent(reports, positionId, managerId, roster);
   if (!check.ok) {
     throw new InteractionError(
       `Cannot report ${positionId} to ${managerId}: ${check.refusal}`,

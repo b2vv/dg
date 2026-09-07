@@ -70,13 +70,13 @@ interface Internals {
   data: DiagramData;
 }
 
-async function mountTree(onPatch?: (patch: LayoutPatch) => void) {
+async function mountTree(onPatch?: (patch: LayoutPatch) => void, data: DiagramData = treeData()) {
   const container = document.createElement('div');
   container.style.width = '900px';
   container.style.height = '700px';
   document.body.appendChild(container);
   const diagram = await OrgHierarchyDiagram.create(container, {
-    data: treeData(),
+    data,
     staffCurrentOrgId: 'org1',
     useWorker: false,
     callbacks: { onLayoutChange: (patch) => onPatch?.(patch) },
@@ -516,6 +516,107 @@ describe('seat re-parent by drag (T91)', () => {
     await new Promise((r) => { setTimeout(r, 60); });
     expect(selections.length).toBe(1);
 
+    diagram.destroy();
+    container.remove();
+  });
+});
+
+/**
+ * T117 Gap 1 — the structural root, at the public API and through the gesture.
+ *
+ * The scene above already marks `head` with `isHead: true`, so these run
+ * against the same fixture the T91 rows use rather than a special one built to
+ * pass.
+ */
+describe('the head cannot be reparented (T117 Gap 1)', () => {
+  it('failure: reparentPosition on the head rejects and leaves the data byte for byte', async () => {
+    const patches: LayoutPatch[] = [];
+    const { container, diagram, internals, nodeFor } = await mountTree((p) => patches.push(p));
+    void nodeFor;
+    const before = JSON.stringify(internals.data);
+
+    await expect(diagram.reparentPosition('head', 'c')).rejects.toThrow(/root/);
+
+    expect(JSON.stringify(internals.data)).toBe(before);
+    expect(patches).toEqual([]);
+    diagram.destroy();
+    container.remove();
+  });
+
+  it('success: the head may still be given reports — the guard is on the seat that moves', async () => {
+    // The half that a too-wide guard would break, and it is the common case:
+    // people are promoted to report to the boss all the time.
+    const patches: LayoutPatch[] = [];
+    const { container, diagram, internals } = await mountTree((p) => patches.push(p));
+
+    await diagram.reparentPosition('b', 'head');
+
+    const parentOfB = internals.data.reportLines.find((r) => r.kind === 'admin' && r.toId === 'b');
+    expect(parentOfB?.fromId).toBe('head');
+    expect(patches).toContainEqual({
+      type: 'position-reparent',
+      positionId: 'b',
+      fromManagerId: 'a',
+      toManagerId: 'head',
+    });
+    diagram.destroy();
+    container.remove();
+  });
+
+  it('failure: a refusal is visible now — the promise rejects instead of resolving quietly', async () => {
+    // Not about the root: `self` was refused before this task too, and
+    // `reparentPosition` swallowed it and returned as if nothing had been
+    // asked. That is the T111-K2 lesson applied to the neighbour mutator.
+    const { container, diagram } = await mountTree();
+
+    await expect(diagram.reparentPosition('a', 'a')).rejects.toThrow(/self/);
+
+    diagram.destroy();
+    container.remove();
+  });
+
+  it('failure: the drag preview refuses the head mid-gesture, not only the commit', async () => {
+    // Two things this test had to be built around, both found by deleting the
+    // guard and watching it stay green:
+    //
+    // 1. «the data did not change» is also true when the gesture never reached
+    //    the target, so it proves nothing on its own. The preview does: the
+    //    drag reached the card, saw it, and painted a refusal — which is the
+    //    guard answering in the *other* consumer (T111 plan §1).
+    // 2. every seat of the default scene descends from `head`, so every target
+    //    there is already a cycle and the root guard is invisible against it.
+    //    `out` is detached, which is the shape the guard exists for.
+    const patches: LayoutPatch[] = [];
+    const scene = treeData();
+    scene.positions.push({
+      id: 'out',
+      title: 'Unattached',
+      organizationId: 'org1',
+      groupIds: [],
+      status: 'vacant',
+      isTemporary: false,
+    });
+    const { container, diagram, renderer, internals, nodeFor, toGlobal } =
+      await mountTree((p) => patches.push(p), scene);
+    const before = JSON.stringify(internals.data);
+
+    // Both looked up *before* the press: `nodeFor` finds a view by matching its
+    // coordinates against the layout, and a card being dragged has already left
+    // them behind.
+    const head = nodeFor('head');
+    const cBox = nodeFor('out').box;
+
+    const at = dragOnto(toGlobal, head, cBox, false);
+    await new Promise((r) => { setTimeout(r, 60); });
+
+    expect(renderer.lastDropPreview?.targetId).toBe('out');
+    expect(renderer.lastDropPreview?.valid).toBe(false);
+
+    head.node.emit('pointerup', pointerEvent(at));
+    await new Promise((r) => { setTimeout(r, 120); });
+
+    expect(JSON.stringify(internals.data)).toBe(before);
+    expect(patches).toEqual([]);
     diagram.destroy();
     container.remove();
   });
