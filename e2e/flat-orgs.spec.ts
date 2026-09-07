@@ -61,3 +61,34 @@ test.describe('initial expand (T97)', () => {
     await expect(page.getByTestId('diagram-ready')).toBeVisible();
   });
 });
+
+test.describe('collapsed siblings lay out as a grid (T113)', () => {
+  test('four collapsed children of the expanded root make two rows, not one', async ({ page }) => {
+    // The defect the user reported, measured rather than eyeballed: `org-1` is
+    // the root, `org-2`..`org-5` are its children, and every one of them ships
+    // collapsed (`flatOrgs.ts`). Before T113 they were a single row the width
+    // of the canvas.
+    await openFlatOrgs(page);
+    await page.getByTestId('node-root').click();
+    await expect(page.getByTestId('node-org-2')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId('diagram-ready')).toBeVisible();
+
+    // One synchronous pass over the DOM rather than four `boundingBox()` calls:
+    // the anchor layer rebuilds itself wholesale on every sync
+    // (`createTestAnchorOverlay.ts` — `layer.replaceChildren()`), so a locator
+    // resolved for the first card is detached by the time the fourth is read.
+    const cells = await page.evaluate((ids) =>
+      ids.map((id) => {
+        const el = document.querySelector(`[data-testid="${id}"]`);
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { top: Math.round(r.top), left: Math.round(r.left) };
+      }),
+    ['node-org-2', 'node-org-3', 'node-org-4', 'node-org-5']);
+
+    expect(cells.every((c) => c !== null)).toBe(true);
+    // ceil(sqrt(4)) = 2 columns, so two rows and two columns — not 1x4.
+    expect(new Set(cells.map((c) => c!.top)).size).toBe(2);
+    expect(new Set(cells.map((c) => c!.left)).size).toBe(2);
+  });
+});

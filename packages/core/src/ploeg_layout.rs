@@ -238,6 +238,48 @@ mod tests {
         assert!(by_id["b"].y > by_id["root"].y);
     }
 
+    /// T113 leans on this: a column of the collapsed-sibling grid is sent to the
+    /// layout as a *chain*, and that only draws a vertical stack if a lone child
+    /// sits directly under its parent rather than being nudged aside. Nothing
+    /// asserted it before, so the whole design rested on an assumption.
+    #[test]
+    fn ploeg_layered_lone_child_keeps_parent_x() {
+        let root = org_node("root", vec![org_node("a", vec![org_node("b", vec![])])]);
+        let layout = compute_ploeg_layered_layout(&root, &opts());
+        let by_id: HashMap<_, _> = layout.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+        assert!((by_id["a"].x - by_id["root"].x).abs() < 0.01);
+        assert!((by_id["b"].x - by_id["root"].x).abs() < 0.01);
+        assert!(by_id["b"].y > by_id["a"].y);
+    }
+
+    /// …and chains hung off one parent are a grid: same x down a column, same y
+    /// across a row. This is the shape T113 asks the layout for.
+    #[test]
+    fn ploeg_layered_sibling_chains_form_a_grid() {
+        let root = org_node(
+            "p",
+            vec![
+                org_node("c1", vec![org_node("c1b", vec![])]),
+                org_node("c2", vec![org_node("c2b", vec![])]),
+                org_node("c3", vec![org_node("c3b", vec![])]),
+            ],
+        );
+        let layout = compute_ploeg_layered_layout(&root, &opts());
+        let by_id: HashMap<_, _> = layout.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+        for (top, below) in [("c1", "c1b"), ("c2", "c2b"), ("c3", "c3b")] {
+            assert!(
+                (by_id[top].x - by_id[below].x).abs() < 0.01,
+                "column {top} is not vertical"
+            );
+        }
+        assert!((by_id["c1"].y - by_id["c2"].y).abs() < 0.01);
+        assert!((by_id["c2"].y - by_id["c3"].y).abs() < 0.01);
+        assert!((by_id["c1b"].y - by_id["c3b"].y).abs() < 0.01);
+        assert!(by_id["c1"].x < by_id["c2"].x && by_id["c2"].x < by_id["c3"].x);
+        // the parent centres over the middle column, not over the first
+        assert!((by_id["p"].x - by_id["c2"].x).abs() < 0.01);
+    }
+
     #[test]
     fn ploeg_layered_siblings_same_row() {
         let root = org_node("root", vec![org_node("a", vec![]), org_node("b", vec![])]);

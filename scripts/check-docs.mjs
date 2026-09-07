@@ -25,6 +25,7 @@
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { barrelProblems } from './barrelSurface.mjs';
+import { orgModeDocProblems } from './orgModeDocs.mjs';
 import { seatCollisionDocProblems } from './seatCollisionDocs.mjs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -203,6 +204,10 @@ try {
     // types — in particular *why* seats and organizations answer an occupied
     // cell differently, which no signature can state.
     ...seatCollisionDocProblems(readFileSync(join(ROOT, USAGE), 'utf8')),
+    // T113 / spec A9: the layout rule went local, so «mode» now has two
+    // readings and only prose separates them. Structural rather than a term
+    // list — the change adds no identifier to check for.
+    ...orgModeDocProblems(readFileSync(join(ROOT, USAGE), 'utf8')),
   );
 } catch {
   // Unreadable is a failure, not an uptrace: a file nobody can read is a file

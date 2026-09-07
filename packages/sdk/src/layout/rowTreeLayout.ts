@@ -1,7 +1,14 @@
 import type { DiagramOrganization, DiagramOrgLink } from '../data/types.js';
 import { computeMatrixLayout } from './matrixLayout.js';
+import {
+  chainCollapsedGrids,
+  planCollapsedSiblingGrids,
+  unchainGridNodes,
+  type CollapsedSiblingGrid,
+} from './collapsedSiblingGrid.js';
 import { detectOrgMode, findExpandedRootIds, isOrgCollapsed } from './orgMode.js';
 import { validateOrgHierarchy } from './orgTree.js';
+import { buildSpineBusEdgesForForest } from './spineBusEdges.js';
 import { OrgHierarchyError } from './orgTree.js';
 import {
   DEFAULT_ORG_LAYOUT_OPTIONS,
@@ -59,7 +66,7 @@ export const MAX_ROW_TREE_DEPTH = 2_500;
 function visibleOrgsForRowTree(
   organizations: DiagramOrganization[],
   expandedRootId: string,
-): DiagramOrganization[] {
+): { visible: DiagramOrganization[]; maxDepth: number } {
   const byId = new Map(organizations.map((o) => [o.id, o]));
   const childrenByParent = new Map<string, DiagramOrganization[]>();
   for (const org of organizations) {
@@ -70,6 +77,10 @@ function visibleOrgsForRowTree(
   }
 
   const visible = new Set<string>();
+  // Returned rather than only compared: T113 hangs a grid's rows below the set,
+  // and the second guard needs a number to add them to. A check that can only
+  // throw cannot answer «how deep is this really».
+  let maxDepth = 0;
   const pending: Array<{ id: string; depth: number }> = [{ id: expandedRootId, depth: 1 }];
   while (pending.length > 0) {
     const { id, depth } = pending.pop()!;
@@ -82,12 +93,49 @@ function visibleOrgsForRowTree(
       );
     }
     visible.add(id);
+    if (depth > maxDepth) maxDepth = depth;
     if (isOrgCollapsed(org)) continue;
     for (const child of childrenByParent.get(id) ?? []) {
       pending.push({ id: child.id, depth: depth + 1 });
     }
   }
-  return organizations.filter((o) => visible.has(o.id));
+  return { visible: organizations.filter((o) => visible.has(o.id)), maxDepth };
+}
+
+/**
+ * Swap a grid's chain edges for a spine, bus and risers (T113 K4).
+ *
+ * The chain is how the set travels to the layout, not how it should be drawn:
+ * left alone, the canvas would show the ladder we climbed to get the geometry.
+ * A member is always a leaf of the visible tree, so the only edges that can
+ * point **at** one are its chain parent's — which makes «is the target a member
+ * of a grid» a complete and stable test, where matching on an id shape or a
+ * depth would be brittle for no gain.
+ *
+ * The builder is the one the global matrix already uses (`matrixLayout.ts`),
+ * down to the same `busGap`, so the two matrices in this product are drawn by
+ * the same geometry rather than by two lookalikes.
+ */
+function withGridSpines(input: {
+  edges: OrgLayoutResult['edges'];
+  nodes: OrgLayoutResult['nodes'];
+  grids: readonly CollapsedSiblingGrid[];
+  opts: Required<OrgLayoutOptions>;
+}): OrgLayoutResult['edges'] {
+  const { edges, nodes, grids, opts } = input;
+  if (grids.length === 0) return edges;
+
+  const members = new Set(grids.flatMap((g) => g.memberIds));
+  const pairs = grids.flatMap((g) =>
+    g.memberIds.map((childId) => ({ parentId: g.parentId, childId })),
+  );
+  return [
+    ...edges.filter((e) => !members.has(e.toId)),
+    ...buildSpineBusEdgesForForest([...nodes], pairs, {
+      busGap: Math.max(8, Math.min(18, opts.verticalGap / 2)),
+      busY: 'row-top',
+    }),
+  ];
 }
 
 export async function computeOrgRowTreeLayout(
@@ -101,9 +149,24 @@ export async function computeOrgRowTreeLayout(
   if (!organizations.some((o) => o.id === expandedRootId)) {
     throw new OrgHierarchyError(`Unknown organization: ${expandedRootId}`);
   }
-  const visible = visibleOrgsForRowTree(organizations, expandedRootId);
+  const { visible, maxDepth } = visibleOrgsForRowTree(organizations, expandedRootId);
 
-  const raw = await computeOrgRowTreeLayoutWasm(toOrgFlatInput(visible), expandedRootId, {
+  // T113: a set of siblings that is entirely collapsed lays out as a grid, and
+  // travels to the layout as one chain per column (`collapsedSiblingGrid.ts`).
+  const grids = planCollapsedSiblingGrids({ organizations: visible, options: opts });
+  const extraRows = grids.reduce((deepest, g) => Math.max(deepest, g.rows - 1), 0);
+  if (maxDepth + extraRows > MAX_ROW_TREE_DEPTH) {
+    // Its own message on purpose. The tree the host sent is inside the limit;
+    // what pushed it over is a grid the host never asked for, and the old
+    // wording would have blamed the data.
+    throw new OrgHierarchyError(
+      `Organization tree too deep once collapsed siblings are laid out as a grid: ` +
+        `depth ${maxDepth} plus ${extraRows} grid row(s) exceeds ${MAX_ROW_TREE_DEPTH}`,
+    );
+  }
+  const forLayout = chainCollapsedGrids({ organizations: visible, grids });
+
+  const raw = await computeOrgRowTreeLayoutWasm(toOrgFlatInput(forLayout), expandedRootId, {
     direction: 'vertical',
     nodeWidth: opts.nodeWidth,
     nodeHeight: opts.nodeHeight,
@@ -112,8 +175,7 @@ export async function computeOrgRowTreeLayout(
     margin: opts.margin,
   });
 
-  return {
-    mode: 'row-tree',
+  const nodes = unchainGridNodes({
     nodes: raw.nodes.map((n) => ({
       id: n.id,
       orgId: n.orgId,
@@ -124,12 +186,23 @@ export async function computeOrgRowTreeLayout(
       depth: n.depth,
       parentId: n.parentId ?? undefined,
     })),
-    edges: raw.edges.map((e) => ({
-      fromId: e.fromId,
-      toId: e.toId,
-      path: e.path,
-      kind: 'admin' as const,
-    })),
+    grids,
+  });
+
+  return {
+    mode: 'row-tree',
+    nodes,
+    edges: withGridSpines({
+      edges: raw.edges.map((e) => ({
+        fromId: e.fromId,
+        toId: e.toId,
+        path: e.path,
+        kind: 'admin' as const,
+      })),
+      nodes,
+      grids,
+      opts,
+    }),
     width: raw.width,
     height: raw.height,
   };
