@@ -4,9 +4,11 @@ import {
   chainCollapsedGrids,
   planCollapsedSiblingGrids,
   unchainGridNodes,
+  type CollapsedSiblingGrid,
 } from './collapsedSiblingGrid.js';
 import { detectOrgMode, findExpandedRootIds, isOrgCollapsed } from './orgMode.js';
 import { validateOrgHierarchy } from './orgTree.js';
+import { buildSpineBusEdgesForForest } from './spineBusEdges.js';
 import { OrgHierarchyError } from './orgTree.js';
 import {
   DEFAULT_ORG_LAYOUT_OPTIONS,
@@ -100,6 +102,41 @@ function visibleOrgsForRowTree(
   return { visible: organizations.filter((o) => visible.has(o.id)), maxDepth };
 }
 
+/**
+ * Swap a grid's chain edges for a spine, bus and risers (T113 K4).
+ *
+ * The chain is how the set travels to the layout, not how it should be drawn:
+ * left alone, the canvas would show the ladder we climbed to get the geometry.
+ * A member is always a leaf of the visible tree, so the only edges that can
+ * point **at** one are its chain parent's — which makes «is the target a member
+ * of a grid» a complete and stable test, where matching on an id shape or a
+ * depth would be brittle for no gain.
+ *
+ * The builder is the one the global matrix already uses (`matrixLayout.ts`),
+ * down to the same `busGap`, so the two matrices in this product are drawn by
+ * the same geometry rather than by two lookalikes.
+ */
+function withGridSpines(
+  edges: OrgLayoutResult['edges'],
+  nodes: OrgLayoutResult['nodes'],
+  grids: readonly CollapsedSiblingGrid[],
+  opts: Required<OrgLayoutOptions>,
+): OrgLayoutResult['edges'] {
+  if (grids.length === 0) return edges;
+
+  const members = new Set(grids.flatMap((g) => g.memberIds));
+  const pairs = grids.flatMap((g) =>
+    g.memberIds.map((childId) => ({ parentId: g.parentId, childId })),
+  );
+  return [
+    ...edges.filter((e) => !members.has(e.toId)),
+    ...buildSpineBusEdgesForForest([...nodes], pairs, {
+      busGap: Math.max(8, Math.min(18, opts.verticalGap / 2)),
+      busY: 'row-top',
+    }),
+  ];
+}
+
 export async function computeOrgRowTreeLayout(
   organizations: DiagramOrganization[],
   expandedRootId: string,
@@ -137,27 +174,34 @@ export async function computeOrgRowTreeLayout(
     margin: opts.margin,
   });
 
+  const nodes = unchainGridNodes({
+    nodes: raw.nodes.map((n) => ({
+      id: n.id,
+      orgId: n.orgId,
+      x: n.x,
+      y: n.y,
+      width: n.width,
+      height: n.height,
+      depth: n.depth,
+      parentId: n.parentId ?? undefined,
+    })),
+    grids,
+  });
+
   return {
     mode: 'row-tree',
-    nodes: unchainGridNodes({
-      nodes: raw.nodes.map((n) => ({
-        id: n.id,
-        orgId: n.orgId,
-        x: n.x,
-        y: n.y,
-        width: n.width,
-        height: n.height,
-        depth: n.depth,
-        parentId: n.parentId ?? undefined,
+    nodes,
+    edges: withGridSpines(
+      raw.edges.map((e) => ({
+        fromId: e.fromId,
+        toId: e.toId,
+        path: e.path,
+        kind: 'admin' as const,
       })),
+      nodes,
       grids,
-    }),
-    edges: raw.edges.map((e) => ({
-      fromId: e.fromId,
-      toId: e.toId,
-      path: e.path,
-      kind: 'admin' as const,
-    })),
+      opts,
+    ),
     width: raw.width,
     height: raw.height,
   };

@@ -179,3 +179,74 @@ describe('collapsed siblings lay out as a grid (T113 K3)', () => {
     await expect(computeOrgRowTreeLayout(orgs, 'd0')).rejects.toThrow(/grid/i);
   });
 });
+
+/**
+ * T113 K4 — a grid is reached by a spine, not by nine separate paths.
+ *
+ * The chain the transform builds is a transport detail; leaving its edges on
+ * screen would draw the ladder we used to get the geometry. The spine is the
+ * shape the host already has (trunk / bus / riser) and the one the global
+ * matrix already draws here, so both matrices end up looking alike.
+ */
+describe('a collapsed-sibling grid is wired by a spine (T113 K4)', () => {
+  const rootWith = (n: number, collapsed = true): DiagramOrganization[] => [
+    org('root'),
+    ...Array.from({ length: n }, (_, i) => ({
+      id: `c${i}`,
+      name: `c${i}`,
+      groupIds: [],
+      parentOrgId: 'root',
+      collapsed,
+      matrixOrder: i,
+    })),
+  ];
+
+  it('failure: no edge is left running between two members of the grid', async () => {
+    // Those are the chain edges. They exist only because a column of the grid
+    // travels as a chain, and the host has no business seeing them.
+    const layout = await computeOrgRowTreeLayout(rootWith(9), 'root');
+    const members = new Set(['c0','c1','c2','c3','c4','c5','c6','c7','c8']);
+    const chainEdges = layout.edges.filter((e) => members.has(e.fromId) && members.has(e.toId));
+    expect(chainEdges).toEqual([]);
+  });
+
+  it('success: every member of the grid is reachable — none is left unwired', async () => {
+    const layout = await computeOrgRowTreeLayout(rootWith(9), 'root');
+    for (let i = 0; i < 9; i += 1) {
+      expect(layout.edges.some((e) => e.toId === `c${i}`)).toBe(true);
+    }
+  });
+
+  it('success: the wiring starts at the parent, so the grid hangs off the tree', async () => {
+    const layout = await computeOrgRowTreeLayout(rootWith(9), 'root');
+    expect(layout.edges.some((e) => e.fromId === 'root')).toBe(true);
+  });
+
+  it('success: every edge into a member ends inside that member`s box', async () => {
+    const layout = await computeOrgRowTreeLayout(rootWith(4), 'root');
+    const boxOf = (id: string) => layout.nodes.find((n) => n.orgId === id)!;
+    for (let i = 0; i < 4; i += 1) {
+      const edge = layout.edges.find((e) => e.toId === `c${i}`)!;
+      const last = /([ML])\s*(-?\d+(?:\.\d+)?)[ ,]+(-?\d+(?:\.\d+)?)\s*$/.exec(edge.path)!;
+      const x = Number(last[2]);
+      const y = Number(last[3]);
+      const b = boxOf(`c${i}`);
+      expect(x).toBeGreaterThanOrEqual(b.x - 1);
+      expect(x).toBeLessThanOrEqual(b.x + b.width + 1);
+      expect(y).toBeGreaterThanOrEqual(b.y - 1);
+      expect(y).toBeLessThanOrEqual(b.y + b.height + 1);
+    }
+  });
+
+  it('failure: a set that is not a grid keeps one edge per child, as before', async () => {
+    // The regression half: nothing about ordinary row-tree wiring changes.
+    const orgs = rootWith(4);
+    orgs[2] = { ...orgs[2]!, collapsed: false };
+    const layout = await computeOrgRowTreeLayout(orgs, 'root');
+    for (let i = 0; i < 4; i += 1) {
+      const into = layout.edges.filter((e) => e.toId === `c${i}`);
+      expect(into).toHaveLength(1);
+      expect(into[0]?.fromId).toBe('root');
+    }
+  });
+});
