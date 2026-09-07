@@ -53,6 +53,13 @@ export interface DemoE2eBridge {
    * of it. Reading the log asks «was it ever said», which has an answer.
    */
   getWindowStateLog(): string[];
+  /**
+   * What each staff window was asked for, captured at the decision point (T118).
+   *
+   * The values a failing test can read afterwards are the settled ones; these
+   * are the ones the window was actually built from.
+   */
+  getStaffAskLog(): Array<Record<string, number | string | boolean>>;
   getStaffLayoutEdges(): Promise<Array<{ fromId: string; toId: string; kind: string }>>;
   /** Soft render warnings — a silently empty contour layer must show up here. */
   getLayoutDiagnostics(): string[];
@@ -101,6 +108,7 @@ export interface E2eBridgeDeps {
   /** What the recent staff window rebuilds cost (T88.8). */
   staffRebuilds(): StaffRebuildRecord[];
   windowStateLog(): string[];
+  staffAskLog(): Array<Record<string, number | string | boolean>>;
   /** Patches recorded with the geometry drawn at the time (T104). */
   layoutPatchLog(): Array<{
     patch: unknown;
@@ -130,6 +138,7 @@ export function installDemoE2eBridge(deps: E2eBridgeDeps): void {
     getPromotedNodeIds: () => [...diagram.getPromotedNodeIds()],
     getStaffRebuilds: () => deps.staffRebuilds(),
     getWindowStateLog: () => deps.windowStateLog(),
+    getStaffAskLog: () => deps.staffAskLog(),
     getLayoutDiagnostics: () => [...diagram.getLayoutDiagnostics()],
     getRendererKind: () => diagram.getRendererKind(),
     getStaffLayoutEdges: () => staffLayoutEdgesFor(deps.config()),

@@ -77,7 +77,8 @@ test.describe('1M staff scale tab', () => {
             const bridge = (
               window as unknown as {
                 __demoE2e?: {
-                  getStaffRebuilds?(): Array<{ from: number; to: number }>;
+                  getStaffRebuilds?(): Array<{ from: number; to: number; size: number }>;
+                  getStaffAskLog?(): Array<Record<string, number | string | boolean>>;
                 };
               }
             ).__demoE2e;
@@ -94,8 +95,20 @@ test.describe('1M staff scale tab', () => {
               document.querySelector('[data-testid="node-scale-focus-seat"]') !== null;
             const log = bridge?.getStaffRebuilds?.() ?? [];
             const last = log.at(-1);
-            const range = last ? `${last.from}…${last.to}` : 'none';
-            return `seat=${seat} rebuilds=${log.length} lastRange=${range}`;
+            // ⚠️ `from`/`to` are the window START before and after — a move, not
+            // a range. Reading them as bounds made a 124-seat *move* look like a
+            // 124-seat *window* and sent T118 after a defect that was not there.
+            // The range is `to … to + size`.
+            const range = last
+              ? `start ${last.from}->${last.to} size=${last.size} covers ${last.to}…${last.to + last.size}`
+              : 'none';
+            // T118: what the window was asked for, captured where it was asked.
+            const asks = bridge?.getStaffAskLog?.() ?? [];
+            const ask = asks.at(-1);
+            const askStr = ask
+              ? `span=${ask.span} capped=${ask.capped} screen=${ask.screenW}x${ask.screenH} scale=${ask.scale} wallBase=${ask.wallBase}`
+              : 'ask=none';
+            return `seat=${seat} rebuilds=${log.length} lastRange=${range} ${askStr}`;
           }),
         { timeout: 30_000 },
       )
