@@ -67,15 +67,29 @@ jobs:
               says on WHICH PATHS. Honour it. `work/CODING_STANDARDS.md` is
               TypeScript only (`packages/sdk`, `packages/demo`) — a Matt Pocock
               finding on a `.rs` file is wrong by construction.
-            - `packages/core` (Rust) has NO documented standard and no clippy
-              gate. Judge it on general engineering practice and say that is
-              what you are doing.
+            - `packages/core` (Rust) has no documented standard — no
+              `rustfmt.toml`, no `clippy.toml`, no written convention — so judge
+              it on general engineering practice and say that is what you are
+              doing. It DOES have machine gates since `21d3560`: CI runs
+              `cargo fmt --check` and `cargo clippy --all-targets -D warnings`
+              alongside `cargo test`, so formatting and clippy's own rule set
+              are not yours to re-find.
             - `## Не мірник` lists what must NOT be used as a measure —
               `work/tasks/**`, `work/tech-debt/**`, `docs/REQUIREMENTS.md`,
               `archive/**`. Recorded debt is not a violation.
-            - This repo has NO linter and NO formatter, so the usual "skip what
-              tooling already enforces" does not apply: naming, function size,
-              argument count, `any`, `satisfies` vs `as` are all yours to check.
+            - `## Машинні гейти` lists what tooling already enforces, and you
+              must NOT spend the pass re-finding it. Since 2026-09-02 this repo
+              HAS a linter: `oxlint` runs in CI at `--max-warnings 0`, so dead
+              imports, `no-shadow`, unused values and the rest of its rule set
+              are already covered. `oxfmt` is configured but is NOT a CI gate,
+              so formatting drift is real and unreported — flag it only where it
+              hurts reading, never as a rule breach.
+            - What the machines here do NOT measure, and is therefore yours:
+              function size (`max-lines*` is off **on purpose** — the limit is
+              this repo's documents, not the linter), naming, nesting,
+              argument count, `satisfies` vs `as`, and whether a comment says
+              *why* rather than *what*. `packages/core` has no Rust standard at
+              all beyond `cargo fmt` and `clippy`.
             - `## Конституція` violations are blocking, not remarks.
 
             For each finding give: `file:line`, WHICH document and rule it
