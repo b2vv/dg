@@ -152,6 +152,23 @@ export class App {
   private staffRebuildLog: StaffRebuildRecord[] = [];
   /** Every window status ever shown, so a transient one can still be asserted (T101). */
   private windowStateLog: string[] = [];
+  /**
+   * What each staff window was asked for, at the moment it was asked (T118).
+   *
+   * Recorded here rather than read from the test afterwards: the defect is a
+   * race, so by the time a failing test looks, the surface has settled and
+   * reports the value that would have been right. Only the decision point
+   * knows what was actually used.
+   */
+  private staffAskLog: Array<{
+    kind: string;
+    span: number;
+    capped: boolean;
+    screenW: number;
+    screenH: number;
+    scale: number;
+    wallBase: number;
+  }> = [];
   /** Did the ceiling cut the last ask short? Row 10 needs the status to say so. */
   private staffWindowCapped = false;
   /**
@@ -587,6 +604,7 @@ export class App {
       config: () => this.buildConfig(),
       staffRebuilds: () => [...this.staffRebuildLog],
       windowStateLog: () => [...this.windowStateLog],
+      staffAskLog: () => [...this.staffAskLog],
     });
   }
 
@@ -755,6 +773,27 @@ export class App {
   }
 
   /** What the camera is asking the wall for, from where it stands right now. */
+  /** See {@link staffAskLog}. Bounded: a dev seam, not a feature. */
+  private recordStaffAsk(
+    kind: string,
+    ask: WindowRange,
+    diagram: OrgHierarchyDiagram,
+    wallBase: number,
+  ): void {
+    const screen = diagram.getScreenSize();
+    const viewport = diagram.getViewport();
+    this.staffAskLog.push({
+      kind,
+      span: ask.span,
+      capped: ask.capped,
+      screenW: Math.round(screen.width),
+      screenH: Math.round(screen.height),
+      scale: Number(viewport.scale.toFixed(4)),
+      wallBase: Math.round(wallBase),
+    });
+    if (this.staffAskLog.length > 100) this.staffAskLog.shift();
+  }
+
   private staffWindowAsk(diagram: OrgHierarchyDiagram, wallBase: number): WindowRange {
     return resolveWindowRange(
       {
@@ -859,6 +898,7 @@ export class App {
     // only honest guess left.
     const ask = this.staffWindowAsk(diagram, previous.wallBase);
     this.staffWindowCapped = ask.capped;
+    this.recordStaffAsk('jump', ask, diagram, previous.wallBase);
     const next = buildScaleStaffWindow({
       focusIndex,
       windowSize: ask.span > 0 ? ask.span : STAFF_SCALE_WINDOW,
