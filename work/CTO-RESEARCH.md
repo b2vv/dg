@@ -201,7 +201,7 @@ archive/           legacy-ts, legacy-web-rspack (TD02 closed)
 e2e/               Playwright проти preview demo (17 spec-файлів)
 ```
 
-Workspaces npm: лише sdk + demo; core збирається `npm run build:wasm` (кореневий `package.json`). SDK — версія **0.3.0** (піднято 2026-09-07 разом із закриттям T110), і він **справді збирається як бібліотека**: `tsc && copy-wasm && check-package`, де останній крок перевіряє, що кожен згаданий у `package.json` файл реально їде в пакет.
+Workspaces npm: лише sdk + demo; core збирається `npm run build:wasm` (кореневий `package.json`). SDK — версія **0.4.0** (піднято 2026-09-08 разом із T80; попередня `0.3.0` — T110), і він **справді збирається як бібліотека**: `tsc && copy-wasm && check-package`, де останній крок перевіряє, що кожен згаданий у `package.json` файл реально їде в пакет.
 
 У SDK **145 модулів + 128 тестових файлів**; зелена база — **1009 sdk + 108 demo** unit (заміряно 2026-09-08 після T115), **79 e2e**, **40** Rust і окремо **19** тестів на самі скрипти гейта (`npm run test:scripts`).
 
