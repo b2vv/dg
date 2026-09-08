@@ -1,6 +1,5 @@
 import type {
   DiagramData,
-  DiagramOrganization,
   DiagramReportLine,
   GridCell,
 } from './data/types.js';
@@ -14,9 +13,8 @@ import {
 } from './render/PixiHost.js';
 import type { DiagramRenderer } from './render/DiagramRenderer.js';
 import { MediaService, type DiagramMediaFacade, type MediaPlaceholderRegistry } from './media/index.js';
+import { mediaUrlsForRef, prefetchOpenMedia } from './media/diagramMedia.js';
 import {
-  resolveThemedMediaFromOrganization,
-  resolveThemedMediaFromPerson,
   DEFAULT_MEDIA_PLACEHOLDERS,
 } from './media/index.js';
 import {
@@ -25,13 +23,11 @@ import {
   resolveTheme,
   resolveNodeTheme,
   canvasBackgroundForTheme,
-  getOrgSymbolUrl,
   type NodeThemeOverrides,
   type RenderConfig,
   type CameraMotionOptions,
   type NodeWorldBox,
 } from './render/index.js';
-import { resolvePersonPhotoUrl } from './render/PersonNode.js';
 import { inferStaffCurrentOrgId } from './render/inferStaffCurrentOrgId.js';
 import { resolveLodLevel, type LodLevel, type LodThresholds } from './render/lod.js';
 import { createRenderCoalesce } from './render/renderCoalesce.js';
@@ -229,38 +225,6 @@ function parseHostSearchPage(value: unknown): HostSearchPage | null {
     if (typeof h.id !== 'string' || typeof h.label !== 'string') return null;
   }
   return page as HostSearchPage;
-}
-
-/**
- * Organisations whose whole ancestor chain is open.
- *
- * `collapsed` on an organisation hides its **children**, not itself, so an org
- * is open when no ancestor above it is collapsed. The guard set matters:
- * `parentOrgId` is host data and a cycle in it would otherwise spin forever
- * (T97 row 10).
- */
-function expandedOrgIds(organizations: readonly DiagramOrganization[]): Set<string> {
-  const byId = new Map(organizations.map((o) => [o.id, o]));
-  const open = new Set<string>();
-  for (const org of organizations) {
-    let cursor = org.parentOrgId;
-    let visible = true;
-    const guard = new Set<string>();
-    while (cursor && !guard.has(cursor)) {
-      guard.add(cursor);
-      const parent = byId.get(cursor);
-      // A parent that does not exist makes this org a root rather than an
-      // orphan to hide — the reading `revealOrgPath` already takes.
-      if (!parent) break;
-      if (parent.collapsed) {
-        visible = false;
-        break;
-      }
-      cursor = parent.parentOrgId;
-    }
-    if (visible) open.add(org.id);
-  }
-  return open;
 }
 
 export class OrgHierarchyDiagram {
@@ -485,7 +449,12 @@ export class OrgHierarchyDiagram {
         onInvalidateViews: async (urls) => {
           await instance.renderer?.refreshMediaUrls(urls);
         },
-        resolveNodeUrls: (ref) => instance.resolveMediaUrlsForRef(ref),
+        resolveNodeUrls: (ref) =>
+          mediaUrlsForRef({
+            data: instance.data,
+            themeMode: instance.viewState.themeMode,
+            ref,
+          }),
       },
     );
     await instance.render();
@@ -828,7 +797,11 @@ export class OrgHierarchyDiagram {
     if (this.destroyed || !this.host) return;
     this.callbacks.onLayoutDiagnostics?.(this.getLayoutDiagnostics());
     this.notifyPromoteSync();
-    this.prefetchConfiguredMedia();
+    prefetchOpenMedia({
+      data: this.data,
+      lodLevel: this.viewState.lodLevel,
+      service: this.mediaService,
+    });
   }
 
   /**
@@ -865,74 +838,6 @@ export class OrgHierarchyDiagram {
    */
   getLastRenderFailure(): RenderFailure | null {
     return this.lastRenderFailure;
-  }
-
-  /** URLs currently bound to a node (for `diagram.media.refresh`). */
-  private resolveMediaUrlsForRef(ref: NodeRef): string[] {
-    const out = new Set<string>();
-    const theme = resolveTheme(this.viewState.themeMode);
-    if (ref.kind === 'organization') {
-      const org = this.data.organizations.find((o) => o.id === ref.id);
-      if (!org) return [];
-      const media = org.media ?? resolveThemedMediaFromOrganization(org);
-      if (media?.fallback) out.add(media.fallback.trim());
-      if (media?.byTheme) {
-        for (const u of Object.values(media.byTheme)) {
-          if (u?.trim()) out.add(u.trim());
-        }
-      }
-      const active = getOrgSymbolUrl(org, theme);
-      if (active?.trim()) out.add(active.trim());
-      return [...out];
-    }
-    const personId = ref.personId ?? (ref.kind === 'person' ? ref.id : undefined);
-    const person = personId
-      ? this.data.persons.find((p) => p.id === personId)
-      : undefined;
-    const photo = resolvePersonPhotoUrl(person);
-    if (photo) out.add(photo);
-    return [...out];
-  }
-
-  /**
-   * M4: preload alternate theme keys when host opts in via prefetchMediaThemeKeys.
-   *
-   * Only for what is **open**. This walked the whole dataset — every
-   * organisation and every person, collapsed branches included — which is the
-   * one place that ignored «images load for expanded organisations» (T97 §В3).
-   *
-   * Accepted consequence: prefetch exists to make a theme switch instant, so a
-   * branch opened after the prefetch will flicker on the next switch. Not
-   * fetching what nobody opened wins over that.
-   */
-  private prefetchConfiguredMedia(): void {
-    if (!this.mediaService?.hasPrefetchThemes) return;
-    // The two gates answer different questions and do not overlap: below
-    // `farMax` a card draws no image at all (M6), so there is nothing worth
-    // preloading — the LOD decides *whether any* image is wanted, expansion
-    // decides *which* ones may load.
-    if (this.viewState.lodLevel === 'far') return;
-
-    const open = expandedOrgIds(this.data.organizations);
-    for (const org of this.data.organizations) {
-      if (!open.has(org.id)) continue;
-      const media = org.media ?? resolveThemedMediaFromOrganization(org);
-      this.mediaService.prefetch(media, media?.revision);
-    }
-
-    // A person is reachable only through a position, so an org nobody opened
-    // takes its people with it.
-    const openPeople = new Set<string>();
-    for (const position of this.data.positions) {
-      if (position.personId && open.has(position.organizationId)) {
-        openPeople.add(position.personId);
-      }
-    }
-    for (const person of this.data.persons) {
-      if (!openPeople.has(person.id)) continue;
-      const media = person.media ?? resolveThemedMediaFromPerson(person);
-      this.mediaService.prefetch(media, media?.revision);
-    }
   }
 
   getOrgMode(): OrgDisplayMode {
