@@ -15,10 +15,6 @@ const defaultRegistry: MapperRegistry = {
     flatRowsToDiagram(input as Parameters<typeof flatRowsToDiagram>[0]),
   normalizeDiagram: (input) =>
     normalizeDiagram(input as Parameters<typeof normalizeDiagram>[0]),
-  [computeHandlerKeys.computeDeptContour]: (input) =>
-    dispatchComputeHandler(computeHandlerKeys.computeDeptContour, input),
-  [computeHandlerKeys.computeAllContours]: (input) =>
-    dispatchComputeHandler(computeHandlerKeys.computeAllContours, input),
   [computeHandlerKeys.computeOrgRowTreeLayout]: (input) =>
     dispatchComputeHandler(computeHandlerKeys.computeOrgRowTreeLayout, input),
   [searchHandlerKeys.buildSearchIndex]: (input) =>

@@ -10,11 +10,6 @@ import {
   type SeatDragMode,
 } from './personInteractions.js';
 import { bindOrgCardInteractions } from './orgCardInteractions.js';
-import {
-  type ContourMagnetConfig,
-  type ContourPositionInput,
-  type DeptContourResult,
-} from '../contour/bridge.js';
 import { contourSceneInputs, matrixNodeBoxes } from './contour/contourInputs.js';
 import { contourButtonGroupMargin } from './contour/contourButtonGroup.js';
 import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
@@ -63,11 +58,6 @@ import {
   type ContourMemberBox,
 } from './contour/contourClearance.js';
 import { inferStaffCurrentOrgId } from './inferStaffCurrentOrgId.js';
-
-export type ContourComputer = (
-  positions: ContourPositionInput[],
-  config?: ContourMagnetConfig,
-) => Promise<DeptContourResult[]>;
 
 export interface RenderOptions {
   orgLayout?: OrgLayoutOptions;

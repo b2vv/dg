@@ -46,21 +46,7 @@ export type {
   ItemMapperFn,
 } from './worker/index.js';
 
-export {
-  computeDeptContour,
-  computeAllContours,
-  initContourWasm,
-  WasmLoadError,
-  VARIANT_B_POSITIONS,
-} from './contour/bridge.js';
-export {
-  computeDeptContourInWorker,
-  computeAllContoursInWorker,
-  configureContourWorker,
-} from './contour/worker-bridge.js';
-export {
-  createIncrementalContourComputer,
-} from './contour/incremental.js';
+export { initContourWasm, WasmLoadError, VARIANT_B_POSITIONS } from './contour/bridge.js';
 export type {
   ContourPositionInput,
   ContourMagnetConfig,
@@ -68,12 +54,6 @@ export type {
   DeptContourResult,
   ContourWasmLoader,
 } from './contour/bridge.js';
-export type {
-  ContourComputerFn,
-  DeptContourComputerFn,
-  IncrementalContourComputer,
-} from './contour/incremental.js';
-export type { ContourWorkerOptions } from './contour/worker-bridge.js';
 
 export {
   DepartmentBlobView,
@@ -164,7 +144,6 @@ export type {
   NodeThemeOverrides,
   ThemeMode,
   RenderConfig,
-  ContourComputer,
   ContourClearBox,
   ViewportTransform,
   CameraMotionOptions,

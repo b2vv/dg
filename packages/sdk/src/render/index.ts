@@ -1,4 +1,4 @@
-export type { ContourComputer, RenderOptions } from './DiagramRenderer.js';
+export type { RenderOptions } from './DiagramRenderer.js';
 export { DiagramRenderer } from './DiagramRenderer.js';
 export { LayerManager } from './LayerManager.js';
 export type { NodeWorldBox } from './SceneRegistry.js';

@@ -1,6 +1,5 @@
 import { describe, expect, it } from '@rstest/core';
 import { buildVariantBData } from '../scenarios/variantB.js';
-import { computeDeptContour, VARIANT_B_POSITIONS } from '@org-hierarchy/sdk';
 
 describe('buildVariantBData', () => {
   it('success: produces staff diagram with 6 positions', () => {
@@ -10,14 +9,3 @@ describe('buildVariantBData', () => {
   });
 });
 
-describe('Variant B contour', () => {
-  it('success: IT splits into 3 magnetic groups (top row + two bottom)', async () => {
-    const contours = await computeDeptContour('IT', VARIANT_B_POSITIONS, {
-      smoothIterations: 0,
-      magnetRadius: 1.5,
-    });
-    expect(contours).toHaveLength(3);
-    expect(contours[0]!.path.length).toBeGreaterThan(0);
-    expect(contours[0]!.path.startsWith('M')).toBe(true);
-  });
-});
