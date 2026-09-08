@@ -438,12 +438,11 @@ Host raw data
 ├──────────────────────────────────────────────────────────┤
 │ Web Worker(s)                                            │
 │  • mapInWorker / WorkerPool / mapFlatRowsInPool          │
-│  • WASM: org row-tree, contour                            │
+│  • WASM: org row-tree                                     │
 │  • search index build (T18)                               │
 ├──────────────────────────────────────────────────────────┤
 │ WASM (org-hierarchy-core)                                │
-│  • computeOrgRowTreeLayout                               │
-│  • computeDeptContour, computeAllContours                │
+│  • computeOrgRowTreeLayout — єдиний експорт через межу    │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -585,8 +584,6 @@ z-order bottom → top:
 ```ts
 import {
   OrgHierarchyDiagram,
-  computeDeptContour,
-  computeAllContours,
   VARIANT_B_POSITIONS,
   flatRowsToDiagram,
   WorkerPool,
@@ -602,15 +599,9 @@ const diagram = await OrgHierarchyDiagram.create(container, {
   onLayoutChange: (patch) => {},
 });
 
-// Contour (main or worker)
-const contour = await computeDeptContour('IT', positions, {
-  paddingCells: 0,
-  corridorCells: 0,
-  cellWidth: 100,
-  cellHeight: 80,
-  smoothIterations: 2,
-});
-// contour.path → Pixi DepartmentBlob
+// Контур окремою функцією більше не рахують: рушій один і живе в рендері (T80).
+// Форму керують поля RenderConfig — magnetRadius, paddingCells, corridorCells,
+// smoothIterations, minContourMembers.
 
 diagram.destroy();
 ```

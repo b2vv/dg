@@ -15,7 +15,7 @@
   перемішаних відділів; продукт підтвердив, що таких сцен у нього немає, тож рушій лишався без
   замовника й коштував двох регресій «експорт малює не тим рушієм».
 
-- 🔴 **Кореневий барель втратив одинадцять імен.** Функції: `computeDeptContour`,
+- 🔴 **Кореневий барель втратив тринадцять імен.** Функції: `computeDeptContour`,
   `computeAllContours`, `computeDeptContourInWorker`, `computeAllContoursInWorker`,
   `configureContourWorker`, `createIncrementalContourComputer`. Типи: `DeptContourResult`,
   `ContourComputer`, `ContourComputerFn`, `DeptContourComputerFn`, `IncrementalContourComputer`,

@@ -72,10 +72,10 @@ packages/sdk/src/foo/foo.test.ts    — або __tests__/foo.test.ts
 **Tooling (TODO — додати при першій TS-задачі):** Vitest + `@vitest/browser` або jsdom для DOM/Pixi mocks.
 
 ```ts
-describe('computeDeptContour', () => {
-  it('success: returns SVG path for VARIANT_B', async () => { ... });
+describe('paintMagneticGroups', () => {
+  it('success: two adjacent IT seats share one ring', () => { ... });
 
-  it('failure: rejects when wasm not initialized and init fails', async () => { ... });
+  it('failure: a department below minContourMembers gets no ring at all', () => { ... });
 });
 ```
 

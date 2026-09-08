@@ -40,19 +40,6 @@ export const MAGNETIC_STAFF_LAYOUT = {
 /** Contour grid pitch for the magnetic copy (`render.cellWidth/Height`). */
 export const MAGNETIC_CELL = { width: 304, height: 120 } as const;
 
-/**
- * Flood copy: tighter cells so the cell-space contour still hugs the cards —
- * a wide cell would wrap each seat in a much larger block.
- */
-export const FLOOD_CELL = { width: 272, height: 68 } as const;
-
-export const FLOOD_STAFF_LAYOUT = {
-  ...FIGMA_STAFF_LAYOUT,
-  horizontalGap: FLOOD_CELL.width - FIGMA_SEAT.width,
-  verticalGap: FLOOD_CELL.height - FIGMA_SEAT.height,
-  refCellWidth: FIGMA_SEAT.width,
-  refCellHeight: FIGMA_SEAT.height,
-} satisfies StaffLayoutOptions;
 
 /**
  * Figma «посади» topology (frame 1264:7906) with civilian names (rule 1 of
