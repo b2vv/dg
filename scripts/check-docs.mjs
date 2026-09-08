@@ -96,21 +96,20 @@ for (const file of markdownFiles()) {
  * the second, ask who the caller would be: `resolveTestId` looks equally dead
  * from inside this tree and is the seam T115 needs, because its caller is the
  * host and the host is not in this tree.
+ *
+ * 14 → 8 later the same day: T115 documented the six-method test seam in
+ * `docs/USAGE.md` §14. That one was overdue by more than process — the seam
+ * the host cannot migrate without was, until now, formally not part of the
+ * public API at all, so any edit could have changed it without a cycle.
  */
 const UNDOCUMENTED_BASELINE = new Set([
-  'focusByTestId',
-  'getCanvas',
   'getStaffExpandedOrgIds',
   'getStaffExpandedPositionIds',
   'getStaffFocus',
-  'getZoom',
-  'listTestAnchors',
   'openContextMenu',
-  'resolveTestId',
   'runContextMenuAction',
   'setStaffFocus',
   'setTheme',
-  'setViewport',
   'subscribePromoteSync',
 ]);
 

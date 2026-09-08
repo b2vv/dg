@@ -36,14 +36,16 @@ It checks six things, each because that drift already happened here and nothing 
   merely documentation: the threshold below defines the public API as *what `docs/USAGE.md`
   describes*, so a method absent from it cannot be seen by the rule that decides how carefully it
   may be changed. Twenty-one were missing when the check went in — a named baseline that may shrink
-  and never grow. **Fourteen now:** T104 documented the five mutators, which it had to, since the
+  and never grow. **Eight now:** T104 documented the five mutators, which it had to, since the
   three with the worst failure semantics in the tree were formally below the threshold until then;
   T105 then dropped `getData`, which the script had been reporting as documented for a day; T119
-  took the fourteenth off by the other route — `getLastContextMenu` was **deleted**, not
-  documented, being a two-line forwarder nothing in the repo called. That route needs the extra
-  question the first does not: *who would the caller be?* `resolveTestId` is undocumented and
-  uncalled by the same measure, and deleting it would take the seam T115 needs, because its
-  caller is the host and the host is not in this tree;
+  took one off by the other route — `getLastContextMenu` was **deleted**, not documented, being a
+  two-line forwarder nothing in the repo called. That route needs the extra question the first
+  does not: *who would the caller be?* `resolveTestId` was undocumented and uncalled by the same
+  measure, and deleting it would have taken the seam T115 needs, because its caller is the host
+  and the host is not in this tree. T115 then documented that seam — all six methods, in
+  `docs/USAGE.md` §14 — which took the list 14 → 8 and closed the oldest hole in it: the one
+  thing the host cannot migrate without was formally not public API at all;
 - **no export of the public barrel ends in `ForTests`.** `packages/sdk/src/index.ts` re-exported
   two hooks that mutate the process-wide WASM loader, so one consumer reached every diagram in the
   host app; the name said «for tests» and the export said «for everyone». The scan reads the
