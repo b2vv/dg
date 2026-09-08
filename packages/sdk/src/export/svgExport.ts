@@ -22,7 +22,7 @@ import { arrowHeadTriangle, shortenPolylineForArrow } from '../render/staffEdgeA
 import { enrichStaffTierBands } from '../render/staffZoneBounds.js';
 import { contourButtonGroupMargin } from '../render/contour/contourButtonGroup.js';
 import { contourSceneInputs, matrixNodeBoxes } from '../render/contour/contourInputs.js';
-import type { ContourPositionInput } from '../contour/bridge.js';
+import type { ContourPositionInput } from '../render/contour/types.js';
 
 /** Один ринг відділу, готовий до запису в SVG. */
 interface ExportDeptRing {

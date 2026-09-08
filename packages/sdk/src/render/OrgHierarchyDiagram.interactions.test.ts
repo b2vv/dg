@@ -2,7 +2,7 @@ import { describe, expect, it, rstest } from '@rstest/core';
 import { OrgHierarchyDiagram } from '../index.js';
 import type { DiagramData } from '../data/types.js';
 import { InteractionError } from '../interaction/index.js';
-import { VARIANT_B_POSITIONS } from '../contour/bridge.js';
+import { VARIANT_B_POSITIONS } from './contour/variantBPositions.js';
 import type {
   LayoutPatch,
   OrgHierarchyCallbacks,

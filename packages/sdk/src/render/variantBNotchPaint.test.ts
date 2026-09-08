@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 import {
   resetContourWasmForTests,
   setContourWasmLoaderForTests,
-  VARIANT_B_POSITIONS,
 } from '../contour/bridge.js';
+import { VARIANT_B_POSITIONS } from './contour/variantBPositions.js';
 import { filterContoursForPaint } from './contour/contourPaintFilter.js';
 import { paintMagneticGroups } from './contour/paintMagneticGroups.js';
 import type { ContourMemberBox } from './contour/contourClearance.js';

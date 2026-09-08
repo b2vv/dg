@@ -9,7 +9,7 @@
  * down → left → up) matches the Rust far-side preference (G6).
  *
  * `packages/core/src/contour.rs` stays the reference implementation for the
- * cell-space flood used by export/tests; this module is the synchronous
+ * cell-space flood that export and tests once used (removed in T80); this module is the synchronous
  * world-space equivalent for the canvas (T77-M01 Option B keeps the renderer
  * free of the WASM round-trip).
  */

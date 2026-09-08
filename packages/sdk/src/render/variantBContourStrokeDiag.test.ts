@@ -21,7 +21,7 @@ import {
   VARIANT_B_HORIZONTAL_GAP,
   VARIANT_B_VERTICAL_GAP,
 } from './types.js';
-import { VARIANT_B_POSITIONS } from '../contour/bridge.js';
+import { VARIANT_B_POSITIONS } from './contour/variantBPositions.js';
 
 const REPORTS = [
   { fromId: 'P4', toId: 'P2', kind: 'admin' as const },

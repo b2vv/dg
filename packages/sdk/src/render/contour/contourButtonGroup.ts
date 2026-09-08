@@ -1,6 +1,6 @@
 /**
  * Paint magnetic groups as button-group chrome: one rounded rect around
- * member cards (no cell-flood L/C geometry).
+ * member cards — no L/C geometry, which is the shape the removed flood drew.
  *
  * This module is the *frame* only: the padded union AABB of a component.
  * Foreign cards that fall inside that frame are notched out downstream by

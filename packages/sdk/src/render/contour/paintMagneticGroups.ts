@@ -1,4 +1,4 @@
-import type { ContourPositionInput } from '../../contour/bridge.js';
+import type { ContourPositionInput } from './types.js';
 import type { ContourMemberBox } from './contourClearance.js';
 import { clusterPositionIds } from './contourCluster.js';
 import { contourButtonGroupMargin, memberBoxesForCluster } from './contourButtonGroup.js';

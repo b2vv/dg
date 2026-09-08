@@ -1,37 +1,15 @@
-/** Pos input for dept contour (grid coords) */
-export interface ContourPositionInput {
-  id: string;
-  departmentId: string;
-  col: number;
-  row: number;
-}
-
-/** Magnetism config — mirrors Rust ContourMagnetConfig (TD03 / SPEC §4.6.1) */
-export interface ContourMagnetConfig {
-  /** Max Manhattan distance between own cells in one component (default 1.5) */
-  magnetRadius?: number;
-  paddingCells?: number;
-  corridorCells?: number;
-  cellWidth?: number;
-  cellHeight?: number;
-  /** Chaikin iterations; clamped to 8 at compute time (A9, OOM above ~18). */
-  smoothIterations?: number;
-  /** Prefer notch around foreign (documented; flood enforces G2/G5) */
-  preferNotch?: boolean;
-}
-
-export interface ContourPoint {
-  x: number;
-  y: number;
-}
-
-export interface DeptContourResult {
-  departmentId: string;
-  points: ContourPoint[];
-  path: string;
-  cornerCount: number;
-}
-
+/**
+ * The WASM loader. One instance per process, shared by everything that crosses
+ * the boundary — which, since T80 removed the Rust contour, is exactly one
+ * caller: `wasm/layoutBridge.ts` and the row-tree layout behind it.
+ *
+ * ⚠️ The names here still say «contour» — `initContourWasm`, `WasmContourModule`,
+ * `ContourWasmLoader`, and the path of this file. Nothing in it computes a
+ * contour any more. Renaming them is deliberately **not** part of T80: it would
+ * mix a mass rename into a breaking purge, and `initContourWasm` is exported
+ * from the public barrel, so it is its own decision with its own release note.
+ * Until then, read «contour» here as «the one WASM module».
+ */
 export interface WasmContourModule {
   default: () => Promise<void>;
   computeOrgRowTreeLayout: (
@@ -46,7 +24,7 @@ export interface WasmContourModule {
   ) => unknown;
 }
 
-/** Thrown when the WASM contour module cannot be loaded or initialized. */
+/** Thrown when the WASM module cannot be loaded or initialized. */
 export class WasmLoadError extends Error {
   override readonly cause?: unknown;
 
@@ -102,13 +80,3 @@ export function setContourWasmLoaderForTests(loader: ContourWasmLoader | null): 
   contourWasmLoader = loader ?? defaultContourWasmLoader;
   resetContourWasmForTests();
 }
-
-/** Demo positions — variant B (canonical sketch) */
-export const VARIANT_B_POSITIONS: ContourPositionInput[] = [
-  { id: 'P1', departmentId: 'IT', col: 0, row: 0 },
-  { id: 'P2', departmentId: 'IT', col: 1, row: 0 },
-  { id: 'P3', departmentId: 'IT', col: 2, row: 0 },
-  { id: 'P4', departmentId: 'CEO', col: 1, row: 1 },
-  { id: 'P5', departmentId: 'IT', col: 0, row: 2 },
-  { id: 'P6', departmentId: 'IT', col: 2, row: 2 },
-];

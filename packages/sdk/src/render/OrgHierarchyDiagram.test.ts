@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@rstest/core';
 import { OrgHierarchyDiagram, OrgHierarchyError } from '../index.js';
-import { VARIANT_B_POSITIONS } from '../contour/bridge.js';
+import { VARIANT_B_POSITIONS } from './contour/variantBPositions.js';
 
 function makeVariantBDiagram() {
   return {

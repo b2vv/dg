@@ -34,13 +34,11 @@ function scene(): DiagramData {
 
 function painter(deps: { destroyed?: boolean } = {}) {
   const layers = { departments: new Container(), departmentStrokes: new Container() };
-  const diagnostics: string[] = [];
   const instance = new ContourPainter({
     layers,
     isDestroyed: () => deps.destroyed === true,
-    reportDiagnostic: (m) => diagnostics.push(m),
   });
-  return { painter: instance, layers, diagnostics };
+  return { painter: instance, layers };
 }
 
 function request(over: Partial<ContourPaintRequest> = {}): ContourPaintRequest {

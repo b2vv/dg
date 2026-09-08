@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@rstest/core';
-import { VARIANT_B_POSITIONS } from '../../contour/bridge.js';
+import { VARIANT_B_POSITIONS } from './variantBPositions.js';
 import { clusterPositionIds, clusterPositionsByDepartment } from './contourCluster.js';
 
 describe('clusterPositionIds', () => {

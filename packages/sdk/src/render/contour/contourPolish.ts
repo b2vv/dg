@@ -1,6 +1,6 @@
 /**
  * Paint-only polish: rounded wrap around one magnetic component.
- * Padding / smooth here — not in Rust flood (no L/C path).
+ * Padding / smooth live here, in paint — they never were a Rust concern.
  */
 import type { ContourClearBox } from './contourClearance.js';
 import {

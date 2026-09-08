@@ -6,7 +6,7 @@ import {
   subtractRects,
   type ContourRect,
 } from './contourNotch.js';
-import type { ContourPoint } from '../../contour/bridge.js';
+import type { ContourPoint } from './types.js';
 
 const card = (x: number, y: number): ContourRect => ({ x, y, width: 100, height: 60 });
 

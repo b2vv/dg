@@ -8,7 +8,7 @@
  * - **button-group** works in world space, so cells convert to px — clamped to
  *   half the free space between two neighbouring cards, otherwise a corridor
  *   would reach across the gap and cut the neighbour out of its own wash.
- * - **cell-flood** works in cell space and always excludes the whole foreign
+ * - the removed **cell-flood** worked in cell space and always excluded the whole foreign
  *   cell; that exclusion *is* the half cell of G2. Its dilation counts extra
  *   whole cell rings, so the fraction is floored.
  */

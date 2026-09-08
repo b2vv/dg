@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@rstest/core';
-import { VARIANT_B_POSITIONS } from '../contour/bridge.js';
+import { VARIANT_B_POSITIONS } from './contour/variantBPositions.js';
 import { resolvePositionAABB } from '../layout/staff/coords.js';
 import { buildStaffEdgeSegments } from '../layout/staffEdgeGeometry.js';
 import {

@@ -8,7 +8,7 @@ import { resolveMagnetRadius } from '../../contour/magnetRadius.js';
 import { cloneMemberBoxes, offsetMemberBoxesForGridMove } from './offsetMemberBoxes.js';
 import { defaultRenderConfig } from '../types.js';
 import type { DepartmentBlobStyle, NodeTheme, RenderConfig } from '../types.js';
-import type { ContourMagnetConfig, ContourPositionInput } from '../../contour/bridge.js';
+import type { ContourMagnetConfig, ContourPositionInput } from './types.js';
 import type { ContourMemberBox } from './contourClearance.js';
 import type { LodLevel } from '../lod.js';
 import type { DiagramData, GridCell } from '../../data/types.js';
@@ -45,7 +45,6 @@ export interface ContourPainterDeps {
   /** Fills go under the cards, strokes above them. */
   layers: { departments: Container; departmentStrokes: Container };
   isDestroyed(): boolean;
-  reportDiagnostic(message: string): void;
 }
 
 export interface ContourPaintRequest {

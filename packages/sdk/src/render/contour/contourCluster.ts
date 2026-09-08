@@ -1,4 +1,4 @@
-import type { ContourPositionInput } from '../../contour/bridge.js';
+import type { ContourPositionInput } from './types.js';
 import { resolveMagnetRadius } from '../../contour/magnetRadius.js';
 
 function manhattan(a: ContourPositionInput, b: ContourPositionInput): number {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@rstest/core';
-import { VARIANT_B_POSITIONS } from '../contour/bridge.js';
+import { VARIANT_B_POSITIONS } from './contour/variantBPositions.js';
 import { clusterPositionsByDepartment } from './contour/contourCluster.js';
 import { ContourConfigError, resolveMagnetRadius } from '../contour/magnetRadius.js';
 import { paintMagneticGroups } from './contour/paintMagneticGroups.js';
@@ -12,7 +12,7 @@ import {
   VARIANT_B_MAGNET_RADIUS,
 } from './types.js';
 
-/** T78-T3: assert live paint clustering, not dead Rust flood. */
+/** T78-T3: asserts the live paint clustering. The Rust flood it was contrasted with is gone (T80). */
 describe('Variant B magnet radius (T49 adjacency / T78-T3 paint)', () => {
   const inputs = VARIANT_B_POSITIONS.map((p) => ({
     id: p.id,

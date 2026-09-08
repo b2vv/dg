@@ -172,7 +172,6 @@ export class DiagramRenderer {
   private readonly contours = new ContourPainter({
     layers: this.layers,
     isDestroyed: () => this.destroyed,
-    reportDiagnostic: (message) => this.reportContourDiagnostic(message),
   });
   /** Active grid for person drag snap (staff pitch or bare cell). */
   private dragGrid: DragGrid | null = null;
@@ -434,8 +433,12 @@ export class DiagramRenderer {
 
   /**
    * An empty contour layer with a silent console is the kind of quiet lie this
-   * repo bans — every reason the flood produced nothing goes to
-   * `getLayoutDiagnostics()`, which the host receives after each render.
+   * repo bans, so the one reason contours can still come out empty — seats with
+   * no authored `gridCell` — goes to `getLayoutDiagnostics()`.
+   *
+   * T80 note: the painter itself no longer reports anything. Every message it
+   * used to send explained why the Rust flood could not run, and the flood is
+   * gone; the reasons went with it rather than falling silent.
    */
   private reportContourDiagnostic(message: string): void {
     this.lastDiagnostics = [...this.lastDiagnostics, message];

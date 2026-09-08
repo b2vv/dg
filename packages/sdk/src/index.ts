@@ -46,14 +46,13 @@ export type {
   ItemMapperFn,
 } from './worker/index.js';
 
-export { initContourWasm, WasmLoadError, VARIANT_B_POSITIONS } from './contour/bridge.js';
+export { initContourWasm, WasmLoadError } from './contour/bridge.js';
+export { VARIANT_B_POSITIONS } from './render/contour/variantBPositions.js';
 export type {
   ContourPositionInput,
   ContourMagnetConfig,
   ContourPoint,
-  DeptContourResult,
-  ContourWasmLoader,
-} from './contour/bridge.js';
+} from './render/contour/types.js';
 
 export {
   DepartmentBlobView,

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from '@rstest/core';
-import { VARIANT_B_POSITIONS } from '../contour/bridge.js';
+import { VARIANT_B_POSITIONS } from '../render/contour/variantBPositions.js';
 import { assertExportOptions, ExportError } from './types.js';
 import { filterDiagramSubtree } from './subtree.js';
 import { buildDiagramSvg } from './svgExport.js';

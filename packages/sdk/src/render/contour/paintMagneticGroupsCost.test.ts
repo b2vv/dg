@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@rstest/core';
 import { buildBoxIndex, foreignBoxesNear } from './paintMagneticGroups.js';
 import { clusterPositionIds } from './contourCluster.js';
-import type { ContourPositionInput } from '../../contour/bridge.js';
+import type { ContourPositionInput } from './types.js';
 import type { ContourMemberBox } from './contourClearance.js';
 
 /**
