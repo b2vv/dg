@@ -1,24 +1,13 @@
 import type { Container } from 'pixi.js';
 import { contourButtonGroupMargin } from './contourButtonGroup.js';
-import {
-  DEFAULT_CORRIDOR_CELLS,
-  corridorCellsForFlood,
-  corridorPx,
-} from './contourCorridor.js';
-import { computeFloodContours } from './floodContourEngine.js';
-import type { ContourWorldTransform } from './contourWorldTransform.js';
+import { DEFAULT_CORRIDOR_CELLS, corridorPx } from './contourCorridor.js';
 import { DepartmentBlobView } from './DepartmentBlob.js';
 import { runPointMorph, type PointMorphHandle } from './contourMorph.js';
 import { paintMagneticGroups } from './paintMagneticGroups.js';
 import { resolveMagnetRadius } from '../../contour/magnetRadius.js';
 import { cloneMemberBoxes, offsetMemberBoxesForGridMove } from './offsetMemberBoxes.js';
 import { defaultRenderConfig } from '../types.js';
-import type {
-  ContourEngine,
-  DepartmentBlobStyle,
-  NodeTheme,
-  RenderConfig,
-} from '../types.js';
+import type { DepartmentBlobStyle, NodeTheme, RenderConfig } from '../types.js';
 import type { ContourMagnetConfig, ContourPositionInput } from '../../contour/bridge.js';
 import type { ContourMemberBox } from './contourClearance.js';
 import type { LodLevel } from '../lod.js';
@@ -42,17 +31,8 @@ interface ContourSession {
   paintPaddingCells: number;
   /** Paint-only: demo Smooth slider → corner arc segments. */
   paintSmoothIterations: number;
-  /** Which geometry paints the contour (T80). */
-  engine: ContourEngine;
-  /** positionId → organizationId; the flood runs per org block (local cells). */
-  orgByPosition: Map<string, string>;
-  /** Seat box the flood ring is snapped onto (cells are wider than cards). */
-  cardWidth: number;
-  cardHeight: number;
   /** G2 corridor in px for the button-group painter. */
   corridorPx: number;
-  /** Rings from the Rust flood, already mapped to world space (`cell-flood`). */
-  floodRingsByDept: Map<string, { x: number; y: number }[][]>;
   memberBoxesByDept: Map<string, ContourMemberBox[]>;
   baseMemberBoxesByDept: Map<string, ContourMemberBox[]>;
   blobsByDept: Map<string, DepartmentBlobView[]>;
@@ -65,10 +45,6 @@ export interface ContourPainterDeps {
   /** Fills go under the cards, strokes above them. */
   layers: { departments: Container; departmentStrokes: Container };
   isDestroyed(): boolean;
-  /** Cell-space → world (pitch + origin); null until staff layout resolves it. */
-  worldTransform(): ContourWorldTransform | null;
-  /** Card inset inside its cell, for snapping flood rings onto card bounds. */
-  cardInset(): { x: number; y: number };
   reportDiagnostic(message: string): void;
 }
 
@@ -83,11 +59,13 @@ export interface ContourPaintRequest {
 }
 
 /**
- * Department contours: builds a session per render, paints its rings with the
- * configured engine, and morphs them while a card is dragged.
+ * Department contours: builds a session per render, paints its rings, and
+ * morphs them while a card is dragged.
  *
- * T77-M01 Option B still holds for `button-group` — rings are computed in TS,
- * with no worker round-trip. `cell-flood` (T80) opts into one await on purpose.
+ * T77-M01 Option B holds without exception now: rings are computed in TS, with
+ * no worker round-trip and no await in the paint path. The second engine that
+ * did take one — the Rust cell flood — is gone (T80), because the C-shapes it
+ * existed to draw are shapes this product does not have.
  */
 export class ContourPainter {
   private session: ContourSession | null = null;
@@ -122,10 +100,6 @@ export class ContourPainter {
     minContourMembers: number;
     paintPaddingCells: number;
     paintSmoothIterations: number;
-    engine: ContourEngine;
-    orgByPosition: Map<string, string>;
-    cardWidth: number;
-    cardHeight: number;
     corridorPx: number;
     memberBoxesByDept?: Map<string, ContourMemberBox[]>;
   }): ContourSession {
@@ -141,16 +115,14 @@ export class ContourPainter {
       blobsByDept: new Map(),
       morphHandles: new Map(),
       previewGen: 0,
-      floodRingsByDept: new Map(),
     };
     return this.session;
   }
 
-  /** Rings for the current engine: TS button-group by default, else the flood. */
+  /** Rings for the one engine there is: the TS button-group painter. */
   private buildPaintRingsByDept(): Map<string, { x: number; y: number }[][]> {
     const session = this.session;
     if (!session) return new Map();
-    if (session.engine === 'cell-flood') return session.floodRingsByDept;
 
     // Same painter as the SVG export — canvas and export must not drift apart.
     const painted = paintMagneticGroups({
@@ -262,22 +234,17 @@ export class ContourPainter {
   /** Build a session for this render and paint it. */
   async paint(request: ContourPaintRequest): Promise<void> {
     const { inputs, data, theme, config } = request;
-    const corridorCells = config.corridorCells ?? defaultRenderConfig.corridorCells ?? DEFAULT_CORRIDOR_CELLS;
+    // Only what the painter reads back off the session: the radius that groups
+    // cards, and the cell pitch the blobs are measured in.
     const magnet: ContourMagnetConfig = {
-      paddingCells: 0,
-      // G2: the flood dilates foreign cells by whole rings; below one cell the
-      // exclusion of the foreign cell itself is already the gap.
-      corridorCells: corridorCellsForFlood(corridorCells),
       cellWidth: config.cellWidth,
       cellHeight: config.cellHeight,
-      smoothIterations: 0,
       magnetRadius: resolveMagnetRadius(config.magnetRadius),
     };
     const lod = request.lod;
     const deptNames = new Map(data.departments.map((d) => [d.id, d.name]));
     const personCounts = countPositionsByDept(data.positions);
-    const engine = config.contourEngine ?? defaultRenderConfig.contourEngine ?? 'button-group';
-    const session = this.beginSession({
+    this.beginSession({
       inputs,
       magnet,
       style: theme.department,
@@ -288,10 +255,6 @@ export class ContourPainter {
       minContourMembers: config.minContourMembers ?? defaultRenderConfig.minContourMembers,
       paintPaddingCells: config.paddingCells,
       paintSmoothIterations: config.smoothIterations,
-      engine,
-      orgByPosition: new Map(data.positions.map((p) => [p.id, p.organizationId])),
-      cardWidth: theme.person.width,
-      cardHeight: theme.person.height,
       corridorPx: corridorPx(
         config.corridorCells ?? defaultRenderConfig.corridorCells ?? DEFAULT_CORRIDOR_CELLS,
         {
@@ -305,59 +268,11 @@ export class ContourPainter {
       memberBoxesByDept: request.memberBoxesByDept,
     });
     if (this.deps.isDestroyed() || !this.session) return;
-    if (engine === 'cell-flood') {
-      await this.loadFloodRings(session, magnet);
-      if (!this.isCurrent(session)) return;
-    }
     this.refresh(false);
   }
 
   private isCurrent(session: ContourSession): boolean {
     return !this.deps.isDestroyed() && this.session === session;
-  }
-
-  /**
-   * `cell-flood`: Rust flood geometry (G1–G8) instead of the TS button-group.
-   *
-   * `gridCell` is **local to one org block**, so the flood runs per block and
-   * each block's rings are mapped with its own origin — feeding every block to
-   * one flood would overlay tier 1 and tier 2 on the same cell grid. Rings come
-   * back in cell units and go through the transform the drag grid uses.
-   */
-  private async loadFloodRings(
-    session: ContourSession,
-    magnet: ContourMagnetConfig,
-  ): Promise<void> {
-    session.floodRingsByDept = new Map();
-    const transform = this.deps.worldTransform();
-    if (!transform) {
-      this.deps.reportDiagnostic(
-        'Contour flood skipped: no cell transform — positions need authored gridCell',
-      );
-      return;
-    }
-
-    const { ringsByDept, diagnostics } = await computeFloodContours({
-      inputs: session.inputs,
-      magnet,
-      orgByPosition: session.orgByPosition,
-      memberBoxes: [...session.memberBoxesByDept.values()].flat(),
-      transform,
-      cards: {
-        cardWidth: session.cardWidth,
-        cardHeight: session.cardHeight,
-        insetX: this.deps.cardInset().x,
-        insetY: this.deps.cardInset().y,
-        padding: contourButtonGroupMargin(session.paintPaddingCells, session.style.strokeWidth),
-      },
-      personCounts: session.personCounts,
-      minContourMembers: session.minContourMembers,
-      isCurrent: () => this.isCurrent(session),
-    });
-
-    if (!this.isCurrent(session)) return;
-    session.floodRingsByDept = ringsByDept;
-    for (const message of diagnostics) this.deps.reportDiagnostic(message);
   }
 
   /** Drag was rejected — put the contours back where they started. */

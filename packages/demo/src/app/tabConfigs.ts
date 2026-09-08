@@ -15,12 +15,9 @@ import {
   buildMockupOrgsGojsData,
   buildMockupStaffFigmaData,
   buildMockupStaffGojsData,
-  buildMockupStaffFloodData,
   buildMockupStaffMagneticData,
   FIGMA_ORG_LAYOUT,
   FIGMA_STAFF_LAYOUT,
-  FLOOD_CELL,
-  FLOOD_STAFF_LAYOUT,
   MAGNETIC_CELL,
   MAGNETIC_STAFF_LAYOUT,
   MOCKUP_FIGMA_STYLES,
@@ -206,27 +203,6 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
           minContourMembers: 1,
           cellWidth: MAGNETIC_CELL.width,
           cellHeight: MAGNETIC_CELL.height,
-        },
-      };
-    case 'mockup-staff-flood':
-      return {
-        ...base,
-        theme: 'dark',
-        data: buildMockupStaffFloodData(),
-        styles: MOCKUP_MAGNETIC_STYLES,
-        lodThresholds: MOCKUP_LOD_THRESHOLDS,
-        staffCurrentOrgId: 'region',
-        staffLayout: FLOOD_STAFF_LAYOUT,
-        render: {
-          ...base.render,
-          staffZoneChrome: true,
-          departmentStyle: 'blob',
-          // Same scene as Staff · Magnetic, other geometry: Rust cell flood.
-          contourEngine: 'cell-flood',
-          magnetRadius: VARIANT_B_MAGNET_RADIUS,
-          minContourMembers: 1,
-          cellWidth: FLOOD_CELL.width,
-          cellHeight: FLOOD_CELL.height,
         },
       };
     case 'staff-brigade':

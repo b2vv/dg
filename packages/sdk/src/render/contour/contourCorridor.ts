@@ -48,12 +48,3 @@ export function corridorPx(
   return Math.max(floorPx, capped);
 }
 
-/**
- * Cell-space dilation for the Rust flood. The flood already keeps the whole
- * foreign cell out, so anything below one cell adds nothing; larger values add
- * whole rings.
- */
-export function corridorCellsForFlood(corridorCells: number): number {
-  const cells = Number.isFinite(corridorCells) ? Math.max(0, corridorCells) : 0;
-  return Math.floor(cells);
-}

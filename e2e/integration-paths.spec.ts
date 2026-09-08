@@ -72,26 +72,18 @@ test.describe('host integration paths', () => {
       .sort((a, b) => a - b);
   }
 
-  test('export: the Flood tab exports flood geometry, not a silent button-group copy', async ({
+  test('export: the surviving engine still emits rounded rings, not bare rectangles', async ({
     page,
   }) => {
-    // The previous version of this test asserted that `data-dept` paths exist.
-    // They always do: that attribute is written by the shared stroke layer for
-    // **either** engine (`svgExport.ts:340,412,460`), so the assertion could not
-    // fail for the reason its name gave — while guarding the exact regression
-    // that has already shipped twice (T80, T3/H1).
+    // T80 left one engine, so the old shape of this test — «flood must not be a
+    // silent button-group copy» — no longer describes a regression that can
+    // happen: there is nothing to confuse button-group with. What survives is
+    // the half that was never about the comparison.
     //
-    // What actually separates the two is the shape language. Measured, not
-    // assumed: button-group rings carry rounded corners and come out at 20-26
-    // vertices; cell-flood traces the polyomino orthogonally and comes out at
-    // 4-8. A rounded rectangle cannot be four points.
-    const flood = await deptRingVertices(page, 'Staff · Flood');
-    expect(flood.length).toBeGreaterThan(0);
-    expect(flood[0]).toBeLessThanOrEqual(8);
-
-    // The other half of the guard: if button-group ever starts emitting rings
-    // this simple, the discriminator above is dead and this line says so rather
-    // than letting the Flood test pass for the wrong reason.
+    // Measured, not assumed: button-group rings carry rounded corners and come
+    // out at 20-26 vertices. If they ever collapse to the 4-8 of a plain
+    // orthogonal trace, the geometry has degenerated into a bare rectangle and
+    // this line is what says so.
     const buttonGroup = await deptRingVertices(page, 'Staff · Magnetic');
     expect(buttonGroup.length).toBeGreaterThan(0);
     expect(buttonGroup[0]).toBeGreaterThanOrEqual(12);

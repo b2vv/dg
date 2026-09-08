@@ -9,14 +9,11 @@ export {
   FIGMA_STAFF_LAYOUT,
   MAGNETIC_STAFF_LAYOUT,
   MAGNETIC_CELL,
-  FLOOD_CELL,
-  FLOOD_STAFF_LAYOUT,
 } from './mockupLayouts.js';
 export { buildMockupOrgsFigmaData, buildMockupOrgsGojsData } from './mockupOrgs.js';
 export {
   buildMockupStaffFigmaData,
   buildMockupStaffMagneticData,
-  buildMockupStaffFloodData,
   buildMockupStaffGojsData,
   withLooseSeat,
 } from './mockupStaff.js';

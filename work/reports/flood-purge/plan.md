@@ -29,8 +29,8 @@
 | Що | Рішення | Чому |
 |---|---|---|
 | `contour/magnetRadius.ts` | **лишається як є** | кличе button-group: `paintMagneticGroups.ts:7,124`, `ContourPainter.ts:13,160,274` |
-| `contour/bridge.ts` — лоадер (`initContourWasm`, `resetContourWasmForTests`, `setContourWasmLoaderForTests`, `WasmLoadError`, `WasmContourModule`) | **лишається**, звужується | `wasm/layoutBridge.ts:1,30` вантажить row-tree саме через нього; `worker/wasm-init.ts:1-2` теж |
-| `ContourPositionInput`, `ContourMagnetConfig`, `ContourPoint`, `DeptContourResult` | **переїжджають** у `render/contour/types.ts` | шість споживачів button-group; див. Г4 у спеці |
+| `contour/bridge.ts` — лоадер (`initContourWasm`, `resetContourWasmForTests`, `setContourWasmLoaderForTests`, `WasmLoadError`, `WasmContourModule`) | **лишається**, звужується | `wasm/layoutBridge.ts:1,30` **вантажить** row-tree через `initContourWasm`. ⚠️ Виправлено після GATE 2: `worker/wasm-init.ts` лоадера **не кличе** — він лише позичає `WasmContourModule` і `WasmLoadError`, а WASM тягне напряму (`import('../wasm/pkg/…')`, `:11`). Перша редакція писала «теж», зрівнявши позичання імен із викликом лоадера, і тим завищувала залежність |
+| `ContourPositionInput`, `ContourMagnetConfig`, `ContourPoint`, `DeptContourResult` | **переїжджають** у `render/contour/types.ts`, і крок 1 оновлює **всіх десятьох** імпортерів | Г4 у спеці + правка GATE 2: споживачів не шість. Виживають **вісім** — `paintMagneticGroups.ts:1`, `contourCluster.ts:1`, `goldenScene.ts:1`, `contourInputs.ts:2`, `ContourPainter.ts:22`, `export/svgExport.ts:34` **плюс два тести** `contourNotch.test.ts:9`, `paintMagneticGroupsCost.test.ts:4`. Ще **двоє приречених** — `floodContourEngine.ts:1`, `worker/compute-handlers.ts:1-2` — на кроці 1 ще в дереві, тож їхні імпорти теж оновлюються, інакше збірка падає одразу |
 | `VARIANT_B_POSITIONS` | **лишається** в барелі | демо-сцена `Variant B` (`demo/src/scenarios/variantB.ts:2,31,37`) — не в скоупі; вкладку прибирає T112 |
 | `RenderConfig.smoothIterations`, `corridorCells`, `magnetRadius`, `paddingCells` | **лишаються** | споживає button-group (`paintMagneticGroups.ts:156`) |
 | `contour/config.ts` (`toRustConfig`, `MAX_SMOOTH_ITERATIONS`) | **іде** | єдині споживачі — контурні виклики, `incremental.ts` і worker-хендлери, усі троє йдуть |
@@ -50,18 +50,35 @@
 збірку й ховає справжні помилки в шумі.
 
 ```
-Крок 1  типи → render/contour/types.ts        (6 споживачів button-group перестають залежати від contour/)
-Крок 2  rowTreeDepthGuard: викинути дубль-кейс :60, виправити брехливий докстрінг :11-16
-Крок 3  TS: рушій flood + гілки в ContourPainter/svgExport + corridorCellsForFlood
-Крок 4  TS: worker-хендлери + worker-bridge + incremental + config
-Крок 5  барель: 4 (+incremental) імені геть
-Крок 6  RenderConfig.contourEngine + тип ContourEngine
-Крок 7  Rust: contour.rs, контурні типи в types.rs, два wasm_bindgen-експорти; build:wasm + коміт pkg
-Крок 8  демо: вкладка Staff · Flood + сценарій + variantB.test.ts демо
-Крок 9  e2e: три спеки
-Крок 10 доки: USAGE, REQUIREMENTS, TECH_STACK, SPEC, standards.md, брифінг (факт №4!)
-Крок 11 CHANGELOG + версія 0.4.0
+К1  рендер+конфіг: flood-рушій, гілки ContourPainter/svgExport, corridorCellsForFlood
+    (+його describe у contourCorridor.test.ts), RenderConfig.contourEngine, тип ContourEngine,
+    барель — 5 імен. Один розрив API = один коміт.
+К2  worker: два хендлери + worker-bridge(+тест цілком) + incremental + config
+К3  rowTreeDepthGuard: викинути дубль-кейс :60, виправити брехливий докстрінг :11-16
+К4  Rust: contour.rs, контурні типи в types.rs, два wasm_bindgen; build:wasm + коміт pkg
+К5  демо: вкладка Staff · Flood + сценарій; variantB.test.ts — частково
+К6  e2e: три спеки
+К7  **типи → render/contour/types.ts** (тепер bridge на них не посилається взагалі)
+К8  новий тест: button-group малює без WASM (сценарій №18)
+К9  доки: USAGE, REQUIREMENTS, TECH_STACK, SPEC, standards.md, брифінг (факт №4!)
+К10 CHANGELOG + версія 0.4.0
 ```
+
+🔴 **Порядок перевернуто після GATE 2, і причина сильніша за первісну.** Перша редакція ставила
+переїзд типів **першим**. Гейт показав, що так крок не ізольований: `floodContourEngine.ts` і
+`worker/compute-handlers.ts` імпортують ті самі типи й живуть іще кілька кроків. Але справжня
+причина глибша, і знайшлась при перевірці: **`contour/` ніколи не імпортує з `render/`** (як і
+`data/` — звірено грепом). Переїзд типів першим змусив би `bridge.ts` імпортувати їх **назад** із
+`render/`, тобто створив би **перше в репо порушення шару** — і тримав би його кілька кроків.
+
+Якщо ж перенести типи **останнім TS-кроком** (К7), то на той момент контурні функції з `bridge.ts`
+уже видалені (К2), бридж на ці типи не посилається взагалі, і переїзд стає чистим вирізанням:
+без інверсії шару, без тимчасового ре-експорту й без оновлення файлів, які й так зникнуть.
+
+**К1 і К2 злиті з колишніх 5+6** за знахідкою лінзи надлишкової складності: `contourEngine` у
+`RenderConfig` і п'ять імен барелю — **один** розрив API; два коміти на нього дають ритуал, а не
+гранулярність відкату. Заодно зникає проміжний стан, у якому поле ще є, а гілки вже немає, —
+тобто рівно те «тихе ігнорування», яке спека забороняє сценарієм С1.
 
 🔑 **Крок 2 змінився після `acceptance-spec` (Г6).** Планувався «новий звужений зонд»; виявилось,
 що зонда не треба взагалі: кейс `:60` після чистки став би дублікатом `:54`, який уже доводить ту
@@ -106,7 +123,8 @@
 |---|---|
 | Виявилось, що C-форми таки потрібні | `git revert` діапазону кроків 1–11 **або** повернення `contour.rs` з історії: файл не зникає з git, він зникає з `HEAD`. Ціна повернення — переписати гілки в `ContourPainter`/`svgExport`, тобто ~крок 3 навпаки |
 | Зламався row-tree (лоадер) | найнебезпечніший клас; ловиться **до** коміту кроком 1–2, бо row-tree тести й e2e ганяються на кожному кроці |
-| Зламався button-group після переїзду типів | крок 1 ізольований і суто механічний; revert одного коміту |
+| Зламався button-group після переїзду типів | крок 1 суто механічний і **самодостатній** (оновлює всіх десятьох імпортерів, тож дерево зелене на його коміті); revert одного коміту |
+| **Одиночний revert кроку 3–6 ПІСЛЯ приземлення кроку 7** | 🔴 **не робити.** Після кроку 7 контурних експортів немає ні в Rust-джерелі, ні в `pkg`, тож повернення TS-коду, що їх кличе, дає червоний `typecheck` — і, оскільки комітимо прямо в `main` без гілки, червоний **у `main`**. Правило: кроки 3–6 відкочуються **разом із кроком 7 або до нього**. Це очікувана властивість порядку, а не прихована поломка — але вона мусить бути сказана, а не виведена |
 
 ⚠️ **Rollback не повертає `pkg`** автоматично: після revert Rust-кроку треба **перезібрати**
 `npm run build:wasm`, інакше в дереві лишиться WASM без контурних експортів при коді, що їх кличе.
@@ -153,7 +171,7 @@
 |---|---|---|---|
 | 6 | Геометрія button-group на канвасі | `paintMagneticGroups*.test.ts`, `ContourPainter.test.ts:78` — **без єдиної правки** (A3) | ні |
 | 7 | `magnetRadius.ts` недоторканий | `magnetRadius.test.ts` (A15) | ні |
-| 8 | SVG-експорт малює те саме | `export.test.ts` мінус ~15 flood-кейсів (`:201-660`) + оновлений снапшот (A4) | ні |
+| 8 | SVG-експорт малює те саме | `export.test.ts` мінус ~15 flood-кейсів (`:201-660`) + снапшот (A4). ⚠️ **Механізм названий явно:** у `__snapshots__/export.test.ts.snap` рівно два записи — `cell-flood-svg` (`:3`) і `default-engine-svg` (`:58`); перший **видалити руками або через `rstest run -u` зі звіркою дифу**. Осиротілий снапшот CI **не** валить, тож без явного підкроку він лишиться мертвим сміттям тихо | ні |
 | 9 | В експорті лишився **один** шлях | грепом на `cell-flood` (A2) + рев'ю; сам факт відсутності `if` тестом не ловиться — назвати це чесно | ні |
 | 10 | Живий row-tree рахується | успішні кейси `rowTreeDepthGuard.test.ts` (A9) | ні |
 | 11 | Воркер обслуговує пошук | `searchWorker.test.ts`, `mapArrayFacade.test.ts` | ні |
@@ -173,3 +191,52 @@
 **Новий тест потрібен двом сценаріям:** №18 (явний) і — після Г6 — **жодному** для факту №4.
 Сценарій №1 свідомо лишається на `typecheck` без нової інфраструктури; сценарій №12 — наявна
 прогалина поза скоупом, названа, щоб не загубитись.
+
+---
+
+## 8. GATE 2 — захист плану (`plan-defense`)
+
+| # | Питання | Закрито рядком | Вердикт |
+|---|---|---|---|
+| 1 | Кривий інпут — рантаймовий `contourEngine: 'cell-flood'` з нетипізованого (JS/JSON) хоста | — | **дірка** |
+| 2 | Відмова залежності — WASM не вантажиться | §7, сценарій №18 (рядок 189) | закрито |
+| 3 | Гонка й повторний виклик — крок 7 vs перезбірка `pkg` | §2 (рядки 52-64) + §4 (рядки 95-96) | закрито |
+| 4 | Порожні та граничні дані — сцена без відділів/один відділ/`minContourMembers`/subtree | — | **дірка** |
+| 5 | Rollback | §5 (рядки 103-113) | закрито |
+
+### Дірка №1 — рантайм-обхід типів
+
+Рядки 79 і 144 стверджують «падає на типах, не тихо» — вірно лише для хоста, що проходить
+`npm run typecheck`. Мердж конфігу в `OrgHierarchyDiagram.ts:331`
+(`{ ...defaultRenderConfig, ...config.render }`) — чистий object-spread без рантайм-валідації
+зайвих ключів; після чистки нічого в коді більше не читає `contourEngine`
+(`ContourPainter.ts:279` іде разом із гілкою). Нетипізований хост (сирий JS, десеріалізований
+JSON-конфіг), що передасть `contourEngine: 'cell-flood'`, отримає це поле **мовчки
+проігнороване** — без помилки й без попередження, завжди button-group.
+
+**Дописати в план** (§3 «Сайд-ефекти» або §7 сценарій №1) одне речення: «Для хоста, що обходить
+`typecheck` (сирий JS або десеріалізований JSON-конфіг), зайве поле `contourEngine` мовчки
+ігнорується об'єкт-спредом у `OrgHierarchyDiagram.ts:331` — рушій завжди `button-group`, без
+помилки й без діагностичного повідомлення» — і свідомо ухвалити це прийнятним (чи додати
+рантайм-warning, якщо ні).
+
+### Дірка №2 — граничні кейси `export.test.ts` B1–B5 губляться разом із flood
+
+`describe('boundaries of the export contour layer (T6 / B1–B5)')` (`export.test.ts:396-471`) —
+це **не** flood-специфічні тести за задумом (сцена без відділу, один відділ, поріг
+`minContourMembers`, subtree-фільтр), а граничні кейси самого шару SVG-контуру, які просто
+використовують `floodCfg` як єдиний носій, бо `resolveExportContourRings`
+(`svgExport.ts:85`) гілкується `if (cell-flood) {…} else { paintMagneticGroups(…) }`.
+Еквівалента для гілки `else` (button-group) на рівні SVG-експорту в файлі немає —
+`paintMagneticGroups.test.ts:98` покриває `minContourMembers` лише на рівні canvas-paint, не
+export. План (рядок 174: «`export.test.ts` мінус ~15 flood-кейсів (`:201-660`)», «Новий тест? ні»)
+не виокремлює B1–B5 з решти й планує їх просто видалити — граничне покриття SVG-експорту
+(порожній відділ, один відділ, поріг `minContourMembers`, subtree) зникає повністю.
+
+**Дописати в план** (крок 3 або крок 9, чи окремий рядок у §1 Reuse-first): «`describe('boundaries
+of the export contour layer (T6 / B1–B5)')` (`export.test.ts:396-471`) **не видаляється** разом з
+рештою flood-кейсів — п'ять тестів переписуються на дефолтний рушій (прибрати
+`contourEngine: 'cell-flood'` з конфігу, лишити решту асертів), бо перевіряють граничні форми
+сцени, а не сам рушій».
+
+**ВЕРДИКТ: закрито 3/5**

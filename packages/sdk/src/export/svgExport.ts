@@ -22,15 +22,6 @@ import { arrowHeadTriangle, shortenPolylineForArrow } from '../render/staffEdgeA
 import { enrichStaffTierBands } from '../render/staffZoneBounds.js';
 import { contourButtonGroupMargin } from '../render/contour/contourButtonGroup.js';
 import { contourSceneInputs, matrixNodeBoxes } from '../render/contour/contourInputs.js';
-import { computeFloodContours } from '../render/contour/floodContourEngine.js';
-import {
-  resolveContourWorldTransform,
-  type ContourWorldTransform,
-} from '../render/contour/contourWorldTransform.js';
-import {
-  DEFAULT_CORRIDOR_CELLS,
-  corridorCellsForFlood,
-} from '../render/contour/contourCorridor.js';
 import type { ContourPositionInput } from '../contour/bridge.js';
 
 /** Один ринг відділу, готовий до запису в SVG. */
@@ -44,33 +35,18 @@ interface ExportRingsInput {
   inputs: ContourPositionInput[];
   memberBoxesByDept: Map<string, ContourMemberBox[]>;
   personCounts: Map<string, number>;
-  /**
-   * positionId → organizationId: `gridCell` локальний для org-блоку. Ліниво, бо
-   * на grid-шляху flood не запускається, і будувати цю мапу там — марна робота.
-   */
-  orgByPosition: () => ReadonlyMap<string, string>;
   config: RenderConfig;
-  /** Геометрія карток сцени; для сітки — розміри клітини, для staff — staffMerged. */
-  cards: { cardWidth: number; cardHeight: number };
-  /**
-   * Cell-space → world. `null` означає, що сцена не має авторських `gridCell`
-   * у вигляді, придатному для flood — рівно як на канвасі поза staff-сценою.
-   */
-  transform: ContourWorldTransform | null;
-  report: (message: string) => void;
 }
 
 /**
  * Кільця відділів для SVG — тим самим рушієм, яким малює канвас.
  *
- * Правило одне: **SVG ніколи не малює рушієм, якого не використав канвас.** Тому
- * при `cell-flood` без трансформи (сітка) або з порожнім результатом шар лишається
- * порожнім і причина йде в діагностику — підстановка button-group показала б те,
- * чого користувач на екрані не бачив.
+ * Правило «SVG ніколи не малює рушієм, якого не використав канвас» тепер
+ * тримається тривіально: рушій один (T80). Раніше тут була друга гілка на
+ * `cell-flood`, і саме розходження цих двох гілок двічі їхало в реліз.
  */
-async function resolveExportContourRings(input: ExportRingsInput): Promise<ExportDeptRing[]> {
-  const { config, inputs, memberBoxesByDept, personCounts, cards, transform, report } = input;
-  const { orgByPosition } = input;
+function resolveExportContourRings(input: ExportRingsInput): ExportDeptRing[] {
+  const { config, inputs, memberBoxesByDept, personCounts } = input;
   // `config` уже змерджений з `defaultRenderConfig` у виклику — другий рівень
   // фолбеку був би третім домом для того самого дефолту.
   const minContourMembers = config.minContourMembers ?? 1;
@@ -79,44 +55,6 @@ async function resolveExportContourRings(input: ExportRingsInput): Promise<Expor
       departmentId,
       d: ring.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x} ${p.y}`).join(' '),
     }));
-
-  // Строга рівність, як у ContourPainter: невідоме значення = дефолтний рушій,
-  // а не «щось не button-group» (інакше на 'bogus' обіцяли б flood і брехали).
-  if (config.contourEngine === 'cell-flood') {
-    if (!transform) {
-      report(
-        'SVG export: cell-flood needs a cell transform this scene has none of ' +
-          '(grid without staff focus) — the department layer stays empty, as it does on canvas.',
-      );
-      return [];
-    }
-    const { ringsByDept, diagnostics } = await computeFloodContours({
-      inputs,
-      magnet: {
-        // Дослівно як ContourPainter.paint: padding і smoothing робить фарба, не flood.
-        paddingCells: 0,
-        corridorCells: corridorCellsForFlood(config.corridorCells ?? DEFAULT_CORRIDOR_CELLS),
-        cellWidth: config.cellWidth,
-        cellHeight: config.cellHeight,
-        smoothIterations: 0,
-        magnetRadius: resolveMagnetRadius(config.magnetRadius),
-      },
-      orgByPosition: orgByPosition(),
-      memberBoxes: [...memberBoxesByDept.values()].flat(),
-      transform,
-      cards: {
-        cardWidth: cards.cardWidth,
-        cardHeight: cards.cardHeight,
-        insetX: (config.cellWidth - cards.cardWidth) / 2,
-        insetY: (config.cellHeight - cards.cardHeight) / 2,
-        padding: contourButtonGroupMargin(config.paddingCells ?? 0, DEPT_STROKE_W),
-      },
-      personCounts,
-      minContourMembers,
-    });
-    for (const message of diagnostics) report(message);
-    return [...ringsByDept.entries()].flatMap(([deptId, rings]) => toRings(rings, deptId));
-  }
 
   const painted = paintMagneticGroups({
     inputs,
@@ -225,7 +163,6 @@ async function paintOrgHierarchySvg(
 
 export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
   const config = { ...defaultRenderConfig, ...input.config };
-  const report = (message: string) => input.onDiagnostic?.(message);
   const bg = input.background ?? '#f8fafc';
   const includeLabels = input.includeLabels !== false;
   const data = input.data;
@@ -310,28 +247,11 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
     );
 
     const personCounts = countPositionsByDept(data.positions);
-    // Pitch — зі staffMerged, як у рендерері: кастомні gap'и хоста інакше зсунуть кільця.
-    const pitchX = staffMerged.refCellWidth + staffMerged.horizontalGap;
-    const pitchY = staffMerged.refCellHeight + staffMerged.verticalGap;
-    const deptRings = await resolveExportContourRings({
+    const deptRings = resolveExportContourRings({
       inputs: contourInputs,
       memberBoxesByDept,
       personCounts,
-      orgByPosition: () => new Map(data.positions.map((p) => [p.id, p.organizationId])),
       config,
-      cards: { cardWidth: staffMerged.nodeWidth, cardHeight: staffMerged.nodeHeight },
-      transform:
-        contourInputs.length > 0
-          ? resolveContourWorldTransform(
-              canvas.positionNodes,
-              positionById,
-              config.cellWidth,
-              config.cellHeight,
-              pitchX,
-              pitchY,
-            )
-          : null,
-      report,
     });
 
     parts.push('<g id="departments">');
@@ -442,17 +362,11 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
       }),
       new Map(data.positions.map((p) => [p.id, p])),
     );
-    // Сітка не має cell-transform (канвас ставить його лише в staff-сцені), тож
-    // `transform: null` — і резолвер сам вирішить: дефолт малює, flood лишає порожньо.
-    const deptRings = await resolveExportContourRings({
+    const deptRings = resolveExportContourRings({
       inputs,
       memberBoxesByDept,
       personCounts: countPositionsByDept(data.positions),
-      orgByPosition: () => new Map(data.positions.map((p) => [p.id, p.organizationId])),
       config,
-      cards: { cardWidth: cardW, cardHeight: cardH },
-      transform: null,
-      report,
     });
     parts.push('<g id="departments">');
     for (const ring of deptRings) {

@@ -7,7 +7,6 @@ export type DemoTab =
   | 'mockup-orgs-gojs'
   | 'mockup-staff-figma'
   | 'mockup-staff-magnetic'
-  | 'mockup-staff-flood'
   | 'mockup-staff-gojs'
   | 'staff-1m'
   | 'staff-brigade'
@@ -38,7 +37,6 @@ export const TAB_META: Record<DemoTab, DemoTabMeta> = {
   'mockup-orgs-gojs': { label: 'Orgs · GoJS', family: 'gojs' },
   'mockup-staff-figma': { label: 'Staff · Figma', family: 'figma' },
   'mockup-staff-magnetic': { label: 'Staff · Magnetic', family: 'figma', contourControls: true },
-  'mockup-staff-flood': { label: 'Staff · Flood', family: 'figma', contourControls: true },
   'mockup-staff-gojs': { label: 'Staff · GoJS', family: 'gojs', contourControls: true },
   'staff-1m': { label: 'Staff · 1M' },
   'staff-brigade': { label: 'Staff · Brigade' },

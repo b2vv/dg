@@ -38,8 +38,6 @@ function painter(deps: { destroyed?: boolean } = {}) {
   const instance = new ContourPainter({
     layers,
     isDestroyed: () => deps.destroyed === true,
-    worldTransform: () => null,
-    cardInset: () => ({ x: 0, y: 0 }),
     reportDiagnostic: (m) => diagnostics.push(m),
   });
   return { painter: instance, layers, diagnostics };
@@ -228,14 +226,4 @@ describe('ContourPainter', () => {
     });
   });
 
-  it('failure: cell-flood without a world transform paints nothing and says why', async () => {
-    const { painter: p, layers, diagnostics } = painter();
-    await p.paint(
-      request({
-        config: { ...defaultRenderConfig, minContourMembers: 1, contourEngine: 'cell-flood' },
-      }),
-    );
-    expect(blobs(layers.departments)).toEqual([]);
-    expect(diagnostics.join(' ')).toMatch(/no cell transform/);
-  });
 });

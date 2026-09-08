@@ -459,61 +459,6 @@ export function buildMockupStaffMagneticData(): DiagramData {
   };
 }
 
-/**
- * Flood copy of the Figma «посади» scene — the demo the BA compares against
- * {@link buildMockupStaffMagneticData}.
- *
- * Same people and departments, but the grid deliberately **interleaves**
- * departments the way a fully-authored `row`/`col` product will: the command
- * department wraps the supply seat on three sides, so the Rust cell flood has to
- * produce a C-shape (G5 notch + G6 mouth) instead of a rectangle with a bite.
- *
- * ```text
- *        col 0            col 1            col 2
- * row 0  command          command          command
- * row 1  command          supply           command   ← foreign enclosed on 3 sides
- * row 2  command          people ·1        people ·2
- * ```
- */
-export function buildMockupStaffFloodData(): DiagramData {
-  const base = withLooseSeat(buildMockupStaffFigmaData());
-  const cells: Record<string, { col: number; row: number }> = {
-    // Managing org keeps the plain command block.
-    'pos-hq-head': { col: 1, row: 0 },
-    'pos-hq-1z': { col: 0, row: 1 },
-    'pos-hq-2z': { col: 1, row: 1 },
-    'pos-hq-cos': { col: 2, row: 1 },
-    // Current org — command wraps the supply seat.
-    'pos-head': { col: 1, row: 0 },
-    'pos-1z': { col: 0, row: 0 },
-    'pos-2z': { col: 2, row: 0 },
-    'pos-ops': { col: 0, row: 1 },
-    'pos-sup': { col: 1, row: 1 },
-    'pos-loose': { col: 0, row: 2 },
-    'pos-p1': { col: 1, row: 2 },
-    'pos-p2': { col: 2, row: 2 },
-  };
-  const extra = staffPosition(
-    {
-      id: 'pos-cmd-right',
-      title: 'Shift supervisor',
-      organizationId: 'region',
-      departmentId: 'exec',
-      personId: 'p-2z',
-      gridCell: { col: 2, row: 1 },
-    },
-    FIGMA_SEAT,
-  );
-  const withCells = base.positions.map((p) => {
-    const gridCell = cells[p.id];
-    return gridCell ? { ...p, gridCell } : p;
-  });
-  return {
-    ...base,
-    positions: [...withCells, extra],
-    reportLines: [...base.reportLines, { fromId: 'pos-head', toId: 'pos-cmd-right', kind: 'admin' }],
-  };
-}
 
 /** GoJS staff: landscape row seats (production card). */
 export function buildMockupStaffGojsData(): DiagramData {

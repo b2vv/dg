@@ -212,9 +212,6 @@ export type NodeThemeOverrides = {
 
 export type DepartmentPaintStyle = 'blob' | 'card';
 
-/** Contour geometry source — see `contourEngine` on {@link RenderConfig}. */
-export type ContourEngine = 'button-group' | 'cell-flood';
-
 export interface RenderConfig {
   cellWidth: number;
   cellHeight: number;
@@ -239,16 +236,6 @@ export interface RenderConfig {
   staffZoneChrome?: boolean;
   /** T64: department paint mode (default blob). */
   departmentStyle?: DepartmentPaintStyle;
-  /**
-   * Which geometry paints a department contour (T80 — the BA compares both):
-   *
-   * - `button-group` (default) — synchronous world-space rings: padded AABB of
-   *   the magnetic component with foreign cards notched out (G2/M2).
-   * - `cell-flood` — the Rust `contour.rs` flood in cell space (G1–G8, C-shapes
-   *   around interleaved departments). Needs authored `gridCell` on every
-   *   position and costs a WASM round-trip per repaint.
-   */
-  contourEngine?: ContourEngine;
   /** T64 / B8a: dashed frame around grid union. */
   dashedGridFrame?: boolean;
   /**
@@ -425,7 +412,6 @@ export const defaultRenderConfig: RenderConfig = {
   minContourMembers: 1,
   staffZoneChrome: false,
   departmentStyle: 'blob',
-  contourEngine: 'button-group',
   dashedGridFrame: false,
   orgSiblingGroupChrome: false,
   orgSiblingGroupStyle: 'zone',

@@ -16,8 +16,6 @@ const STATIC_CAPTIONS: Partial<Record<DemoTab, string>> = {
     'Figma staff · dashed zones · dept cards · chrome-less seats · accent names · ⏳ = acting',
   'mockup-staff-magnetic':
     'Figma staff · magnetic department contours (one per magnetic component) · organization = block, foreign nodes stay outside',
-  'mockup-staff-flood':
-    'Figma staff · Rust cell flood (G1–G8) · departments interleave, so the command contour becomes a C around the supply seat',
   'mockup-staff-gojs':
     'GoJS staff · solid zones · row seats 200×56 · dept cards · dark production chrome',
   'staff-brigade':

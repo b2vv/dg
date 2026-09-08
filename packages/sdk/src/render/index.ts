@@ -62,7 +62,6 @@ export {
 } from './contour/contourInputs.js';
 export {
   corridorPx,
-  corridorCellsForFlood,
   DEFAULT_CORRIDOR_CELLS,
 } from './contour/contourCorridor.js';
 export {

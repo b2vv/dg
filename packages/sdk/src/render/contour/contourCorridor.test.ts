@@ -1,6 +1,5 @@
 import { describe, expect, it } from '@rstest/core';
 import {
-  corridorCellsForFlood,
   corridorPx,
   DEFAULT_CORRIDOR_CELLS,
 } from './contourCorridor.js';
@@ -34,15 +33,3 @@ describe('corridorPx', () => {
   });
 });
 
-describe('corridorCellsForFlood', () => {
-  it('success: whole rings only — the foreign cell is already excluded', () => {
-    expect(corridorCellsForFlood(DEFAULT_CORRIDOR_CELLS)).toBe(0);
-    expect(corridorCellsForFlood(1)).toBe(1);
-    expect(corridorCellsForFlood(2.9)).toBe(2);
-  });
-
-  it('failure: nonsense input asks for no dilation', () => {
-    expect(corridorCellsForFlood(Number.NaN)).toBe(0);
-    expect(corridorCellsForFlood(-1)).toBe(0);
-  });
-});

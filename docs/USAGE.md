@@ -130,7 +130,7 @@ const mappers = {
 |---|---|
 | `theme` | `'light' \| 'dark' \| 'auto'` |
 | `styles` | часткове перевизначення `NodeTheme` (кольори, розміри карток, edge-стиль) |
-| `render` | `RenderConfig`: `cellWidth/cellHeight`, `paddingCells`, `smoothIterations`, `magnetRadius`, `minContourMembers`, `corridorCells`, `departmentStyle`, **`contourEngine`**, `staffZoneChrome` |
+| `render` | `RenderConfig`: `cellWidth/cellHeight`, `paddingCells`, `smoothIterations`, `magnetRadius`, `minContourMembers`, `corridorCells`, `departmentStyle`, `staffZoneChrome` |
 | `staffLayout` | геометрія штатки: `nodeWidth/Height`, `refCellWidth/Height`, `horizontalGap`, `verticalGap`, `tierGap`, `margin`, `maxExpandedPositions` |
 | `orgLayout` | геометрія орг-дерева + `orgEdgeStyle` |
 | `staffCurrentOrgId` | яка org у центрі (ярус 2) |
@@ -204,15 +204,17 @@ Linux-контейнері з тим же SwiftShader. Firefox без GPU від
 ⚠️ **Заблоковані драйвери теж поїдуть на канвас.** Якщо браузер вніс GPU у власний blacklist,
 `'auto'` вважатиме WebGL непридатним. За нашими вимірами це не втрата швидкодії.
 
-**`contourEngine`** — той самий контур двома різними геометріями:
+**Контур рахується одним способом, і вибору тут немає.** Геометрія — TS: злиття сусідніх
+клітин відділу плюс AABB з виїмками під чужі картки (G2/M2). Рахується **синхронно**, у кадрі
+рендера, без звернення до WASM.
 
-- `'button-group'` (**default**) — TS: злиття сусідніх клітин відділу + AABB з виїмками під чужі картки;
-- `'cell-flood'` — Rust flood поблочно (G1–G8).
+🔴 **Поле `contourEngine` прибране у `0.4.0`** (T80). Другий рушій — `'cell-flood'`, Rust flood
+поблочно — існував, щоб малювати C-подібні контури навколо перемішаних відділів; продукт
+підтвердив, що таких сцен у нього немає, тож рушій лишився без замовника. Якщо ваш код передавав
+це поле, приберіть його: поведінка дефолту не змінилась, тож картинка та сама.
 
-**SVG малює тим самим рушієм, що й канвас.** PNG/PDF знімаються з живого канвасу, тож вірні за
-будь-якого рушія. Якщо flood не може відпрацювати (немає авторських `gridCell`, WASM недоступний),
-шар відділів у SVG лишається **порожнім — рівно як на екрані**, а причина йде в діагностику: SDK
-ніколи не підставляє рушій, якого канвас не використав.
+**SVG малює те саме, що канвас** — тепер тривіально, бо джерело геометрії одне
+(`paintMagneticGroups` спільний для канвасу й експорту). PNG/PDF знімаються з живого канвасу.
 
 ---
 

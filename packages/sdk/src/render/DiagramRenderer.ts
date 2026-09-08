@@ -178,12 +178,10 @@ export class DiagramRenderer {
   private lastDiagnostics: string[] = [];
   /** Contour cell-space → staff world (pitch + origin). */
   private contourWorld: ContourWorldTransform | null = null;
-  /** Department contours: session, engine choice and drag morphs. */
+  /** Department contours: session and drag morphs. */
   private readonly contours = new ContourPainter({
     layers: this.layers,
     isDestroyed: () => this.destroyed,
-    worldTransform: () => this.contourWorld,
-    cardInset: () => ({ x: this.dragGrid?.insetX ?? 0, y: this.dragGrid?.insetY ?? 0 }),
     reportDiagnostic: (message) => this.reportContourDiagnostic(message),
   });
   /** Active grid for person drag snap (staff pitch or bare cell). */

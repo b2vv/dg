@@ -121,18 +121,6 @@ test.describe('mockup tabs visual + hierarchy', () => {
     await expect(page.getByTestId('node-mockup-mid')).toBeVisible();
   });
 
-  test('Staff · Flood: Rust cell contours paint without diagnostics', async ({ page }) => {
-    await openMockupTab(page, 'Staff · Flood');
-    await expect(page.getByTestId('node-staff-head')).toBeVisible();
-    await expect(page.getByTestId('node-staff-temp')).toBeVisible();
-    // Every reason the flood paints nothing lands in layout diagnostics, so an
-    // empty list is the only way this tab can be honest about its contours.
-    const diagnostics = await page.evaluate(() => {
-      const bridge = (window as unknown as { __demoE2e?: DemoE2eBridge }).__demoE2e;
-      return bridge?.getLayoutDiagnostics() ?? ['bridge missing'];
-    });
-    expect(diagnostics.filter((d) => /[Cc]ontour/.test(d))).toEqual([]);
-  });
 
   test('Staff · Magnetic: dept blobs + org blocks paint', async ({ page }) => {
     await openMockupTab(page, 'Staff · Magnetic');

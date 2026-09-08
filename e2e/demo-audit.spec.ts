@@ -65,7 +65,7 @@ test.describe('demo audit (T33)', () => {
     }
 
     // Every tab whose departments are contours keeps them live.
-    for (const name of ['Staff · Magnetic', 'Staff · Flood', 'Staff · GoJS']) {
+    for (const name of ['Staff · Magnetic', 'Staff · GoJS']) {
       await openTab(name);
       expect(await disabled(), name).toEqual(['false', 'false']);
     }
