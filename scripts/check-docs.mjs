@@ -89,11 +89,17 @@ for (const file of markdownFiles()) {
  * the pipeline threshold defines the public API as «what `docs/USAGE.md`
  * describes», so the three with the worst failure semantics in the codebase
  * were also the least protected by process until they were written down.
+ *
+ * 15 → 14 on 2026-09-08 by the other route: `getLastContextMenu` was deleted,
+ * not documented (T119). Both routes shrink the list, and they are not the
+ * same act — one adds a contract, the other removes a method. Before taking
+ * the second, ask who the caller would be: `resolveTestId` looks equally dead
+ * from inside this tree and is the seam T115 needs, because its caller is the
+ * host and the host is not in this tree.
  */
 const UNDOCUMENTED_BASELINE = new Set([
   'focusByTestId',
   'getCanvas',
-  'getLastContextMenu',
   'getStaffExpandedOrgIds',
   'getStaffExpandedPositionIds',
   'getStaffFocus',

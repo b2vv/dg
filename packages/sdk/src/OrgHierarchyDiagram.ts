@@ -552,10 +552,6 @@ export class OrgHierarchyDiagram {
     this.selectionStore.handlePointerSelect(node, mods);
   }
 
-  getLastContextMenu(): ContextMenuRequest | null {
-    return this.contextMenu.lastRequest;
-  }
-
   /** Invoke a menu action (from React menu item click). */
   async runContextMenuAction(itemId: string, request?: ContextMenuRequest): Promise<void> {
     await this.contextMenu.run(itemId, request);
