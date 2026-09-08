@@ -5,6 +5,10 @@ import { DepartmentBlobView } from './DepartmentBlob.js';
 import { defaultNodeTheme, defaultRenderConfig } from '../types.js';
 import { emptyDiagramData, type DiagramData } from '../../data/types.js';
 import { contourSceneInputs, matrixNodeBoxes } from './contourInputs.js';
+import {
+  resetContourWasmForTests,
+  setContourWasmLoaderForTests,
+} from '../../contour/bridge.js';
 
 /** Two IT seats side by side, one CEO seat next to them. */
 function scene(): DiagramData {
@@ -222,6 +226,31 @@ describe('ContourPainter', () => {
       expect(p.previewState('P1')).toMatchObject({ col: 1, row: 0 });
       expect(p.previewState('ghost')).toBeUndefined();
     });
+  });
+
+  /**
+   * T80 acceptance №18 — the one scenario in this cycle that needed a test
+   * written rather than a test deleted.
+   *
+   * Until now «the surviving engine needs no WASM» was true but only shown by
+   * accident: `variantBNotchPaint.test.ts` installs a fake loader in `beforeAll`
+   * and then never calls it, which proves nothing on purpose. Here the loader
+   * is made to **reject**, so if any part of the paint path ever reaches for
+   * WASM again this test fails instead of quietly passing.
+   */
+  it('success: contours paint with a WASM loader that always rejects', async () => {
+    setContourWasmLoaderForTests(async () => {
+      throw new Error('WASM must not be needed to paint a contour');
+    });
+    resetContourWasmForTests();
+    try {
+      const { painter: p, layers } = painter();
+      await p.paint(request());
+      expect(blobs(layers.departments)).toHaveLength(2);
+    } finally {
+      setContourWasmLoaderForTests(null);
+      resetContourWasmForTests();
+    }
   });
 
 });
