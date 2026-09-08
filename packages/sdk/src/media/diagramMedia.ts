@@ -2,11 +2,13 @@ import type { DiagramData, DiagramOrganization } from '../data/types.js';
 import type { NodeRef } from '../interaction/types.js';
 import { resolvePersonPhotoUrl } from '../render/PersonNode.js';
 import { getOrgSymbolUrl, resolveTheme } from '../render/theme.js';
+import type { LodLevel } from '../render/lod.js';
 import type { ThemeMode } from '../render/types.js';
 import {
   resolveThemedMediaFromOrganization,
   resolveThemedMediaFromPerson,
 } from './index.js';
+import type { ThemedMedia } from './types.js';
 
 /**
  * Which media the diagram binds, kept away from the facade (T106).
@@ -87,7 +89,7 @@ export function mediaUrlsForRef(input: {
 /** What {@link prefetchOpenMedia} needs from the media service. */
 export interface MediaPrefetcher {
   hasPrefetchThemes: boolean;
-  prefetch(media: unknown, revision?: unknown): void;
+  prefetch(media: ThemedMedia | undefined, revision?: string | number): void;
 }
 
 /**
@@ -104,7 +106,7 @@ export interface MediaPrefetcher {
  */
 export function prefetchOpenMedia(input: {
   data: DiagramData;
-  lodLevel: string;
+  lodLevel: LodLevel;
   service: MediaPrefetcher | null;
 }): void {
   const { data, lodLevel, service } = input;
