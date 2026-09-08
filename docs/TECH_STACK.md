@@ -18,7 +18,7 @@
 ├─────────────────────────────────────────────────────────────┤
 │  Web Worker — mapInWorker, WorkerPool, chunked map           │
 ├─────────────────────────────────────────────────────────────┤
-│  Rust WASM — Ploeg row-tree; dept flood (opt-in engine)      │
+│  Rust WASM — Ploeg row-tree (єдиний експорт через межу)      │
 ├─────────────────────────────────────────────────────────────┤
 │  Pixi.js — WebGL **або Canvas2D** (вибір і фолбек, T83)      │
 │            OrganizationNode / PersonNode / DepartmentBlob   │
@@ -60,7 +60,7 @@ const chunks = await pool.mapChunks('flatRowsToDiagram', rawRows, 50_000);
 | Core | Rust WASM у worker |
 | Render | Pixi.js |
 | Bundler | **Rsbuild** — лише demo. SDK збирається `tsc` + копія wasm + перевірка пакета |
-| Contours | **Два рушії за прапорцем** `RenderConfig.contourEngine`: `button-group` (default, TS-фарба) і `cell-flood` (Rust flood → Chaikin). SVG-експорт бере **той самий**, що канвас |
+| Contours | **Один рушій**, TS-фарба: кластер → rounded rect → виїмки під чужі картки → polish. Rust-flood і прапорець `contourEngine` прибрані в T80. SVG-експорт малює **тим самим кодом**, що канвас |
 | Tests | **rstest** + jsdom (unit), Playwright (e2e) |
 | Lint | **oxlint** (гейт у CI) + oxfmt |
 | Компілятор | TypeScript 7 |
@@ -77,7 +77,7 @@ const chunks = await pool.mapChunks('flatRowsToDiagram', rawRows, 50_000);
 
 ```
 packages/
-  core/   # Rust WASM (Ploeg row-tree, dept flood)
+  core/   # Rust WASM (Ploeg row-tree)
   sdk/    # @org-hierarchy/sdk 0.3.0 — дані, мапери, worker, Pixi-рендер, експорт
   demo/   # приватний Rsbuild-стенд, 14 табів (не публікується)
 ```

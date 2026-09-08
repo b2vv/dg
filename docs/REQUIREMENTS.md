@@ -210,14 +210,13 @@ interface NodeTheme {
 
 ### 4.6 Dept contour — обтікання (канонічні приклади)
 
-> ⚠️ **Звірено 2026-09-02.** Нижче описано **один** спосіб малювання, а їх **два**, за прапорцем
-> `RenderConfig.contourEngine`:
-> - `button-group` (**default**) — TS-фарба: округлий прямокутник навколо карток компоненти,
->   чужі картки вирізані з нього (G2/M2, T79);
-> - `cell-flood` — Rust polyomino flood G1–G8, який і описує п.5 «Chaikin/Bezier».
->
-> Пункти нижче — правила, спільні для обох; **форма** відрізняється.
-> SVG-експорт бере **той самий** рушій, що канвас (`export/svgExport.ts`).
+> ⚠️ **Оновлено 2026-09-08 (T80).** Спосіб малювання **один**: TS-фарба — округлий прямокутник
+> навколо карток компоненти, чужі картки вирізані з нього (G2/M2, T79). Другий рушій
+> (`cell-flood`, Rust polyomino flood) і прапорець `RenderConfig.contourEngine` **прибрані**:
+> C-форми, заради яких вони існували, продукт не використовує.
+> Пункт 5 «Chaikin/Bezier» тепер стосується `contourPolish.ts`, а не Rust.
+> SVG-експорт малює **тим самим** кодом, що канвас (`export/svgExport.ts` імпортує
+> `paintMagneticGroups` напряму), тож розходження неможливе за побудовою.
 
 **Загальне правило:**
 
@@ -340,12 +339,10 @@ P3 │              ← пряма вертикаль P3→P6 як internal edge
 
 **Магнетизм** — правила, за якими own cells **того ж dept** злипаються в компоненти, а контур кожної компоненти «притягується» до своїх pos і **відштовхується** від чужих, утворюючи зовнішній полігон без internal edges.
 
-> **Який рушій це малює.** Правила нижче — спільна мова для обох рушіїв, але геометрія різна:
-> `'button-group'` (default) реалізує G1/G2/M2 через AABB з виїмками під чужі картки
-> ([T79](../work/tasks/T79-g2-m2-paint-notch.md)), `'cell-flood'` — через полігональний flood
-> у Rust (G5 notch, G6 far-side, G7 peel). Перевіряючи «чи виконується G-правило», спершу
-> з'ясуй, у якому рушії — інакше тест перевірятиме не те, що на екрані
-> (`work/CTO-RESEARCH.md`, архітектурний факт №1).
+> **Чим це малюється.** G1/G2/M2 реалізовані через AABB з виїмками під чужі картки
+> ([T79](../work/tasks/T79-g2-m2-paint-notch.md)). G5/G6/G7 описували обхід сітки клітин у
+> Rust-flood і **зняті разом із ним** (T80) — див. `work/SPEC.md` §3.3. Питання «у якому з
+> рушіїв» більше не стоїть: рушій один.
 
 ---
 
@@ -412,7 +409,7 @@ P3 │              ← пряма вертикаль P3→P6 як internal edge
 interface ContourMagnetConfig {
   /** Радіус злипання own cells (grid Manhattan). Default 1.5 = сусіди. */
   magnetRadius: number;       // default: 1.5 — НЕ завищувати «щоб вийшов C»
-  /** Rust flood pad (internal). Live demo paint uses RenderConfig.paddingCells instead. */
+  /** Історичний padding Rust-flood; фарба користується RenderConfig.paddingCells. */
   padding: number;            // default: 0 у paint path
   /** Мін. зазор до foreign bbox */
   corridorMin: number;        // default: 0.5 cell
@@ -471,12 +468,11 @@ Demo Variant B: `VARIANT_B_MAGNET_RADIUS = 1.5` (`packages/sdk`).
 | **D&D person** | зміна **примітивних координат** у dept/org ієрархії |
 | **Block shift** | зсув **блоку посад** на рівень вище / нижче |
 
-**Контури dept:** union grid cells → polygon (membership) → paint polish. Рушій обирає
-`RenderConfig.contourEngine` (оновлено 2026-08-26, [T80](../work/tasks/T80-contour-engines-ba-demo.md)):
-`'button-group'` (**default**) — rounded rect навколо карток компоненти, без ортогонального «шуму»
-і без окремого L/C fillet-шляху; `'cell-flood'` — Rust-flood G1–G8 поблочно на org. **Обидва живуть
-у продукті як опція**, поки BA не обере один. Експорт SVG малює тим самим рушієм, що й канвас;
-PNG/PDF беруться з фреймбуфера.
+**Контури dept:** кластеризація карток → rounded rect навколо компоненти → виїмки під чужі
+картки → polish. Один рушій, у TS, синхронно (оновлено 2026-09-08,
+[T80](../work/tasks/T80-contour-engines-ba-demo.md)): вибір `RenderConfig.contourEngine` і
+Rust-flood прибрані після рішення продукту, що C-форм навколо перемішаних відділів не буде.
+Експорт SVG малює **тим самим кодом**, що канвас; PNG/PDF беруться з фреймбуфера.
 
 **LOD:** при віддаленні dept blob = simplified polygon + count badge; person nodes collapse to dots.
 

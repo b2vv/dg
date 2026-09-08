@@ -273,21 +273,19 @@ Expand-in-place (T20) =
 
 ## 3. Алгоритм контуру департаменту (магнетизм)
 
-**Референс:** `packages/core/src/contour.rs`  
+**Референс:** `packages/sdk/src/render/contour/paintMagneticGroups.ts`
 **Правила:** `docs/REQUIREMENTS.md` §4.6, §4.6.1
 
-> **Читати перед §3.1–§3.5.** Нижче описано flood-алгоритм у Rust. На екрані він — **не єдиний
-> і не дефолтний**. `RenderConfig.contourEngine` обирає рушій ([T80](./tasks/T80-contour-engines-ba-demo.md)):
+> 🔴 **Переписано 2026-09-08 (T80).** До цього §3 описував **Rust-flood** із
+> `packages/core/src/contour.rs` і супроводжувався врізкою «на екрані він не єдиний і не
+> дефолтний». Тепер він не просто не дефолтний — його **немає**: рушій `'cell-flood'` і поле
+> `RenderConfig.contourEngine` прибрані, бо продукт підтвердив, що C-подібних контурів навколо
+> перемішаних відділів у нього не буває. Псевдокод flood, його кроки й таблиця G5–G7 жили в цьому
+> розділі й пішли разом із кодом; вони лишаються в історії git і в
+> [T80](./tasks/T80-contour-engines-ba-demo.md).
 >
-> | `contourEngine` | Геометрія | Де живе |
-> |---|---|---|
-> | `'button-group'` (**default**) | union-find по `magnetRadius` + padded AABB, мінус виїмки під чужі картки (G2/M2, [T79](./tasks/T79-g2-m2-paint-notch.md)) | `render/contour/paintMagneticGroups.ts` + `contourNotch.ts` |
-> | `'cell-flood'` | цей самий Rust flood, поблочно на org, кільця мапляться на бокси карток | `render/contour/floodContourEngine.ts` |
->
-> **Експорт малює тим самим рушієм, що й канвас** (2026-08-26): SVG рахує flood тими самими
-> входами, PNG/PDF беруться з фреймбуфера. Коли flood не може відпрацювати — шар відділів
-> порожній, як на екрані, а причина йде в `ExportOptions.onDiagnostic`. Псевдокод §3.5 і кроки
-> §3.2 — це `'cell-flood'`, а не те, що ви бачите на дефолтних налаштуваннях.
+> Нижче описано **єдиний** спосіб, яким контур рахується сьогодні: синхронно, у TS, у кадрі
+> рендера, без звернення до WASM.
 
 ### 3.1 Вхід / вихід
 
@@ -298,72 +296,61 @@ interface ContourPositionInput {
   col: number;   // grid column
   row: number;   // grid row
 }
-
-interface ContourMagnetConfig {
-  magnetRadius?: number;      // default 1.5 — adjacency; gap 2 does not merge
-  paddingCells?: number;      // default 0
-  corridorCells?: number;     // default 0 — gap до foreign (G2)
-  cellWidth?: number;         // default 100 px
-  cellHeight?: number;        // default 80 px
-  smoothIterations?: number;  // Chaikin, default 2
-  preferNotch?: boolean;      // default true
-}
-
-interface DeptContourResult {
-  departmentId: string;
-  points: { x: number; y: number }[];
-  path: string;               // SVG path "M … L … Z"
-  cornerCount: number;        // до smoothing
-}
 ```
 
-WASM exports: `computeDeptContour`, `computeAllContours`  
-SDK bridge: `packages/sdk/src/contour/bridge.ts`
+Живе в `packages/sdk/src/render/contour/types.ts` (переїхав туди з WASM-бриджа в T80 —
+вокабуляр належить фарбі, не межі WASM). На виході — по одному кільцю
+(`{ x, y }[]` у world-координатах) на компоненту департаменту.
 
 ### 3.2 Кроки алгоритму (реалізовано)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ 1. OWN CELLS                                                │
-│    own = { (col,row) | position.departmentId == targetDept }│
+│ 1. CLUSTER (G1 / M4)          contourCluster.ts             │
+│    union-find по own cells, Manhattan ≤ magnetRadius         │
+│    default 1.5 → лише ортогональні сусіди                    │
 ├─────────────────────────────────────────────────────────────┤
-│ 2. CLUSTER (G1 / M4)                                        │
-│    components = union-find own where Manhattan ≤ magnetRadius│
-│    default radius 1.5 → orthogonal neighbors only            │
+│ 2. MEMBER BOXES               contourButtonGroup.ts          │
+│    бокси карток компоненти + padded AABB навколо них         │
 ├─────────────────────────────────────────────────────────────┤
-│ 3. FOREIGN EXPANSION (G2) — per component                   │
-│    foreign = cells інших dept, розширені на ±corridorCells   │
+│ 3. NOTCH FOREIGN (G2 / M2)    contourNotch.ts                │
+│    прямокутні виїмки під чужі картки, коридор corridorPx     │
 ├─────────────────────────────────────────────────────────────┤
-│ 4. BBOX + FLOOD (M2, M3, G5) — per component                │
-│    inside = BFS від own: empty ok, foreign blocks            │
+│ 4. POLISH (G4)                contourPolish.ts, contourFillet│
+│    padding + скруглення кутів                                │
 ├─────────────────────────────────────────────────────────────┤
-│ 5. ORTHOGONAL PERIMETER + G6                                │
-├─────────────────────────────────────────────────────────────┤
-│ 6. CHAIKIN SMOOTHING                                        │
-├─────────────────────────────────────────────────────────────┤
-│ 7. OUTPUT — one path per component                          │
+│ 5. FILTER                     contourPaintFilter.ts          │
+│    minContourMembers відсіює дрібні компоненти               │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 3.3 Правила магнетизму (G1–G8)
+Той самий код малює **і канвас, і SVG-експорт** (`export/svgExport.ts` імпортує
+`paintMagneticGroups` напряму), тож розходження між ними неможливе за побудовою — раніше це
+трималось домовленістю й двічі ламалось.
 
-| ID | Правило | Статус impl |
-|----|---------|-------------|
-| G1 | Attract own — злиття own cells | ✅ `magnetRadius` (default **1.5** = сусіди; gap 2 не зливає) |
-| G2 | Repel foreign — gap/corridor | ✅ `corridorCells` expansion |
-| G3 | No internal edges | ✅ perimeter walk лише зовнішній |
-| G4 | Orthogonal first → smooth | ✅ trace + Chaikin |
-| G5 | Prefer notch (C-notch) **у межах компоненти** | ✅ `prefer_notch` |
-| G6 | No far-side wall | ✅ `apply_g6_clear_far_side_fill` |
-| G7 | Padding snap (Chebyshev envelope) | ✅ `apply_g7_peel_vacant_exterior` |
-| G8 | Stable under drag | ✅ recompute on drag + morph anim (T17) |
+### 3.3 Правила магнетизму — що з них чинне
+
+| ID | Правило | Статус |
+|----|---------|--------|
+| G1 | Attract own — злиття own cells | ✅ `magnetRadius` (default **1.5** = сусіди; gap 2 не зливає) — `contourCluster.ts` |
+| G2 | Repel foreign — gap/corridor | ✅ виїмка + `corridorPx` — `contourNotch.ts`, `contourCorridor.ts` |
+| G3 | No internal edges | ✅ кільце будується з боксів карток, внутрішніх ребер не має за побудовою |
+| G4 | Orthogonal first → smooth | ✅ `contourPolish.ts` / `contourFillet.ts` |
+| G5 | Prefer notch (C-notch) у межах компоненти | ⬜ **знято з T80** — це була властивість flood; TS-шлях завжди вирізає виїмку |
+| G6 | No far-side wall | ⬜ **знято з T80** — правило про заливку клітин, якої більше не існує |
+| G7 | Padding snap (Chebyshev envelope) | ⬜ **знято з T80** — падінг тепер робить фарба (`paddingCells`), а не обхід клітин |
+| G8 | Stable under drag | ✅ перерахунок на драг + morph (T17) — `contourMorph.ts` |
 
 | ID | Membership | Статус |
 |----|------------|--------|
 | M1 | Лише own dept positions | ✅ |
-| M2 | Foreign не в fill | ✅ |
+| M2 | Foreign не в fill | ✅ виїмка |
 | M3 | Empty між own = internal | ✅ |
-| M4 | Disconnected own → multiple contours | ✅ `magnet_radius` clustering |
+| M4 | Disconnected own → multiple contours | ✅ кластеризація за `magnetRadius` |
+
+⚠️ **Три знятих правила — не борг і не регресія.** G5–G7 описували, як flood обходить сітку
+клітин; геометрія, що лишилась, будується з боксів карток і цих кроків не має. Якщо колись
+знадобляться C-форми, повертати доведеться і правила, і рушій — разом.
 
 ### 3.4 Канонічні тест-кейси
 
@@ -384,31 +371,13 @@ row1               P4              CEO
 row2      P5                P6      IT — два окремі contours
 ```
 
-При `magnetRadius: 1.5`: **3** IT-компоненти (top / P5 / P6).  
+При `magnetRadius: 1.5`: **3** IT-компоненти (top / P5 / P6).
 Один C навколо CEO (`magnetRadius ≥ 2`) — **не** канон Variant B.
 
 Критично: membership лише за `departmentId`; gap=2 не злипає; report arrows ≠ магнетизм.
 
-Demo positions: `VARIANT_B_POSITIONS` у `packages/sdk/src/contour/bridge.ts`
-
-### 3.5 Pseudocode (повний)
-
-```text
-function computeDeptContour(deptId, positions, config):
-  own ← cells where departmentId == deptId
-  if own.empty: error
-
-  foreign ← ∅
-  for p in positions where p.departmentId != deptId:
-    for dc, dr in [-corridor..+corridor]²:
-      foreign.add(expand(p, dc, dr))
-
-  bbox ← boundingBox(own ∪ foreign, pad = paddingCells + 1)
-  inside ← floodFill(seeds=own, blocked=foreign, bounds=bbox)
-  corners ← traceOrthogonalPerimeter(inside)
-  smooth ← chaikin(corners, smoothIterations)
-  return { points: scale(smooth), path: toSvg(smooth) }
-```
+Demo positions: `VARIANT_B_POSITIONS` у
+`packages/sdk/src/render/contour/variantBPositions.ts` (переїхали з WASM-бриджа в T80).
 
 ---
 
