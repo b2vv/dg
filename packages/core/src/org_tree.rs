@@ -122,16 +122,26 @@ pub fn extract_subtree<'a>(
         return Err(OrgTreeError::UnknownOrg(root_id.into()));
     }
 
+    // T102 блок Б: обхід був ітеративним, але шукав дітей **фільтром по всьому
+    // масиву на кожен вузол** — O(n²). Індекс будується раз; на плоскому дереві
+    // 20 000 саме цей скан і був наступним квадратом після `hierarchy::build`.
+    let mut children_by_parent: HashMap<&str, Vec<&str>> = HashMap::new();
+    for org in organizations {
+        if let Some(parent) = org.parent_org_id.as_deref() {
+            children_by_parent
+                .entry(parent)
+                .or_default()
+                .push(org.id.as_str());
+        }
+    }
+
     let mut result = Vec::new();
     let mut stack = vec![root_id];
     while let Some(id) = stack.pop() {
         let org = by_id[id];
         result.push(org);
-        for child in organizations
-            .iter()
-            .filter(|o| o.parent_org_id.as_deref() == Some(id))
-        {
-            stack.push(child.id.as_str());
+        if let Some(kids) = children_by_parent.get(id) {
+            stack.extend(kids.iter().copied());
         }
     }
     Ok(result)

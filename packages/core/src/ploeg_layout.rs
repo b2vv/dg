@@ -25,13 +25,15 @@ pub fn compute_ploeg_layered_layout(root: &HierarchyNode, opts: &LayoutOptions) 
     // Порядок обходу збережено байт-у-байт: діти кладуться в стек **у
     // зворотному порядку**, тож знімаються зліва направо — рівно як їх обходила
     // рекурсія. Нумерація вузлів від цього залежить, а від нумерації — розкладка.
-    let mut stack: Vec<(&HierarchyNode, usize)> = vec![(root, NULL_ID)];
-    while let Some((node, parent_num)) = stack.pop() {
+    let mut depth_by_num: HashMap<usize, u32> = HashMap::new();
+    let mut stack: Vec<(&HierarchyNode, usize, u32)> = vec![(root, NULL_ID, 0)];
+    while let Some((node, parent_num, depth)) = stack.pop() {
         let num = next_id;
         next_id += 1;
         numeric_to_id.insert(num, node.id.clone());
         id_to_numeric.insert(node.id.clone(), num);
         source_by_num.insert(num, node);
+        depth_by_num.insert(num, depth);
         if parent_num != NULL_ID {
             parent_numeric.insert(num, parent_num);
         }
@@ -44,18 +46,16 @@ pub fn compute_ploeg_layered_layout(root: &HierarchyNode, opts: &LayoutOptions) 
         );
 
         for child in node.children.iter().rev() {
-            stack.push((child, num));
+            stack.push((child, num, depth + 1));
         }
     }
 
     tree.layout();
     let positions = tree.get_pos();
 
-    let mut depth_by_num = HashMap::new();
-    for num in numeric_to_id.keys() {
-        let depth = depth_of(*num, &parent_numeric);
-        depth_by_num.insert(*num, depth);
-    }
+    // T102 блок Б: глибина береться з обходу, а не перераховується підйомом до
+    // кореня на кожен вузол. `depth_of` був O(n·глибина), тобто на ланцюгу —
+    // квадрат: 6 000 коштували 524 мс, і подвоєння давало ×3,5.
 
     let mut nodes = Vec::new();
     let mut i = 0usize;
@@ -125,16 +125,6 @@ pub fn compute_ploeg_layered_layout(root: &HierarchyNode, opts: &LayoutOptions) 
         nodes,
         edges,
     }
-}
-
-fn depth_of(num: usize, parent_numeric: &HashMap<usize, usize>) -> u32 {
-    let mut d = 0u32;
-    let mut cur = num;
-    while let Some(&p) = parent_numeric.get(&cur) {
-        d += 1;
-        cur = p;
-    }
-    d
 }
 
 fn bounds(nodes: &[LayoutNode]) -> (f32, f32, f32, f32) {
