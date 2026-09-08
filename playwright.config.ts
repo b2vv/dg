@@ -32,7 +32,18 @@ export default defineConfig({
       ],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // No retries, in CI either (T101, measured 2026-09-08). Across a sample of
+  // six CI runs — four green, two red — Playwright never printed a `flaky`
+  // line, so the two retries had never once turned a red into a green; both
+  // red runs failed outside e2e altogether.
+  //
+  // Removed rather than left dormant because of what they would have done if
+  // they ever fired. T118 was a real product defect — the searched seat lost
+  // its marker on the next camera slide — and it presented as an intermittent
+  // e2e failure. A retry would have reported it «flaky», turned CI green, and
+  // bought the defect however long it took someone to look twice. CI runs
+  // serially here, so the pressure retries exist to relieve is not present.
+  retries: 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? 'github' : 'list',
   timeout: 60_000,
