@@ -876,7 +876,17 @@ export class App {
     const geom = this.staffWallGeometry();
     const ask = this.staffWindowAsk(diagram, previous.wallBase);
     this.staffWindowCapped = ask.capped;
-    const next = buildScaleStaffWindow({ startIndex: start, windowSize: ask.size });
+    // T118: carry the focus across the slide. Without it `focusIndex` falls to
+    // its default of 0, the marker lands on the first seat of the composition —
+    // far outside this window — and the seat the user searched for silently
+    // stops being findable. A jump marks the target and the very next
+    // camera-driven slide used to unmark it, which is why the anchor vanished
+    // ~1.2s after every search and, in the e2e, never came back.
+    const next = buildScaleStaffWindow({
+      startIndex: start,
+      windowSize: ask.size,
+      focusIndex: previous.focusIndex,
+    });
     if (next.wallBase === previous.wallBase && next.startIndex === previous.startIndex) return;
 
     const rowShift = (next.wallBase - previous.wallBase) / geom.cols;

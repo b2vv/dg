@@ -117,8 +117,57 @@ test.describe('1M staff scale tab', () => {
           }),
         { timeout: 30_000 },
       )
-      .toMatch(/^seat=true/);
+      // `rebuilds` in the pattern, not just `seat` (T118). The focus anchor
+      // exists **before** the jump — the initial window marks its own default
+      // focus — so asserting the seat alone let this test pass on the old
+      // anchor, before the rebuild that was supposed to produce a new one. It
+      // was green for the wrong reason and went red only when the rebuild beat
+      // it to the assertion.
+      .toMatch(/^seat=true rebuilds=[1-9]/);
     await expect(page.locator('.scene-caption')).toContainText('window');
+  });
+
+  test('the searched seat survives the camera slide that follows the jump (T118)', async ({ page }) => {
+    // The jump marks the seat the user searched for; the next camera-driven
+    // slide used to rebuild the window without a focus index, so the marker
+    // fell back to seat 0 — outside the window — and the seat quietly stopped
+    // being findable about a second after every search.
+    //
+    // The camera is nudged on purpose. A quiet run produces the jump and no
+    // slide at all, and the defect cannot appear without one: measured, the
+    // rebuild count is the difference between a test that proves something
+    // (2 rebuilds) and one that passes because nothing happened (1).
+    const search = page.locator('#search-input');
+    await search.fill('pos-500000');
+    await search.press('Enter');
+    await expect(page.locator('#status')).toContainText('window', { timeout: 60_000 });
+
+    await page.mouse.move(640, 400);
+    await page.mouse.down();
+    await page.mouse.move(640, 260, { steps: 12 });
+    await page.mouse.up();
+
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const bridge = (
+              window as unknown as {
+                __demoE2e?: {
+                  getAnchors?(): Array<{ testId: string }>;
+                  getStaffRebuilds?(): unknown[];
+                };
+              }
+            ).__demoE2e;
+            const anchors = bridge?.getAnchors?.() ?? [];
+            const rebuilds = (bridge?.getStaffRebuilds?.() ?? []).length;
+            return `rebuilds=${rebuilds} focusSeat=${anchors.some((a) => a.testId === 'scale-focus-seat')}`;
+          }),
+        { timeout: 30_000 },
+      )
+      // Both halves: the slide must have happened, and the seat must have
+      // survived it. Either alone passes for the wrong reason.
+      .toMatch(/^rebuilds=[2-9]\d* focusSeat=true/);
   });
 
   test('an index outside tier 2 is reported, not silently re-centred', async ({ page }) => {
