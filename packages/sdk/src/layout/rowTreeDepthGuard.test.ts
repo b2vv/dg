@@ -3,17 +3,24 @@ import { computeOrgRowTreeLayout } from './rowTreeLayout.js';
 // Deliberately the barrel, not './orgTree.js': what this pins is that a host
 // can catch the guard by type, and a host only ever sees the barrel.
 import { OrgHierarchyError } from '../index.js';
-import { computeAllContours } from '../contour/bridge.js';
 import type { DiagramOrganization } from '../data/types.js';
 
 /**
  * Acceptance block A — `work/reports/row-tree-depth/spec.md`.
  *
- * The measured failure this pins: a chain of 4 500 does not merely throw. It
- * traps the WASM module, and every later call into it fails — including
- * `computeAllContours`, an unrelated feature. `resetContourWasmForTests()` does
- * not bring it back, and `initContourWasm` holds one instance per process, so
- * for a host that means "the SDK is dead until the page reloads".
+ * 🔴 **Read the next paragraph before citing this file as proof of anything.**
+ * The previous version of this comment claimed these tests pin the measured
+ * WASM trap — «a chain of 4 500 traps the module, and every later call fails».
+ * They do not, and they cannot: `MAX_ROW_TREE_DEPTH` refuses at 2 500 on the JS
+ * side, so the trap at ~4 500 is unreachable through any public path. That
+ * measurement was taken by hand (`work/reports/row-tree-depth/spec.md`) and has
+ * never had an automated witness. The comment outliving the fact is exactly how
+ * it misled the T80 spec into planning work that was not needed.
+ *
+ * What these tests actually pin is the other half, and it is the half that has
+ * a defect to guard: **the refusal is clean**. The guard rejects by contract
+ * before WASM is touched, so the module stays usable afterwards — which is why
+ * `:54` calls the layout again and expects it to work.
  *
  * Depth is measured over the *expanded* subtree, so every org here is
  * `collapsed: false` — the default is collapsed (`isOrgCollapsed` is
@@ -55,14 +62,6 @@ describe('row-tree depth guard', () => {
     await computeOrgRowTreeLayout(expandedChain(4_500), 'org-0').catch(() => undefined);
     const res = await computeOrgRowTreeLayout(expandedChain(3), 'org-0');
     expect(res.nodes).toHaveLength(3);
-  });
-
-  it('success: an unrelated WASM feature still works after a refusal', async () => {
-    await computeOrgRowTreeLayout(expandedChain(4_500), 'org-0').catch(() => undefined);
-    const contours = await computeAllContours([
-      { id: 'p1', departmentId: 'd1', col: 0, row: 0 },
-    ]);
-    expect(contours).toHaveLength(1);
   });
 
   it('success: exactly the limit still lays out', async () => {
