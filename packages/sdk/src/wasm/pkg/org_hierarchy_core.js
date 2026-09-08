@@ -1,37 +1,6 @@
 /* @ts-self-types="./org_hierarchy_core.d.ts" */
 
 /**
- * Контури для всіх dept у positions
- * @param {any} positions
- * @param {any | null} [config]
- * @returns {any}
- */
-export function computeAllContours(positions, config) {
-    const ret = wasm.computeAllContours(positions, isLikeNone(config) ? 0 : addToExternrefTable0(config));
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return takeFromExternrefTable0(ret[0]);
-}
-
-/**
- * Контур dept з правилами магнетизму (§4.6.1)
- * @param {string} department_id
- * @param {any} positions
- * @param {any | null} [config]
- * @returns {any}
- */
-export function computeDeptContour(department_id, positions, config) {
-    const ptr0 = passStringToWasm0(department_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.computeDeptContour(ptr0, len0, positions, isLikeNone(config) ? 0 : addToExternrefTable0(config));
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return takeFromExternrefTable0(ret[0]);
-}
-
-/**
  * Row-tree layout для org: validate → subtree → Ploeg layered tidy
  * @param {any} organizations
  * @param {string} expanded_root_id
@@ -63,10 +32,6 @@ function __wbg_get_imports() {
         __proto__: null,
         __wbg_Error_408e67f47ca7b58b: function(arg0, arg1) {
             const ret = Error(getStringFromWasm0(arg0, arg1));
-            return ret;
-        },
-        __wbg_Number_3890faa6d3ff057d: function(arg0) {
-            const ret = Number(arg0);
             return ret;
         },
         __wbg_String_8564e559799eccda: function(arg0, arg1) {
@@ -183,10 +148,6 @@ function __wbg_get_imports() {
         },
         __wbg_isArray_6339f732981044bf: function(arg0) {
             const ret = Array.isArray(arg0);
-            return ret;
-        },
-        __wbg_isSafeInteger_f3d6cd19ccfe4512: function(arg0) {
-            const ret = Number.isSafeInteger(arg0);
             return ret;
         },
         __wbg_iterator_5cebbb86e33c6dd6: function() {

@@ -1,8 +1,6 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
-export const computeAllContours: (a: any, b: number) => [number, number, number];
-export const computeDeptContour: (a: number, b: number, c: any, d: number) => [number, number, number];
 export const computeOrgRowTreeLayout: (a: any, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number) => [number, number, number];
 export const init: () => void;
 export const __wbindgen_malloc: (a: number, b: number) => number;

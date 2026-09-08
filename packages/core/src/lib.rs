@@ -1,4 +1,3 @@
-mod contour;
 mod hierarchy;
 mod org_layout;
 mod org_tree;
@@ -8,7 +7,6 @@ mod types;
 use serde_wasm_bindgen::{from_value, to_value};
 use wasm_bindgen::prelude::*;
 
-pub use contour::{compute_all_contours, compute_dept_contour};
 pub use hierarchy::build_from_flat;
 pub use org_layout::compute_org_row_tree_layout;
 pub use org_tree::{extract_subtree, validate_org_hierarchy, OrgTreeError};
@@ -54,42 +52,6 @@ pub fn wasm_compute_org_row_tree_layout(
 
 #[wasm_bindgen(start)]
 pub fn init() {}
-
-/// Контур dept з правилами магнетизму (§4.6.1)
-#[wasm_bindgen(js_name = computeDeptContour)]
-pub fn wasm_compute_dept_contour(
-    department_id: String,
-    positions: JsValue,
-    config: Option<JsValue>,
-) -> Result<JsValue, JsValue> {
-    let positions: Vec<ContourPositionInput> =
-        from_value(positions).map_err(|e| JsValue::from_str(&format!("parse error: {e}")))?;
-    let cfg: ContourMagnetConfig = config
-        .map(from_value)
-        .transpose()
-        .map_err(|e| JsValue::from_str(&format!("config error: {e}")))?
-        .unwrap_or_default();
-    let result = compute_dept_contour(&department_id, &positions, &cfg)
-        .map_err(|e| JsValue::from_str(&e))?;
-    to_value(&result).map_err(|e| JsValue::from_str(&format!("serialize error: {e}")))
-}
-
-/// Контури для всіх dept у positions
-#[wasm_bindgen(js_name = computeAllContours)]
-pub fn wasm_compute_all_contours(
-    positions: JsValue,
-    config: Option<JsValue>,
-) -> Result<JsValue, JsValue> {
-    let positions: Vec<ContourPositionInput> =
-        from_value(positions).map_err(|e| JsValue::from_str(&format!("parse error: {e}")))?;
-    let cfg: ContourMagnetConfig = config
-        .map(from_value)
-        .transpose()
-        .map_err(|e| JsValue::from_str(&format!("config error: {e}")))?
-        .unwrap_or_default();
-    let results = compute_all_contours(&positions, &cfg);
-    to_value(&results).map_err(|e| JsValue::from_str(&format!("serialize error: {e}")))
-}
 
 #[cfg(test)]
 mod tests {

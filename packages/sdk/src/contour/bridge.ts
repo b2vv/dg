@@ -34,15 +34,6 @@ export interface DeptContourResult {
 
 export interface WasmContourModule {
   default: () => Promise<void>;
-  computeDeptContour: (
-    departmentId: string,
-    positions: ContourPositionInput[],
-    config?: ContourMagnetConfig,
-  ) => DeptContourResult[];
-  computeAllContours: (
-    positions: ContourPositionInput[],
-    config?: ContourMagnetConfig,
-  ) => DeptContourResult[];
   computeOrgRowTreeLayout: (
     organizations: unknown,
     expandedRootId: string,
@@ -54,8 +45,6 @@ export interface WasmContourModule {
     margin?: number | null,
   ) => unknown;
 }
-
-import { toRustConfig } from './config.js';
 
 /** Thrown when the WASM contour module cannot be loaded or initialized. */
 export class WasmLoadError extends Error {
@@ -114,51 +103,6 @@ export function setContourWasmLoaderForTests(loader: ContourWasmLoader | null): 
   resetContourWasmForTests();
 }
 
-/** One or more contours for a department (M4 components). */
-export async function computeDeptContour(
-  departmentId: string,
-  positions: ContourPositionInput[],
-  config?: ContourMagnetConfig,
-): Promise<DeptContourResult[]> {
-  const m = await initContourWasm();
-  const raw = m.computeDeptContour(
-    departmentId,
-    positions,
-    toRustConfig(config) as unknown as ContourMagnetConfig,
-  );
-  return normalizeContourResults(raw);
-}
-
-export async function computeAllContours(
-  positions: ContourPositionInput[],
-  config?: ContourMagnetConfig,
-): Promise<DeptContourResult[]> {
-  const m = await initContourWasm();
-  const raw = m.computeAllContours(
-    positions,
-    toRustConfig(config) as unknown as ContourMagnetConfig,
-  );
-  return normalizeContourResults(raw);
-}
-
-/** Accept array or legacy single object from older wasm builds. */
-function normalizeContourResults(
-  raw: DeptContourResult[] | DeptContourResult,
-): DeptContourResult[] {
-  if (Array.isArray(raw)) return raw.map((one) => normalizeOne(one));
-  if (raw && typeof raw === 'object') return [normalizeOne(raw)];
-  return [];
-}
-
-function normalizeOne(r: DeptContourResult & { corner_count?: number }): DeptContourResult {
-  return {
-    departmentId: r.departmentId,
-    points: r.points ?? [],
-    path: r.path ?? '',
-    cornerCount: r.cornerCount ?? r.corner_count ?? 0,
-  };
-}
-
 /** Demo positions — variant B (canonical sketch) */
 export const VARIANT_B_POSITIONS: ContourPositionInput[] = [
   { id: 'P1', departmentId: 'IT', col: 0, row: 0 },
@@ -168,5 +112,3 @@ export const VARIANT_B_POSITIONS: ContourPositionInput[] = [
   { id: 'P5', departmentId: 'IT', col: 0, row: 2 },
   { id: 'P6', departmentId: 'IT', col: 2, row: 2 },
 ];
-
-export { toRustConfig, MAX_SMOOTH_ITERATIONS } from './config.js';

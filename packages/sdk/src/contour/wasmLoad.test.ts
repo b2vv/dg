@@ -14,7 +14,7 @@ describe('initContourWasm', () => {
 
   it('success: loads wasm module once', async () => {
     const m = await initContourWasm();
-    expect(m.computeDeptContour).toBeTypeOf('function');
+    expect(m.computeOrgRowTreeLayout).toBeTypeOf('function');
     const again = await initContourWasm();
     expect(again).toBe(m);
   });
@@ -30,6 +30,6 @@ describe('initContourWasm', () => {
     // Cached failure cleared — retry with restored loader succeeds.
     setContourWasmLoaderForTests(null);
     const m = await initContourWasm();
-    expect(m.computeDeptContour).toBeTypeOf('function');
+    expect(m.computeOrgRowTreeLayout).toBeTypeOf('function');
   });
 });

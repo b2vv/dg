@@ -1,13 +1,12 @@
-import { afterEach, beforeAll, describe, expect, it } from '@rstest/core';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import {
-  computeAllContours,
-  resetContourWasmForTests,
-  setContourWasmLoaderForTests,
-  VARIANT_B_POSITIONS,
-} from '../contour/bridge.js';
+/**
+ * T80: this file used to assert padding against **both** engines at once — that
+ * the Rust path changes with `paddingCells` while the paint margin grows. The
+ * Rust half went with the engine; the paint half is about the one that stays,
+ * so it kept its assertions and lost only the comparison it no longer has a
+ * second party for.
+ */
+import { describe, expect, it } from '@rstest/core';
+import { VARIANT_B_POSITIONS } from '../contour/bridge.js';
 import { resolvePositionAABB } from '../layout/staff/coords.js';
 import {
   GRID_CELL_HEIGHT,
@@ -15,7 +14,6 @@ import {
   PERSON_CARD_HEIGHT,
   PERSON_CARD_WIDTH,
   VARIANT_B_HORIZONTAL_GAP,
-  VARIANT_B_MAGNET_RADIUS,
   VARIANT_B_VERTICAL_GAP,
 } from './types.js';
 import { polishContourRings } from './contour/contourPolish.js';
@@ -34,59 +32,7 @@ function ringBounds(ring: readonly { x: number; y: number }[]): {
 }
 
 describe('Variant B padding (paint-only button-group)', () => {
-  beforeAll(async () => {
-    const wasmPath = join(
-      dirname(fileURLToPath(import.meta.url)),
-      '../wasm/pkg/org_hierarchy_core_bg.wasm',
-    );
-    const bytes = readFileSync(wasmPath);
-    setContourWasmLoaderForTests(async () => {
-      const mod = await import('../wasm/pkg/org_hierarchy_core.js');
-      await mod.default({ module_or_path: bytes });
-      return mod as never;
-    });
-    resetContourWasmForTests();
-  });
-
-  afterEach(() => {
-    resetContourWasmForTests();
-  });
-
-  it('success: padding grows paint margin but Rust path area stays unchanged', async () => {
-    const rust0 = await computeAllContours(
-      VARIANT_B_POSITIONS.map((p) => ({
-        id: p.id,
-        departmentId: p.departmentId,
-        col: p.col,
-        row: p.row,
-      })),
-      {
-        cellWidth: GRID_CELL_WIDTH,
-        cellHeight: GRID_CELL_HEIGHT,
-        paddingCells: 0,
-        smoothIterations: 0,
-        magnetRadius: VARIANT_B_MAGNET_RADIUS,
-      },
-    );
-    const rust2 = await computeAllContours(
-      VARIANT_B_POSITIONS.map((p) => ({
-        id: p.id,
-        departmentId: p.departmentId,
-        col: p.col,
-        row: p.row,
-      })),
-      {
-        cellWidth: GRID_CELL_WIDTH,
-        cellHeight: GRID_CELL_HEIGHT,
-        paddingCells: 2,
-        smoothIterations: 0,
-        magnetRadius: VARIANT_B_MAGNET_RADIUS,
-      },
-    );
-    const paths0 = rust0.filter((c) => c.departmentId === 'IT').map((c) => c.path).sort();
-    const paths2 = rust2.filter((c) => c.departmentId === 'IT').map((c) => c.path).sort();
-    expect(paths0).not.toEqual(paths2);
-
+  it('success: padding grows the painted margin around the same cards', () => {
     const geom = {
       nodeWidth: PERSON_CARD_WIDTH,
       nodeHeight: PERSON_CARD_HEIGHT,
