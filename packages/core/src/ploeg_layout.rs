@@ -17,25 +17,18 @@ pub fn compute_ploeg_layered_layout(root: &HierarchyNode, opts: &LayoutOptions) 
     let mut source_by_num: HashMap<usize, &HierarchyNode> = HashMap::new();
     let mut next_id = 1usize;
 
-    // Ten parameters because the walk threads five mutable maps through the
-    // recursion. Bundling them is a real improvement — and it belongs to the
-    // work that makes this traversal iterative (the depth limit lives here),
-    // not to a lint sweep that would rewrite it twice.
-    #[allow(clippy::too_many_arguments)]
-    fn walk<'a>(
-        node: &'a HierarchyNode,
-        parent_num: usize,
-        tree: &mut TidyTree,
-        node_width: f32,
-        node_height: f32,
-        next_id: &mut usize,
-        numeric_to_id: &mut HashMap<usize, String>,
-        parent_numeric: &mut HashMap<usize, usize>,
-        id_to_numeric: &mut HashMap<String, usize>,
-        source_by_num: &mut HashMap<usize, &'a HierarchyNode>,
-    ) {
-        let num = *next_id;
-        *next_id += 1;
+    // T102 блок Б: обхід ітеративний. Був рекурсивним, і вимір показав його
+    // другою стелею глибини після `hierarchy::build` — з ітеративною побудовою
+    // повний конвеєр вмирав на 34 531, тоді як сама побудова тримала понад
+    // 100 000 (`examples/depth_probe.rs`).
+    //
+    // Порядок обходу збережено байт-у-байт: діти кладуться в стек **у
+    // зворотному порядку**, тож знімаються зліва направо — рівно як їх обходила
+    // рекурсія. Нумерація вузлів від цього залежить, а від нумерації — розкладка.
+    let mut stack: Vec<(&HierarchyNode, usize)> = vec![(root, NULL_ID)];
+    while let Some((node, parent_num)) = stack.pop() {
+        let num = next_id;
+        next_id += 1;
         numeric_to_id.insert(num, node.id.clone());
         id_to_numeric.insert(node.id.clone(), num);
         source_by_num.insert(num, node);
@@ -43,41 +36,17 @@ pub fn compute_ploeg_layered_layout(root: &HierarchyNode, opts: &LayoutOptions) 
             parent_numeric.insert(num, parent_num);
         }
 
-        let parent = if parent_num == NULL_ID {
-            NULL_ID
-        } else {
-            parent_num
-        };
-        tree.add_node(num, node_width as f64, node_height as f64, parent);
+        tree.add_node(
+            num,
+            opts.node_width as f64,
+            opts.node_height as f64,
+            parent_num,
+        );
 
-        for child in &node.children {
-            walk(
-                child,
-                num,
-                tree,
-                node_width,
-                node_height,
-                next_id,
-                numeric_to_id,
-                parent_numeric,
-                id_to_numeric,
-                source_by_num,
-            );
+        for child in node.children.iter().rev() {
+            stack.push((child, num));
         }
     }
-
-    walk(
-        root,
-        NULL_ID,
-        &mut tree,
-        opts.node_width,
-        opts.node_height,
-        &mut next_id,
-        &mut numeric_to_id,
-        &mut parent_numeric,
-        &mut id_to_numeric,
-        &mut source_by_num,
-    );
 
     tree.layout();
     let positions = tree.get_pos();
