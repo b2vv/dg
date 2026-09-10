@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { clickOrg, expandOrg, openFlatOrgs } from './demoBridge.js';
+import { clickOrg, openFlatOrgs } from './demoBridge.js';
 
 test.describe('flat orgs root expand', () => {
   test('click root anchor expands children without empty canvas', async ({ page }) => {
@@ -14,18 +14,28 @@ test.describe('flat orgs root expand', () => {
     await expect(page.locator('[data-org-hierarchy-test-anchors] button')).not.toHaveCount(0);
   });
 
-  test('org-1 expand (+ API) then org-2 demo click keeps subtree visible', async ({ page }) => {
+  test('org-1 expand (via the anchor) then org-2 demo click keeps subtree visible', async ({
+    page,
+  }) => {
     await openFlatOrgs(page);
 
-    await expandOrg(page, 'org-1');
-    await expect(page.getByTestId('node-org-2')).toBeVisible({ timeout: 10_000 });
-
-    await expandOrg(page, 'org-2');
-    await expect(page.getByTestId('node-org-3')).toBeVisible({ timeout: 10_000 });
+    // T115 крок 2: розгортання йде **через якір у DOM**, а не через
+    // `__demoE2e.expandOrg`. Місток кликав `diagram.expandOrg` напряму, тобто
+    // цей тест перевіряв метод SDK, а не той шлях, яким користувач і хост
+    // насправді розгортають вузол. Тепер клік іде туди, куди клікають вони.
+    //
+    // ⚠️ Локатор — заново перед кожним кліком: шар якорів робить
+    // `replaceChildren()` на кожен sync, тож handle після руху камери detached.
+    // T115 крок 2: розгортання йде **через якір у DOM**. `org-2` на старті
+    // згорнутий (вкладка відкривається мінімумом, T97), тож свідком служить
+    // поява його дитини `org-6` — `node-org-2` видно й до кліку.
+    await expect(page.getByTestId('node-org-6')).toHaveCount(0);
+    await page.getByTestId('node-org-2-expander').click();
+    await expect(page.getByTestId('node-org-6')).toBeVisible({ timeout: 10_000 });
 
     await clickOrg(page, 'org-2');
     await expect(page.getByTestId('node-org-2')).toBeVisible();
-    await expect(page.getByTestId('node-org-3')).toBeVisible();
+    await expect(page.getByTestId('node-org-6')).toBeVisible();
     await expect(page.getByTestId('diagram-ready')).toBeVisible();
   });
 });
