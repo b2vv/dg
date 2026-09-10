@@ -132,6 +132,24 @@ describe('listTestAnchors exposes the expander (T115 K3)', () => {
     diagram.destroy();
   });
 
+  it('failure: a node promoted by its BARE id reports no box, like one promoted by key', async () => {
+    // 🔴 Цей тест — від рев'ю другої сесії, і він ловить те, чого попередній не
+    // ловив **за побудовою**. `setPromotedNodeIds` публічний, тож найкоротший
+    // шлях хоста — передати голий `'root'`, тоді як реєстр кладе типізований
+    // ключ. Точний збіг `promoted.has(box.id)` тут мовчав: в'юха вже схована, а
+    // якір усе ще показував на кнопку, якої на екрані немає. Тест із
+    // типізованим ключем вибирає ту саму форму, що й реалізація, і тому
+    // погоджується з нею замість перевіряти її.
+    const diagram = await mount();
+    expect(anchorOf(diagram.listTestAnchors(), 'root')!.expander).toBeTruthy();
+
+    rendererOf(diagram).setPromotedNodeIds(['root']);
+
+    expect(anchorOf(diagram.listTestAnchors(), 'root')!.expander).toBeUndefined();
+
+    diagram.destroy();
+  });
+
   it('failure: a promoted node reports no box, because its button is not on screen', async () => {
     const diagram = await mount();
     const before = anchorOf(diagram.listTestAnchors(), 'root');

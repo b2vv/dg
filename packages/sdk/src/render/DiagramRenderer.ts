@@ -26,6 +26,7 @@ import { computeOrgLayout } from '../layout/rowTreeLayout.js';
 import { siblingOrgGroupBounds } from '../layout/siblingOrgGroups.js';
 import type { OrgLayoutOptions } from '../layout/types.js';
 import { isOrgCollapsed, orgHasChildren } from '../layout/orgMode.js';
+import type { ChromeBox } from './orgNodeChrome.js';
 import { DoubleTapTracker } from '../interaction/doubleTap.js';
 import type { SelectionPointerMods } from '../interaction/selection.js';
 import type { ContextMenuPointer } from '../interaction/contextMenuPayload.js';
@@ -884,10 +885,13 @@ export class DiagramRenderer {
       this.rememberBox({
         id: card.orgId,
         kind: 'organization',
-        // Штатний chevron якоря не отримує — хост його не замовляв (вимір
-        // 2026-09-10). Але ознака моделі чесна й тут: джерело те саме, з якого
-        // будується розгорнутий блок.
-        hasChildren: (card.positionCount ?? 0) > 0,
+        // 🔴 **Жодного з двох полів у штатному шляху.** `hasChildren` тут
+        // порахувати легко (`card.positionCount`), і поле було б чесне саме по
+        // собі — але хост читає **пару**, і §14 оголошує «ознака є, бокса
+        // немає» як «кнопка в моделі є, кадр її не показує ⇒ підведи камеру».
+        // У штатній сцені це неправда двічі: chevron **на екрані**, і камера ні
+        // до чого. Порожня пара читається як «не покрито» — і це правда, бо
+        // обсяг T115 кроку 2 — дерево.
         x: card.x,
         y: card.y,
         width: card.width,
@@ -1174,15 +1178,20 @@ export class DiagramRenderer {
 /**
  * Локальний бокс кнопки → світовий, зсувом на позицію картки.
  *
+ * Типи по краях різні **свідомо**: на вході {@link ChromeBox}, який своїм
+ * означенням заявляє координати картки, на виході — поле `NodeWorldBox`, тобто
+ * світові. Спільний іменований тип на обидва кінці стер би саме ту різницю,
+ * заради якої функція існує.
+ *
  * Повертає **порожній об'єкт**, коли кнопки немає: так виклик лишається одним
  * спредом, а поле просто не з'являється — замість `expander: undefined`, який
  * у JSON-порівняннях поводиться інакше за відсутнє.
  */
 function worldExpanderBox(
-  local: { x: number; y: number; width: number; height: number } | undefined,
+  local: ChromeBox | undefined,
   cardX: number,
   cardY: number,
-): { expander?: { x: number; y: number; width: number; height: number } } {
+): Pick<NodeWorldBox, 'expander'> {
   if (!local) return {};
   return {
     expander: {

@@ -1468,7 +1468,15 @@ export class OrgHierarchyDiagram {
         // рішення, зашите в рендер, застаріло б на першому ж зумі. Під
         // промотованим вузлом Pixi-в'юха схована, і якір указував би на чужий
         // HTML-компонент.
-        ...(box.expander && !promoted.has(box.id) ? { expander: box.expander } : {}),
+        // ⚠️ Порівняння — **тим самим предикатом**, що й `listPromoteBoxes`
+        // (`:1564`), а не `promoted.has(box.id)`. `setPromotedNodeIds` —
+        // публічний метод, тож хост природно передає **голий** id, тоді як
+        // реєстр кладе типізований ключ (`organization:root`). Точний збіг
+        // мовчки не спрацьовував би саме на найкоротшому шляху хоста: в'юха
+        // схована, а якір далі показує на кнопку, якої на екрані немає.
+        ...(box.expander && !promoteIdMatches(promoted, box.id, box.kind)
+          ? { expander: box.expander }
+          : {}),
         ...(box.hasChildren === undefined ? {} : { hasChildren: box.hasChildren }),
       });
     }
