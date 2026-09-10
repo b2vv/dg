@@ -13,6 +13,7 @@ export {
   collapseAllOrgs,
   expandOrg,
   collapseOrg,
+  orgHasChildren,
   findExpandedRootId,
   findExpandedRootIds,
 } from './orgMode.js';

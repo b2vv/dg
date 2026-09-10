@@ -48,6 +48,8 @@ import {
   collapseAllOrgs,
   collapseOrg,
   detectOrgMode,
+  isOrgCollapsed,
+  orgHasChildren,
   swapMatrixOrder,
   applyMatrixPlacement,
   assignExpandToDepth,
@@ -889,6 +891,46 @@ export class OrgHierarchyDiagram {
       return;
     }
     this.panToNode(orgId, { animate: true });
+  }
+
+  /**
+   * Toggle a tree org's expand state — the twin {@link toggleStaffOrgExpand}
+   * has had since T109 and the tree has not. Without it a host must first know
+   * the current state in order to choose between {@link expandOrg} and
+   * {@link collapseOrg}; that asymmetry is the whole reason this exists, so the
+   * name and the `Promise<boolean>` mirror the staff method deliberately.
+   *
+   * Returns the state **after** the call — `true` expanded, `false` collapsed.
+   *
+   * An unknown id and a leaf both answer `false` and draw **no frame**. The
+   * silence is not cosmetic: the expand branch ends in `panToNode`, so a no-op
+   * that still rendered would slide the camera onto a node the click did
+   * nothing to.
+   *
+   * ⚠️ Inherits the non-transactional path of the two methods it delegates to:
+   * a refused frame **rejects** instead of rolling back, and `onOrgModeChange`
+   * has already fired by then (T115 plan Г4′). A caller that does not await —
+   * the test-anchor overlay is one — must `.catch`.
+   */
+  async toggleOrgExpand(orgId: string): Promise<boolean> {
+    const org = this.data.organizations.find((o) => o.id === orgId);
+    // Без поведінкового тесту **свідомо**: зняти цей рядок не можна, `tsc`
+    // одразу каже `DiagramOrganization | undefined` на виклику нижче. А через
+    // публічний шлях випадок «id невідомий, але діти є» не будується взагалі —
+    // висячий `parentOrgId` відсікає `layout/orgTree.ts:22` ще на прийомі
+    // даних. Тобто звичайний невідомий id закриває вже наступний рядок.
+    if (!org) return false;
+    if (!orgHasChildren(this.data.organizations, orgId)) return false;
+    if (isOrgCollapsed(org)) {
+      await this.expandOrg(orgId);
+    } else {
+      await this.collapseOrg(orgId);
+    }
+    // Re-read rather than assume the inverse: `expandOrg` walks the ancestor
+    // path and `collapseOrg` the subtree, so the answer is a property of the
+    // data those two produced, not of the branch taken.
+    const after = this.data.organizations.find((o) => o.id === orgId);
+    return after !== undefined && !isOrgCollapsed(after);
   }
 
   async collapseOrg(orgId: string): Promise<void> {

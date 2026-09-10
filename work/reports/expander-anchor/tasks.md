@@ -16,10 +16,10 @@
 
 **Файли:** `render/SceneRegistry.ts`, `render/OrganizationNode.ts`, `render/OrganizationNode.test.ts`
 
-- [ ] `NodeWorldBox` дістає необов'язкове `expander?: { x, y, width, height }`
-- [ ] `OrganizationNodeView` утримує **плоскі числа** в координатах картки з `mountOrgNodeChrome`
+- [x] `NodeWorldBox` дістає необов'язкове `expander?: { x, y, width, height }`
+- [x] `OrganizationNodeView` утримує **плоскі числа** в координатах картки з `mountOrgNodeChrome`
       (результат зараз відкидається на `:254`), **не** контейнер і **не** `getBounds()`
-- [ ] тест: бокс правильний для **обох** геометрій — icon 22×22 вгорі-праворуч і gojs 26×26
+- [x] тест: бокс правильний для **обох** геометрій — icon 22×22 вгорі-праворуч і gojs 26×26
       внизу-праворуч
 
 **Готово, коли:** тест на обидві геометрії зелений; `typecheck`, `lint` чисті.
@@ -31,8 +31,11 @@
 
 **Файли:** `render/DiagramRenderer.ts` (+ тест)
 
-- [ ] `rememberBox` кладе `card.x + local.x` → world
-- [ ] `hasChildren` для org-карток: дерево — з `orgHasChildren` (`:1106`), штат — з `hasStaff` (`:1157`)
+- [x] `rememberBox` кладе `card.x + local.x` → world
+- [x] `hasChildren` для org-карток: **лише дерево**, з `orgHasChildren` (`:1106`). Штатний шлях
+      поле **не** заповнює — правка після рев'ю другої сесії: поле чесне саме по собі, але хост
+      читає **пару**, і «ознака є, бокса немає» §14 оголошує як «підведи камеру». У штатній сцені
+      chevron на екрані, тож така порада хибна. Порожня пара = «не покрито», і це правда.
 
 **Готово, коли:** юніт доводить, що бокс кнопки **всередині** боксу картки.
 **Закриває:** A2, сценарії 6, 15.
@@ -41,9 +44,9 @@
 
 **Файли:** `interaction/nodeTestId.ts`, `OrgHierarchyDiagram.ts` (`listTestAnchors` ~`:1409`), тести
 
-- [ ] `TestAnchorCandidate`: `expander?` і `hasChildren?` — обидва **необов'язкові**
-- [ ] `hasChildren` лише для `kind === 'organization'` (Д2)
-- [ ] 🔴 promote читається **в момент виклику** через `listPromotedIds()` — не в рендерері (Д4)
+- [x] `TestAnchorCandidate`: `expander?` і `hasChildren?` — обидва **необов'язкові**
+- [x] `hasChildren` лише для `kind === 'organization'` (Д2)
+- [x] 🔴 promote читається **в момент виклику** через `listPromotedIds()` — не в рендерері (Д4)
 
 **Готово, коли:** тести на сценарії 3, 4, 7, 12, 13 зелені.
 **Закриває:** A1, A3, A5, A15, A16, A17.
@@ -52,13 +55,23 @@
 
 **Файли:** `OrgHierarchyDiagram.ts`, `docs/USAGE.md` §8, тест
 
-- [ ] `toggleOrgExpand(orgId: string): Promise<boolean>` — симетрія з `toggleStaffOrgExpand`
-- [ ] контракт: невідомий id → `false` **без кидка**; лист → `false`
-- [ ] `USAGE.md` §8 описує метод
+- [x] `toggleOrgExpand(orgId: string): Promise<boolean>` — симетрія з `toggleStaffOrgExpand`
+- [x] контракт: невідомий id → `false` **без кидка**; лист → `false`
+- [x] `USAGE.md` описує метод — але в **§7**, не §8 (див. нижче)
 
 **Готово, коли:** сценарій 18 зелений; `check:docs` зелений (метод у `USAGE.md`).
 **Закриває:** A1 (частина), сценарій 18.
 ⚠️ **Окремим кроком, не всередині К5** — це єдина ламальна назад частина циклу.
+
+**Відхилення від цього таска — §7 замість §8.** `expandOrg`, `collapseOrg`, `setOrgsCollapsed`,
+`collapseAllOrgs` і `toggleStaffOrgExpand` **усі** живуть у §7; §8 — про пошук, вибір і камеру.
+Класти тогл у §8 означало б відірвати його від тієї самої симетрії, якою він обґрунтований.
+
+**Дірка в контракті, знайдена мутацією:** охоронець `if (!org)` **не має поведінкового тесту**, і
+це свідомо. Зняти його не можна — `tsc` одразу каже `DiagramOrganization | undefined`; а випадок
+«id невідомий, але діти є» через публічний шлях не будується: висячий `parentOrgId` відсікає
+`layout/orgTree.ts:22` на прийомі даних. Перша спроба написати такий тест упала саме на цьому
+валідаторі.
 
 ## К5 — другий якір в оверлеї
 
