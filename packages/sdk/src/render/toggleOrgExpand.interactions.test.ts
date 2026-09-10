@@ -93,6 +93,53 @@ describe('toggleOrgExpand (T115 K4)', () => {
     diagram.destroy();
   });
 
+  it('failure: an id that is unknown but HAS children answers false, not a TypeError', async () => {
+    // 🔴 Цей тест — від рев'ю другої сесії, і він спростовує те, що я записав у
+    // коді як доведене. Я стверджував, що випадок «id невідомий, але діти є» не
+    // будується, бо висячий `parentOrgId` відсікає валідатор «на прийомі
+    // даних». Валідатор стоїть **не на прийомі**: `validateOrgHierarchy`
+    // кличуть лише `rowTreeLayout.ts:146`/`:216` і `orgTree.ts:110`, тобто
+    // **деревна** розкладка. Сцену ж обирає `positions.length > 0`
+    // (`DiagramRenderer.ts:422`) — тож у **штатній** сцені org-ієрархія не
+    // валідується взагалі, і висячий `parentOrgId` доїжджає до `this.data`
+    // цілим.
+    //
+    // Тоді `orgHasChildren('ghost')` віддає `true`, другий охоронець не
+    // спрацьовує, і без першого наступний рядок дістав би
+    // `isOrgCollapsed(undefined)` — `TypeError` замість `false`.
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+    const data = treeData();
+    data.organizations.push({
+      id: 'orphan',
+      name: 'Orphan',
+      groupIds: [],
+      parentOrgId: 'ghost',
+      collapsed: true,
+    });
+    // Хоч одна посада — і сцена стає штатною, тобто без валідації ієрархії.
+    data.positions.push({
+      id: 'p-1',
+      title: 'Lead',
+      organizationId: 'root',
+      groupIds: [],
+      status: 'vacant',
+      isTemporary: false,
+      isHead: true,
+    });
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data,
+      staffCurrentOrgId: 'root',
+      useWorker: false,
+    });
+
+    expect(await diagram.toggleOrgExpand('ghost')).toBe(false);
+
+    diagram.destroy();
+  });
+
   it('success: collapsing a parent takes the subtree with it, as the chevron does', async () => {
     const { diagram, collapsedOf } = await mount();
 

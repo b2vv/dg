@@ -914,11 +914,15 @@ export class OrgHierarchyDiagram {
    */
   async toggleOrgExpand(orgId: string): Promise<boolean> {
     const org = this.data.organizations.find((o) => o.id === orgId);
-    // Без поведінкового тесту **свідомо**: зняти цей рядок не можна, `tsc`
-    // одразу каже `DiagramOrganization | undefined` на виклику нижче. А через
-    // публічний шлях випадок «id невідомий, але діти є» не будується взагалі —
-    // висячий `parentOrgId` відсікає `layout/orgTree.ts:22` ще на прийомі
-    // даних. Тобто звичайний невідомий id закриває вже наступний рядок.
+    // ⚠️ Не зайвий, і **не** «випадок не будується», як тут стояло раніше.
+    // Рев'ю другої сесії показало прогоном: `validateOrgHierarchy` кличе лише
+    // **деревна** розкладка (`layout/rowTreeLayout.ts:146`, `:216`,
+    // `layout/orgTree.ts:110`), а сцену обирає `positions.length > 0`
+    // (`render/DiagramRenderer.ts:422`). У **штатній** сцені org-ієрархія не
+    // валідується взагалі, тож висячий `parentOrgId` доїжджає сюди цілим — і
+    // тоді `orgHasChildren('ghost')` віддає `true`, наступний охоронець не
+    // спрацьовує, а `isOrgCollapsed(undefined)` кинув би `TypeError` замість
+    // обіцяного `false`.
     if (!org) return false;
     if (!orgHasChildren(this.data.organizations, orgId)) return false;
     if (isOrgCollapsed(org)) {
