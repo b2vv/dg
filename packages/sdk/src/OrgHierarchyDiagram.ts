@@ -250,6 +250,21 @@ export class OrgHierarchyDiagram {
    * order leaves the earlier edit applied and undrawn.
    */
   private lastDrawnData: DiagramData | null = null;
+  /**
+   * The expanded tier-3 org cards the last successful frame drew (T109).
+   *
+   * A second field rather than a re-derivation, because this set is the one
+   * piece of view state that `this.data` cannot answer for:
+   * `staffExpandedPositionIds` is re-seeded from `position.expanded`, while an
+   * expanded org card is not written into the data at all — and writing it
+   * there would put an internal view concern onto `DiagramOrganization`, a
+   * public type the host supplies and reads back, next to the differently
+   * meaning `collapsed`.
+   *
+   * Kept in step with {@link lastDrawnData} and for the same reason: what is
+   * on screen, not what was there before the call.
+   */
+  private lastDrawnStaffOrgIds: readonly string[] | null = null;
   /** Bumped per `searchAll` so a late answer can tell it is late. */
   private searchEpoch = 0;
   /**
@@ -659,6 +674,15 @@ export class OrgHierarchyDiagram {
         this.data = this.lastDrawnData;
         this.seedExpandedPositionsFromData();
       }
+      // Not guarded by `this.data === next`: the expanded org cards are view
+      // state, so a data mutator writing on top says nothing about them, and
+      // the target is the drawn set either way (T109). Nothing drawn yet means
+      // there is no screen to agree with, so there is nothing to restore to.
+      if (this.lastDrawnStaffOrgIds) {
+        const restored = this.lastDrawnStaffOrgIds;
+        this.viewState.staffExpandedOrgIds.clear();
+        for (const id of restored) this.viewState.staffExpandedOrgIds.add(id);
+      }
       throw err;
     }
   }
@@ -688,6 +712,9 @@ export class OrgHierarchyDiagram {
     // handed. Reading `this.data` afterwards would record whatever a mutator
     // wrote *during* the frame — a state nobody drew (T104 review).
     const drawing = this.data;
+    // Same capture, same reason, for the one bit of view state no rollback can
+    // re-derive from the data (T109).
+    const drawingStaffOrgIds = [...this.viewState.staffExpandedOrgIds];
     await this.reportIfRenderFails(
       host.renderer.render(drawing, this.nodeTheme, resolved, this.renderConfig, {
       lod: this.viewState.lodLevel,
@@ -787,6 +814,7 @@ export class OrgHierarchyDiagram {
       },
       }),
       drawing,
+      drawingStaffOrgIds,
     );
     // The scene changed; nothing paints on its own any more (T84).
     host.requestPaint();
@@ -810,11 +838,16 @@ export class OrgHierarchyDiagram {
    * poll for that is how a diagram ends up describing a tree it never drew
    * (T97 defense; `revealPath` is the first caller that relies on it).
    */
-  private async reportIfRenderFails(pending: Promise<void>, drawing: DiagramData): Promise<void> {
+  private async reportIfRenderFails(
+    pending: Promise<void>,
+    drawing: DiagramData,
+    drawingStaffOrgIds: readonly string[],
+  ): Promise<void> {
     try {
       await pending;
       this.lastRenderFailure = null;
       this.lastDrawnData = drawing;
+      this.lastDrawnStaffOrgIds = drawingStaffOrgIds;
     } catch (error) {
       const failure: RenderFailure = {
         reason: error instanceof Error ? error.message : String(error),
@@ -1062,7 +1095,13 @@ export class OrgHierarchyDiagram {
       this.viewState.staffExpandedOrgIds.clear();
       this.viewState.staffExpandedOrgIds.add(orgId);
     }
-    await this.render();
+    // `drawOrRestore` rather than `render` (T109): the expand branch `clear()`s
+    // the set before adding, so a refused frame here does not merely fail to
+    // add this card — it drops one that a previous, drawn expand put there.
+    // The data argument is unchanged on purpose: this path edits view state
+    // only, and passing the current data is what makes the data half of the
+    // rollback a no-op.
+    await this.drawOrRestore(this.data);
     return this.viewState.staffExpandedOrgIds.has(orgId);
   }
 
