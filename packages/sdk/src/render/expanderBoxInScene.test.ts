@@ -32,7 +32,7 @@ type DiagramInternals = { host: PixiHost | null };
  * а не під голим id — тому пошук іде по ньому. Перша редакція цього файлу
  * шукала `root` і падала так, наче фічі немає, хоча вона працювала.
  */
-const orgBox = (boxes: readonly { id: string }[], id: string) =>
+const orgBox = <T extends { id: string }>(boxes: readonly T[], id: string): T | undefined =>
   boxes.find((b) => b.id === `organization:${id}`);
 
 function rendererOf(diagram: OrgHierarchyDiagram) {
@@ -53,7 +53,7 @@ describe('expander box reaches the scene (T115 K2)', () => {
   it('success: a parent card carries the expander box in world coordinates', async () => {
     const diagram = await mount();
     const boxes = rendererOf(diagram).listNodeBoxes();
-    const root = orgBox(boxes, 'root') as (typeof boxes)[number] | undefined;
+    const root = orgBox(boxes, 'root');
 
     expect(root).toBeTruthy();
     expect(root!.expander).toBeTruthy();
@@ -87,6 +87,64 @@ describe('expander box reaches the scene (T115 K2)', () => {
     const boxes = rendererOf(diagram).listNodeBoxes();
 
     expect(orgBox(boxes, 'leaf')?.expander).toBeUndefined();
+
+    diagram.destroy();
+  });
+});
+
+/**
+ * T115 крок 2, К3 — публічна поверхня: два поля в `TestAnchorCandidate`.
+ *
+ * Тут перевіряється те, що побачить **хост**, а не те, що знає сцена.
+ */
+describe('listTestAnchors exposes the expander (T115 K3)', () => {
+  const anchorOf = <T extends { testId: string }>(
+    anchors: readonly T[],
+    testId: string,
+  ): T | undefined => anchors.find((a) => a.testId === testId);
+
+  it('success: a parent anchor carries the box and the model flag', async () => {
+    const diagram = await mount();
+    const anchors = diagram.listTestAnchors();
+    const root = anchorOf(anchors, 'root');
+
+    expect(root).toBeTruthy();
+    expect(root!.hasChildren).toBe(true);
+    expect(root!.expander).toBeTruthy();
+    // Той самий світовий простір, що й `world` картки — не екранний.
+    expect(root!.expander!.x + root!.expander!.width).toBe(
+      root!.world.x + root!.world.width - 4,
+    );
+
+    diagram.destroy();
+  });
+
+  it('failure: a leaf carries the flag but no box', async () => {
+    const diagram = await mount();
+    const leaf = anchorOf(diagram.listTestAnchors(), 'leaf');
+
+    expect(leaf).toBeTruthy();
+    // 🔑 Саме ця пара робить негативний тест хоста чесним: `false` — це
+    // властивість вузла, а не наслідок того, що камера від'їхала.
+    expect(leaf!.hasChildren).toBe(false);
+    expect(leaf!.expander).toBeUndefined();
+
+    diagram.destroy();
+  });
+
+  it('failure: a promoted node reports no box, because its button is not on screen', async () => {
+    const diagram = await mount();
+    const before = anchorOf(diagram.listTestAnchors(), 'root');
+    expect(before!.expander).toBeTruthy();
+
+    // Promote ховає Pixi-в'юху, лишаючи бокси в сцені; шар якорів стоїть **над**
+    // шаром promote, тож якір указував би на чужий HTML-компонент.
+    rendererOf(diagram).setPromotedNodeIds(['organization:root']);
+
+    const after = anchorOf(diagram.listTestAnchors(), 'root');
+    expect(after!.expander).toBeUndefined();
+    // Ознака моделі від promote не залежить — вона про вузол, не про кадр.
+    expect(after!.hasChildren).toBe(true);
 
     diagram.destroy();
   });

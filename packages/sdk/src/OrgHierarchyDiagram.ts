@@ -1447,6 +1447,7 @@ export class OrgHierarchyDiagram {
   /** DOM anchor candidates synced to rendered node bounds (T55). */
   listTestAnchors(): TestAnchorCandidate[] {
     const boxes = this.renderer?.listNodeBoxes() ?? [];
+    const promoted = new Set(this.renderer?.getPromotedNodeIds() ?? []);
     const out: TestAnchorCandidate[] = [];
     const seen = new Set<string>();
     for (const box of boxes) {
@@ -1462,6 +1463,13 @@ export class OrgHierarchyDiagram {
         kind: ref.kind,
         ref,
         world: { x: box.x, y: box.y, width: box.width, height: box.height },
+        // 🔴 Promote читається **тут**, а не в рендерері: множина промотованих
+        // міняється без кадру — на зміну виділення, рух камери й ресайз, — тож
+        // рішення, зашите в рендер, застаріло б на першому ж зумі. Під
+        // промотованим вузлом Pixi-в'юха схована, і якір указував би на чужий
+        // HTML-компонент.
+        ...(box.expander && !promoted.has(box.id) ? { expander: box.expander } : {}),
+        ...(box.hasChildren === undefined ? {} : { hasChildren: box.hasChildren }),
       });
     }
     return out;
