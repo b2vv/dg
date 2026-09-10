@@ -121,9 +121,11 @@ export function createTestAnchorOverlay(options: TestAnchorOverlayOptions): Test
         expanderRect,
         interactive,
       );
-      chevron.setAttribute('data-node-kind', anchor.kind);
-      chevron.setAttribute('data-node-id', anchor.ref.id);
-      chevron.setAttribute('aria-label', `expand ${anchor.testId}`);
+      // Без `data-node-id`/`data-node-kind` — свідомо. Вони вже є на якорі
+      // вузла, і другий носій зробив би `[data-node-id="org-1"]` двозначним, а
+      // Playwright у strict-режимі на двох збігах кидає. Вузол цей якір
+      // називає сам, через `data-testid`.
+      chevron.setAttribute('aria-label', `toggle expand ${anchor.testId}`);
       chevron.title = `${anchor.testId} expander`;
 
       if (interactive) {
@@ -142,6 +144,17 @@ export function createTestAnchorOverlay(options: TestAnchorOverlayOptions): Test
           diagram.toggleOrgExpand(anchor.ref.id).catch((err: unknown) => {
             console.warn('[org-hierarchy] expander anchor toggle failed', err);
           });
+        });
+        // ⚠️ Дзеркалить слухач якоря вузла — і **не** з міркувань симетрії.
+        // Chevron лежить зверху з `pointer-events: auto`, тож без цього рядка
+        // він відбирає в картки ту частину екрана: меню діаграми не
+        // відкривається, `preventDefault` ніхто не кличе, і користувач дістає
+        // **браузерне** меню поверх канви. К5 вніс це мовчки — усі наші проби
+        // клікають у центр картки.
+        chevron.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          diagram.openContextMenu(anchor.ref, { clientX: e.clientX, clientY: e.clientY });
         });
       }
 

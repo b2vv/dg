@@ -206,6 +206,53 @@ describe('createTestAnchorOverlay expander anchor (T115 K5)', () => {
     }
   });
 
+  it('failure: right-click on the expander opens the diagram menu, not the browser one', () => {
+    // 🔴 Регресія, яку вніс сам К5 і знайшло рев'ю другої сесії. До нього ця
+    // ділянка екрана належала якорю **вузла**, а слухач `contextmenu` висить
+    // саме на ньому: `preventDefault()` плюс `openContextMenu`. Chevron ліг
+    // зверху з `pointer-events: auto` і **без** такого слухача — тобто меню
+    // діаграми не відкривалось, `preventDefault` ніхто не кликав, і користувач
+    // діставав **браузерне** меню поверх канви.
+    //
+    // Мовчазно воно тому, що всі наші проби клікають у центр картки.
+    const mount = mountEl();
+    const diagram = makeDiagram({ listTestAnchors: () => [withExpander()] });
+    createTestAnchorOverlay({ diagram, mount, interactive: true });
+
+    const chevron = mount.querySelector('[data-testid="node-root-expander"]') as HTMLElement;
+    const e = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 7, clientY: 9 });
+    chevron.dispatchEvent(e);
+
+    expect(diagram.openContextMenu).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'org-1' }),
+      expect.objectContaining({ clientX: 7, clientY: 9 }),
+    );
+    expect(e.defaultPrevented).toBe(true);
+  });
+
+  it('failure: with interactive off the expander anchor takes no clicks at all', () => {
+    const mount = mountEl();
+    const diagram = makeDiagram({ listTestAnchors: () => [withExpander()] });
+    createTestAnchorOverlay({ diagram, mount });
+
+    const chevron = mount.querySelector('[data-testid="node-root-expander"]') as HTMLElement;
+    expect(chevron).toBeTruthy();
+    expect(chevron.style.pointerEvents).toBe('none');
+    (chevron as HTMLButtonElement).click();
+    expect(diagram.toggleOrgExpand).not.toHaveBeenCalled();
+  });
+
+  it('success: the expander anchor does not duplicate the node id attributes', () => {
+    const mount = mountEl();
+    const diagram = makeDiagram({ listTestAnchors: () => [withExpander()] });
+    createTestAnchorOverlay({ diagram, mount, interactive: true });
+
+    // Хост із селектором `[data-node-id="org-1"]` інакше дістав би **два**
+    // елементи, а Playwright у strict-режимі на цьому кидає. Вузол якір
+    // ідентифікує сам — через `data-testid`.
+    expect(mount.querySelectorAll('[data-node-id="org-1"]')).toHaveLength(1);
+  });
+
   it('failure: an element handle taken before a sync is detached after it', () => {
     const mount = mountEl();
     const diagram = makeDiagram({ listTestAnchors: () => [withExpander()] });
