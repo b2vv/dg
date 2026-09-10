@@ -394,4 +394,48 @@ describe('OrganizationNodeView', () => {
     expect(loaded).toContain('/sym-light.png');
     expect(loaded).toContain('/sym-dark.png');
   });
+
+  /**
+   * Правило: кнопка розгортання є тоді й лише тоді, коли є що розгортати.
+   *
+   * У дереві воно виконувалось точно — при `hasChildren: false` chrome не
+   * створюється взагалі. У штатній сцені chevron монтувався **безумовно**, тож
+   * організація без жодної посади показувала кнопку, яка розкриває порожнечу.
+   */
+  describe('staff chevron follows the staff it expands', () => {
+    const findLabel = (view: OrganizationNodeView, label: string): boolean => {
+      const walk = (node: { label?: string | null; children?: unknown[] }): boolean => {
+        if (node.label === label) return true;
+        for (const child of (node.children ?? []) as { label?: string | null }[]) {
+          if (walk(child as never)) return true;
+        }
+        return false;
+      };
+      return walk(view as never);
+    };
+
+    it('success: an org with staff gets the chevron', () => {
+      const view = OrganizationNodeView.create(
+        org,
+        undefined,
+        'light',
+        defaultNodeTheme.organization,
+        'near',
+        { chrome: { kind: 'staff-expand', expanded: false, hasStaff: true, onToggle: () => {} } },
+      );
+      expect(findLabel(view, 'org-expand')).toBe(true);
+    });
+
+    it('failure: an org with no staff gets no chevron, because it would expand nothing', () => {
+      const view = OrganizationNodeView.create(
+        org,
+        undefined,
+        'light',
+        defaultNodeTheme.organization,
+        'near',
+        { chrome: { kind: 'staff-expand', expanded: false, hasStaff: false, onToggle: () => {} } },
+      );
+      expect(findLabel(view, 'org-expand')).toBe(false);
+    });
+  });
 });

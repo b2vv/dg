@@ -1130,7 +1130,7 @@ export class DiagramRenderer {
 
   private orgStaffCardOptions(
     org: DiagramOrganization,
-    card: { expanded?: boolean },
+    card: { expanded?: boolean; positionCount?: number },
     options: RenderOptions,
     config: RenderConfig = defaultRenderConfig,
   ): import('./OrganizationNode.js').OrganizationNodeOptions {
@@ -1151,6 +1151,10 @@ export class DiagramRenderer {
           ? {
               kind: 'staff-expand',
               expanded: card.expanded ?? false,
+              // Розкладка вже порахувала це тим самим фільтром, яким будує
+              // розгорнутий блок (`canvasLayout.ts:137` → `layoutStaffOrgBlock`
+              // по `organizationId`), тож іншого джерела правди тут не треба.
+              hasStaff: (card.positionCount ?? 0) > 0,
               onToggle: () => options.onStaffOrgExpandToggle!(org.id),
             }
           : undefined,

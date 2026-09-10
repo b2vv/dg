@@ -16,6 +16,16 @@ export interface OrgTreeChrome {
 export interface OrgStaffExpandChrome {
   kind: 'staff-expand';
   expanded: boolean;
+  /**
+   * Чи є під карткою штат, який chevron міг би розкрити.
+   *
+   * Дзеркалить `hasChildren` у деревному варіанті, і з тієї ж причини: кнопка
+   * розгортання є тоді й лише тоді, коли є що розгортати. У дереві це
+   * виконувалось точно — при `hasChildren: false` chrome не створюється взагалі.
+   * Тут же chevron монтувався **безумовно**, тож організація без жодної посади
+   * показувала кнопку, яка розкриває порожнечу.
+   */
+  hasStaff: boolean;
   onToggle: () => void;
 }
 
@@ -105,7 +115,7 @@ export function mountOrgNodeChrome(
       expandButton.label = 'org-expand';
       x -= 28;
     }
-  } else {
+  } else if (chrome.hasStaff) {
     expandButton = attachIconButton(
       host,
       x,
@@ -114,6 +124,7 @@ export function mountOrgNodeChrome(
       chrome.expanded ? 'Collapse staff' : 'Expand staff',
       chrome.onToggle,
     );
+    expandButton.label = 'org-expand';
     x -= 28;
   }
 
