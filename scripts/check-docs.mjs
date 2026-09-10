@@ -40,7 +40,13 @@ function markdownFiles() {
   const out = [];
   const walk = (dir) => {
     for (const entry of readdirSync(dir)) {
-      if (entry === 'node_modules' || entry.startsWith('.git')) continue;
+      // `worktrees` — це `.claude/worktrees/`, тека git-worktree другої сесії.
+      // Вона в `.gitignore:25`, тобто у свіжому клоні її немає — а обхід нижче
+      // її бачив і читав чужі `.md` як наші. Наслідок був не косметичний:
+      // гейт червонів **локально** на файлі, якого CI не побачить ніколи, а це
+      // рівно та поломка, яку описав T101 — розбіжність «локально червоне, у CI
+      // зелене» привчає списувати гейт на шум.
+      if (entry === 'node_modules' || entry === 'worktrees' || entry.startsWith('.git')) continue;
       const full = join(dir, entry);
       if (statSync(full).isDirectory()) walk(full);
       else if (entry.endsWith('.md')) out.push(full);
