@@ -13,7 +13,6 @@ import type { StaffRebuildRecord } from './App.js';
  */
 export interface DemoE2eBridge {
   collapseOrg(orgId: string): Promise<void> | undefined;
-  expandOrg(orgId: string): Promise<void> | undefined;
   /** Same code path as demo `onNodeClick` for flat orgs / 100k org cards. */
   clickOrg(orgId: string): void;
   getScaleWindowStart(): number | null;
@@ -124,7 +123,6 @@ export function installDemoE2eBridge(deps: E2eBridgeDeps): void {
   const { diagram } = deps;
   const bridge: DemoE2eBridge = {
     collapseOrg: (orgId) => diagram.collapseOrg(orgId),
-    expandOrg: (orgId) => diagram.expandOrg(orgId),
     clickOrg: (orgId) => deps.clickOrg(orgId),
     getScaleWindowStart: () => deps.scaleWindowStart(),
     toggleStaffOrg: (orgId) => diagram.toggleStaffOrgExpand(orgId),

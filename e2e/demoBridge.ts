@@ -2,15 +2,6 @@ import type { Page } from '@playwright/test';
 
 /** Playwright wrappers — bridge methods must run inside the browser (functions don't cross evaluate). */
 
-export async function expandOrg(page: Page, orgId: string): Promise<void> {
-  await page.evaluate(async (id) => {
-    const bridge = (window as unknown as { __demoE2e?: { expandOrg?(org: string): Promise<void> } })
-      .__demoE2e;
-    if (!bridge?.expandOrg) throw new Error('__demoE2e.expandOrg missing — load page with ?e2e=1');
-    await bridge.expandOrg(id);
-  }, orgId);
-}
-
 export async function clickOrg(page: Page, orgId: string): Promise<void> {
   await page.evaluate((id) => {
     const bridge = (window as unknown as { __demoE2e?: { clickOrg?(org: string): void } }).__demoE2e;
