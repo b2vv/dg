@@ -10,6 +10,7 @@ export interface TestAnchorOverlayDiagram {
   getViewport(): ViewportTransform;
   listTestAnchors(): readonly TestAnchorCandidate[];
   focusByTestId(testId: string): Promise<boolean>;
+  toggleOrgExpand(orgId: string): Promise<boolean>;
   openContextMenu(ref: NodeRef, pointer?: Partial<ContextMenuPointer>): void;
   subscribePromoteSync(listener: () => void): () => void;
 }
@@ -17,7 +18,11 @@ export interface TestAnchorOverlayDiagram {
 export interface TestAnchorOverlayOptions {
   diagram: TestAnchorOverlayDiagram;
   mount: HTMLElement;
-  /** When true, anchors receive clicks and call focusByTestId (e2e mode). */
+  /**
+   * When true, anchors receive clicks: the node anchor calls `focusByTestId`,
+   * the expander anchor `toggleOrgExpand` — deliberately **not** the same branch
+   * (e2e mode).
+   */
   interactive?: boolean;
 }
 
@@ -26,9 +31,36 @@ export interface TestAnchorOverlay {
   dispose: () => void;
 }
 
+/** Один невидимий hit-target на екранному прямокутнику. */
+function placeAnchor(
+  testId: string,
+  rect: { left: number; top: number; width: number; height: number },
+  interactive: boolean,
+): HTMLButtonElement {
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.setAttribute('data-testid', testId);
+  el.style.position = 'absolute';
+  el.style.left = `${rect.left}px`;
+  el.style.top = `${rect.top}px`;
+  // Мінімум 8 px — кнопка chevron на далекому зумі інакше стає неклікабельною
+  // смужкою; те саме правило вже діяло для картки.
+  el.style.width = `${Math.max(rect.width, 8)}px`;
+  el.style.height = `${Math.max(rect.height, 8)}px`;
+  el.style.padding = '0';
+  el.style.margin = '0';
+  el.style.border = '0';
+  el.style.background = 'transparent';
+  el.style.opacity = '0.001';
+  el.style.cursor = interactive ? 'pointer' : 'default';
+  el.style.pointerEvents = interactive ? 'auto' : 'none';
+  return el;
+}
+
 /**
  * Invisible DOM hit-targets synced to Pixi node bounds for Playwright/Cypress.
- * `data-testid="node-<testId>"` on each anchor.
+ * `data-testid="node-<testId>"` on each anchor, plus `node-<testId>-expander`
+ * on the chevron of an organization that has one in the current frame (T115).
  */
 export function createTestAnchorOverlay(options: TestAnchorOverlayOptions): TestAnchorOverlay {
   const { mount, diagram } = options;
@@ -59,25 +91,11 @@ export function createTestAnchorOverlay(options: TestAnchorOverlayOptions): Test
       const rect = worldBoxToScreen(anchor.world, viewport);
       if (!screenRectInView(rect, screen)) continue;
 
-      const el = document.createElement('button');
-      el.type = 'button';
-      el.setAttribute('data-testid', nodeDomTestId(anchor.testId));
+      const el = placeAnchor(nodeDomTestId(anchor.testId), rect, interactive);
       el.setAttribute('data-node-kind', anchor.kind);
       el.setAttribute('data-node-id', anchor.ref.id);
       el.setAttribute('aria-label', `${anchor.kind} ${anchor.testId}`);
       el.title = anchor.testId;
-      el.style.position = 'absolute';
-      el.style.left = `${rect.left}px`;
-      el.style.top = `${rect.top}px`;
-      el.style.width = `${Math.max(rect.width, 8)}px`;
-      el.style.height = `${Math.max(rect.height, 8)}px`;
-      el.style.padding = '0';
-      el.style.margin = '0';
-      el.style.border = '0';
-      el.style.background = 'transparent';
-      el.style.opacity = '0.001';
-      el.style.cursor = interactive ? 'pointer' : 'default';
-      el.style.pointerEvents = interactive ? 'auto' : 'none';
 
       if (interactive) {
         el.addEventListener('click', (e) => {
@@ -93,6 +111,44 @@ export function createTestAnchorOverlay(options: TestAnchorOverlayOptions): Test
       }
 
       layer.appendChild(el);
+
+      if (!anchor.expander) continue;
+      const expanderRect = worldBoxToScreen(anchor.expander, viewport);
+      if (!screenRectInView(expanderRect, screen)) continue;
+
+      const chevron = placeAnchor(
+        `${nodeDomTestId(anchor.testId)}-expander`,
+        expanderRect,
+        interactive,
+      );
+      chevron.setAttribute('data-node-kind', anchor.kind);
+      chevron.setAttribute('data-node-id', anchor.ref.id);
+      chevron.setAttribute('aria-label', `expand ${anchor.testId}`);
+      chevron.title = `${anchor.testId} expander`;
+
+      if (interactive) {
+        chevron.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          // 🔴 **Окрема гілка, не `focusByTestId`.** Той виділяє вузол, а клік
+          // по chevron виділяти не має права: інакше e2e не відрізнить
+          // «розгорнув» від «клікнув картку», а рівно ця різниця й потрібна.
+          //
+          // `.catch` — за прецедентом `reparentPosition`
+          // (`OrgHierarchyDiagram.ts:775-786`): `toggleOrgExpand` успадкував
+          // нетранзакційний шлях `expandOrg` і **кидає** на відмові рендера, а
+          // клік нічого не чекає. Без цього — необроблений reject у сторінці
+          // хоста.
+          diagram.toggleOrgExpand(anchor.ref.id).catch((err: unknown) => {
+            console.warn('[org-hierarchy] expander anchor toggle failed', err);
+          });
+        });
+      }
+
+      // Після якоря вузла **свідомо**: обидва абсолютні й без `z-index`, тож
+      // виграє пізніший брат. Зворотний порядок віддав би клік по chevron
+      // картці, яка його накриває.
+      layer.appendChild(chevron);
     }
   };
 
