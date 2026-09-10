@@ -1,5 +1,6 @@
 import { Container, Graphics, Text, type FederatedPointerEvent } from 'pixi.js';
 import {
+  CHROME_BTN_SIZE,
   attachIconButton,
   attachMenuButton,
   type ContextMenuPointer,
@@ -31,9 +32,25 @@ export interface OrgStaffExpandChrome {
 
 export type OrgNodeChrome = OrgTreeChrome | OrgStaffExpandChrome;
 
+/** Прямокутник у координатах **картки** — не сцени й не екрана. */
+export interface ChromeBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface OrgNodeChromeMount {
   menuButton?: Container;
   expandButton?: Container;
+  /**
+   * Бокс кнопки розгортання, у координатах картки (T115 крок 2).
+   *
+   * Віддає його **той, хто кнопку щойно поставив**, бо лише тут відома справжня
+   * геометрія: icon-варіант і gojs-варіант різняться і розміром, і кутом.
+   * Виводити її ззовні з `hitArea` не можна — gojs кладе туди `contains`-функцію.
+   */
+  expanderBox?: ChromeBox;
 }
 
 const EXPANDER_D = 26;
@@ -83,6 +100,16 @@ export function mountGojsTreeChrome(
   return btn;
 }
 
+/** Бокс gojs-експандера в координатах картки — та сама арифметика, що ставить кнопку. */
+function gojsExpanderBox(cardWidth: number, cardHeight: number): ChromeBox {
+  return {
+    x: cardWidth - 13 - EXPANDER_D / 2,
+    y: cardHeight - 13 - EXPANDER_D / 2,
+    width: EXPANDER_D,
+    height: EXPANDER_D,
+  };
+}
+
 /** Expand/collapse (tree) or staff chevron + ⋮ menu on org cards. */
 export function mountOrgNodeChrome(
   host: Container,
@@ -92,27 +119,40 @@ export function mountOrgNodeChrome(
   options: { cardHeight?: number; brandColor?: number; gojsTree?: boolean } = {},
 ): OrgNodeChromeMount {
   if (options.gojsTree && chrome.kind === 'tree') {
+    const cardHeight = options.cardHeight ?? 121;
     const expandButton = mountGojsTreeChrome(
       host,
       cardWidth,
-      options.cardHeight ?? 121,
+      cardHeight,
       chrome,
       options.brandColor ?? 0x2563eb,
     );
-    return { expandButton };
+    return {
+      expandButton,
+      expanderBox: expandButton ? gojsExpanderBox(cardWidth, cardHeight) : undefined,
+    };
   }
 
   let x = cardWidth - 26;
   let expandButton: Container | undefined;
+  let expanderBox: ChromeBox | undefined;
+  const iconBox = (bx: number): ChromeBox => ({
+    x: bx,
+    y: 4,
+    width: CHROME_BTN_SIZE,
+    height: CHROME_BTN_SIZE,
+  });
 
   if (chrome.kind === 'tree') {
     if (chrome.hasChildren && chrome.collapsed) {
       expandButton = attachIconButton(host, x, 4, '+', 'Expand', chrome.onExpand);
       expandButton.label = 'org-expand';
+      expanderBox = iconBox(x);
       x -= 28;
     } else if (chrome.hasChildren && !chrome.collapsed) {
       expandButton = attachIconButton(host, x, 4, '−', 'Collapse', chrome.onCollapse);
       expandButton.label = 'org-expand';
+      expanderBox = iconBox(x);
       x -= 28;
     }
   } else if (chrome.hasStaff) {
@@ -125,6 +165,7 @@ export function mountOrgNodeChrome(
       chrome.onToggle,
     );
     expandButton.label = 'org-expand';
+    expanderBox = iconBox(x);
     x -= 28;
   }
 
@@ -132,5 +173,5 @@ export function mountOrgNodeChrome(
   menuButton.label = 'org-menu';
   menuButton.x = x;
 
-  return { menuButton, expandButton };
+  return { menuButton, expandButton, expanderBox };
 }

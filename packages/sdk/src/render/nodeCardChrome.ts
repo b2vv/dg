@@ -7,6 +7,14 @@ export interface ContextMenuPointer {
 
 const BTN = 22;
 
+/**
+ * Сторона квадратної chrome-кнопки (icon-варіант), px.
+ *
+ * ⚠️ Розмір кнопки **не можна** виводити з `hitArea`: gojs-варіант експандера
+ * кладе туди `contains`-функцію без `width`/`height`, тож `chromeBtnSize`
+ * повертає для нього 22 замість справжніх 26 (`orgNodeChrome.ts`, `EXPANDER_D`).
+ * Тому бокс кнопки для тест-якоря (T115 крок 2) віддає **той, хто її будує**.
+ */
 export { BTN as CHROME_BTN_SIZE };
 
 /** Screen coords for React menus — canvas may omit clientX until first layout frame. */

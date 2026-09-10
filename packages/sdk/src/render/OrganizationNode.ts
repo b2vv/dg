@@ -13,7 +13,7 @@ import {
   hitChromePointer,
   type ContextMenuPointer,
 } from './nodeCardChrome.js';
-import { mountOrgNodeChrome, type OrgNodeChrome } from './orgNodeChrome.js';
+import { mountOrgNodeChrome, type ChromeBox, type OrgNodeChrome } from './orgNodeChrome.js';
 import type { FederatedPointerEvent } from 'pixi.js';
 import {
   verticalBodyMetrics,
@@ -57,6 +57,15 @@ export class OrganizationNodeView extends Container {
   private mediaRevision: string | number | undefined;
 
   private readonly chromeControls = new Container();
+  /**
+   * Бокс кнопки розгортання в координатах картки, зафіксований **у момент
+   * монтування** (T115 крок 2).
+   *
+   * Плоскі числа, а не посилання на `Container`: реєстр сцени чиститься на
+   * вході кадру (`DiagramRenderer.ts:410`), тож утримане посилання описувало б
+   * **минулий** кадр.
+   */
+  private mountedExpanderBox: ChromeBox | undefined;
 
   private constructor(
     org: DiagramOrganization,
@@ -220,6 +229,14 @@ export class OrganizationNodeView extends Container {
   }
 
   /** Route pointer to expand chrome when Pixi child hit-test misses. */
+  /**
+   * Бокс кнопки розгортання в координатах картки, або `undefined`, якщо кнопки
+   * в цьому кадрі немає — листа, далекого LOD чи вимкненого chrome.
+   */
+  expanderBox(): ChromeBox | undefined {
+    return this.mountedExpanderBox;
+  }
+
   activateChromePointer(e: FederatedPointerEvent): boolean {
     if (this.chromeControls.children.length === 0) return false;
     return activateChromePointer(this.chromeControls, e);
@@ -243,6 +260,7 @@ export class OrganizationNodeView extends Container {
     options: OrganizationNodeOptions,
   ): void {
     this.chromeControls.removeChildren();
+    this.mountedExpanderBox = undefined;
     if (lod === 'far') return;
 
     const gojsTree = this.isGojsVertical(style) && style.gojsTreeExpander !== false;
@@ -251,7 +269,7 @@ export class OrganizationNodeView extends Container {
       if (options.chrome.kind === 'staff-expand' && gojsTree) {
         return;
       }
-      mountOrgNodeChrome(
+      const mount = mountOrgNodeChrome(
         this.chromeControls,
         style.width,
         options.chrome,
@@ -262,6 +280,7 @@ export class OrganizationNodeView extends Container {
           gojsTree: gojsTree && options.chrome.kind === 'tree',
         },
       );
+      this.mountedExpanderBox = mount.expanderBox;
       return;
     }
 

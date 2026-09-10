@@ -438,4 +438,74 @@ describe('OrganizationNodeView', () => {
       expect(findLabel(view, 'org-expand')).toBe(false);
     });
   });
+
+  /**
+   * К1 циклу «якір експандера» (T115 крок 2).
+   *
+   * Доводить найризикованіше припущення всього циклу: що бокс кнопки досяжний
+   * ззовні **у придатних координатах**. GATE 1 підтвердив це читанням коду —
+   * тут воно підтверджується прогоном.
+   *
+   * 🔴 Координати **локальні для картки**, і це навмисно. Pixi-`getBounds()`
+   * дав би координати **після** камери, а `world` у сцені — до неї; змішати їх
+   * означало б бокс, правильний рівно на зумі 1.
+   *
+   * Геометрій дві, і вони різні не лише розміром:
+   * - icon 22×22 вгорі-праворуч (`nodeCardChrome.ts`, `BTN`);
+   * - gojs 26×26 внизу-праворуч (`orgNodeChrome.ts`, `EXPANDER_D`).
+   */
+  describe('expander box is reachable at mount (T115 K1)', () => {
+    const treeChrome = (hasChildren: boolean) =>
+      ({
+        kind: 'tree' as const,
+        collapsed: true,
+        hasChildren,
+        onExpand: () => {},
+        onCollapse: () => {},
+      });
+
+    const style = defaultNodeTheme.organization;
+
+    it('success: icon variant reports a 22x22 box in the card top-right', () => {
+      const view = OrganizationNodeView.create(org, undefined, 'light', style, 'near', {
+        chrome: treeChrome(true),
+      });
+      const box = view.expanderBox();
+      expect(box).toBeTruthy();
+      expect(box!.width).toBe(22);
+      expect(box!.height).toBe(22);
+      // Верх-право: близько до правого краю картки, у верхній смузі.
+      expect(box!.x + box!.width).toBeLessThanOrEqual(style.width);
+      expect(box!.y).toBeLessThan(style.height / 2);
+    });
+
+    it('success: gojs variant reports a 26x26 box in the card bottom-right', () => {
+      const gojsStyle = { ...style, orgCardLayout: 'gojs-vertical' as const };
+      const view = OrganizationNodeView.create(org, undefined, 'light', gojsStyle, 'near', {
+        chrome: treeChrome(true),
+      });
+      const box = view.expanderBox();
+      expect(box).toBeTruthy();
+      expect(box!.width).toBe(26);
+      expect(box!.height).toBe(26);
+      // Низ-право — інший кут, ніж в icon-варіанті; саме тому хост не може
+      // вивести цю точку з боксу картки.
+      expect(box!.y).toBeGreaterThan(gojsStyle.height / 2);
+    });
+
+    it('failure: a leaf reports no box, because there is no button to report', () => {
+      const view = OrganizationNodeView.create(org, undefined, 'light', style, 'near', {
+        chrome: treeChrome(false),
+      });
+      expect(view.expanderBox()).toBeUndefined();
+    });
+
+    it('failure: at far LOD no chrome is mounted, so there is no box either', () => {
+      const view = OrganizationNodeView.create(org, undefined, 'light', style, 'far', {
+        chrome: treeChrome(true),
+      });
+      expect(view.expanderBox()).toBeUndefined();
+    });
+  });
+
 });
