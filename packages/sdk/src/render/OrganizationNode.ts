@@ -260,6 +260,12 @@ export class OrganizationNodeView extends Container {
     options: OrganizationNodeOptions,
   ): void {
     this.chromeControls.removeChildren();
+    // ⚠️ Скидання **не** має поведінкового тесту, і це виміряно, а не припущено:
+    // `applyChrome` кличеться лише з `create` (`:194`), тобто на кожен кадр
+    // в'юха нова й поле й так порожнє — мутація «зняти цей рядок» лишає всі
+    // тести зеленими. Рядок лишається як пара до раннього виходу нижче: якщо
+    // в'юхи колись почнуть переживати кадр, його відсутність стане тихим багом.
+    // Сам ранній вихід запінений — мутація «зняти» валить far-LOD тест.
     this.mountedExpanderBox = undefined;
     if (lod === 'far') return;
 

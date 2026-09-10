@@ -253,6 +253,31 @@ describe('createTestAnchorOverlay expander anchor (T115 K5)', () => {
     expect(mount.querySelectorAll('[data-node-id="org-1"]')).toHaveLength(1);
   });
 
+  it('success: at zoom != 1 the chevron rect goes through the camera, like the card', () => {
+    // 🔑 §8 сценарій 14, і спека назвала його вирішальним словами «при
+    // `scale === 1` **хибний підхід теж зелений**». До рев'ю циклу єдиний
+    // вьюпорт у цьому файлі був `{ x: 0, y: 0, scale: 1 }` — тобто критерій,
+    // заради якого рядок писався, не перевіряв нічого.
+    const mount = mountEl();
+    const diagram = makeDiagram({
+      listTestAnchors: () => [withExpander()],
+      getViewport: () => ({ x: 30, y: -10, scale: 2 }),
+    });
+    createTestAnchorOverlay({ diagram, mount, interactive: true });
+
+    const chevron = mount.querySelector('[data-testid="node-root-expander"]') as HTMLElement;
+    // world (104, 24, 22, 22) · scale 2 + (30, -10) → (238, 38, 44, 44)
+    expect(chevron.style.left).toBe('238px');
+    expect(chevron.style.top).toBe('38px');
+    expect(chevron.style.width).toBe('44px');
+
+    // Контраст у тому ж кадрі: картка проходить ту саму камеру, тож помилка
+    // «взяти world як екранні» була б видна на обох, а не лише на кнопці.
+    const card = mount.querySelector('[data-testid="node-root"]') as HTMLElement;
+    expect(card.style.left).toBe('50px');
+    expect(card.style.width).toBe('240px');
+  });
+
   it('failure: an element handle taken before a sync is detached after it', () => {
     const mount = mountEl();
     const diagram = makeDiagram({ listTestAnchors: () => [withExpander()] });

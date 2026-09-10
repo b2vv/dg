@@ -1,6 +1,6 @@
 import type { Container } from 'pixi.js';
 import { nodeEntityKey, parseNodeEntityKey } from '../interaction/nodeKey.js';
-import { promoteIdMatches } from './promoteMath.js';
+import { promoteIdMatches, type WorldBox } from './promoteMath.js';
 
 export interface NodeWorldBox {
   id: string;
@@ -16,7 +16,7 @@ export interface NodeWorldBox {
    * лише частина стосується моделі. Тому поруч їде {@link hasChildren}: без
    * нього «бокса немає» означало б і «це лист», і «камера від'їхала».
    */
-  expander?: { x: number; y: number; width: number; height: number };
+  expander?: WorldBox;
   /**
    * Чи має вузол що розгортати — властивість **моделі**, від камери незалежна.
    * Визначена лише для організацій: у персони питання не має відповіді, у
