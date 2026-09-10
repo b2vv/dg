@@ -68,21 +68,52 @@ describe('paintMagneticGroups cost', () => {
     expect(near.map((b) => b.positionId)).toEqual(expected.map((b) => b.positionId));
   });
 
-  it('success: clustering 40k seats is not quadratic', () => {
-    const { inputs } = scene(1, 40_000);
-    const t0 = performance.now();
-    const groups = clusterPositionIds(inputs, 1.5);
-    const ms = performance.now() - t0;
-    expect(groups).toHaveLength(1);
-    // Measured on this machine, same stand: the pairwise version took 2 378 ms
-    // here and the cell lookup takes 43. The ceiling is placed between them
-    // with room on both sides — roughly 7× above the linear version and 8×
-    // below the quadratic one.
+  it('success: clustering 80k seats is not quadratic', () => {
+    // 🔴 **Третя редакція стелі, і перші дві виміряно як недійсні.**
     //
-    // The first ceiling written here was 1 000 ms at 20 000 seats, and it
-    // passed on the quadratic code, which took 646 ms at that size. It guarded
-    // nothing. The size and the number both come from the measurement now, not
-    // from a guess about how slow 400 million comparisons ought to feel.
-    expect(ms).toBeLessThan(300);
+    // 1. `< 1 000 мс на 20 000` проходила на **квадратичному** коді (646 мс на
+    //    тому розмірі) — стерегла ніщо.
+    // 2. `< 300 мс на 40 000` розділяла правильно поодинці (43 мс проти 2 378)
+    //    і **червоніла в повному прогоні**: у контендованій сюїті годинник міряє
+    //    завантаженість машини, а не алгоритм. Це та сама причина, з якої перший
+    //    тест цього файлу рахує **роботу**, а не мілісекунди.
+    //
+    // Лишається форма кривої, виміряна в тому самому процесі: учетверо більший
+    // вхід коштує ≈×4 у лінійного й ≈×16 у квадратичного. Під навантаженням
+    // обидва числа ростуть **разом**, тож частка стійка там, де абсолют — ні.
+    const small20 = scene(1, 20_000).inputs;
+    const large80 = scene(1, 80_000).inputs;
+
+    /** Медіана з трьох: один прогін — це шум, і на менших входах шум більший за сигнал. */
+    const medianMs = (inputs: ContourPositionInput[]): number => {
+      const runs: number[] = [];
+      for (let i = 0; i < 3; i += 1) {
+        const started = performance.now();
+        expect(clusterPositionIds(inputs, 1.5)).toHaveLength(1);
+        runs.push(performance.now() - started);
+      }
+      return runs.sort((a, b) => a - b)[1]!;
+    };
+
+    // Прогрів: перший виклик у процесі несе JIT, і це не алгоритм.
+    clusterPositionIds(small20, 1.5);
+
+    const small = medianMs(small20);
+    const large = medianMs(large80);
+
+    // Стеля з виміру, не з теорії:
+    //
+    // | Що | Ratio 4× |
+    // |---|---|
+    // | 20k→80k, спокій | 3,53 · 3,76 · 4,22 |
+    // | 20k→80k, під паралельною сюїтою | 3,63 · 3,99 · 4,87 |
+    // | 10k→40k, під паралельною сюїтою | **8,24** — саме тому розміри більші |
+    // | квадратичний (n²) | ≈16 |
+    //
+    // ⚠️ Перша спроба цієї правки брала 10k→40k і **червоніла на 8,24** під
+    // двома сюїтами одночасно: на десяти тисячах корисна робота — десяток
+    // мілісекунд, тобто співмірна з плануванням потоків. Більший вхід прибирає
+    // шум, а не ховає його: частка з 4,87 до 16 має ×3,3 запасу.
+    expect(large / Math.max(small, 0.001)).toBeLessThan(10);
   }, 60_000);
 });
