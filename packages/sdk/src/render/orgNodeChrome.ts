@@ -100,16 +100,6 @@ export function mountGojsTreeChrome(
   return btn;
 }
 
-/** Бокс gojs-експандера в координатах картки — та сама арифметика, що ставить кнопку. */
-function gojsExpanderBox(cardWidth: number, cardHeight: number): ChromeBox {
-  return {
-    x: cardWidth - 13 - EXPANDER_D / 2,
-    y: cardHeight - 13 - EXPANDER_D / 2,
-    width: EXPANDER_D,
-    height: EXPANDER_D,
-  };
-}
-
 /** Expand/collapse (tree) or staff chevron + ⋮ menu on org cards. */
 export function mountOrgNodeChrome(
   host: Container,
@@ -129,16 +119,22 @@ export function mountOrgNodeChrome(
     );
     return {
       expandButton,
-      expanderBox: expandButton ? gojsExpanderBox(cardWidth, cardHeight) : undefined,
+      // Беремо з кнопки, яку щойно поставили, а не перераховуємо ту саму
+      // арифметику вдруге: два вирази, що **мусять** збігатись, розійдуться
+      // тихо, і жоден тест цього не побачить.
+      expanderBox: expandButton
+        ? { x: expandButton.x, y: expandButton.y, width: EXPANDER_D, height: EXPANDER_D }
+        : undefined,
     };
   }
 
   let x = cardWidth - 26;
   let expandButton: Container | undefined;
   let expanderBox: ChromeBox | undefined;
-  const iconBox = (bx: number): ChromeBox => ({
-    x: bx,
-    y: 4,
+  /** Беремо з поставленої кнопки — не дублюємо ні координату, ні відступ `4`. */
+  const boxOf = (btn: Container): ChromeBox => ({
+    x: btn.x,
+    y: btn.y,
     width: CHROME_BTN_SIZE,
     height: CHROME_BTN_SIZE,
   });
@@ -147,15 +143,19 @@ export function mountOrgNodeChrome(
     if (chrome.hasChildren && chrome.collapsed) {
       expandButton = attachIconButton(host, x, 4, '+', 'Expand', chrome.onExpand);
       expandButton.label = 'org-expand';
-      expanderBox = iconBox(x);
+      expanderBox = boxOf(expandButton);
       x -= 28;
     } else if (chrome.hasChildren && !chrome.collapsed) {
       expandButton = attachIconButton(host, x, 4, '−', 'Collapse', chrome.onCollapse);
       expandButton.label = 'org-expand';
-      expanderBox = iconBox(x);
+      expanderBox = boxOf(expandButton);
       x -= 28;
     }
   } else if (chrome.hasStaff) {
+    // Штатний chevron теж заповнює `expanderBox`, хоча обсяг T115 кроку 2 —
+    // лише дерево: хост штатного якоря не замовляв (вимір 2026-09-10). Поле
+    // заповнюється тому, що арифметика тут спільна й розходження коштувало б
+    // дорожче за незамовлене значення; **споживача поки немає**.
     expandButton = attachIconButton(
       host,
       x,
@@ -165,7 +165,7 @@ export function mountOrgNodeChrome(
       chrome.onToggle,
     );
     expandButton.label = 'org-expand';
-    expanderBox = iconBox(x);
+    expanderBox = boxOf(expandButton);
     x -= 28;
   }
 

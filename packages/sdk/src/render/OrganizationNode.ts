@@ -228,7 +228,6 @@ export class OrganizationNodeView extends Container {
     return this.chromeControls.children.length > 1;
   }
 
-  /** Route pointer to expand chrome when Pixi child hit-test misses. */
   /**
    * Бокс кнопки розгортання в координатах картки, або `undefined`, якщо кнопки
    * в цьому кадрі немає — листа, далекого LOD чи вимкненого chrome.
@@ -237,6 +236,7 @@ export class OrganizationNodeView extends Container {
     return this.mountedExpanderBox;
   }
 
+  /** Route pointer to expand chrome when Pixi child hit-test misses. */
   activateChromePointer(e: FederatedPointerEvent): boolean {
     if (this.chromeControls.children.length === 0) return false;
     return activateChromePointer(this.chromeControls, e);

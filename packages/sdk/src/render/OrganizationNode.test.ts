@@ -474,9 +474,12 @@ describe('OrganizationNodeView', () => {
       expect(box).toBeTruthy();
       expect(box!.width).toBe(22);
       expect(box!.height).toBe(22);
-      // Верх-право: близько до правого краю картки, у верхній смузі.
-      expect(box!.x + box!.width).toBeLessThanOrEqual(style.width);
-      expect(box!.y).toBeLessThan(style.height / 2);
+      // 🔴 Кут пінимо **рівністю**, як і розмір. Попередня редакція перевіряла
+      // `x + width <= style.width` — нерівність, яку задовольняє й лівий край:
+      // мутація `x → 0` лишала всі 32 тести зеленими, тобто тест не доводив
+      // того, заради чого крок існує.
+      expect(box!.x + box!.width).toBe(style.width - 4);
+      expect(box!.y).toBe(4);
     });
 
     it('success: gojs variant reports a 26x26 box in the card bottom-right', () => {
@@ -488,9 +491,11 @@ describe('OrganizationNodeView', () => {
       expect(box).toBeTruthy();
       expect(box!.width).toBe(26);
       expect(box!.height).toBe(26);
-      // Низ-право — інший кут, ніж в icon-варіанті; саме тому хост не може
-      // вивести цю точку з боксу картки.
-      expect(box!.y).toBeGreaterThan(gojsStyle.height / 2);
+      // Низ-право — **інший кут**, ніж в icon-варіанті, і саме тому хост не
+      // може вивести цю точку з боксу картки. Пінимо обидві координати точно:
+      // мутація `x → 0` теж проходила повз попередню редакцію.
+      expect(box!.x + box!.width).toBe(gojsStyle.width);
+      expect(box!.y + box!.height).toBe(gojsStyle.height);
     });
 
     it('failure: a leaf reports no box, because there is no button to report', () => {
