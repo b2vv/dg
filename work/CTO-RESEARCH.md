@@ -23,6 +23,20 @@ SHA, записаний у документі репо, переживе `merge`
 **T121** — питання про контракт `setStaffFocus`. Дефект `0.4.1`: chevron у штатній сцені
 монтувався **безумовно**, тож організація без посад показувала кнопку, що розкриває порожнечу.
 
+⚠️ **Другий прохід того самого дня, другою сесією — і він знайшов те, що перезбір пропустив.**
+Перезбір оновив шапку, вердикт і розділи про чергу, але **шість місць у тілі файлу далі описували
+другий рушій контуру як живий**: таблиця WASM-експортів (`computeDeptContour`/`computeAllContours`),
+pipeline у `contour.rs`, рядок «Canvas, `cell-flood`» у «трьох шляхах контуру», патерн «прапорець
+рушія», рядок залежностей «Ploeg + contour» і §8 п.14 «T80 стоїть, найбільший агент-реді обсяг».
+Плюс демо: **14 табів** проти реальних 13. Усе звірено з кодом 2026-09-10 і переписано; джерела —
+`packages/core/src/`, `pkg/*.d.ts`, `render/contour/`, `app/tabs.ts:33-46`.
+
+🔑 **Урок сильніший за самі правки, і він рівно той, який цей файл уже записував про себе:**
+розходження живе не там, де документ сумнівається, а там, де він **перелічує з деталями**.
+Таблиця з іменами функцій і `path:line` виглядає перевіреною **саме тому**, що детальна, — і
+переживає рефакторинг, який стер її предмет. Гейт `check:docs` цього не бачить за побудовою: він
+міряє **вік** брифінгу в комітах, а не правдивість жодного його рядка.
+
 🔑 **Головне для планування — не самі закриття, а що звільнилось.** Агент-реді черга скоротилась
 до **одного** пункту (T109 закрито, T80 закрито, T102 блок Б закрито). Решта — T115 крок 2,
 T116, T117 Гап 2, T119, T120, T112, T56 — чекає **рішень**, а не рук. Наступний цикл почнеться з
@@ -109,7 +123,8 @@ CI ганяє окрему пробіжку з `SOFTWARE_GL=1`, бо гілка 
 
 🔴 **Архітектурний факт №7 — тест-шов для e2e тут DOM'овий, а не координатний, і саме це найлегше зрозуміти навпаки.** Канва не має DOM на вузол, тож напрошується висновок «тестувати доведеться пікселями». Він хибний: [`react/createTestAnchorOverlay.ts`](../packages/sdk/src/react/createTestAnchorOverlay.ts) вішає на кожен **видимий** вузол невидиму `<button data-testid="node-<testId>">` уже в CSS-пікселях і пересинхронізовує її на кожен рух камери, тож `page.getByTestId('node-…').click()` працює (наш власний `e2e/flat-orgs.spec.ts:72`).
 
-Три речі про цей шов, які інакше зрозуміють неправильно:
+Шість речей про цей шов, які інакше зрозуміють неправильно (пп. 4–6 додано 2026-09-10 з GATE 1
+спеки якоря — усі три знайдені **в коді**, і кожна змінює план, а не формулювання):
 
 1. **`listTestAnchors()` віддає `world` — сценові координати, не піксель.** Ім'я поля не метафора ([`interaction/nodeTestId.ts:84-89`](../packages/sdk/src/interaction/nodeTestId.ts)); `page.mouse.click(anchor.world.x, …)` влучить не туди на будь-якому масштабі, крім одиничного. Переводить `worldBoxToScreen` + `getViewport()` + `getCanvas()` ([`docs/USAGE.md` §14](../docs/USAGE.md)).
 2. **Небезпечний не оверлей, а прапорець `interactive: true`.** У цьому режимі якорі — невидимі клікабельні кнопки **поверх карток** (`opacity: 0.001`, `pointer-events: auto`), тобто в проді вони заберуть кліки користувача. SDK це **не** гейтить і не буде: читати `import.meta.env` у бібліотеці означає зашити припущення про чужу збірку. Зразок гейта — наше демо (`?e2e=1`, [`packages/demo/src/app/App.ts:600`](../packages/demo/src/app/App.ts)).
@@ -120,6 +135,26 @@ CI ганяє окрему пробіжку з `SOFTWARE_GL=1`, бо гілка 
    обходить саме той шар, де живе вада, і лишається зеленим навіть коли **кнопка перекрита
    карткою**. Отже «нічого не робити» коштує хосту не зручності, а **єдиного гейта** на цю
    поведінку. Лишилось рішення про **обсяг і термін**, не про потребу.
+4. 🔴 **Оверлей має ОДИН обробник кліку на всі якорі, і він виділяє вузол.** Знайдено на GATE 1
+   спеки якоря 2026-09-10, і це не деталь реалізації, а те, що переверне план: у
+   `interactive`-режимі кожен якір робить `void diagram.focusByTestId(anchor.testId)`
+   ([`react/createTestAnchorOverlay.ts:86`](../packages/sdk/src/react/createTestAnchorOverlay.ts)),
+   а той через `revealPath` → `focusNode` кличе `applySelection`
+   ([`OrgHierarchyDiagram.ts:1486`](../packages/sdk/src/OrgHierarchyDiagram.ts)). Наше демо
+   монтує оверлей саме так ([`app/App.ts:604`](../packages/demo/src/app/App.ts)). Тобто якір
+   експандера, зроблений тим самим циклом, **доводив би протилежне** до того, заради чого
+   існує — тесту хоста «клік по кнопці не виділяє вузол». Форма клікової гілки — рішення плану;
+   нової **публічної** поверхні воно не потребує, бо `expandOrg`/`collapseOrg` уже публічні
+   (`:843`, `:861`) і вже в `docs/USAGE.md`.
+5. **Причин «кнопки немає» не дві й не чотири, а щонайменше п'ять, і п'ята не про кадр.**
+   Організація **з дітьми** лишається без chrome, якщо хост не підписався на розгортання:
+   `orgTreeOptions` виходить раніше без жодного з `onOrgContextMenu`/`onOrgExpand`/`onOrgCollapse`
+   ([`DiagramRenderer.ts:1099-1105`](../packages/sdk/src/render/DiagramRenderer.ts)), а сам chrome
+   вимагає `hasChildren && (onOrgExpand || onOrgCollapse)` (`:1119`). Це не модель і не камера —
+   це підписка, стала на весь час життя діаграми, і порада «підведіть камеру» для неї вічно хибна.
+6. **`promote` ховає Pixi-в'юху, але не прибирає бокс.** У `near-visible` картку малює HTML
+   (шар `zIndex 5`), якорі лежать зверху (`zIndex 6`), а `SceneRegistry` далі віддає бокс
+   схованої в'юхи — тож координатний якір кнопки вказував би туди, де кнопки немає.
 
 ---
 
@@ -289,27 +324,41 @@ Host
 | JS export | Роль | Хто кличе |
 |-----------|------|-----------|
 | `computeOrgRowTreeLayout` | Ploeg row-tree | org layout + staff tree blocks |
-| `computeDeptContour` / `computeAllContours` | G1–G7 flood | public API, тести, **і канвас, коли `contourEngine: 'cell-flood'`** |
 
-Pipeline у `contour.rs`: cluster → flood → G5 notch → G6 far-side → G7 peel → orthogonal trace → Chaikin. G8 (morph під drag) — SDK.
+🔴 **Це вся таблиця — після T80 через межу ходить рівно один виклик.** `computeDeptContour`,
+`computeAllContours` і `contour.rs` **не існують**; крейт — `hierarchy.rs`, `lib.rs`,
+`org_layout.rs`, `org_tree.rs`, `ploeg_layout.rs`, `types.rs`, і в `pkg/*.d.ts` є лише
+`computeOrgRowTreeLayout` та `init`. Бінарник: **232 732 → 151 210 байт** (−35%).
 
-### 2.4 Три шляхи контуру (читати обов'язково)
+⚠️ **Імена на межі брешуть, і це навмисно.** Файл лоадера — `contour/bridge.ts`, експорти —
+`initContourWasm`, `WasmContourModule`, `ContourWasmLoader`. Жоден із них контуру не рахує;
+перейменування свідомо не входило в T80, бо `initContourWasm` — **публічний** барель, тобто
+окреме рішення з окремим релізним записом ([`contour/bridge.ts:1-12`](../packages/sdk/src/contour/bridge.ts)).
+Читати «contour» тут як «той єдиний WASM-модуль».
+
+### 2.4 Два шляхи контуру, і обидва — той самий код (читати обов'язково)
+
+⚠️ **Тут було «три шляхи», і середній із них більше не існує** — рядок пережив T80 у цьому файлі
+на два дні. Перевірено кодом 2026-09-10: `floodContourEngine.ts` і `floodRingCards.ts` у
+`render/contour/` **немає**, `contourEngine`/`'cell-flood'` у `packages/*/src` не зустрічаються
+жодного разу (єдині згадки — коментарі-надгробки в `contourCorridor.ts:11` і `svgExport.ts:46`).
 
 | Шлях | Геометрія | Де |
 |------|-----------|-----|
-| **Canvas, default** | union-find Manhattan ≤ `magnetRadius` + padded AABB ring, **мінус виїмки під чужі картки (G2/M2)** | [`render/contour/paintMagneticGroups.ts`](../packages/sdk/src/render/contour/paintMagneticGroups.ts) + [`contourNotch.ts`](../packages/sdk/src/render/contour/contourNotch.ts) (T79) |
-| **Canvas, `cell-flood`** | Rust polyomino flood G1–G8 **по кожному org-блоку окремо**, кільця мапляться на бокси карток | [`floodContourEngine.ts`](../packages/sdk/src/render/contour/floodContourEngine.ts) + [`floodRingCards.ts`](../packages/sdk/src/render/contour/floodRingCards.ts) (T80) |
-| **SVG export** | той самий рушій, що й канвас (`resolveExportContourRings`); flood не зміг — шар порожній + діагностика | [`export/svgExport.ts`](../packages/sdk/src/export/svgExport.ts) |
+| **Canvas** | union-find Manhattan ≤ `magnetRadius` + padded AABB ring, **мінус виїмки під чужі картки (G2/M2)** | [`render/contour/paintMagneticGroups.ts`](../packages/sdk/src/render/contour/paintMagneticGroups.ts) + [`contourNotch.ts`](../packages/sdk/src/render/contour/contourNotch.ts) (T79) |
+| **SVG export** | **той самий код**, не «той самий рушій»: вибирати більше нема з чого | [`export/svgExport.ts`](../packages/sdk/src/export/svgExport.ts) |
 
-`gridCell` у flood — **локальна для org-блоку**, тому flood ганяється поблочно і кожен блок мапиться своїм origin; один спільний flood наклав би ярус 1 на ярус 2 (T80). Коридор G2 — `RenderConfig.corridorCells` (default 0.5 клітини, [`render/contour/contourCorridor.ts`](../packages/sdk/src/render/contour/contourCorridor.ts)), і flood, який нічого не намалював, зобов'язаний сказати чому через `getLayoutDiagnostics()`.
+Коридор G2 — `RenderConfig.corridorCells` (default 0.5 клітини,
+[`render/contour/contourCorridor.ts`](../packages/sdk/src/render/contour/contourCorridor.ts)).
 
-Рішення T77-M01 Option B лишається чинним для default-рушія: renderer **не** робить WASM round-trip для `button-group`; `cell-flood` бере його свідомо, за прапорцем.
+Рішення T77-M01 Option B лишається чинним і стало безальтернативним: renderer **не** робить
+WASM round-trip для `button-group` — тепер уже тому, що іншого рушія, який його брав, немає.
 
 **T107 (2026-09-03) перевірив запит «перенести button-group у WASM для швидкості» вимірюванням, а не портом.** При 80 відділах / 4 000 місцях 66% кадру йшло не на геометрію (`polishContourRings` — 10%), а на `allBoxes.filter(...)`, що копіювало майже всю сцену на кожне кільце. Портувати копіювання масиву в Rust додало б лише серіалізацію через WASM-межу щокадру й `await` у paint-шляху — тобто скасувало б рішення B. Замість порту: bucket-індекс карток + кластеризація по клітинах, у TS, синхронно — 14,0 → 5,1 мс (медіана з 9, A/B на одному стенді); кластеризація 40 000 місць 2 378 → 43 мс. Стеля `40 000 місць / 300 мс` перевірена на **зламаній** (квадратичній) версії теж — перша стеля «20 000/1000мс» проходила на 646 мс зламаного коду, тобто нічого не ловила ([T107](./archive/tasks-2026-09-06.md)).
 
 ### 2.5 Demo
 
-**14 табів** ([`app/tabs.ts`](../packages/demo/src/app/tabs.ts)): Variant B (канон магнетизму QA), Staff tree, Orgs · Figma/GoJS, Staff · Figma / Magnetic / Flood / GoJS, Staff · 1M, **Staff · Brigade**, Flat orgs, 100k orgs, Mapper, Worker. Конфіг табу — чиста функція [`app/tabConfigs.ts`](../packages/demo/src/app/tabConfigs.ts); ознаки табу (`family`, `contourControls`, `orgTree`, `reloadsOnContourSlider`) — таблиця `TAB_META`; фікстури — [`scenarios/mockups.ts`](../packages/demo/src/scenarios/mockups.ts) (барель). `?e2e=1` → `window.__demoE2e` ([`app/e2eBridge.ts`](../packages/demo/src/app/e2eBridge.ts)) + DOM anchors. Alias SDK на **source**, не `dist`.
+**13 табів** ([`app/tabs.ts:33-46`](../packages/demo/src/app/tabs.ts)) — було 14, `Staff · Flood` прибрано разом із рушієм (T80): Variant B (канон магнетизму QA), Staff tree, Orgs · Figma/GoJS, Staff · Figma / Magnetic / GoJS, Staff · 1M, **Staff · Brigade**, Flat orgs, 100k orgs, Mapper, Worker. Конфіг табу — чиста функція [`app/tabConfigs.ts`](../packages/demo/src/app/tabConfigs.ts); ознаки табу (`family`, `contourControls`, `orgTree`, `reloadsOnContourSlider`) — таблиця `TAB_META`; фікстури — [`scenarios/mockups.ts`](../packages/demo/src/scenarios/mockups.ts) (барель). `?e2e=1` → `window.__demoE2e` ([`app/e2eBridge.ts`](../packages/demo/src/app/e2eBridge.ts)) + DOM anchors. Alias SDK на **source**, не `dist`.
 
 **Демо-фікстури цивільні навмисно** — сторінка публічна (GitHub Pages), військових назв з Figma в них немає ([MOCKUP-styles-review](./archive/tasks-2026-09-02.md) правило 1).
 
@@ -394,7 +443,7 @@ Pipeline у `contour.rs`: cluster → flood → G5 notch → G6 far-side → G7 
 | Pool | `WorkerPool`, `mapFlatRowsInPool`, texture refcount | bounded concurrency |
 | Coalesce | `renderCoalesce.ts` | один in-flight render |
 | Optional React | callbacks + `subscribePromoteSync` | ядро без React |
-| Прапорець рушія | `RenderConfig.contourEngine` | новий вигляд контуру = новий рушій за прапорцем, не третє кільце в старому |
+| ~~Прапорець рушія~~ | ~~`RenderConfig.contourEngine`~~ | ❌ **більше не патерн репо.** Прапорець прожив від «новий вигляд = новий рушій» до «другий рушій без замовника» й прибраний цілком (T80). Урок, який лишився: прапорець рушія — це **зобов'язання тримати обидві гілки живими**, включно з експортом і демо-вкладкою, і платили за нього доти, доки продукт не сказав, що другий вигляд нікому не потрібен |
 
 Тести: **rstest** + jsdom (мігровано з vitest), eager WASM з `src/wasm/pkg` у setup. Контракт жестів: [`NODE-interactions-contract.md`](./tasks/NODE-interactions-contract.md). Playwright — Chromium-only smoke, плюс друга пробіжка під `SOFTWARE_GL=1`. E2e **немає** на export і mapper; по promote і мульти-виділенню вони з'явились (`promote-near`, `t67-multiselect-manual`), по переприв'язці посад — контрактні тести й ручна проходка, e2e немає.
 
@@ -478,7 +527,7 @@ GitHub Issues на `b2vv/dg` **порожні**; живий беклог — `wo
 | Lint | **oxlint** ^1.74, **oxfmt** ^0.65 | перший лінтер у репо |
 | Компілятор | **TypeScript ^7.0** (було ^5.6) | |
 | Граф | `ttsc` / `@ttsc/graph` ^0.28 | інструмент агента, не рантайм |
-| WASM | wasm-bindgen 0.2, serde-wasm-bindgen 0.6, tidy-tree 0.1, tinyset pin 0.4.10 | Ploeg + contour |
+| WASM | wasm-bindgen 0.2, serde-wasm-bindgen 0.6, tidy-tree 0.1, tinyset pin 0.4.10 | **лише Ploeg row-tree** — контуру в крейті немає з T80. Прямі залежності [`packages/core/Cargo.toml`](../packages/core/Cargo.toml): `wasm-bindgen`, `serde`, `serde_json`, `serde-wasm-bindgen`, `tidy-tree`, `getrandom` (feature `js`), `tinyset` жорстко на `=0.4.10`, `ts-rs` — опційно під feature `ts-export` |
 | PDF | **немає jspdf** | мінімальний RGB PDF у `pdfExport.ts` |
 | Node | `engines: >=20` | |
 
@@ -596,10 +645,11 @@ GitHub Issues на `b2vv/dg` **порожні**; живий беклог — `wo
 
 - Немає semver/changelog/LICENSE/publish; host cutover поза репо.
 - ~~**T92 заблоковано на числі з заліза замовника**~~ — **закрито 2026-09-04**, і не числом: воно було потрібне, щоб обрати поріг, а реалізований механізм порогів не має. Єдина задача, що стояла на чужому доступі, знята з черги ([T92](./archive/tasks-2026-09-06.md), §«Чим закрито» — в історії git).
-- **T80 чекає рішення BA** — оновлено 2026-09-03 реальними числами: button-group лишається
-  синхронним при 5,1 мс (T107), «пишеться двічі» — це два рушії, не подвоєна геометрія (SVG і
-  канвас уже single-sourced). C-подібні контури досі дає лише `cell-flood` — жодна оптимізація
-  button-group їх не додасть; це продуктовий вибір, не вибір реалізатора.
+- ~~**T80 чекає рішення BA**~~ — ✅ **закрито 2026-09-08 разом із самим рушієм.** Рядок жив тут
+  як «чекає рішення» ще два дні після того, як рішення ухвалили й реалізували. Що з нього
+  лишається правдою: button-group синхронний при 5,1 мс (T107), SVG і канвас single-sourced.
+  Що перестало: C-подібних контурів більше не дає **ніщо** — рушій, який їх умів, прибрано за
+  відсутністю замовника, і повернути їх тепер означає писати новий, а не піднімати прапорець.
 - **T56 звірено з кодом 2026-09-03** ([§19](./tasks/T56-gojs-feature-inventory.md)): 7 пунктів
   каталогу стояли «не взято», хоча вже зроблені (vacant styling, relink, block move, shift/ctrl
   multi-select, bulk actions, custom menu, audit hook) — продукт міг обрати їх удруге. 5 — наполовину
@@ -637,7 +687,7 @@ GitHub Issues на `b2vv/dg` **порожні**; живий беклог — `wo
 11. **T61** після макета; **T67 Phase 2** marquee — product go; **T56** звірено з кодом 2026-09-03, далі вибір продукту (чек-бокси).
 12. 🔴 **Host: прибрати GoJS — і це досі пункт нуль, а не дванадцять.** Хост SDK не імпортує (факт №5). **T117 Гап 1 закрито** (`68854d7`). Лишились: **T116** (org-level reparent) — spec+plan написані, коду немає, **сім продуктових розвилок** чекають людини, і `plan-critique` по цій парі **не проганялась**; **T117 Гап 2** (move cross-org / merge / clone) — заблокований питанням, чи це взагалі відповідальність SDK; **T115** — 🟡 **кроки 1–3 зроблено 2026-09-08**, і вимір змінив постановку: міст `window.__orgHierarchy` хосту треба не відтворювати, а **позбутись** — DOM-якорі оверлея дають те, чого хосту бракує (факт №7). Лишились два **рішення**: якір експандера (нова поверхня) і гейт середовища. ⚠️ Перше з них **втратило половину невизначеності 2026-09-10**: потреба доведена виміром хоста (факт №7, п.3), відкритий лише обсяг.
 13. **T111 має закриті acceptance, але дві незакриті половини:** e2e-мірник A1/A9 (ризик 17) і сцена після T112 (ризик 18). Незалежного `code-review` по змердженій гілці теж не було — стовпчик `reviewer` порожній на всіх семи кроках.
-14. 🔴 **T80 — найбільший агент-реді обсяг у репо, і він стоїть.** Розвилку закрито **2026-09-06**: `cell-flood` без замовника, лишається `button-group`. Це вже не рішення, а імплементація: радіус **23 TS-файли** + `contour.rs`, `contourEngine` двічі в `docs/USAGE.md` ⇒ вище порога, повний `spec-flow`. ⚠️ Прибрати *рушій* ≠ прибрати *Rust-контур*: п'ять канонічних тестів Variant B міряють `computeAllContours`. Зчеплено з **T112** (він прибирає вкладку `Staff · Flood`), тож демо-рішення варто ухвалити першим.
+14. ✅ **T80 — зроблено, і оцінка обсягу виявилась заниженою вдвічі.** Планувався радіус «23 TS-файли + `contour.rs`»; вийшло **80 файлів, −4109 рядків**, реліз `0.4.0`, бінарник WASM −35%. Побоювання «прибрати рушій ≠ прибрати Rust-контур» знялось разом із рушієм: канон магнетизму Variant B більше не спирається на WASM, а `computeAllContours` лишився в дереві **єдиною згадкою в докстрінгу** (`layout/rowTreeLayout.ts:43`). Зчеплення з **T112** розв'язалось саме собою: вкладку `Staff · Flood` прибрано разом із рушієм, тож демо-рішення більше не блокує нічого.
 16. 🔵 **T119 — рознести фасад на рольові інтерфейси.** Крок 0 (віднімання) зроблено; саме рознесення **не почато й не має початись без людського рішення**: воно ламає публічний API, а вимір не спростовує альтернативи «пласкі 64 методи — свідома простота». Аналіз, який це підпирає (ISP замість SRP, 21 метод без стану, `renderNow` як справжній порушник) — [`reports/facade-split/analysis.md`](./reports/facade-split/analysis.md).
 
 15. **T113 закрито в org-половині; штатна половина свідомо не робилась** — вона тягне два поняття, яких у SDK немає (режим редагування як вхід від хоста, ширина вьюпорта в лейауті) і перерахунок на кожен ресайз, тобто розкладка перестала б бути чистою функцією від даних.
@@ -782,11 +832,11 @@ GitHub issue tracker не використовувати як карту, пок
 | Глосарій | `CONTEXT.md` |
 | Задачі / борг | `work/README.md`, `work/tasks/`, `work/tech-debt/` |
 | Критика post-T77 і її закриття | `work/tech-debt/CRITIQUE-dg_9352d52.md`, `work/archive/tasks-2026-09-02.md` |
-| Два рушії контуру | `work/tasks/T80-contour-engines-ba-demo.md` |
+| Як зникав другий рушій контуру | `work/tasks/T80-contour-engines-ba-demo.md`, цикл — `work/reports/flood-purge/` |
 | Розбивка модулів | `work/archive/tasks-2026-09-02.md` |
 | Фасад | `packages/sdk/src/OrgHierarchyDiagram.ts` (публічний барель — `index.ts`) |
-| Paint контуру | `packages/sdk/src/render/contour/` (`paintMagneticGroups.ts`, `ContourPainter.ts`, `floodContourEngine.ts`) |
-| WASM contour / row-tree | `packages/core/src/contour.rs`, `ploeg_layout.rs`, `org_layout.rs` |
+| Paint контуру | `packages/sdk/src/render/contour/` (`paintMagneticGroups.ts`, `ContourPainter.ts`) |
+| WASM row-tree | `packages/core/src/ploeg_layout.rs`, `org_layout.rs`, `hierarchy.rs`, `org_tree.rs`; міст — `packages/sdk/src/contour/bridge.ts` (ім'я історичне) |
 | CI | `.github/workflows/ci.yml` |
 | Demo | `packages/demo/` (`app/tabs.ts`, `app/tabConfigs.ts`, `scenarios/mockups.ts`) |
 | Вікно за камерою (арифметика + планувальник) | `packages/demo/src/app/viewportWindow.ts`, звіт `work/reports/viewport-window/` |
