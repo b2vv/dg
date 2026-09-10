@@ -69,17 +69,30 @@ describe('row-tree depth guard', () => {
     expect(res.nodes).toHaveLength(2_500);
   });
 
-  it('success: a 50k-deep chain is refused in well under a second', async () => {
+  it('success: a 50k-deep chain is refused in milliseconds, not in the 12.8 s it cost before', async () => {
+    const orgs = expandedChain(50_000);
+    await computeOrgRowTreeLayout(orgs, 'org-0').catch(() => undefined); // прогрів
     const t0 = performance.now();
-    const err = await computeOrgRowTreeLayout(expandedChain(50_000), 'org-0').then(
+    const err = await computeOrgRowTreeLayout(orgs, 'org-0').then(
       () => null,
       (e: Error) => e,
     );
     const ms = performance.now() - t0;
     expect(err).toBeInstanceOf(OrgHierarchyError);
-    // It used to take 12.8 s to reach the trap. The guard stops at the first
-    // node past the limit, so the remaining 47 500 are never walked.
-    expect(ms).toBeLessThan(500);
+
+    // 🔴 **Стеля була 500 мс і червоніла в повному прогоні.** Виміряно тут:
+    // поодинці **41 · 42 · 57 мс**, під паралельною сюїтою **195 · 227 · 407 мс**
+    // — тобто стара стеля лишала ×1,2 запасу там, де навантаження дає ×10.
+    // Дефект, який цей рядок стереже, коштував **12 800 мс**, тож стеля 4 000
+    // сидить ×10 над найгіршим виміряним і ×3,2 під дефектом. Число з виміру,
+    // не з відчуття «скільки має бути швидко».
+    //
+    // ⚠️ Частка тут **не** працює, і це виміряно: увосьмеро довший ланцюг дає
+    // ×14,7 … ×18,3, а не ×1. Бо відмова коштує O(входу), а не O(межі): перед
+    // гвардією йдуть `validateOrgHierarchy` і два індекси по **всьому** масиву
+    // (`rowTreeLayout.ts:145,70-76`). Ранній вихід економить обхід дерева, а не
+    // виклик — попередня редакція коментаря стверджувала протилежне.
+    expect(ms).toBeLessThan(4_000);
   });
 
   it('success: depth is the expanded subtree, not the size of the array', async () => {
