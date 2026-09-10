@@ -884,6 +884,10 @@ export class DiagramRenderer {
       this.rememberBox({
         id: card.orgId,
         kind: 'organization',
+        // Штатний chevron якоря не отримує — хост його не замовляв (вимір
+        // 2026-09-10). Але ознака моделі чесна й тут: джерело те саме, з якого
+        // будується розгорнутий блок.
+        hasChildren: (card.positionCount ?? 0) > 0,
         x: card.x,
         y: card.y,
         width: card.width,
@@ -1057,6 +1061,11 @@ export class DiagramRenderer {
         y: ln.y,
         width: ln.width,
         height: ln.height,
+        // Картка стоїть у `ln.x/ln.y`, бокс кнопки — у координатах картки, тож
+        // світові = сума. Не `getBounds()`: той віддав би координати **після**
+        // камери, і бокс був би правильний рівно на зумі 1 (T115 крок 2).
+        ...worldExpanderBox(node.expanderBox(), ln.x, ln.y),
+        hasChildren: orgHasChildren(data.organizations, org.id),
       });
       bindOrgCardInteractions(node, {
         orgId: org.id,
@@ -1160,6 +1169,29 @@ export class DiagramRenderer {
           : undefined,
     };
   }
+}
+
+/**
+ * Локальний бокс кнопки → світовий, зсувом на позицію картки.
+ *
+ * Повертає **порожній об'єкт**, коли кнопки немає: так виклик лишається одним
+ * спредом, а поле просто не з'являється — замість `expander: undefined`, який
+ * у JSON-порівняннях поводиться інакше за відсутнє.
+ */
+function worldExpanderBox(
+  local: { x: number; y: number; width: number; height: number } | undefined,
+  cardX: number,
+  cardY: number,
+): { expander?: { x: number; y: number; width: number; height: number } } {
+  if (!local) return {};
+  return {
+    expander: {
+      x: cardX + local.x,
+      y: cardY + local.y,
+      width: local.width,
+      height: local.height,
+    },
+  };
 }
 
 /**

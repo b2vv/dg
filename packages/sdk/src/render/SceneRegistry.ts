@@ -9,6 +9,20 @@ export interface NodeWorldBox {
   y: number;
   width: number;
   height: number;
+  /**
+   * Бокс кнопки розгортання у **світових** координатах (T115 крок 2).
+   *
+   * Відсутній, коли кнопки в цьому кадрі немає — і причин тому кілька, з яких
+   * лише частина стосується моделі. Тому поруч їде {@link hasChildren}: без
+   * нього «бокса немає» означало б і «це лист», і «камера від'їхала».
+   */
+  expander?: { x: number; y: number; width: number; height: number };
+  /**
+   * Чи має вузол що розгортати — властивість **моделі**, від камери незалежна.
+   * Визначена лише для організацій: у персони питання не має відповіді, у
+   * посади воно означає інше.
+   */
+  hasChildren?: boolean;
 }
 
 /** A view that can reload its texture after the media cache invalidates. */
