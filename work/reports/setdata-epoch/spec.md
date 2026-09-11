@@ -1,6 +1,6 @@
 # spec — `setData` мусить вигравати останнім запитом, а не найповільнішим
 
-**Задача:** [T103](../../tasks/T103-setdata-request-epoch.md)
+**Задача:** [T103](../../archive/tasks-2026-09-11.md)
 **Гілка:** `t103-setdata-epoch` · **База:** `main` @ `5aeef7a`
 **Поріг:** ⚠️ **вище** — `setData` і `appendData` описані в `docs/USAGE.md`, а
 `.claude/standards.md:118` визначає публічний API саме як «те, що описує `docs/USAGE.md`».

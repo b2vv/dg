@@ -57,12 +57,14 @@ npm run dev          # http://localhost:3000
 **Що робити далі** — [`AGENDA.md`](./AGENDA.md): ранжована черга з обґрунтуванням, чому саме цей хід.
 
 У `tasks/` лишається тільки живе: не почате, часткове й довідники, які тримаються синхронними з
-кодом. Завершене переїхало вказівниками у два свіпи —
-[`archive/tasks-2026-09-02.md`](./archive/tasks-2026-09-02.md) (97 задач) і
-[`archive/tasks-2026-09-06.md`](./archive/tasks-2026-09-06.md) (T90, T92, T98, T107, T108);
-повний текст кожної — в історії git. Критерій переїзду не «закрито», а **«закрито і на це ніхто
-не спирається»**: тому `T79`, `T80`, `T103`, `T104`, `T26` лишаються тут попри закритий статус —
-їх цитує жива дока.
+кодом. Завершене переїхало вказівниками у **три** свіпи —
+[`archive/tasks-2026-09-02.md`](./archive/tasks-2026-09-02.md) (97 задач),
+[`archive/tasks-2026-09-06.md`](./archive/tasks-2026-09-06.md) (T90, T92, T98, T107, T108) і
+[`archive/tasks-2026-09-11.md`](./archive/tasks-2026-09-11.md) (T80, T101–T105, T109–T111,
+T113, T114, T118, T122, T123); повний текст кожної — в історії git. Критерій переїзду не
+«закрито», а **«закрито і на це ніхто не спирається»**: тому `T79`, `T71`, `T56` і `T26`
+лишаються тут попри закритий чи частковий статус, а `T116`, `T117`, `T120` — бо в кожної
+лишилась половина, що чекає рішення.
 
 | Задача | Про що | Статус |
 |---|---|---|
@@ -73,28 +75,26 @@ npm run dev          # http://localhost:3000
 | [T70-position-card-chrome](./tasks/T70-position-card-chrome.md) | Chrome карток + геометрія знака організації (E* / 4231) | Phase 0 + Phase 1 + Phase 2 done (agreed in T73) |
 | [T71-gojs-to-dg-migration-plan](./tasks/T71-gojs-to-dg-migration-plan.md) | План міграції GoJS → Org Hierarchy SDK (`dg`) | ✅ cutover queue complete (2026-08-23) — залишок: T61 (макет), T67 Phase 2 (marquee, optional) |
 | [T79-g2-m2-paint-notch](./tasks/T79-g2-m2-paint-notch.md) | G2 / M2 на paint-шляху (foreign ніколи не під заливкою) | ✅ done (2026-08-25) — **лишається тут**: SPEC і REQUIREMENTS цитують його як пояснення геометрії |
-| [T80-contour-engines-ba-demo](./tasks/T80-contour-engines-ba-demo.md) | Два рушії контурів для порівняння BA | 🟢 розвилку закрито 2026-09-06 рішенням продукту — лишається `button-group`; **прибирання `cell-flood` окремою задачею не заведено** |
-| [T101-e2e-flakes-only-local](./tasks/T101-e2e-flakes-only-local.md) | Флаки, які CI не може побачити | 🔵 не почато · ⚠️ **гіпотезу «винна паралельність» спростовано 2026-09-04** — падає й на `--workers=1`; перший пункт робіт міряє не ту вісь |
-| [T102-row-tree-depth-block-b](./tasks/T102-row-tree-depth-block-b.md) | row-tree: підняти підтриману глибину (блок Б) | не почато. Спека готова, приймальна таблиця написана. |
-| [T103-setdata-request-epoch](./tasks/T103-setdata-request-epoch.md) | `setData` не «виграє останній запит» | ✅ зроблено (2026-09-05) — виграє останній, дані й індекс комітяться **разом** |
-| [T104-mutations-are-not-one-transaction](./tasks/T104-mutations-are-not-one-transaction.md) | мутація, рендер і колбек хоста — не одна транзакція | ✅ зроблено (2026-09-05) — усі **шість** місць повідомляють після кадру; коренева причина була в `renderCoalesce`, не в мутаторах |
-| [T105-root-barrel-exposes-test-hooks](./tasks/T105-root-barrel-exposes-test-hooks.md) | кореневий барель віддає внутрішнє й тест-хуки | не почато. |
 | [T106-deepen-facades-drop-shallow-wrappers](./tasks/T106-deepen-facades-drop-shallow-wrappers.md) | великі фасади поруч із порожніми обгортками | не почато. Серйозність: Medium. |
-| [T109-toggle-staff-org-has-no-transaction](./tasks/T109-toggle-staff-org-has-no-transaction.md) | `toggleStaffOrg` міняє стан і малює, без відкоту | 🔵 не почато · P3 — знайдено як наслідок T104; контракту не порушує, бо колбека не шле |
-| [T110-changelog-died-at-0.2.0](./tasks/T110-changelog-died-at-0.2.0.md) | CHANGELOG мовчить про десять комітів публічного API | ✅ закрито 2026-09-07 · 13 записів, версія `0.3.0`, гейт свідомо не доданий |
-| [T111-move-onto-occupied-cell](./tasks/T111-move-onto-occupied-cell.md) | drop у зайняту клітину приймається — дві картки в одній точці | 🔵 не почато · **P1** — спека й план готові: [reports/seat-collision](./reports/seat-collision/) |
 | [T112-demo-tab-consolidation](./tasks/T112-demo-tab-consolidation.md) | звести демо з 14 вкладок до шести | 🔵 не почато · P2 — ⛔ заблоковано продуктом: 12 e2e-спеків і об'єднання `Orgs` потребують рішення |
-| [T113-collapsed-children-should-be-a-matrix](./tasks/T113-collapsed-children-should-be-a-matrix.md) | згорнуті діти лягають стрічкою, а не матрицею | 🔵 не почато · **P1** — специфікацію виправлено 2026-09-06, лишився код |
-| [T114-flat-orgs-null-on-first-paint](./tasks/T114-flat-orgs-null-on-first-paint.md) | чотири помилки сторінки на старті вкладки `Flat orgs` | 🔵 не почато · P3 — знайдено прогоном T113, окрема причина |
+| [T115-test-seam-parity-with-host](./tasks/T115-test-seam-parity-with-host.md) | тест-шов нарівні з хостом: чим хост міряє діаграму | 🟢 кроки 1–3 зроблено, крок 2 закритий релізом `0.5.0`; **крок 4** (гейт середовища) — рішення людини |
+| [T116-org-level-reparent-missing](./tasks/T116-org-level-reparent-missing.md) | переприв'язка на рівні організацій | 🟡 spec + plan написані, коду немає — **сім продуктових розвилок** чекають людини |
+| [T117-position-reparent-root-guard-and-cross-org-actions](./tasks/T117-position-reparent-root-guard-and-cross-org-actions.md) | гвардія кореня й крос-орг дії при переприв'язці | 🟡 Гап 1 закрито 2026-09-07; **Гап 2** — питання, чи це взагалі відповідальність SDK |
+| [T119-split-the-facade-into-sub-apis](./tasks/T119-split-the-facade-into-sub-apis.md) | рознести фасад на рольові інтерфейси | 🟡 крок 0 (віднімання) зроблено — останнім `computeOrgRowTreeLayoutInWorker` (`0.5.1`); рознесення ламає публічний API й не почато |
+| [T120-raise-the-row-tree-depth-ceiling](./tasks/T120-raise-the-row-tree-depth-ceiling.md) | підняти `MAX_ROW_TREE_DEPTH` | 🟡 гілка А закрита 2026-09-11 (переміряно в браузері; гвардія лишається 2 500); **гілка Б** — рішення людини |
+| [T121-staff-focus-outruns-the-frame](./tasks/T121-staff-focus-outruns-the-frame.md) | `focusStaffOrg` міняє два стани й малює | 🔵 не почато · **потребує рішення**: `setStaffFocus` — намір чи стан |
+| [T124-staff-scene-does-not-validate-org-hierarchy](./tasks/T124-staff-scene-does-not-validate-org-hierarchy.md) | штатна сцена не валідує org-ієрархію взагалі | 🔵 не почато · чотири варіанти, **два ламальні** |
 | [NODE-interactions-contract](./tasks/NODE-interactions-contract.md) | NODE interactions contract (mandatory) | active · Enforced by: `nodeInteractions.contract.test.ts`, `e2e/node-interactions.spec.ts` |
 | [PARITY-gojs-to-dg](./tasks/PARITY-gojs-to-dg.md) | Parity `gojs-diagram` → `dg`: вимога → можливість | 🟢 живий довідник, не задача — тримається синхронним із кодом, не закривається. |
 
-⚠️ Два файли лишаються тут попри закритий статус. `T80` — розвилку закрито 2026-09-06 («C-подібного
-контуру немає — є магнітний у департаментах»), але **робота, яку це рішення відкриває**, ще не
-заведена: прибирання `cell-flood` зачіпає 23 TS-файли й `contour.rs`, тож задача тримається тут як
-вхід у цю роботу, а не як архів. `T79` — закритий, але `work/SPEC.md` і `docs/REQUIREMENTS.md`
-цитують його як пояснення геометрії G1/G2/M2; закрита задача, на яку спирається жива специфікація,
-лишається поруч із нею.
+⚠️ `T79` лишається тут попри закритий статус: `work/SPEC.md` і `docs/REQUIREMENTS.md` цитують
+його як пояснення геометрії G1/G2/M2, а закрита задача, на яку спирається жива специфікація,
+лишається поруч із нею. Це та сама помилка, з якої правило й виросло — одного разу `T79`
+заархівували, і посилання повело з живої спеки в архівний рядок.
+
+⚠️ `T80` більше тут **немає**: розвилку закрито 2026-09-06, роботу зроблено 2026-09-08 (реліз
+`0.4.0`), і задача переїхала третім свіпом. Абзац, що стояв тут і пояснював, чому вона
+лишається, описував стан, якого немає вже три дні.
 
 ## Технічний борг
 

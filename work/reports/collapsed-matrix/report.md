@@ -1,6 +1,6 @@
 # report — набір усіх-згорнутих братів лягає сіткою (T113, org-половина)
 
-**Задача:** [T113](../../tasks/T113-collapsed-children-should-be-a-matrix.md) ·
+**Задача:** [T113](../../archive/tasks-2026-09-11.md) ·
 **Гілка:** `t113-collapsed-matrix` · **База:** `main` @ `316930f` · **Комітів:** 11
 **Спека:** [`spec.md`](./spec.md) · **План:** [`plan.md`](./plan.md) · **Таски:** [`tasks.md`](./tasks.md)
 

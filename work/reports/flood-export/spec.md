@@ -12,7 +12,7 @@
 ## Проблема
 
 `RenderConfig.contourEngine` обирає, чим малюється контур відділу на канвасі: `'button-group'`
-(TS, default) або `'cell-flood'` (Rust flood, [T80](../../tasks/T80-contour-engines-ba-demo.md)).
+(TS, default) або `'cell-flood'` (Rust flood, [T80](../../archive/tasks-2026-09-11.md)).
 **`export/` цього прапорця не читає**: `svgExport.ts` завжди будує кільця через
 `paintMagneticGroups`. Тобто діаграма, налаштована на flood, віддає SVG із геометрією іншого
 рушія — інші контури, інші виїмки, інші межі відділів.
