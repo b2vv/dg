@@ -33,6 +33,7 @@
     "dev": "rsbuild dev",
     "typecheck": "tsc -p tsconfig.check.json",
     "test": "rstest run",
+    "measure": "MEASURE=1 rstest run measure.test",
     "test:watch": "rstest --watch",
     "prepare": "npm run build"
   },
