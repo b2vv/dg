@@ -28,7 +28,8 @@ for (const f of files) {
   lines.forEach((line, i) => {
     if (!/^export (async )?function |^export const \w+ = \(/.test(line)) return;
     // зібрати сигнатуру до `{` або `=>`
-    let sig = line, k = i;
+    let sig = line;
+    let k = i;
     while (!/[{;]\s*$|=>\s*$/.test(sig) && k < lines.length - 1 && k - i < 12) sig += ' ' + lines[++k].trim();
     for (const m of sig.matchAll(/(\w+)\s*\??:\s*(string|unknown|any)\b/g)) {
       weak.push({ file: f, line: i + 1, param: m[1], type: m[2], sig: sig.slice(0, 110) });
