@@ -164,6 +164,52 @@ test.describe('export delivers a real file', () => {
     expect(b.bytes).toBeGreaterThan(a.bytes);
   });
 
+  test('promote does not empty the raster: the export shows cards, not just lines', async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+
+    const pngBytes = async () => {
+      const png = await bytesOf(await exportFile(page, 'png'));
+      return { bytes: png.length, w: png.readUInt32BE(16), h: png.readUInt32BE(20) };
+    };
+    const promotedCount = () =>
+      page.evaluate(
+        () =>
+          (window as unknown as { __demoE2e: { getPromotedNodeIds(): string[] } }).__demoE2e
+            .getPromotedNodeIds().length,
+      );
+
+    await page.goto('/?e2e=1');
+    await page.getByRole('button', { name: 'Staff · Figma', exact: true }).click();
+    await page.getByTestId('diagram-ready').waitFor({ timeout: 60_000 });
+    await page.waitForTimeout(800);
+    const plain = await pngBytes();
+    expect(await promotedCount()).toBe(0);
+
+    await page.goto('/?e2e=1&promote=near-visible');
+    await page.getByRole('button', { name: 'Staff · Figma', exact: true }).click();
+    await page.getByTestId('diagram-ready').waitFor({ timeout: 60_000 });
+    await page.waitForTimeout(1500);
+
+    // Без цього асерта тест був би зелений і тоді, коли промоут просто не
+    // увімкнувся — тобто перевіряв би відсутність стану, а не поведінку в ньому.
+    expect(await promotedCount()).toBeGreaterThan(0);
+    const promoted = await pngBytes();
+
+    // Канва та сама — інакше порівняння ваги нічого не варте.
+    expect(promoted.w).toBe(plain.w);
+    expect(promoted.h).toBe(plain.h);
+
+    // 🔴 Предмет: промоут **ховає Pixi-в'юхи**, а растровий експорт знімає
+    // `app.stage`. До правки той самий кадр важив 34 085 Б замість 60 634 —
+    // **−44%**, і в файлі не було жодної картки, лише лінії й підписи.
+    // Після правки експорт знімає промоут **на час кадру**: виміряно байт у
+    // байт однаково. Поріг 2% — запас на антиаліасинг, а не на дефект, який
+    // відстоїть на 44%.
+    expect(Math.abs(promoted.bytes - plain.bytes) / plain.bytes).toBeLessThan(0.02);
+  });
+
   /**
    * ⚠️ **Проби на PDF тут немає — свідомо.** Вона була, і рев'ю показало, що
    * вона **слабша за наявну**: `integration-paths.spec.ts:92` перевіряє не лише

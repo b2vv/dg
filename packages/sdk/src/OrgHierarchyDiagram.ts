@@ -1872,11 +1872,38 @@ export class OrgHierarchyDiagram {
     if (!this.host) {
       throw new ExportError('Cannot export before the diagram is mounted');
     }
+    // 🔴 Промоут ховає **Pixi-в'юху** (`SceneRegistry.applyPromoteVisibility`:
+    // `view.visible = !isPromoted(id)`), а растровий експорт знімає `app.stage`
+    // і невидимих дітей не малює взагалі. Тобто хост, який увімкнув промоут
+    // **заради** багатих карток, діставав файл **без жодного вузла**: лінії,
+    // контури й підписи лишались, картки зникали (виміряно: 60 634 Б → 34 085 Б
+    // на тій самій канві, 11 промотованих).
+    //
+    // Тому на час кадру промоут знімається, а потім повертається. Миготіння
+    // від цього немає, і це властивість, а не везіння: `setPromotedIds` лише
+    // перемикає `visible` і **не просить перефарбування**, а сцена малюється
+    // тільки на запит (`autoStart: false`, архітектурний факт №1). Екранний
+    // кадр за цей час не перемальовується, а `extract.canvas` малює у власну
+    // текстуру.
+    //
+    // SVG цього не потребує — він будується з моделі, не зі сцени (виміряно:
+    // байт у байт однаковий в обох станах).
+    const promoted = [...(this.renderer?.getPromotedNodeIds() ?? [])];
+    if (promoted.length > 0) this.renderer?.setPromotedNodeIds([]);
+    try {
+      return await this.runExportNow(this.host, options);
+    } finally {
+      if (promoted.length > 0) this.renderer?.setPromotedNodeIds(promoted);
+    }
+  }
+
+  /** Тіло експорту. Викликається лише з {@link export}, який гарантує `host`. */
+  private async runExportNow(host: PixiHost, options: ExportOptions): Promise<Blob | string> {
     return runExport(
       {
         data: this.data,
         mounted: true,
-        app: this.host.getApplication(),
+        app: host.getApplication(),
         renderConfig: this.renderConfig,
         // T78-L4: same focus as canvas when staffCurrentOrgId unset
         currentOrgId:
