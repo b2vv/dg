@@ -43,12 +43,30 @@ function toOrgFlatInput(organizations: DiagramOrganization[]): OrgFlatInput[] {
  * WASM fails, `computeAllContours` included. `initContourWasm` holds one
  * instance per process, so that is the whole SDK gone until the page reloads.
  *
- * 2 500 is the measured ceiling in Node, and the margin below the first
- * observed failure (2 900) is thin — the limit moves with how much stack the
- * caller already spent, and a worker or another engine gets less of it. Lower
- * this number rather than defend it; `work/reports/row-tree-depth/spec.md` §4
- * records the measurements and asks for a browser re-measure before this
- * number is written into `docs/USAGE.md`.
+ * 🔴 **Виміряно в браузері 2026-09-11 (T120 гілка А), і число лишається 2 500.**
+ * Попередня редакція цього коментаря просила саме такого переміру: 2 500 було
+ * виведене з Node (падіння за ~2 900), а Node — не те середовище, у якому
+ * працює продукт.
+ *
+ * | Рушій | головний потік | воркер | через `create()` |
+ * |---|---|---|---|
+ * | Chromium | 7 625 | **3 937** | 8 000 |
+ * | Firefox | 5 812 | **3 250** | — |
+ *
+ * Мінімум — **3 250** (воркер у Firefox), і 2 500 сидить на 23% нижче. Підняти
+ * до 3 000 означало б зрізати запас до 8% заради 20% глибини, маючи WebKit
+ * невиміряним, а число — рухливим від того, скільки стека витратив викликач
+ * (у Chromium той самий обхід дає 7 625 із зонда й 8 000 через `create()`).
+ *
+ * ⚠️ **І запас тут стереже не відмову, а смерть сторінки.** Зрив у WASM не
+ * завжди чистий: у Chromium **п'ятий поспіль** зрив на одному інстансі вбиває
+ * модуль назавжди — далі будь-який виклик, навіть глибини 500, кидає
+ * `RuntimeError: memory access out of bounds`. Причому виклик, який убив,
+ * сам повернув `RangeError`, тож **тип помилки не є ознакою виживання**.
+ * Firefox на 15 повторах не помер. Розбір і числа —
+ * `work/reports/row-tree-depth/browser-probe.md`.
+ *
+ * Lower this number rather than defend it.
  */
 export const MAX_ROW_TREE_DEPTH = 2_500;
 
