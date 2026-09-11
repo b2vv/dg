@@ -949,10 +949,14 @@ try {
 прототип, і `name` губляться по дорозі. `instanceof` там не спрацює — це властивість
 `postMessage`, не наша.
 
-⚠️ **`computeOrgRowTreeLayoutInWorker` хосту недоступний**, хоча раніше цей абзац називав саме
-його. Функція експортується лише всередині SDK (`layout/index.ts`), а `exports` пакета має
-`.`, `./react`, `./worker` і `./mappers` — підшляху `./layout` немає. Робіть це через
-`mapInWorker` із `@org-hierarchy/sdk/worker`, передавши `'computeOrgRowTreeLayout'`.
+**Як запустити розкладку у воркері:** `createTransformWorker()` і `mapInWorker(worker,
+'computeOrgRowTreeLayout', { organizations, expandedRootId, options })` — обидва з
+`@org-hierarchy/sdk/worker`. Воркер термінуєте ви; SDK своїм життєвим циклом чужі воркери не
+керує.
+
+⚠️ Обгортка `computeOrgRowTreeLayoutInWorker` **прибрана в `0.5.1`**: цей абзац називав саме її,
+а імпортувати її хост не міг ніколи — вона експортувалась лише всередині SDK, а `exports` пакета
+має `.`, `./react`, `./worker` і `./mappers`.
 
 ### Що поїхало з кореня
 

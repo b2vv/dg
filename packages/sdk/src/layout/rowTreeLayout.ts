@@ -37,11 +37,13 @@ function toOrgFlatInput(organizations: DiagramOrganization[]): OrgFlatInput[] {
  * root as depth 1.
  *
  * This is a contract, not a measurement of what happens to survive. Past it the
- * traversals below — and the two in Rust — run out of stack, and the way they
- * run out matters: up to about 4 000 the module throws and lives, but past
- * ~4 500 it traps with `memory access out of bounds` and every later call into
- * WASM fails, `computeAllContours` included. `initContourWasm` holds one
- * instance per process, so that is the whole SDK gone until the page reloads.
+ * traversals below — and the one left in Rust — run out of stack.
+ *
+ * ⚠️ **Тут стояло «до ~4 000 модуль кидає й живе, за ~4 500 труїться», і це
+ * спростовано** тим самим виміром, що нижче: на свіжій сторінці Chromium ковтає
+ * навіть 50 000 і кидає чистий `RangeError`. Труїть не глибина, а **повтор** —
+ * див. врізку в кінці. Згадка про `computeAllContours` застаріла ще раніше: у
+ * крейті контуру немає з T80, через межу ходить один виклик.
  *
  * 🔴 **Виміряно в браузері 2026-09-11 (T120 гілка А), і число лишається 2 500.**
  * Попередня редакція цього коментаря просила саме такого переміру: 2 500 було
@@ -284,27 +286,6 @@ export async function computeOrgLayout(
     width: Math.max(0, cursorX - gap),
     height,
   };
-}
-
-export async function computeOrgRowTreeLayoutInWorker(
-  organizations: DiagramOrganization[],
-  expandedRootId: string,
-  options: OrgLayoutOptions = {},
-): Promise<OrgLayoutResult> {
-  const { mapInWorker } = await import('../worker/bridge.js');
-  const { createTransformWorker } = await import('../worker/createWorker.js');
-  const worker = createTransformWorker();
-  try {
-    return await mapInWorker(
-      worker,
-      'computeOrgRowTreeLayout',
-      { organizations, expandedRootId, options },
-      undefined,
-      30_000,
-    );
-  } finally {
-    worker.terminate();
-  }
 }
 
 /** Worker handler body — also registered in compute-handlers */

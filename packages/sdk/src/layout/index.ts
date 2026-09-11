@@ -38,7 +38,6 @@ export { siblingOrgGroupBounds } from './siblingOrgGroups.js';
 export {
   computeOrgLayout,
   computeOrgRowTreeLayout,
-  computeOrgRowTreeLayoutInWorker,
   handleComputeOrgRowTreeLayout,
 } from './rowTreeLayout.js';
 
