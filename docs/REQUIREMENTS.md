@@ -40,7 +40,7 @@
 
 🔴 **Виправлено 2026-09-06.** Умова **локальна**, не глобальна: матрицею лягає **набір братів**
 (діти одного батька), усі **члени** якого згорнуті. Попередня редакція («усі org collapsed») була окремим випадком і тому
-виглядала правильною. Код досі реалізує стару — [T113](../work/tasks/T113-collapsed-children-should-be-a-matrix.md).
+виглядала правильною. Код досі реалізує стару — [T113](../work/archive/tasks-2026-09-11.md).
 
 | Стан **набору братів** | Режим |
 |------|-------|
@@ -470,7 +470,7 @@ Demo Variant B: `VARIANT_B_MAGNET_RADIUS = 1.5` (`packages/sdk`).
 
 **Контури dept:** кластеризація карток → rounded rect навколо компоненти → виїмки під чужі
 картки → polish. Один рушій, у TS, синхронно (оновлено 2026-09-08,
-[T80](../work/tasks/T80-contour-engines-ba-demo.md)): вибір `RenderConfig.contourEngine` і
+[T80](../work/archive/tasks-2026-09-11.md)): вибір `RenderConfig.contourEngine` і
 Rust-flood прибрані після рішення продукту, що C-форм навколо перемішаних відділів не буде.
 Експорт SVG малює **тим самим кодом**, що канвас; PNG/PDF беруться з фреймбуфера.
 
@@ -606,7 +606,7 @@ interface OrgHierarchyCallbacks {
 
 ### Фаза 2 — Org modes
 - [x] Matrix collapsed / row-tree expanded — ⚠️ **за старою, глобальною редакцією правила**;
-      локальну (набір братів) код ще не реалізує, див. §2.1 і [T113](../work/tasks/T113-collapsed-children-should-be-a-matrix.md)
+      локальну (набір братів) код ще не реалізує, див. §2.1 і [T113](../work/archive/tasks-2026-09-11.md)
 - [x] Search + path expand
 - [x] D&D порядку org у matrix
 - [x] Theme-aware org symbols (+ textures T23)

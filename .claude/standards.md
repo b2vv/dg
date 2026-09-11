@@ -176,7 +176,7 @@ TS `render/contour/paintMagneticGroups.ts` плюс виїмки G2/M2. Канв
 
 Попереднє формулювання цього абзацу вимагало питати «у якому з двох рушіїв правити» — питання
 знято разом із рушієм `'cell-flood'` і полем `RenderConfig.contourEngine`
-([T80](../work/tasks/T80-contour-engines-ba-demo.md)). Продукт підтвердив, що C-подібних контурів
+([T80](../work/archive/tasks-2026-09-11.md)). Продукт підтвердив, що C-подібних контурів
 у нього немає, тож Rust-flood лишився без замовника.
 
 ## Гілки й PR

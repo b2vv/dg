@@ -1,6 +1,6 @@
 # report — drop у зайняту клітину посуває, міняє або питає (T111)
 
-**Задача:** [T111](../../tasks/T111-move-onto-occupied-cell.md) · **Гілка:** `t111-seat-collision`
+**Задача:** [T111](../../archive/tasks-2026-09-11.md) · **Гілка:** `t111-seat-collision`
 **База:** `main` @ `6de2ff3` · **Комітів:** 7 · **Змержено:** `31b98b3`, запушено 2026-09-07
 **Спека:** [`spec.md`](./spec.md) · **План:** [`plan.md`](./plan.md) · **Критика:** [`_agent-critic.md`](./_agent-critic.md)
 **Хід робіт і смерті агентів:** [`../gojs-parity-wave/progress.md`](../gojs-parity-wave/progress.md)

@@ -1,6 +1,6 @@
 # spec — drop у зайняту клітину має посунути, поміняти або спитати
 
-**Задача:** [T111](../../tasks/T111-move-onto-occupied-cell.md)
+**Задача:** [T111](../../archive/tasks-2026-09-11.md)
 **Гілка:** `t111-seat-collision` · **База:** `main` @ `6de2ff3`
 **Поріг:** ⚠️ **вище** — `movePersonToCell` описаний у `docs/USAGE.md`, а `.claude/standards.md:118`
 визначає публічний API саме як «те, що описує `docs/USAGE.md`». Повний цикл.
