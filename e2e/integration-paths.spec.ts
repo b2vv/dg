@@ -4,6 +4,16 @@ import { expect, test, type Page } from '@playwright/test';
  * The paths a host integration actually uses — export, drag & drop, the mapper
  * entry and the promote overlay — none of which had e2e cover. Everything here
  * drives the demo the way a user does, not through the SDK API.
+ *
+ * 🔑 **Тут — «чи шлях узагалі працює», по одному разу на шлях.** Властивості
+ * експорту — чи він іде за **сценою** (розгорнули вузол → він у файлі) і за
+ * **камерою** (зум → інша роздільність растру) — живуть у `export.spec.ts`,
+ * бо вимагають **двох** експортів зі зміною між ними.
+ *
+ * ⚠️ Цей файл довго був невидимий для переліків: він зветься `integration-paths`,
+ * тож пошук за іменем «export» його не знаходить. Через це ризик 5 брифінгу
+ * роками стверджував, що наскрізних доказів експорту немає, — і один цикл
+ * роботи пішов на те, що вже існувало.
  */
 
 /**
