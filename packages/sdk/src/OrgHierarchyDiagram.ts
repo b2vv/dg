@@ -1755,6 +1755,21 @@ export class OrgHierarchyDiagram {
    * a stale answer by `occupantId` would recreate the very overlap this task
    * removes, by the "correct" path.
    */
+  /**
+   * Прибрати наслідки жесту після відмови — **без** перемальовування сцени.
+   *
+   * Усі шість точок відмови дропу приходять сюди, і це не стиль, а виправлення
+   * розбіжності: чотири з них робили повний `render()` (579 мс на сцені 1M за
+   * жест, який нічого не змінив — вимір ризику 30), а одна не робила **нічого**,
+   * лишаючи картку там, куди її кинув вказівник.
+   *
+   * Дані на всіх цих гілках недоторкані: кожна кидає **до** `commitDataChange`.
+   * Тож відкочувати нема чого — і повний кадр тут ніколи не був відкатом.
+   */
+  private restoreAfterRefusedDrop(positionId: string): void {
+    this.renderer?.restoreAfterRefusedDrop(positionId);
+  }
+
   private async settleSeatCollision(
     positionId: string,
     target: GridCell,
@@ -1762,13 +1777,13 @@ export class OrgHierarchyDiagram {
   ): Promise<Exclude<SeatDrop, { kind: 'ask' }>> {
     const handler = this.callbacks.onSeatCollision;
     if (!handler) {
-      await this.render();
+      this.restoreAfterRefusedDrop(positionId);
       throw new InteractionError(
         `Cell (${target.col}, ${target.row}) needs a choice between ${positionId} and ${ask.occupantId}, and no onSeatCollision handler is set`,
       );
     }
     if (this.seatCollisionPending) {
-      await this.render();
+      this.restoreAfterRefusedDrop(positionId);
       throw new InteractionError(
         `Another seat collision is already awaiting a choice; drop on (${target.col}, ${target.row}) refused`,
       );
@@ -1789,7 +1804,7 @@ export class OrgHierarchyDiagram {
 
     if (!choice) {
       // A dismissed dialog is a cancel, not a choice (spec A5).
-      await this.render();
+      this.restoreAfterRefusedDrop(positionId);
       throw new InteractionError(
         `Seat collision on (${target.col}, ${target.row}) was cancelled`,
       );
@@ -1806,7 +1821,9 @@ export class OrgHierarchyDiagram {
       from: mover?.gridCell,
     });
     if (fresh.kind !== 'ask' || fresh.occupantId !== ask.occupantId) {
-      await this.render();
+      // Дані зрушили — але їхній власний кадр уже пройшов, тож бокс свіжий, і
+      // повертати треба саме картку жесту.
+      this.restoreAfterRefusedDrop(positionId);
       throw new InteractionError(
         `The data moved while the seat collision on (${target.col}, ${target.row}) was open; the answer no longer applies`,
       );
@@ -1818,6 +1835,10 @@ export class OrgHierarchyDiagram {
       (c) => c.col === choice.to.col && c.row === choice.to.row,
     );
     if (!offered) {
+      // ⚠️ Ця гілка єдина не повертала картку **взагалі** — ні кадром, ні
+      // точково, тож після неї вона лишалась там, куди її кинув вказівник.
+      // Розбіжність видно було лише поруч із рештою чотирьох.
+      this.restoreAfterRefusedDrop(positionId);
       throw new InteractionError(
         `Cell (${choice.to.col}, ${choice.to.row}) was not among the push targets offered for this collision`,
       );
@@ -1833,7 +1854,7 @@ export class OrgHierarchyDiagram {
       drop = resolveSeatDrop({ positions: this.data.positions, positionId, target, from: mover?.gridCell });
     } catch (err) {
       if (err instanceof InteractionError) {
-        await this.render();
+        this.restoreAfterRefusedDrop(positionId);
       }
       throw err;
     }
@@ -1845,7 +1866,11 @@ export class OrgHierarchyDiagram {
       positions = applySeatDrop(this.data.positions, positionId, target, drop);
     } catch (err) {
       if (err instanceof InteractionError) {
-        await this.render();
+        // 🔴 Було `await this.render()` — повний кадр **за жест, який нічого не
+        // змінив**: 579 мс на сцені 1M (вимір ризику 30). Дані тут недоторкані,
+        // бо обидві відмови кидають **до** `commitDataChange`, тож відкочувати
+        // нічого — лише прибрати наслідки жесту, і це O(1).
+        this.restoreAfterRefusedDrop(positionId);
       }
       throw err;
     }

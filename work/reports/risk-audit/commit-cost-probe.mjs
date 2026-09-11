@@ -5,7 +5,7 @@
  *   3) для порівняння — те саме на `Variant B`.
  * Міряємо і `await`, і найдовший кадр після виклику.
  */
-import { chromium } from '/Users/strelia/projects/dg/.claude/worktrees/t109/node_modules/playwright/index.mjs';
+import { chromium } from 'playwright';
 
 const browser = await chromium.launch();
 
@@ -31,14 +31,18 @@ async function timed(page, id, col, row) {
         raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);
-      await new Promise((res) => setTimeout(res, 350));
+      await new Promise((res) => {
+        setTimeout(res, 350);
+      });
       const base = Math.max(...frames);
       frames.length = 0;
       const before = window.__demoE2e.getLayoutPatchLog().length;
       const t0 = performance.now();
       const err = await window.__demoE2e.moveSeat(pid, c, r);
       const call = performance.now() - t0;
-      await new Promise((res) => setTimeout(res, 900));
+      await new Promise((res) => {
+        setTimeout(res, 900);
+      });
       cancelAnimationFrame(raf);
       return {
         err,

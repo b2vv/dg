@@ -145,6 +145,50 @@ describe('OrgHierarchyDiagram interactions', () => {
     document.body.removeChild(container);
   });
 
+  it('failure: a refused drop puts the card back WITHOUT a full render (ризик 30)', async () => {
+    // Відмовлений дроп коштував повного `render()` — **579 мс на сцені 1M за
+    // жест, який нічого не змінив** (вимір ризику 30). Дані на цій гілці
+    // недоторкані: обидві відмови кидають **до** `commitDataChange`, тож
+    // відкочувати нема чого — треба лише прибрати наслідки самого жесту.
+    const { container, diagram } = await mount();
+    const internals = diagram as unknown as {
+      host: { renderer: { render: (...a: unknown[]) => Promise<void> } };
+      renderer: { getNodeBox(id: string): { x: number; y: number } | undefined };
+    };
+
+    const home = internals.renderer.getNodeBox('position:P1');
+    expect(home).toBeTruthy();
+
+    // Жест лишає картку там, куди її кинув вказівник: на успішному снапі
+    // `personInteractions` її **не** повертає, а передає фасаду.
+    const view = (
+      diagram as unknown as {
+        renderer: { scene: { getView(k: string, id: string): { x: number; y: number } | undefined } };
+      }
+    ).renderer.scene.getView('position', 'P1')!;
+    view.x = home!.x + 137;
+    view.y = home!.y + 211;
+
+    let frames = 0;
+    const inner = internals.host.renderer.render.bind(internals.host.renderer);
+    internals.host.renderer.render = (...a: unknown[]) => {
+      frames += 1;
+      return inner(...a);
+    };
+
+    await expect(diagram.movePersonToCell('P1', 1, 1)).rejects.toThrow(InteractionError);
+
+    // 🔴 Половина, заради якої тест існує.
+    expect(frames).toBe(0);
+    // А друга — що картка все-таки вдома, інакше «нуль кадрів» був би
+    // досягнутий тим, що не зробили нічого.
+    expect(view.x).toBe(home!.x);
+    expect(view.y).toBe(home!.y);
+
+    diagram.destroy();
+    document.body.removeChild(container);
+  });
+
   it('success: movePersonToCell pushes the occupant when the far cell is free (T111-K3, A2, A3)', async () => {
     // P2(1,0) dropped onto P3(2,0): direction is +col, and (3,0) is free, so
     // P3 is pushed there rather than the drop being refused (T111-K2's blunt

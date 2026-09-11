@@ -356,6 +356,29 @@ export class DiagramRenderer {
     if (view) view.position.set(displaced.x, displaced.y);
   }
 
+  /**
+   * Повернути жест на місце **без** перемальовування сцени (ризик 30).
+   *
+   * Відмовлений дроп коштував повного `render()` — 579 мс на сцені 1M **за
+   * жест, який нічого не змінив**. Дані на цих гілках недоторкані (усі відмови
+   * кидають **до** `commitDataChange`), тож відкочувати нічого: треба лише
+   * прибрати наслідки самого жесту.
+   *
+   * 🔑 Домівка картки береться з **боксу останнього намальованого кадру**, і це
+   * правильно навіть тоді, коли сцену перебудували під час `ask`: `rememberBox`
+   * оновлюється на кожен кадр, тож бокс завжди каже, де картка **має** бути за
+   * останньою намальованою правдою. Якщо позиції вже немає, `getView` віддасть
+   * `undefined` — і повертати нічого.
+   */
+  restoreAfterRefusedDrop(positionId: string): void {
+    const view = this.scene.getView('position', positionId);
+    const box = this.scene.getBox(`position:${positionId}`);
+    if (view && box) view.position.set(box.x, box.y);
+    this.contours.restoreAfterFailedDrag();
+    this.restoreCards();
+    this.onNeedsPaint?.();
+  }
+
   private registerView(kind: NodeWorldBox['kind'], id: string, view: Container): void {
     this.scene.registerView(kind, id, view);
   }

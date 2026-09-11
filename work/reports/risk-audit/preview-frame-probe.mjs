@@ -10,7 +10,7 @@
  * Три прогони на вкладку: одне число на цій машині нічого не варте, три дають
  * розкид.
  */
-import { chromium } from '/Users/strelia/projects/dg/.claude/worktrees/t109/node_modules/playwright/index.mjs';
+import { chromium } from 'playwright';
 
 const BASE = 'http://127.0.0.1:4173/?e2e=1';
 const ZOOM = 1.6;
