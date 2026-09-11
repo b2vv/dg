@@ -11,9 +11,9 @@ const BTN = 22;
  * Сторона квадратної chrome-кнопки (icon-варіант), px.
  *
  * ⚠️ Розмір кнопки **не можна** виводити з `hitArea`: gojs-варіант експандера
- * кладе туди `contains`-функцію без `width`/`height`, тож `chromeBtnSize`
- * повертає для нього 22 замість справжніх 26 (`orgNodeChrome.ts`, `EXPANDER_D`).
- * Тому бокс кнопки для тест-якоря (T115 крок 2) віддає **той, хто її будує**.
+ * кладе туди `contains`-функцію без `width`/`height`, тобто 26×26 звідти не
+ * прочитати (`orgNodeChrome.ts`, `EXPANDER_D`). Тому бокс кнопки для тест-якоря
+ * (T115 крок 2) віддає **той, хто її будує**, а не той, хто її міряє.
  */
 export { BTN as CHROME_BTN_SIZE };
 
@@ -26,13 +26,10 @@ export function pointerClientCoords(e: FederatedPointerEvent): ContextMenuPointe
   };
 }
 
-const chromeHandlers = new WeakMap<Container, (e: FederatedPointerEvent) => void>();
-
 function wireChromeButton(btn: Container, onActivate: (e: FederatedPointerEvent) => void): void {
   btn.eventMode = 'static';
   btn.cursor = 'pointer';
   btn.hitArea = new Rectangle(0, 0, BTN, BTN);
-  chromeHandlers.set(btn, onActivate);
   btn.on('pointerdown', (e) => e.stopPropagation());
   btn.on('pointertap', (e) => {
     e.stopPropagation();
@@ -98,47 +95,4 @@ export function attachIconButton(
 
   host.addChild(btn);
   return btn;
-}
-
-/** Manual hit-test for chrome controls (Pixi child targeting can miss small buttons). */
-function chromeBtnSize(child: Container): { w: number; h: number } {
-  const ha = child.hitArea;
-  if (ha && typeof ha === 'object' && 'width' in ha && 'height' in ha) {
-    const w = Number((ha as { width: number }).width);
-    const h = Number((ha as { height: number }).height);
-    if (w > 0 && h > 0) return { w, h };
-  }
-  return { w: BTN, h: BTN };
-}
-
-export function hitChromePointer(chromeControls: Container, e: FederatedPointerEvent): boolean {
-  if (chromeControls.children.length === 0) return false;
-  const local = e.getLocalPosition(chromeControls);
-  for (const child of chromeControls.children) {
-    const { w, h } = chromeBtnSize(child);
-    const bx = child.x;
-    const by = child.y;
-    if (local.x >= bx && local.x <= bx + w && local.y >= by && local.y <= by + h) {
-      return true;
-    }
-  }
-  return false;
-}
-
-export function activateChromePointer(chromeControls: Container, e: FederatedPointerEvent): boolean {
-  if (!hitChromePointer(chromeControls, e)) return false;
-  const local = e.getLocalPosition(chromeControls);
-  for (const child of chromeControls.children) {
-    const { w, h } = chromeBtnSize(child);
-    const bx = child.x;
-    const by = child.y;
-    if (local.x >= bx && local.x <= bx + w && local.y >= by && local.y <= by + h) {
-      const handler = chromeHandlers.get(child);
-      if (handler) {
-        handler(e);
-        return true;
-      }
-    }
-  }
-  return false;
 }

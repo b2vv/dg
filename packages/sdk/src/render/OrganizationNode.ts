@@ -9,12 +9,9 @@ import type { LodLevel } from './lod.js';
 import type { OrganizationNodeStyle } from './types.js';
 import {
   attachMenuButton,
-  activateChromePointer,
-  hitChromePointer,
   type ContextMenuPointer,
 } from './nodeCardChrome.js';
 import { mountOrgNodeChrome, type ChromeBox, type OrgNodeChrome } from './orgNodeChrome.js';
-import type { FederatedPointerEvent } from 'pixi.js';
 import {
   verticalBodyMetrics,
   resolveOrgSymbolLayout,
@@ -234,16 +231,6 @@ export class OrganizationNodeView extends Container {
    */
   expanderBox(): ChromeBox | undefined {
     return this.mountedExpanderBox;
-  }
-
-  /** Route pointer to expand chrome when Pixi child hit-test misses. */
-  activateChromePointer(e: FederatedPointerEvent): boolean {
-    if (this.chromeControls.children.length === 0) return false;
-    return activateChromePointer(this.chromeControls, e);
-  }
-
-  isChromePointer(e: FederatedPointerEvent): boolean {
-    return hitChromePointer(this.chromeControls, e);
   }
 
   private isGojsVertical(style: OrganizationNodeStyle): boolean {

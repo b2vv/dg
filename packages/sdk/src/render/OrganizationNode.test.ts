@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, rstest } from '@rstest/core';
-import { Texture } from 'pixi.js';
+import { Texture, type Container } from 'pixi.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
 import { configureNodeTextureLoader, clearNodeTextureCache } from '../media/nodeMedia.js';
 import { defaultNodeTheme } from './types.js';
@@ -129,14 +129,19 @@ describe('OrganizationNodeView', () => {
       'near',
       { onContextMenu: onMenu },
     );
-    const menuX = defaultNodeTheme.organization.width - 22 - 4 + 10;
-    const e = {
-      getLocalPosition: () => ({ x: menuX, y: 14 }),
+    // ⚠️ Через **власний** `pointertap` кнопки, а не через ручний фолбек
+    // хіт-тесту: фолбек видалено (T123, виміряно, що він не спрацьовував
+    // жодного разу). Контракт той самий — «⋮ кличе `onContextMenu`», — змінився
+    // лише шлях, яким подія до кнопки доходить.
+    const chrome = (view as unknown as { chromeControls: { children: Container[] } })
+      .chromeControls;
+    const menu = chrome.children.find((c) => c.label === 'org-menu');
+    expect(menu).toBeTruthy();
+    menu!.emit('pointertap', {
       clientX: 120,
       clientY: 80,
       stopPropagation: () => {},
-    } as never;
-    expect(view.activateChromePointer(e)).toBe(true);
+    } as never);
     expect(onMenu).toHaveBeenCalledWith({ clientX: 120, clientY: 80 });
   });
 

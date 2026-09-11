@@ -155,11 +155,6 @@ export class PersonInteractions {
         return;
       }
       if (this.drag?.moved) return;
-      if (node.activateChromePointer(e)) {
-        this.deps.doubleTap.reset();
-        e.stopPropagation();
-        return;
-      }
       e.stopPropagation();
       const mods = readSelectionPointerMods(e);
       // Modifier+click toggles set membership — do not feed double-tap expand (T69).
@@ -184,10 +179,10 @@ export class PersonInteractions {
       // A new press starts a new gesture: whatever the last one left behind
       // must not swallow this one's tap.
       this.tapAfterDrag = false;
-      if (node.isChromePointer(e)) {
-        e.stopPropagation();
-        return;
-      }
+      // Натиск на chrome сюди не доходить: `wireChromeButton` ковтає власний
+      // `pointerdown` на самій кнопці, тож драг від неї не почнеться. Раніше
+      // тут стояла ще й ручна перевірка — вона знята разом із фолбеком
+      // хіт-тесту (T123), бо її область ніколи не була більшою за кнопку.
       // Drag only where the card is a card. Below `near` a seat is a compressed
       // strip (mid) or a dot (far), so a drag there aims at something the user
       // cannot see and drops it somewhere they did not choose. Falling through

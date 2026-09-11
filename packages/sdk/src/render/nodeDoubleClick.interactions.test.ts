@@ -165,21 +165,22 @@ describe('onNodeDoubleClick (T69)', () => {
     ) as unknown as OrganizationNodeView | undefined;
     expect(node).toBeTruthy();
 
-    const chrome = (node as unknown as { chromeControls: { children: { x: number; y: number }[] } })
-      .chromeControls;
+    const chrome = (node as unknown as {
+      chromeControls: { children: { x: number; y: number; emit(n: string, e: unknown): void }[] };
+    }).chromeControls;
     const btn = chrome.children[0]!;
-    const chromeTap = tapEvent({ x: btn.x + 11, y: btn.y + 11 });
 
-    // T52 chrome wins (expand or collapse affordance) — body click/dblclick stay quiet.
-    expect(node!.activateChromePointer(chromeTap as never)).toBe(true);
+    // T52 chrome wins — але з 2026-09-11 це забезпечує сама кнопка
+    // (`wireChromeButton` робить `stopPropagation`), а не картка: ручний
+    // фолбек хіт-тесту видалено (T123, виміряно, що він не спрацьовував).
+    //
+    // 🔴 **Тут лишилось те, що jsdom ще вміє довести, і не більше.** «Клік по
+    // кнопці не доходить до картки» вимагає справжнього таргетингу Pixi й
+    // справжнього спливання — у jsdom їх немає, тож емуляція `emit` на вузлі
+    // доводила б лише те, як написаний тест. Цей бік контракту перевіряє
+    // `e2e/chrome-hit.spec.ts` **у браузері**, на намальованій кнопці.
+    btn.emit('pointertap', tapEvent({ x: 0, y: 0 }));
     expect(onExpand.mock.calls.length + onCollapse.mock.calls.length).toBe(1);
-    onExpand.mockClear();
-    onCollapse.mockClear();
-
-    // Same path as production: pointertap → activateChromePointer first.
-    node!.emit('pointertap', chromeTap);
-    node!.emit('pointertap', chromeTap);
-    expect(onExpand.mock.calls.length + onCollapse.mock.calls.length).toBe(2);
     expect(onOrgClick).not.toHaveBeenCalled();
     expect(onOrgDoubleClick).not.toHaveBeenCalled();
 

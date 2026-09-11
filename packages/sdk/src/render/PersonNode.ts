@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite, Text, type FederatedPointerEvent, type Texture } from 'pixi.js';
+import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js';
 import type { DiagramPerson, DiagramPosition } from '../data/types.js';
 import type { LodLevel } from './lod.js';
 import { loadNodeTexture, type NodeTextureLoader } from '../media/nodeMedia.js';
@@ -13,8 +13,6 @@ import type { PersonNodeStyle } from './types.js';
 import {
   attachMenuButton,
   attachIconButton,
-  activateChromePointer,
-  hitChromePointer,
   type ContextMenuPointer,
 } from './nodeCardChrome.js';
 import {
@@ -258,15 +256,6 @@ export class PersonNodeView extends Container {
 
   hasPendingMarker(): boolean {
     return this.pendingMarker.visible;
-  }
-
-  activateChromePointer(e: FederatedPointerEvent): boolean {
-    if (this.chromeControls.children.length === 0) return false;
-    return activateChromePointer(this.chromeControls, e);
-  }
-
-  isChromePointer(e: FederatedPointerEvent): boolean {
-    return hitChromePointer(this.chromeControls, e);
   }
 
   private applyChrome(

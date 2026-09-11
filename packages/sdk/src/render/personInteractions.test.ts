@@ -15,13 +15,11 @@ const GRID: DragGrid = {
 };
 
 /** Stand-in for the seat view: a positioned container that records listeners. */
-function fakeSeat(chrome: { isChrome?: boolean } = {}) {
+function fakeSeat() {
   const listeners = new Map<string, (e: never) => void>();
   const node = new Container();
   node.position.set(GRID.originX + GRID.insetX, GRID.originY + GRID.insetY);
   Object.assign(node, {
-    activateChromePointer: () => false,
-    isChromePointer: () => chrome.isChrome === true,
     on(event: string, fn: (e: never) => void) {
       listeners.set(event, fn);
       return node;
@@ -138,20 +136,15 @@ describe('PersonInteractions', () => {
     expect(seat.raw.x).toBe(GRID.originX + GRID.insetX);
   });
 
-  it('failure: a pointer that started on card chrome never begins a drag', () => {
-    const h = harness();
-    const seat = fakeSeat({ isChrome: true });
-    const onPersonDragEnd = rstest.fn();
-    h.interactions.bind(seat.node, bindArgs({ onPersonDragEnd }));
-
-    seat.fire('pointerdown', { global: { x: 42, y: 26 } });
-    seat.fire('globalpointermove', { global: { x: 42 + GRID.pitchX, y: 26 } });
-    seat.fire('pointerup');
-
-    expect(h.previews).toEqual([]);
-    expect(onPersonDragEnd).not.toHaveBeenCalled();
-  });
-
+  /**
+   * ⚠️ Тут стояв тест «натиск, що почався на chrome картки, не починає драг». Він
+   * ставив фейковому місцю `isChromePointer: () => true`, тобто симулював ручну
+   * перевірку, яку T123 зняв разом із фолбеком.
+   *
+   * Драг і далі не почнеться — але через те, що `wireChromeButton` ковтає
+   * `pointerdown` **на самій кнопці**, тож сюди подія не доходить. Механізм
+   * запінений у `nodeCardChrome.test.ts`.
+   */
   it('failure: reset drops an in-flight drag, so the old card cannot finish it', () => {
     const h = harness();
     const seat = fakeSeat();

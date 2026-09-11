@@ -42,11 +42,6 @@ export function bindOrgCardInteractions(
 
   view.on('pointertap', (e) => {
     if (!isPrimaryPointerTap(e)) return;
-    if (view.activateChromePointer(e)) {
-      doubleTap.reset();
-      e.stopPropagation();
-      return;
-    }
     e.stopPropagation();
     const mods = readSelectionPointerMods(e);
     // Modifier+click toggles set membership — do not feed double-tap (T69).
@@ -64,12 +59,9 @@ export function bindOrgCardInteractions(
   });
 
   view.on('pointerdown', (e) => {
-    // Chrome (+/− expander, menu) handles its own pointer; the card swallows
-    // the rest so a click never reaches the canvas behind it.
-    if (view.isChromePointer(e)) {
-      e.stopPropagation();
-      return;
-    }
+    // Chrome (+/− expander, menu) ковтає свій `pointerdown` сама
+    // (`wireChromeButton`), тож сюди подія з кнопки не доходить. Картка ковтає
+    // решту, щоб клік не провалився на канву за нею.
     e.stopPropagation();
   });
 

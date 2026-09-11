@@ -4,15 +4,13 @@ import { bindOrgCardInteractions } from './orgCardInteractions.js';
 import type { OrganizationNodeView } from './OrganizationNode.js';
 
 /** Minimal stand-in for the Pixi view: records listeners, answers chrome hits. */
-function fakeCard(chrome: { activates?: boolean; isChrome?: boolean } = {}) {
+function fakeCard() {
   const listeners = new Map<string, (e: never) => void>();
   const view = {
     on(event: string, fn: (e: never) => void) {
       listeners.set(event, fn);
       return view;
     },
-    activateChromePointer: () => chrome.activates === true,
-    isChromePointer: () => chrome.isChrome === true,
   };
   const fire = (event: string, e: Record<string, unknown> = {}) => {
     listeners.get(event)?.({
@@ -82,22 +80,18 @@ describe('bindOrgCardInteractions', () => {
     expect(onSingleTap).toHaveBeenCalledTimes(1);
   });
 
-  it('failure: a tap consumed by card chrome fires nothing', () => {
-    const card = fakeCard({ activates: true });
-    const h = handlers();
-    const onSingleTap = rstest.fn();
-    bindOrgCardInteractions(card.view, {
-      orgId: 'o1',
-      doubleTap: new DoubleTapTracker(),
-      handlers: h,
-      onSingleTap,
-    });
-
-    card.fire('pointertap');
-    expect(onSingleTap).not.toHaveBeenCalled();
-    expect(h.onOrgClick).not.toHaveBeenCalled();
-  });
-
+  /**
+   * ⚠️ Тут стояв тест «тап, з'їдений chrome картки, не викликає нічого». Він
+   * ставив фейковій картці `activateChromePointer: () => true` — тобто
+   * симулював **ручний фолбек хіт-тесту**, якого з T123 немає: виміряно, що він
+   * не спрацьовував жодного разу, а його область ніколи не була більшою за саму
+   * кнопку.
+   *
+   * Гарантію тепер несе `wireChromeButton`: кнопка ковтає власні `pointerdown` і
+   * `pointertap`, тож до картки вони не доходять. Механізм запінений у
+   * `nodeCardChrome.test.ts`, а **продакшн-шлях** — у `e2e/chrome-hit.spec.ts`,
+   * бо він вимагає справжнього таргетингу Pixi, якого в jsdom немає.
+   */
   it('failure: a non-primary pointer is ignored; right-click reports the pointer', () => {
     const card = fakeCard();
     const h = handlers();

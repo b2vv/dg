@@ -9,7 +9,7 @@ import { defaultContextMenuItems } from '../interaction/contextMenu.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
 import { PersonNodeView } from './PersonNode.js';
 import { defaultNodeTheme } from './types.js';
-import type { FederatedPointerEvent } from 'pixi.js';
+import type { Container, FederatedPointerEvent } from 'pixi.js';
 import type { PixiHost } from './PixiHost.js';
 
 function orgTreeData(): DiagramData {
@@ -75,6 +75,21 @@ function hostOf(diagram: OrgHierarchyDiagram): PixiHost {
  * the return keeps the call sites checked while saying, once, that the object is
  * a stub.
  */
+/**
+ * Кнопка ⋮ у chrome вузла — org чи person однаково.
+ *
+ * Існує тому, що T123 прибрав ручний фолбек хіт-тесту: раніше тест бив у
+ * `activateChromePointer` координатою, тепер — у власний `pointertap` кнопки.
+ * Контракт CTX-4 від цього не змінився, змінився лише шлях до нього.
+ */
+function menuButtonOf(view: object): Container {
+  const chrome = (view as unknown as { chromeControls: { children: Container[] } })
+    .chromeControls;
+  const btn = chrome.children.find((c) => c.label === 'org-menu' || c.label === 'person-menu');
+  if (!btn) throw new Error('menu button not mounted');
+  return btn;
+}
+
 function pointerEvent(
   local: Partial<{ x: number; y: number }> = {},
   extra: { button?: number; ctrlKey?: boolean; shiftKey?: boolean } = {},
@@ -209,9 +224,9 @@ describe('NODE interactions contract', () => {
         'near',
         { onContextMenu: onMenu },
       );
-      const menuX = defaultNodeTheme.organization.width - 22 - 4 + 10;
-      const e = pointerEvent({ x: menuX, y: 14 });
-      expect(view.activateChromePointer(e as never)).toBe(true);
+      // Через власний `pointertap` кнопки — ручний фолбек хіт-тесту видалено
+      // (T123). Контракт CTX-4 не змінився: ⋮ кличе `onContextMenu`.
+      menuButtonOf(view).emit('pointertap', pointerEvent({ x: 0, y: 0 }) as never);
       expect(onMenu).toHaveBeenCalledWith({ clientX: 120, clientY: 80 });
     });
 
@@ -232,8 +247,7 @@ describe('NODE interactions contract', () => {
         { onContextMenu: onMenu },
       );
       expect(view.hasMenuButton()).toBe(true);
-      const e = pointerEvent({ x: 14, y: 14 });
-      expect(view.activateChromePointer(e as never)).toBe(true);
+      menuButtonOf(view).emit('pointertap', pointerEvent({ x: 0, y: 0 }) as never);
       expect(onMenu).toHaveBeenCalledWith({ clientX: 120, clientY: 80 });
     });
   });

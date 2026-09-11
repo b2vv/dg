@@ -1,6 +1,6 @@
 import { describe, expect, it, rstest } from '@rstest/core';
 import { Container, Rectangle, type FederatedPointerEvent } from 'pixi.js';
-import { attachIconButton, attachMenuButton, hitChromePointer, pointerClientCoords } from './nodeCardChrome.js';
+import { attachIconButton, attachMenuButton, pointerClientCoords } from './nodeCardChrome.js';
 
 describe('nodeCardChrome', () => {
   it('success: menu button has hitArea and fires on pointertap', () => {
@@ -27,6 +27,29 @@ describe('nodeCardChrome', () => {
     expect(onTap).toHaveBeenCalledOnce();
   });
 
+  it('success: a wired button swallows pointerdown AND pointertap', () => {
+    // Обидва `stopPropagation` — запобіжник, і це виміряно, а не припущено:
+    // у браузері зняття того, що на `pointertap`, **нічого не змінює** (клік і
+    // так належить кнопці, бо вона ціль Pixi; валить тест лише
+    // `eventMode: 'none'` — див. `e2e/chrome-hit.spec.ts`).
+    //
+    // Тест лишається тому, що пінить **намір**: після зняття ручного фолбеку
+    // (T123) це єдине місце, де код каже «подія кнопки далі не йде». Той, хто
+    // прибере ці рядки як зайві, має спершу побачити це червоне.
+    const host = new Container();
+    const onTap = rstest.fn();
+    const btn = attachIconButton(host, 0, 0, '+', 'Expand', onTap);
+
+    const down = rstest.fn();
+    btn.emit('pointerdown', { stopPropagation: down } as unknown as FederatedPointerEvent);
+    expect(down).toHaveBeenCalledTimes(1);
+
+    const tap = rstest.fn();
+    btn.emit('pointertap', { stopPropagation: tap } as unknown as FederatedPointerEvent);
+    expect(tap).toHaveBeenCalledTimes(1);
+    expect(onTap).toHaveBeenCalledTimes(1);
+  });
+
   it('success: pointerClientCoords falls back to nativeEvent', () => {
     const coords = pointerClientCoords({
       clientX: Number.NaN,
@@ -34,15 +57,5 @@ describe('nodeCardChrome', () => {
       nativeEvent: { clientX: 5, clientY: 6 } as PointerEvent,
     } as never);
     expect(coords).toEqual({ clientX: 5, clientY: 6 });
-  });
-
-  it('success: hitChromePointer detects button bounds', () => {
-    const host = new Container();
-    attachMenuButton(host, 200, 4, () => {}, 160);
-    const e = {
-      getLocalPosition: (target: Container) => target.toLocal({ x: 170, y: 15 }),
-    } as unknown as FederatedPointerEvent;
-    expect(hitChromePointer(host, e)).toBe(true);
-    expect(hitChromePointer(host, { getLocalPosition: () => ({ x: 0, y: 0 }) } as unknown as FederatedPointerEvent)).toBe(false);
   });
 });
