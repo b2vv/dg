@@ -10,10 +10,10 @@ const BTN = 22;
 /**
  * Сторона квадратної chrome-кнопки (icon-варіант), px.
  *
- * ⚠️ Розмір кнопки **не можна** виводити з `hitArea`: gojs-варіант експандера
- * кладе туди `contains`-функцію без `width`/`height`, тобто 26×26 звідти не
- * прочитати (`orgNodeChrome.ts`, `EXPANDER_D`). Тому бокс кнопки для тест-якоря
- * (T115 крок 2) віддає **той, хто її будує**, а не той, хто її міряє.
+ * ⚠️ Це розмір **icon**-варіанта. Gojs-експандер має власний (`EXPANDER_D`, 26)
+ * і передає його в {@link wireChromeButton}. Бокс кнопки для тест-якоря
+ * (T115 крок 2) усе одно віддає **той, хто її будує**, а не той, хто її міряє:
+ * два вирази, що мусять збігатись, розійдуться тихо.
  */
 export { BTN as CHROME_BTN_SIZE };
 
@@ -26,10 +26,28 @@ export function pointerClientCoords(e: FederatedPointerEvent): ContextMenuPointe
   };
 }
 
-function wireChromeButton(btn: Container, onActivate: (e: FederatedPointerEvent) => void): void {
+/**
+ * Єдине місце, де chrome-кнопка стає інтерактивною.
+ *
+ * 🔑 **Тримає інваріант, який після T123 став несучим:** кожна chrome-кнопка
+ * ковтає **власні** `pointerdown` і `pointertap`. Перший не дає почати драг
+ * місця, другий — виділити картку. Доти ці дві гарантії дублювались ручною
+ * перевіркою на картці; її зняли, бо її область ніколи не була більшою за саму
+ * кнопку.
+ *
+ * `size` існує заради gojs-експандера (26 замість 22): він раніше вішав
+ * слухачі сам і клав у `hitArea` `contains`-функцію **без** `width`/`height`.
+ * Розбіжність коштувала недійсного виміру в T123 і лишала його єдиною кнопкою
+ * поза цим інваріантом.
+ */
+export function wireChromeButton(
+  btn: Container,
+  onActivate: (e: FederatedPointerEvent) => void,
+  size: number = BTN,
+): void {
   btn.eventMode = 'static';
   btn.cursor = 'pointer';
-  btn.hitArea = new Rectangle(0, 0, BTN, BTN);
+  btn.hitArea = new Rectangle(0, 0, size, size);
   btn.on('pointerdown', (e) => e.stopPropagation());
   btn.on('pointertap', (e) => {
     e.stopPropagation();

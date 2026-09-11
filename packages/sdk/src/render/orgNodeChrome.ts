@@ -1,8 +1,9 @@
-import { Container, Graphics, Text, type FederatedPointerEvent } from 'pixi.js';
+import { Container, Graphics, Text } from 'pixi.js';
 import {
   CHROME_BTN_SIZE,
   attachIconButton,
   attachMenuButton,
+  wireChromeButton,
   type ContextMenuPointer,
 } from './nodeCardChrome.js';
 
@@ -70,9 +71,6 @@ export function mountGojsTreeChrome(
   const btn = new Container();
   btn.x = cx - EXPANDER_D / 2;
   btn.y = cy - EXPANDER_D / 2;
-  btn.eventMode = 'static';
-  btn.cursor = 'pointer';
-  btn.hitArea = { contains: (x, y) => x >= 0 && y >= 0 && x <= EXPANDER_D && y <= EXPANDER_D };
 
   const circle = new Graphics();
   circle.circle(EXPANDER_D / 2, EXPANDER_D / 2, EXPANDER_D / 2);
@@ -88,12 +86,13 @@ export function mountGojsTreeChrome(
   glyph.eventMode = 'none';
   btn.addChild(glyph);
 
-  const onTap = () => (chrome.collapsed ? chrome.onExpand() : chrome.onCollapse());
-  btn.on('pointerdown', (e: FederatedPointerEvent) => e.stopPropagation());
-  btn.on('pointertap', (e: FederatedPointerEvent) => {
-    e.stopPropagation();
-    onTap();
-  });
+  // Через спільний `wireChromeButton`, а не вручну (правка після рев'ю T123).
+  // Раніше ця кнопка була **єдиною**, що вішала слухачі сама — і тому єдиною
+  // поза інваріантом «chrome ковтає власний `pointerdown`», який після
+  // видалення ручного фолбеку став несучим. Мутація «прибрати те ковтання» не
+  // валила жодного тесту. Заразом зникає `contains`-функція без розмірів, через
+  // яку `hitArea` тут неможливо було прочитати.
+  wireChromeButton(btn, () => (chrome.collapsed ? chrome.onExpand() : chrome.onCollapse()), EXPANDER_D);
 
   host.addChild(btn);
   btn.label = 'org-expand';
