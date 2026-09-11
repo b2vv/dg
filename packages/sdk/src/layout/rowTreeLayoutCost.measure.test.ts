@@ -7,6 +7,9 @@ import { resetContourWasmForTests, setContourWasmLoaderForTests } from '../conto
 import type { DiagramOrganization } from '../data/types.js';
 
 /**
+ * ⚠️ **Не входить у дефолтну сюїту** (`rstest.config.ts` → `exclude`): усе в цьому файлі
+ * читає годинник. Запуск: `npm run measure -w @org-hierarchy/sdk`.
+ *
  * T102 блок Б, приймальні рядки **B3** і **B4** — `work/reports/row-tree-depth/spec.md`.
  *
  * 🔑 **Цей файл кріпить ФОРМУ КРИВОЇ, а не мілісекунди.** Стенд шумить: власний
