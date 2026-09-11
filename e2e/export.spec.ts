@@ -51,7 +51,7 @@ async function exportFile(page: Page, format: 'svg' | 'png' | 'pdf'): Promise<Do
   return download;
 }
 
-test.describe('export delivers a real file (T101 agenda)', () => {
+test.describe('export delivers a real file', () => {
   test('svg follows the scene: expanding a node changes what gets exported', async ({ page }) => {
     test.setTimeout(180_000);
     await openFlatOrgs(page);
@@ -90,17 +90,63 @@ test.describe('export delivers a real file (T101 agenda)', () => {
     expect(png.readUInt32BE(16)).toBeGreaterThan(0);
     expect(png.readUInt32BE(20)).toBeGreaterThan(0);
 
-    // ⚠️ Поріг виміряний **мутацією**, а не прикинутий, і перша редакція цього
-    // коментаря брехала: я написав «порожня канва — одиниці кілобайт».
-    // Насправді (підміна `extract.canvas` на порожню того самого розміру):
+    // ⚠️ Поріг — **на піксель**, а не на файл, і це правка після рев'ю.
     //
-    //     намальовано → 97 242 Б · порожньо → 11 402 Б
+    // Перша редакція тримала абсолютні 20 000 Б. Мутація «порожня канва того ж
+    // розміру» його валила (11 402 проти 97 242), але запас був **1,75×** — і,
+    // головне, абсолют зсувається сам: канва росте з камерою, тож той самий
+    // кадр на іншому зумі дає інше число (виміряно: 852×551 → 1096×709).
     //
-    // Тобто 20 000 лежить у **1,75×** над порожнім і в 4,9× під намальованим —
-    // запас реальний, але вужчий, ніж «на порядок». Тест розрізняє
-    // «намальовано» й «біла сторінка», і не міряє машину: стиснення PNG від
-    // навантаження не залежить.
-    expect(png.length).toBeGreaterThan(20_000);
+    //     порожньо        → 0,024 Б/пікс
+    //     намальовано @1,94 → 0,207
+    //     намальовано @2,5  → 0,169   ← найтонше з виміряних
+    //
+    // 0,06 лежить у ×2,5 над порожнім і ×2,8 під найтоншим намальованим —
+    // ширше з обох боків, і не залежить від того, який зум відновив браузер.
+    const pixels = png.readUInt32BE(16) * png.readUInt32BE(20);
+    expect(png.length / pixels).toBeGreaterThan(0.06);
+  });
+
+  test('png resolution follows the camera, so a zoomed export is a bigger raster', async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    await openFlatOrgs(page);
+
+    const dims = async () => {
+      const png = await bytesOf(await exportFile(page, 'png'));
+      return { w: png.readUInt32BE(16), h: png.readUInt32BE(20), bytes: png.length };
+    };
+    const setZoom = async (z: number) => {
+      await page.evaluate((value) => {
+        (window as unknown as { __demoE2e?: { setZoom(s: number): void } }).__demoE2e?.setZoom(
+          value,
+        );
+      }, z);
+      await page.waitForTimeout(600);
+      return page.evaluate(
+        () => (window as unknown as { __demoE2e: { getZoom(): number } }).__demoE2e.getZoom(),
+      );
+    };
+
+    const z1 = await setZoom(1);
+    const a = await dims();
+    const z2 = await setZoom(2);
+    const b = await dims();
+
+    // 🔑 Тест **калібрується сам**: очікуване відношення береться з реального
+    // зуму, а не з переданого. Інакше він упав би від будь-якого клампу чи
+    // від зуму, який браузер відновив із `localStorage` — саме так post-deploy
+    // T115 відкрився на 1,94 замість 1.
+    expect(z2).toBeGreaterThan(z1);
+    expect(b.w / a.w).toBeCloseTo(z2 / z1, 1);
+    expect(b.h / a.h).toBeCloseTo(z2 / z1, 1);
+
+    // ⚠️ Це **опис поведінки, а не схвалення**: експорт PNG віддає растр
+    // поточного кадру, тож хост, у якого користувач крутнув колесо, дістане
+    // файл іншого розміру. У `USAGE.md` це сказано словами й **без чисел**;
+    // тут воно стає перевірюваним.
+    expect(b.bytes).toBeGreaterThan(a.bytes);
   });
 
   test('pdf carries the same scene through a third pipeline', async ({ page }) => {
