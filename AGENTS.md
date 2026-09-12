@@ -59,8 +59,11 @@ It checks six things, each because that drift already happened here and nothing 
   **deliberately left**: «documented» is still `usage.includes(name)`, a bare substring. Both
   stricter rules were measured and cost more than they save — requiring the name in backticks
   makes 47 members undocumented **and still** misses `media`, because `` `media` `` already
-  appears as a *data field* of the same name; requiring `name(` flags the five mutators T104
-  documented in prose. If strictness is ever needed it is not a regex but a machine-readable list
+  appears as a *data field* of the same name; requiring `name(` flags **six** members that are
+  documented — the five mutators T104 wrote up in prose, and `media` itself, because §8 names it
+  as `diagram.media` without a call. That sixth is worth more than its arithmetic: the commit
+  that documented `media` **invalidated its own measurement of rule C inside the same commit**,
+  which is what a prose-shaped rule costs. The number is a moving target, the conclusion is not. If strictness is ever needed it is not a regex but a machine-readable list
   of the documented surface inside `USAGE.md`, compared set against set;
 - **no export of the public barrel ends in `ForTests`.** `packages/sdk/src/index.ts` re-exported
   two hooks that mutate the process-wide WASM loader, so one consumer reached every diagram in the
