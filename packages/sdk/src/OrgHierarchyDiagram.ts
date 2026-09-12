@@ -551,6 +551,8 @@ export class OrgHierarchyDiagram {
     before: readonly DiagramOrganization[],
     after: readonly DiagramOrganization[],
   ): void {
+    // This is not the only emitter: setData sends its snapshot signal directly. A guard for
+    // every emission belongs in callHostCallback, the door both paths share.
     const collapsedBefore = new Map(before.map((org) => [org.id, isOrgCollapsed(org)]));
     const changed = after.filter((org) => {
       const previous = collapsedBefore.get(org.id);
@@ -1114,6 +1116,8 @@ export class OrgHierarchyDiagram {
       ms: Math.round(ms),
     });
     this.callbacks.onOrgModeChange?.(this.getOrgMode());
+    // A whole new snapshot has no meaningful delta. Emit the re-read signal directly,
+    // deliberately bypassing emitOrgExpandChange instead of manufacturing an empty delta.
     this.callHostCallback(this.callbacks.onOrgExpandChange, {
       reason: 'data',
       changedIds: [],
