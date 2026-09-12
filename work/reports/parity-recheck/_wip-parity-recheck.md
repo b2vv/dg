@@ -114,3 +114,26 @@ dblclick — мало не породив вердикт «у хості нем�
 - Колонку «власник рішення» **не додавав**: 46 рядків із 51 не перевірені, заповнювати здогадами.
 
 ## ДАЛІ: A2, A3, B5, B7a, B10, C1, D7–D8, E8, F1–F2
+
+## 🔑 ФАКТ — знайдено те, що більше за будь-який рядок: `work/reports/parity-recheck/swap-seam.md`
+
+Шукаючи C1, натрапив на `src/shared/lib/gojs-diagram/tree-diagram-engine.ts:44-52` — хост **уже**
+спроєктував заміну рушія й записав контракт: **21 член + 8 подій**, «a future React Flow engine is
+a one-class replacement behind this interface».
+
+🔴 У `PARITY-gojs-to-dg.md` цей файл **не згадано жодного разу**. Каталог міряв «чи вміє `dg` те
+саме» 51 рядком вільного тексту; хост питає інше — **чи стане `dg` на місце GoJS без переписування
+контролерів**. Друге і є фаза Б з ROADMAP; перше можна закрити на 100 % і не зрушити її.
+
+Три доктрини записані в самому інтерфейсі, і всі три розходяться однаково:
+- `setSelection` — «the engine does **NOT** own the selection set»;
+- `reveal` — «scroll into view **WITHOUT changing the selection**»; у `dg` виділяють **усі три**
+  входи: `focusNode` (`:1545`), `revealPath` (`:1466` — закінчується `focusNode`), `focusByTestId`;
+- `expanderToggled` — емітиться «so policy can assert *no selection change*»; у `dg` події немає.
+
+Плюс `backgroundClicked` і `on(event,cb)=>Unsubscribe` без відповідників.
+
+**Три 🔴 — одна причина:** хост тримає виділення у своєму редюсері, `dg` тримає його в собі.
+Це одне рішення з чотирма наслідками, а не чотири задачі.
+
+## ДАЛІ: віддати swap-seam Dg 1 і користувачу; питання пріоритету — рядки 6–51 чи прогін по 21 члену
