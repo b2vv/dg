@@ -12,6 +12,14 @@ export function orgNodeRef(orgId: string): NodeRef {
   return { kind: 'organization', id: orgId, organizationId: orgId };
 }
 
+export function normalizeSelected(
+  selected: NodeRef | null | readonly NodeRef[] | undefined,
+): readonly NodeRef[] {
+  if (!selected) return [];
+  if (Array.isArray(selected)) return selected as readonly NodeRef[];
+  return [selected as NodeRef];
+}
+
 export function personNodeRef(
   data: DiagramData,
   personId: string,

@@ -25,11 +25,12 @@ import {
 import { computeOrgLayout } from '../layout/rowTreeLayout.js';
 import { siblingOrgGroupBounds } from '../layout/siblingOrgGroups.js';
 import type { OrgLayoutOptions } from '../layout/types.js';
-import { isOrgCollapsed, orgHasChildren } from '../layout/orgMode.js';
+import { orgHasChildren } from '../layout/orgMode.js';
 import type { ChromeBox } from './orgNodeChrome.js';
 import { DoubleTapTracker } from '../interaction/doubleTap.js';
 import type { SelectionPointerMods } from '../interaction/selection.js';
 import type { ContextMenuPointer } from '../interaction/contextMenuPayload.js';
+import { normalizeSelected } from '../interaction/nodeRefs.js';
 import type { NodeRef } from '../interaction/types.js';
 import { DepartmentCardView } from './DepartmentCardView.js';
 import { paintDashedFrame } from './dashedStroke.js';
@@ -47,7 +48,7 @@ import type {
   StaffZoneStyle,
 } from './types.js';
 import { defaultRenderConfig } from './types.js';
-import type { DiagramData, DiagramOrganization, DiagramPosition } from '../data/types.js';
+import type { DiagramData, DiagramPosition } from '../data/types.js';
 import { resolveSeatDrop, type SeatDrop } from '../interaction/positionMove.js';
 import type { LodLevel } from './lod.js';
 import { mapStaffEdgeBoxesForLod, mapPositionNodesToStaffEdgeBoxes } from './visualEdgeBox.js';
@@ -59,6 +60,7 @@ import {
   type ContourMemberBox,
 } from './contour/contourClearance.js';
 import { inferStaffCurrentOrgId } from './inferStaffCurrentOrgId.js';
+import { orgStaffCardOptions, orgTreeOptions } from './organizationNodeOptions.js';
 
 export interface RenderOptions {
   orgLayout?: OrgLayoutOptions;
@@ -493,14 +495,6 @@ export class DiagramRenderer {
     this.layers.root.destroy({ children: true });
   }
 
-  private normalizeSelected(
-    selected: NodeRef | null | readonly NodeRef[] | undefined,
-  ): readonly NodeRef[] {
-    if (!selected) return [];
-    if (Array.isArray(selected)) return selected as readonly NodeRef[];
-    return [selected as NodeRef];
-  }
-
   /**
    * Paint the drop target ring and the ghost line to it.
    *
@@ -567,7 +561,7 @@ export class DiagramRenderer {
   }
 
   private drawSelection(selected: NodeRef | null | readonly NodeRef[]): void {
-    for (const node of this.normalizeSelected(selected)) {
+    for (const node of normalizeSelected(selected)) {
       const box =
         this.getNodeBox(node.id) ??
         (node.positionId ? this.getNodeBox(node.positionId) : undefined) ??
@@ -900,7 +894,7 @@ export class DiagramRenderer {
         resolvedTheme,
         orgStyle,
         options.lod ?? 'near',
-        this.orgStaffCardOptions(org, card, options, config),
+        orgStaffCardOptions(org, card, options, config),
       );
       view.position.set(card.x, card.y);
       view.eventMode = 'static';
@@ -1078,7 +1072,7 @@ export class DiagramRenderer {
           height: ln.height,
         },
         options.lod ?? 'near',
-        this.orgTreeOptions(org, data, options, config),
+        orgTreeOptions(org, data, options, config),
       );
       node.position.set(ln.x, ln.y);
       this.rememberBox({
@@ -1120,81 +1114,6 @@ export class DiagramRenderer {
       });
       if (card) this.layers.departments.addChild(card);
     }
-  }
-
-  private orgTreeOptions(
-    org: DiagramOrganization,
-    data: DiagramData,
-    options: RenderOptions,
-    config: RenderConfig = defaultRenderConfig,
-  ): import('./OrganizationNode.js').OrganizationNodeOptions {
-    const base: import('./OrganizationNode.js').OrganizationNodeOptions = {
-      loadTexture: options.loadTexture,
-      prefetchInactiveSymbol: config.prefetchInactiveOrgSymbol === true,
-    };
-    if (
-      !options.onOrgContextMenu &&
-      !options.onOrgExpand &&
-      !options.onOrgCollapse
-    ) {
-      return base;
-    }
-    const hasChildren = orgHasChildren(data.organizations, org.id);
-    const openMenu = (pointer: { clientX: number; clientY: number }) => {
-      options.onOrgContextMenu?.(org.id, {
-        clientX: pointer.clientX,
-        clientY: pointer.clientY,
-        canvasX: 0,
-        canvasY: 0,
-      });
-    };
-    return {
-      ...base,
-      onContextMenu: options.onOrgContextMenu ? openMenu : undefined,
-      chrome:
-        hasChildren && (options.onOrgExpand || options.onOrgCollapse)
-          ? {
-              kind: 'tree',
-              collapsed: isOrgCollapsed(org),
-              hasChildren,
-              onExpand: () => options.onOrgExpand?.(org.id),
-              onCollapse: () => options.onOrgCollapse?.(org.id),
-            }
-          : undefined,
-    };
-  }
-
-  private orgStaffCardOptions(
-    org: DiagramOrganization,
-    card: { expanded?: boolean; positionCount?: number },
-    options: RenderOptions,
-    config: RenderConfig = defaultRenderConfig,
-  ): import('./OrganizationNode.js').OrganizationNodeOptions {
-    const openMenu = (pointer: { clientX: number; clientY: number }) => {
-      options.onOrgContextMenu?.(org.id, {
-        clientX: pointer.clientX,
-        clientY: pointer.clientY,
-        canvasX: 0,
-        canvasY: 0,
-      });
-    };
-    return {
-      loadTexture: options.loadTexture,
-      onContextMenu: options.onOrgContextMenu ? openMenu : undefined,
-      prefetchInactiveSymbol: config.prefetchInactiveOrgSymbol === true,
-      chrome:
-        options.onStaffOrgExpandToggle
-          ? {
-              kind: 'staff-expand',
-              expanded: card.expanded ?? false,
-              // Розкладка вже порахувала це тим самим фільтром, яким будує
-              // розгорнутий блок (`canvasLayout.ts:137` → `layoutStaffOrgBlock`
-              // по `organizationId`), тож іншого джерела правди тут не треба.
-              hasStaff: (card.positionCount ?? 0) > 0,
-              onToggle: () => options.onStaffOrgExpandToggle!(org.id),
-            }
-          : undefined,
-    };
   }
 }
 

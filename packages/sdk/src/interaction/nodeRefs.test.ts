@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@rstest/core';
 import { emptyDiagramData, type DiagramData } from '../data/types.js';
 import {
+  normalizeSelected,
   orgNodeRef,
   personNodeRef,
   positionNodeRef,
@@ -68,5 +69,29 @@ describe('nodeRefs', () => {
   it('success: test ids come from the entity, not the ref id', () => {
     expect(testIdForRef(data, orgNodeRef('o1'))).toBeTruthy();
     expect(testIdForRef(data, seatNodeRef(data, 'per1', 'p1'))).toBeTruthy();
+  });
+});
+
+describe('normalizeSelected', () => {
+  it('failure: normalizes null to an empty array', () => {
+    expect(normalizeSelected(null)).toEqual([]);
+  });
+
+  it('failure: normalizes undefined to an empty array', () => {
+    expect(normalizeSelected(undefined)).toEqual([]);
+  });
+
+  it('success: wraps a single ref in an array', () => {
+    const ref = orgNodeRef('o1');
+    expect(normalizeSelected(ref)).toEqual([ref]);
+  });
+
+  it('success: keeps an array of refs', () => {
+    const refs = [orgNodeRef('o1'), positionNodeRef(data, 'p2')];
+    expect(normalizeSelected(refs)).toEqual(refs);
+  });
+
+  it('success: keeps an empty array empty', () => {
+    expect(normalizeSelected([])).toEqual([]);
   });
 });
