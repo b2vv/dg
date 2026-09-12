@@ -289,6 +289,12 @@ await diagram.expandToDepth({ depth: 2 });    // обходить maxExpandedPos
 await diagram.collapsePositionSubtree('pos-9');
 ```
 
+`staffLayout.maxExpandedOrgCards` обмежує кількість підлеглих карток ярусу 3, які можна
+розгорнути одночасно; за замовчуванням — **1**. Якщо `expandedOrgIds` просить більше, SDK
+розгортає лише перші картки до цього ліміту, решту не малює й додає діагностику з числом ліміту
+та id відкинутих організацій (`Tier3 expand ignored (exceeds maxExpandedOrgCards=1): org-8,
+org-9`).
+
 ---
 
 ## 8. Робота з вузлами

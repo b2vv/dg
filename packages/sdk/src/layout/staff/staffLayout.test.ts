@@ -455,6 +455,96 @@ describe('layoutStaffCanvas', () => {
     expect(canvas.positionNodes.every((n) => n.organizationId === 'current')).toBe(true);
   });
 
+  it('failure: tier 1 names the managing org when it has no head', async () => {
+    const canvas = await layoutStaffCanvas(
+      {
+        organizations: [org('managing'), org('current', 'managing')],
+        positions: [pos('current-head', 'current', { isHead: true })],
+        reports: [],
+        groups: [],
+        departments: [],
+        persons: [],
+      },
+      'current',
+    );
+
+    expect(canvas.diagnostics).toContain(
+      'Tier1 skipped: no isHead in managing org managing',
+    );
+  });
+
+  it('failure: tier 1 names the managing org when it has multiple heads', async () => {
+    const canvas = await layoutStaffCanvas(
+      {
+        organizations: [org('managing'), org('current', 'managing')],
+        positions: [
+          pos('managing-head-a', 'managing', { isHead: true }),
+          pos('managing-head-b', 'managing', { isHead: true }),
+          pos('current-head', 'current', { isHead: true }),
+        ],
+        reports: [],
+        groups: [],
+        departments: [],
+        persons: [],
+      },
+      'current',
+    );
+
+    expect(canvas.diagnostics).toContain(
+      'Tier1 skipped: multiple isHead in managing org managing: managing-head-a, managing-head-b',
+    );
+  });
+
+  it('failure: tier 3 names an expand id that is not a child', async () => {
+    const canvas = await layoutStaffCanvas(
+      {
+        organizations: [org('current'), org('child', 'current')],
+        positions: [pos('current-head', 'current', { isHead: true })],
+        reports: [],
+        groups: [],
+        departments: [],
+        persons: [],
+      },
+      'current',
+      { expandedOrgIds: ['not-a-child'] },
+    );
+
+    expect(canvas.diagnostics).toContain(
+      'Tier3 expand ignored (not a child of current): not-a-child',
+    );
+  });
+
+  it('failure: tier 3 distinguishes ceiling drops from non-child ids', async () => {
+    const canvas = await layoutStaffCanvas(
+      {
+        organizations: [
+          org('current'),
+          org('child-a', 'current'),
+          org('child-b', 'current'),
+          org('child-c', 'current'),
+        ],
+        positions: [pos('current-head', 'current', { isHead: true })],
+        reports: [],
+        groups: [],
+        departments: [],
+        persons: [],
+      },
+      'current',
+      {
+        expandedOrgIds: ['child-a', 'child-b', 'not-a-child', 'child-c'],
+        maxExpandedOrgCards: 1,
+      },
+    );
+
+    const ceilingDiagnostic =
+      'Tier3 expand ignored (exceeds maxExpandedOrgCards=1): child-b, child-c';
+    const nonChildDiagnostic =
+      'Tier3 expand ignored (not a child of current): not-a-child';
+    expect(canvas.diagnostics).toContain(ceilingDiagnostic);
+    expect(canvas.diagnostics).toContain(nonChildDiagnostic);
+    expect(ceilingDiagnostic).not.toBe(nonChildDiagnostic);
+  });
+
   it('failure: unknown currentOrgId throws', async () => {
     await expect(
       layoutStaffCanvas(

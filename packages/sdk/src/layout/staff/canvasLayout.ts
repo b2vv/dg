@@ -90,7 +90,11 @@ export async function layoutStaffCanvas(
       });
       cursorY += height + opts.tierGap;
     } else if (heads.length > 1) {
-      diagnostics.push(`Tier1 skipped: multiple isHead in managing org ${managingId}`);
+      diagnostics.push(
+        `Tier1 skipped: multiple isHead in managing org ${managingId}: ${heads.map((position) => position.id).join(', ')}`,
+      );
+    } else {
+      diagnostics.push(`Tier1 skipped: no isHead in managing org ${managingId}`);
     }
   }
 
@@ -126,6 +130,12 @@ export async function layoutStaffCanvas(
   const requestedExpand = (opts.expandedOrgIds ?? []).filter((id) => childIdSet.has(id));
   const maxExpand = Math.max(0, opts.maxExpandedOrgCards ?? 1);
   const expandedSet = new Set(requestedExpand.slice(0, maxExpand));
+  const ceilingDroppedIds = requestedExpand.slice(maxExpand);
+  if (ceilingDroppedIds.length > 0) {
+    diagnostics.push(
+      `Tier3 expand ignored (exceeds maxExpandedOrgCards=${maxExpand}): ${ceilingDroppedIds.join(', ')}`,
+    );
+  }
   for (const id of (opts.expandedOrgIds ?? []).filter((x) => !childIdSet.has(x))) {
     diagnostics.push(`Tier3 expand ignored (not a child of ${currentOrgId}): ${id}`);
   }
