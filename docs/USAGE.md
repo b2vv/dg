@@ -369,6 +369,8 @@ await OrgHierarchyDiagram.create(el, {
     onNodeClick: (node) => {},
     onNodeDoubleClick: (node) => {},
     onSelectionChange: (nodes) => {},
+    onBackgroundClick: () => {},
+    onOrgExpandChange: ({ reason, changedIds, expanded }) => {},
     onOrgModeChange: (mode) => {},              // 'matrix' | 'row-tree'
     onLayoutChange: (patch) => {},              // drag / reorder / expand — це ваш «зберегти»
     onPositionExpandChange: (state) => {},
@@ -381,6 +383,53 @@ await OrgHierarchyDiagram.create(el, {
   },
 });
 ```
+
+### Зміна розгортання й клік по тлу
+
+`onOrgExpandChange` приходить на **зміну стану**, а не лише на жест. Старий контракт хоста
+`expanderToggled` приходив тільки на жест, тому після міграції подій буде **більше**. Для перевірки
+«тогл не змінив виділення» дивіться лише на `reason: 'toggle'`; `reason` саме для такого звуження.
+
+```ts
+callbacks: {
+  onOrgExpandChange: ({ reason, changedIds }) => {
+    if (reason === 'data') return syncFrom(diagram.getData()); // перечитати весь знімок
+    if (reason === 'toggle') assertSelectionStayedPut(changedIds);
+  },
+  onBackgroundClick: () => {
+    console.log(diagram.getSelection()); // тут вибір іще не очищено
+  },
+}
+```
+
+`setData` навмисно надсилає `{ reason: 'data', changedIds: [], expanded: null }`. Порожній
+`changedIds` тут означає не «нічого не змінилось», а «дельта для нового знімка не має сенсу —
+перечитайте стан»; точка перечитування — `getData()`.
+
+⚠️ `onOrgExpandChange` і `onOrgModeChange` навмисно розходяться на порожній дельті:
+`collapseAllOrgs()` над уже згорнутим деревом надсилає `onOrgModeChange`, але **не**
+`onOrgExpandChange`, бо жоден `collapsed` фактично не змінився.
+
+🔴 **Виняток із цих колбеків не є скасуванням.** Точне формулювання — **ваш виняток нічого не
+скасовує**, а не «кадр усе одно буде»: якщо `onOrgExpandChange` кидає, зміна стану лишається
+застосованою й кадр малюється так само, як малювався б без вашого обробника; якщо кидає
+`onBackgroundClick`, SDK все одно очистить виділення.
+
+⚠️ **На `reason: 'reveal-rollback'` кадру немає взагалі** — і не через вас. Рендер там **уже
+відмовив**, стан повернуто назад, а одразу за подією летить виняток `revealPath`. Тобто з семи
+точок емісії «кадр буде» тримається на шести, а на сьомій його не буде незалежно від вашого
+обробника. Хост, що прочитає гарантію як «після будь-якої події буде кадр», помилиться саме в
+обробці відмови.
+
+Ця гарантія стосується лише `onBackgroundClick` і `onOrgExpandChange`; інші колбеки її поки не мають —
+зокрема виняток з `onOrgModeChange` усе ще може скасувати кадр, тому хост не повинен її узагальнювати.
+Помилка йде в `console.error` зі стабільним префіксом `'OrgHierarchyDiagram: '` і з оригінальним
+`Error`. У `getLayoutDiagnostics()` її **немає**: §12 описує інший канал — діагностику розкладки,
+якою володіє SDK.
+
+`onBackgroundClick` приходить **до** того, як SDK очистить виділення, тому всередині колбека ще
+видно попередній вибір. Але зберегти його обробкою колбека хост **не може**. Це обмеження
+поточного контракту й окреме відкрите продуктове рішення про власність виділення, не фіча.
 
 `onLayoutChange` — єдиний канал персистентності. SDK нікуди не пише.
 

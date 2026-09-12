@@ -1,5 +1,6 @@
 import type {
   DiagramData,
+  DiagramOrganization,
   DiagramReportLine,
   GridCell,
 } from './data/types.js';
@@ -62,6 +63,7 @@ import {
 } from './layout/index.js';
 import type {
   OrgHierarchyCallbacks,
+  OrgExpandChange,
   LayoutPatch,
   ViewportChangeReason,
   HostSearchHit,
@@ -530,6 +532,43 @@ export class OrgHierarchyDiagram {
     for (const listener of this.promoteSyncListeners) listener();
   }
 
+  private callHostCallback<TArgs extends readonly unknown[]>(
+    callback: ((...args: TArgs) => void) | undefined,
+    ...args: TArgs
+  ): void {
+    if (!callback) return;
+    try {
+      callback(...args);
+    } catch (error) {
+      // Do not borrow the host's environment-dependent uncaught-error channel. This stable
+      // SDK prefix prevents silence, while the original Error preserves its stack (§12).
+      console.error('OrgHierarchyDiagram: host callback threw', error);
+    }
+  }
+
+  // Precondition: both arrays describe the same organizations and differ only in collapsed flags.
+  // This is not the only emitter: setData sends its snapshot signal directly. A guard for
+  // every emission belongs in callHostCallback, the door both paths share.
+  private emitOrgExpandChange(
+    reason: OrgExpandChange['reason'],
+    before: readonly DiagramOrganization[],
+    after: readonly DiagramOrganization[],
+  ): void {
+    const collapsedBefore = new Map(before.map((org) => [org.id, isOrgCollapsed(org)]));
+    const changed = after.filter((org) => {
+      const previous = collapsedBefore.get(org.id);
+      return previous !== undefined && previous !== isOrgCollapsed(org);
+    });
+    const first = changed[0];
+    if (!first) return;
+    const expanded = !isOrgCollapsed(first);
+    this.callHostCallback(this.callbacks.onOrgExpandChange, {
+      reason,
+      changedIds: changed.map((org) => org.id),
+      expanded: changed.every((org) => isOrgCollapsed(org) !== expanded) ? expanded : null,
+    });
+  }
+
   /** Subscribe to viewport / selection / render changes for HTML promote overlays. */
   subscribePromoteSync(listener: () => void): () => void {
     this.promoteSyncListeners.add(listener);
@@ -738,6 +777,7 @@ export class OrgHierarchyDiagram {
           : Promise.resolve(null),
       onCanvasClick: () => {
         if (this.destroyed) return;
+        this.callHostCallback(this.callbacks.onBackgroundClick);
         this.applySelection(null);
         this.repaintSelection();
       },
@@ -877,12 +917,17 @@ export class OrgHierarchyDiagram {
 
   async expandOrg(orgId: string): Promise<void> {
     const modeBefore = this.getOrgMode();
+    const organizationsBefore = this.data.organizations;
     this.data = {
       ...this.data,
       // Expand ancestors too — otherwise row-tree roots at the leaf and drops the forest (A12).
       organizations: revealOrgPath(this.data.organizations, orgId),
     };
+    // Purposefully unequal for now: onOrgExpandChange swallows and reports host errors;
+    // onOrgModeChange still lets them cancel the frame. Equalizing that is a separate behavior
+    // change to the existing public contract.
     this.callbacks.onOrgModeChange?.(this.getOrgMode());
+    this.emitOrgExpandChange('toggle', organizationsBefore, this.data.organizations);
     await this.render();
     const modeAfter = this.getOrgMode();
     // T53: first matrix→row-tree expand frames the whole visible subtree.
@@ -938,11 +983,13 @@ export class OrgHierarchyDiagram {
   }
 
   async collapseOrg(orgId: string): Promise<void> {
+    const organizationsBefore = this.data.organizations;
     this.data = {
       ...this.data,
       organizations: collapseOrg(this.data.organizations, orgId),
     };
     this.callbacks.onOrgModeChange?.(this.getOrgMode());
+    this.emitOrgExpandChange('toggle', organizationsBefore, this.data.organizations);
     await this.render();
     this.panToNode(orgId, { animate: true });
   }
@@ -954,7 +1001,8 @@ export class OrgHierarchyDiagram {
    */
   async setOrgsCollapsed(orgIds: readonly string[], collapsed: boolean): Promise<void> {
     if (orgIds.length === 0) return;
-    let organizations = this.data.organizations;
+    const organizationsBefore = this.data.organizations;
+    let organizations = organizationsBefore;
     for (const orgId of orgIds) {
       organizations = collapsed
         ? collapseOrg(organizations, orgId)
@@ -962,15 +1010,18 @@ export class OrgHierarchyDiagram {
     }
     this.data = { ...this.data, organizations };
     this.callbacks.onOrgModeChange?.(this.getOrgMode());
+    this.emitOrgExpandChange('toggle', organizationsBefore, organizations);
     await this.render();
   }
 
   async collapseAllOrgs(): Promise<void> {
+    const organizationsBefore = this.data.organizations;
     this.data = {
       ...this.data,
       organizations: collapseAllOrgs(this.data.organizations),
     };
     this.callbacks.onOrgModeChange?.(this.getOrgMode());
+    this.emitOrgExpandChange('toggle', organizationsBefore, this.data.organizations);
     await this.render();
     this.host?.fitView(48, { animate: true });
   }
@@ -1069,6 +1120,13 @@ export class OrgHierarchyDiagram {
       ms: Math.round(ms),
     });
     this.callbacks.onOrgModeChange?.(this.getOrgMode());
+    // A whole new snapshot has no meaningful delta. Emit the re-read signal directly,
+    // deliberately bypassing emitOrgExpandChange instead of manufacturing an empty delta.
+    this.callHostCallback(this.callbacks.onOrgExpandChange, {
+      reason: 'data',
+      changedIds: [],
+      expanded: null,
+    });
     await this.render();
   }
 
@@ -1445,6 +1503,7 @@ export class OrgHierarchyDiagram {
       const previous = this.data;
       this.data = { ...this.data, organizations };
       this.callbacks.onOrgModeChange?.(this.getOrgMode());
+      this.emitOrgExpandChange('reveal', previous.organizations, organizations);
       try {
         await this.render();
       } catch (error) {
@@ -1455,6 +1514,7 @@ export class OrgHierarchyDiagram {
         // undoes it here (T88 report §20).
         this.data = previous;
         this.callbacks.onOrgModeChange?.(this.getOrgMode());
+        this.emitOrgExpandChange('reveal-rollback', organizations, previous.organizations);
         throw error;
       }
       // After the await as well as before it: `destroy()` during a reveal is

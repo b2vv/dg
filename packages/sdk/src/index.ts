@@ -168,6 +168,7 @@ export { SEARCH_PAGE_SIZE } from './callbacks.js';
 export type {
   LayoutPatch,
   OrgHierarchyCallbacks,
+  OrgExpandChange,
   ViewportChangeMeta,
   ViewportChangeReason,
   HostSearchHit,

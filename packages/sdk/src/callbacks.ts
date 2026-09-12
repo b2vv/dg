@@ -74,6 +74,22 @@ export interface ViewportChangeMeta {
   reason: ViewportChangeReason;
 }
 
+export interface OrgExpandChange {
+  /**
+   * Why expansion changed. A host asserting that a toggle did not move the
+   * selection must ignore every reason except `toggle`.
+   */
+  reason: 'toggle' | 'data' | 'reveal' | 'reveal-rollback';
+  /** Organizations whose collapsed flag actually changed. Empty for `data`. */
+  changedIds: readonly string[];
+  /**
+   * Their new expanded state. `null` means not applicable: a `data` snapshot carries no delta,
+   * so there is no single state to report. This is intentionally wider than the precedent
+   * `onPositionExpandChange`, whose payload has no snapshot-shaped reason.
+   */
+  expanded: boolean | null;
+}
+
 export interface OrgHierarchyCallbacks {
   /**
    * The visible area changed: the camera moved, or the surface was resized.
@@ -107,6 +123,10 @@ export interface OrgHierarchyCallbacks {
    */
   onLayoutChange?(patch: LayoutPatch): void;
   onOrgModeChange?(mode: OrgDisplayMode): void;
+  /** Empty canvas clicked, before the SDK clears the current selection. */
+  onBackgroundClick?(): void;
+  /** Organization expansion changed, with its cause and actual delta. */
+  onOrgExpandChange?(state: OrgExpandChange): void;
   /**
    * Settle a seat collision the SDK will not guess at (T111).
    *
