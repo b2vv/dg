@@ -328,6 +328,30 @@ diagram.getLodLevel();                        // 'far' | 'mid' | 'near'
 Жести на канвасі: `Ctrl`/`⌘` + колесо — зум, просто колесо — панорама, `Shift`/`⌘` + клік —
 множинний вибір.
 
+### Оновлення закешованих медіа (T74)
+
+`diagram.media` — завантажувач та інвалідатор медіа **конкретної діаграми**. Читайте його після
+того, як `OrgHierarchyDiagram.create(...)` завершився, не до створення діаграми: якщо медіасервіс
+ще не ініціалізований, геттер кидає `OrgHierarchyDiagram: media service not initialized`.
+
+Типовий випадок: логотип організації змінився на сервері за тією самою URL, але канвас без
+інвалідації продовжував би малювати закешовану версію до перезавантаження сторінки:
+
+```ts
+const diagram = await OrgHierarchyDiagram.create(el, { data });
+
+await diagram.media.refresh({ kind: 'organization', id: 'org-7' });
+```
+
+`refresh(ref)` резолвить актуальні URL вузла й інвалідує їх. Для відомої адреси викликайте
+`invalidate(url)` або `invalidate([urlA, urlB])`: метод прибирає записи з мапи SDK, вивантажує
+їх із Pixi Assets і оновлює живі спрайти на канвасі.
+
+Решта публічного контракту: `resolveUrl(media, themeKey?)`,
+`loadTexture(url, revision?)`, `prefetch(media, revision?)`,
+`setPrefetchThemeKeys(keys)`, поточний ключ `activeThemeKey` і асинхронний `destroy()` для
+звільнення медіа, якими володіє ця діаграма.
+
 ---
 
 ## 9. Колбеки

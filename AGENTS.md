@@ -45,7 +45,23 @@ It checks six things, each because that drift already happened here and nothing 
   measure, and deleting it would have taken the seam T115 needs, because its caller is the host
   and the host is not in this tree. T115 then documented that seam — all six methods, in
   `docs/USAGE.md` §14 — which took the list 14 → 8 and closed the oldest hole in it: the one
-  thing the host cannot migrate without was formally not public API at all;
+  thing the host cannot migrate without was formally not public API at all.
+  **The scan itself was wrong twice, and the second session found it:** it never checked that a
+  line belonged to the class body, so a module-level helper indented two spaces put the keywords
+  `if` and `for` into the set of «public methods» (65 names for 63 real ones); and it could not
+  see accessors at all, so `get media()` — the seam a host needs to drop a stale org logo — was
+  invisible to the gate that exists to make exactly that impossible. Both are closed in
+  `scripts/facadeSurface.mjs`, which scans **only** the body of `export class OrgHierarchyDiagram`
+  and throws when that header is not found, because an unrun scan would otherwise pass the gate
+  silently. **The baseline did not move:** the phantoms were never in the *undocumented* set —
+  they passed the substring test — so it is eight before and eight after. What did change is that
+  `media` is now documented (`docs/USAGE.md` §8) rather than merely unseen. The third weakness is
+  **deliberately left**: «documented» is still `usage.includes(name)`, a bare substring. Both
+  stricter rules were measured and cost more than they save — requiring the name in backticks
+  makes 47 members undocumented **and still** misses `media`, because `` `media` `` already
+  appears as a *data field* of the same name; requiring `name(` flags the five mutators T104
+  documented in prose. If strictness is ever needed it is not a regex but a machine-readable list
+  of the documented surface inside `USAGE.md`, compared set against set;
 - **no export of the public barrel ends in `ForTests`.** `packages/sdk/src/index.ts` re-exported
   two hooks that mutate the process-wide WASM loader, so one consumer reached every diagram in the
   host app; the name said «for tests» and the export said «for everyone». The scan reads the
@@ -68,10 +84,12 @@ It checks six things, each because that drift already happened here and nothing 
   some name appears would pass on a document that explains nothing. It requires a named section
   and both accessors qualified *inside it*, in `scripts/orgModeDocs.mjs`.
 
-Three checks therefore carry their own tests — **nineteen tests** in that CI job. All three live
-in sibling modules that `check-docs.mjs` imports, and a fourth must be written the same way:
+Four checks therefore carry their own tests — **thirty tests** in that CI job. All four live
+in sibling modules that `check-docs.mjs` imports, and a fifth must be written the same way:
 `check-docs.mjs` itself runs at the top level and ends in `process.exit`, so it cannot be
-imported.
+imported. Two of those modules run at least one test against the **real** file they guard
+(`seatCollisionDocs`, `facadeSurface`): a suite that only ever sees fixtures stays green through
+the exact drift the module exists to catch.
 
 What the checker cannot judge stays yours: whether a document still says something **true**. This
 session found `T56` claiming two features were WASM ten days after they stopped being WASM, and no

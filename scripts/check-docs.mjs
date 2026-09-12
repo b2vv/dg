@@ -9,7 +9,8 @@
  *      tasks and not the tasks that cite each other (`ade232e`).
  *   2. Public API. `docs/USAGE.md` is not just documentation here — the
  *      pipeline threshold in `.claude/standards.md` defines the public API as
- *      «what `docs/USAGE.md` describes». A method missing from it is therefore
+ *      «what `docs/USAGE.md` describes». The scan covers methods and accessors
+ *      inside `OrgHierarchyDiagram` itself; a member missing from the docs is
  *      invisible to the process that decides how carefully it may be changed.
  *      Twenty-one methods were missing when this check was written, three of
  *      them the mutators T104 is about.
@@ -25,6 +26,7 @@
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { barrelProblems } from './barrelSurface.mjs';
+import { publicSurface } from './facadeSurface.mjs';
 import { orgModeDocProblems } from './orgModeDocs.mjs';
 import { seatCollisionDocProblems } from './seatCollisionDocs.mjs';
 import { execFileSync } from 'node:child_process';
@@ -121,12 +123,7 @@ const UNDOCUMENTED_BASELINE = new Set([
 
 const facade = readFileSync(join(ROOT, 'packages/sdk/src/OrgHierarchyDiagram.ts'), 'utf8');
 const usage = readFileSync(join(ROOT, 'docs/USAGE.md'), 'utf8');
-const publicMethods = new Set();
-for (const line of facade.split('\n')) {
-  if (/^ {2}(private|protected)\s/.test(line)) continue;
-  const m = /^ {2}(?:async\s+)?([a-z][A-Za-z0-9_]*)\s*(?:<[^>]*>)?\(/.exec(line);
-  if (m && m[1] !== 'constructor') publicMethods.add(m[1]);
-}
+const publicMethods = publicSurface(facade);
 
 const undocumented = [...publicMethods].filter((name) => !usage.includes(name)).sort();
 const fresh = undocumented.filter((name) => !UNDOCUMENTED_BASELINE.has(name));
