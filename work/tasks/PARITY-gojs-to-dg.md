@@ -17,6 +17,20 @@ positions), і завищено (`✅ 100% у dg` — org-level reparent від�
 Повний метод і решта знахідок (не лише D9) — окремі звіти:
 [`org-diagram-parity.md`](../reports/host-integration/org-diagram-parity.md),
 [`positions-diagram-parity.md`](../reports/host-integration/positions-diagram-parity.md).
+🔴 **Поправка 2026-09-12 — Ф2, партія 2.** Ще п'ять рядків: A3 (`✅ 100` → 🟡 75), C1
+(відсоток тримається, **значення слова «згорнуто» розходиться**), E8 і D7–D8 (**підтверджено**),
+F1–F2 (зум підтверджено, експорт — інша форма). Звіт:
+[`../reports/parity-recheck/batch-2.md`](../reports/parity-recheck/batch-2.md).
+**A2, B5, B7a, B10 навмисно не чіпані** — це розкладка штатки, окрема область, і чесна її
+перевірка коштує як уся партія 1.
+
+🔑 **Головне за день — поза каталогом:** у хоста є **записаний контракт рушія-замінника**
+(`tree-diagram-engine.ts:44-52`, 19 членів + 7 подій), якого цей файл не знав. Прогін:
+12 стоїть · 5 частково · 9 спростовано →
+[`../reports/parity-recheck/swap-seam-verdict.md`](../reports/parity-recheck/swap-seam-verdict.md).
+Дев'ять спростованих зводяться до **однієї** причини — хост тримає виділення у своєму редюсері,
+`dg` тримає його в собі.
+
 🔴 **Поправка 2026-09-12 — Ф2, партія 1 (рядки, що заявляли 100 %).** Перевірено 5:
 A4, D1, D3, D5, D6 — вистояв **один** (D3). Звіт із `path:line` на обидві бази:
 [`../reports/parity-recheck/batch-1.md`](../reports/parity-recheck/batch-1.md).
@@ -66,7 +80,7 @@ A4, D1, D3, D5, D6 — вистояв **один** (D3). Звіт із `path:lin
 |---|---|---|---|---|---|
 | A1 | Ієрархія org зі знімка BE | 🧬📋 | `create` + `setData` | ✅ 95 | T01/T12 |
 | A2 | Штатка організації | 📋 4245 | `layout/staff` | ✅ 100 | T08 |
-| A3 | Новий знімок / фільтр | 📋 | `setData` / `appendData` | ✅ 100 | T12/T21 |
+| A3 | Новий знімок / фільтр (у хості **фільтр = новий знімок**) | 📋 | ⚠️ два методи з **різною** семантикою виділення: `setData` його **гасить** (`:1062`), `appendData` — **зберігає**. Отже кожне застосування фільтра знімає виділення | 🟡 75 | T12/T21 · корінь = причина 1 вердикту |
 | A4 | Іконки: контракт із трьох обов'язків — `load` (+дедуп) / `invalidate` (байти міняються, посилання ні) / `dispose` (інакше течуть усі object-URL) | 🧬 | **не «URL as-is»** (застаріло з T74): `MediaService` — рефкаунт, `invalidate`, `refresh`, `destroy`; шов для хоста — `get media()` | ✅ 100 | T23/T74 |
 
 ### B. Розміщення
@@ -91,7 +105,7 @@ A4, D1, D3, D5, D6 — вистояв **один** (D3). Звіт із `path:lin
 
 | # | Вимога | Дж. | dg | % | Тікет |
 |---|---|---|---|---|---|
-| C1 | Expand/collapse org | 📋 | `expandOrg` / … | ✅ 100 | T03 |
+| C1 | Expand/collapse org | 📋 | `expandOrg` / … — команда точна й **не чіпає виділення** (проба, рядки 3–4). ⚠️ але «згорнуто» означає різне: у GoJS це **спосіб не малювати**, у `dg` після T113 — **спосіб перемкнути розкладку**, і матриця розкладає всі org (`matrixLayout.ts:35`) | ✅ 100 **за командою** | T03 · T113 |
 | C2 | Expand/collapse **посади** | 📋 замовник | `togglePositionExpand` | ✅ 95 | **T66** ✅ |
 | C3 | Початкова глибина N | 📋 замовник | `expandToDepth` / staff layout | ✅ 90 | **T66** ✅ |
 | C4 | Чужий блок згорнутий | 🧬📋 | `collapsed` | ✅ 90 | T03 |
@@ -107,7 +121,7 @@ A4, D1, D3, D5, D6 — вистояв **один** (D3). Звіт із `path:lin
 | D4 | Період підпорядкування **на організації** (відображення; не edge-click) | 📋 замовник | org period line paint | ✅ 95 | **T68** ✅ |
 | D5 | Dblclick → sidebar | 🧬 ~~📋 замовник~~ — у легасі обв'язка **жива** (`ObjectDoubleClicked` → `nodeDoubleClick`), але **споживачів нуль**: подія емітиться в порожнечу | `onNodeDoubleClick` розведено на org і person; host must subscribe | ✅ 100 **шва**; сама вимога не жива **з жодного боку** | **T69** |
 | D6 | Search + focus. Вибір центрує камеру, **знімає** попереднє виділення і **не** відкриває сайдбар (він лишається click-only) | 📋 | пошук є (worker + revealPath, більше ніж просить хост — той шукає сам у React). Але `focusNode` **ставить** виділення замість знімати: мультивибір схлопується в один вузол. «Центруй без виділення» публічно лише через `listPromoteBoxes()` + `panTo` | 🟡 70 | T18 · гап → **новий** |
-| D7–D8 | Fullscreen / timeline | 📋🧬 | host | ✅ n/a | — |
+| D7–D8 | Fullscreen / timeline | 📋🧬 | host — перевірено: `use-fullscreen.ts`, `timeline/org-hierarchy-timeline.tsx`; у `gojs-diagram/` збігів на fullscreen **нуль**. Хост володіє хромом, рушій дає команди | ✅ n/a | — |
 | D9 | D&D reparent | 📋🧬 живий і в org, і в positions | 🟡 часткова — org-level reparent взагалі відсутній; position-reparent не захищає корінь, немає move(cross-org)/merge/clone | 🟡 60 | T04/T17, **гапи → T116, T117** |
 
 ### E. Вигляд картки (+ §4 зображення)
@@ -121,7 +135,7 @@ A4, D1, D3, D5, D6 — вистояв **один** (D3). Звіт із `path:lin
 | E5 | Бейдж `N [M]` | 🧬 скріни | counts badge | ✅ 90 | **T70** ✅ |
 | E6 | Unit-code | 🎨 | caption line | ✅ 90 | **T70** ✅ |
 | E7 | Вакансія / чип періоду / detached | 📋 4245 | vacant label + period chip | ✅ 90 | **T70** ✅ |
-| E8 | Theme + symbol light/dark | 📋 | `setTheme` + URLs | ✅ 100 | T28 |
+| E8 | Theme + symbol light/dark | 📋 | `setTheme` + URLs — **підтверджено**: обидва боки зберігають виділення, розгортання й камеру (хост — ThemeManager без перебудови, `engine.ts:475-485`; `dg` — `setTheme` без `applySelection`, `:1083`) | ✅ 100 | T28 |
 | E9 | HTML/React overlay | — | promote | ✅ бонус | T26 |
 | **E10** | Знак org: **contain**, не розтяг; 3 режими коробки; intrinsic 400×200 | 📋 4231 №3 | `fitContain` + box modes | ✅ 95 | **T70** ✅ |
 | E11 | Прелоад light+dark → миттєвий theme flip | 🧬 | inactive URL prefetch | ✅ 90 | **T70** ✅ |
@@ -130,7 +144,7 @@ A4, D1, D3, D5, D6 — вистояв **один** (D3). Звіт із `path:lin
 
 | # | Вимога | % | Тікет |
 |---|---|---|---|
-| F1–F2 | Zoom / export | ✅ 100 | T15/T05 |
+| F1–F2 | Zoom / export — зум підтверджено (проба 7–9); експорт **інша форма**: у хоста `exportPng(): Promise<Blob>`, у нас `export(options): Promise<Blob \| string>` — union + обов'язковий аргумент | ✅ 100 зум · 🟡 експорт | T15/T05 |
 | G1 | Playwright адресація | ✅ ~90 | **T55 done** (`testId` + anchors + e2e) — не `getTestID()`, еквівалент |
 
 ---
