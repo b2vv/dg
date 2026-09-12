@@ -17,6 +17,16 @@ positions), і завищено (`✅ 100% у dg` — org-level reparent від�
 Повний метод і решта знахідок (не лише D9) — окремі звіти:
 [`org-diagram-parity.md`](../reports/host-integration/org-diagram-parity.md),
 [`positions-diagram-parity.md`](../reports/host-integration/positions-diagram-parity.md).
+🔴 **Поправка 2026-09-12 — Ф2, партія 1 (рядки, що заявляли 100 %).** Перевірено 5:
+A4, D1, D3, D5, D6 — вистояв **один** (D3). Звіт із `path:line` на обидві бази:
+[`../reports/parity-recheck/batch-1.md`](../reports/parity-recheck/batch-1.md).
+
+⚠️ **Три з п'яти хибні однаково, і це вада не рядків, а форми каталогу: він міряє наявність
+можливості, а не власника рішення.** «Клік є» (D1), «dblclick є» (D5), «пошук є» (D6) — усе
+правда; хто вирішує, що при цьому стається з **виділенням**, не записано ніде, і саме там
+розходження. Коли прохід завершиться, каталогу потрібна **колонка «власник рішення»**, а не
+п'ять точкових правок. Зараз це гіпотеза на трьох випадках, тому колонки ще немає.
+
 Решту рядків (окрім D9) **не** перераховано цим проходом — «🔴 міграційні: 0» в §3 нижче
 може бути так само застарілим, це не перевірялось.
 
@@ -57,7 +67,7 @@ positions), і завищено (`✅ 100% у dg` — org-level reparent від�
 | A1 | Ієрархія org зі знімка BE | 🧬📋 | `create` + `setData` | ✅ 95 | T01/T12 |
 | A2 | Штатка організації | 📋 4245 | `layout/staff` | ✅ 100 | T08 |
 | A3 | Новий знімок / фільтр | 📋 | `setData` / `appendData` | ✅ 100 | T12/T21 |
-| A4 | Іконки IndexedDB object-URL | 🧬 | URL as-is | ✅ 100 | T23 |
+| A4 | Іконки: контракт із трьох обов'язків — `load` (+дедуп) / `invalidate` (байти міняються, посилання ні) / `dispose` (інакше течуть усі object-URL) | 🧬 | **не «URL as-is»** (застаріло з T74): `MediaService` — рефкаунт, `invalidate`, `refresh`, `destroy`; шов для хоста — `get media()` | ✅ 100 | T23/T74 |
 
 ### B. Розміщення
 
@@ -91,12 +101,12 @@ positions), і завищено (`✅ 100% у dg` — org-level reparent від�
 
 | # | Вимога | Дж. | dg | % | Тікет |
 |---|---|---|---|---|---|
-| D1 | Click → sidebar | 📋 | `onNodeClick` | ✅ 100 | T04 |
+| D1 | Click → sidebar. Модифікатори віддаються **сирими**, політику виділення вирішує **редюсер хоста** | 📋🧬 | `onNodeClick(node)` — **без модифікаторів**; політику застосовує SDK, хост бачить лише `onSelectionChange` (підсумок). Барель уже віддає `isSelectionToggleModifier` / `replaceSelection` / `toggleInSelection`, але **вхід** до них хосту недосяжний | 🟡 70 | T04 · гапи → **нові** |
 | D2 | Multi-select → bulk | 📋 наступні задачі | Set API + ctrl toggle ✅; marquee — Phase 2 | ✅ 85 | **T67** Phase1 ✅ |
-| D3 | Context menu | 📋 | React host | ✅ 100 | T10/T52 |
+| D3 | Context menu | 📋 | React host: SDK віддає `request` + `onAction`, меню й правила цілком хостові. Зворотний шлях звужує дескриптор до `{id,label,disabled?}` | ✅ 100 | T10/T52 |
 | D4 | Період підпорядкування **на організації** (відображення; не edge-click) | 📋 замовник | org period line paint | ✅ 95 | **T68** ✅ |
-| D5 | Dblclick → sidebar | 📋 замовник | `onNodeDoubleClick` wired (demo + tests); host must subscribe | ✅ 100 | **T69** |
-| D6 | Search + focus | 📋 | worker + revealPath | ✅ 100 | T18 |
+| D5 | Dblclick → sidebar | 🧬 ~~📋 замовник~~ — у легасі обв'язка **жива** (`ObjectDoubleClicked` → `nodeDoubleClick`), але **споживачів нуль**: подія емітиться в порожнечу | `onNodeDoubleClick` розведено на org і person; host must subscribe | ✅ 100 **шва**; сама вимога не жива **з жодного боку** | **T69** |
+| D6 | Search + focus. Вибір центрує камеру, **знімає** попереднє виділення і **не** відкриває сайдбар (він лишається click-only) | 📋 | пошук є (worker + revealPath, більше ніж просить хост — той шукає сам у React). Але `focusNode` **ставить** виділення замість знімати: мультивибір схлопується в один вузол. «Центруй без виділення» публічно лише через `listPromoteBoxes()` + `panTo` | 🟡 70 | T18 · гап → **новий** |
 | D7–D8 | Fullscreen / timeline | 📋🧬 | host | ✅ n/a | — |
 | D9 | D&D reparent | 📋🧬 живий і в org, і в positions | 🟡 часткова — org-level reparent взагалі відсутній; position-reparent не захищає корінь, немає move(cross-org)/merge/clone | 🟡 60 | T04/T17, **гапи → T116, T117** |
 
