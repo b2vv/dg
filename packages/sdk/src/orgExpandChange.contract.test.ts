@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@rstest/core';
+import { describe, expect, it, rstest } from '@rstest/core';
 import { OrgHierarchyDiagram } from './index.js';
 import type { DiagramData, DiagramOrganization } from './data/types.js';
 
@@ -325,9 +325,8 @@ describe('onOrgExpandChange contract', () => {
     }
   });
 
-  it('row 10: a throwing host callback is rethrown once on window.onerror', async () => {
+  it('row 10: a throwing host callback is reported once on console.error', async () => {
     const hostError = new Error('expand host callback failed');
-    const errorHits: unknown[] = [];
     const mounted = await mount(treeData(), {
       onOrgExpandChange: () => {
         throw hostError;
@@ -344,24 +343,20 @@ describe('onOrgExpandChange contract', () => {
       frames += 1;
       return render(...args);
     };
-    const onError = (event: ErrorEvent): void => {
-      errorHits.push(event.error);
-      event.preventDefault();
-    };
-    window.addEventListener('error', onError);
+    const originalConsoleError = console.error;
+    const consoleError = rstest.fn();
+    console.error = consoleError;
 
     try {
       expect(await mounted.diagram.toggleOrgExpand('org-2')).toBe(false);
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, 0);
-      });
 
       expect(frames).toBe(1);
       expect(collapsedOf(mounted.diagram, 'org-2')).toBe(true);
-      expect(errorHits).toHaveLength(1);
-      expect(errorHits[0]).toBe(hostError);
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      expect(consoleError.mock.calls[0]?.[0]).toContain('host callback threw');
+      expect(consoleError.mock.calls[0]?.[1]).toBe(hostError);
     } finally {
-      window.removeEventListener('error', onError);
+      console.error = originalConsoleError;
       mounted.cleanup();
     }
   });

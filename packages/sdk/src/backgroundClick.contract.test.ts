@@ -148,10 +148,9 @@ describe('onBackgroundClick contract', () => {
       }
     });
     const mounted = await mount({ onBackgroundClick });
-    const preventExpectedAsyncRethrow = (event: ErrorEvent): void => {
-      if (event.error === hostError) event.preventDefault();
-    };
-    window.addEventListener('error', preventExpectedAsyncRethrow);
+    const originalConsoleError = console.error;
+    const consoleError = rstest.fn();
+    console.error = consoleError;
 
     try {
       await mounted.diagram.select(selectedPosition);
@@ -160,11 +159,11 @@ describe('onBackgroundClick contract', () => {
       expect(onBackgroundClick).toHaveBeenCalledTimes(1);
       expect(thrown).toBe(hostError);
       expect(mounted.diagram.getSelection()).toBeNull();
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      expect(consoleError.mock.calls[0]?.[0]).toContain('host callback threw');
+      expect(consoleError.mock.calls[0]?.[1]).toBe(hostError);
     } finally {
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, 0);
-      });
-      window.removeEventListener('error', preventExpectedAsyncRethrow);
+      console.error = originalConsoleError;
       mounted.cleanup();
     }
   });
