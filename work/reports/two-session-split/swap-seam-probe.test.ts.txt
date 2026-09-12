@@ -1,0 +1,786 @@
+import { afterEach, describe, expect, it, rstest } from '@rstest/core';
+import { Texture, type FederatedPointerEvent } from 'pixi.js';
+import {
+  OrgHierarchyDiagram,
+  OrganizationNodeView,
+  PersonNodeView,
+  configureNodeTextureLoader,
+  type DiagramData,
+  type LayoutPatch,
+  type NodeRef,
+  type OrgHierarchyCallbacks,
+  type OrgHierarchyConfig,
+} from './index.js';
+import { createTestAnchorOverlay } from './react/index.js';
+
+type Mounted = { container: HTMLElement; diagram: OrgHierarchyDiagram };
+type UnknownCallbacks = OrgHierarchyCallbacks & Record<string, unknown>;
+type DiagramInternals = {
+  host: {
+    renderer: {
+      layers: {
+        root: { emit(event: string, ...args: unknown[]): boolean };
+        organizations: { children: unknown[] };
+        persons: { children: unknown[] };
+        edges: { emit(event: string, ...args: unknown[]): boolean; eventMode: string };
+      };
+    };
+  } | null;
+};
+
+const mounted: Mounted[] = [];
+
+afterEach(() => {
+  configureNodeTextureLoader(null);
+  for (const { container, diagram } of mounted.splice(0)) {
+    diagram.destroy();
+    container.remove();
+  }
+});
+
+function orgTreeData(rootCollapsed = false): DiagramData {
+  return {
+    organizations: [
+      {
+        id: 'root',
+        name: 'Root',
+        groupIds: [],
+        collapsed: rootCollapsed,
+        testId: 'root',
+      },
+      {
+        id: 'branch',
+        name: 'Branch',
+        parentOrgId: 'root',
+        groupIds: [],
+        collapsed: false,
+        testId: 'branch',
+      },
+      {
+        id: 'leaf',
+        name: 'Leaf',
+        parentOrgId: 'branch',
+        groupIds: [],
+        collapsed: true,
+        testId: 'leaf',
+      },
+    ],
+    groups: [],
+    departments: [],
+    persons: [],
+    positions: [],
+    reportLines: [],
+  };
+}
+
+function staffTreeData(): DiagramData {
+  const position = (id: string, title: string, extra: Partial<DiagramData['positions'][number]> = {}) => ({
+    id,
+    title,
+    organizationId: 'org',
+    groupIds: [],
+    status: 'vacant' as const,
+    isTemporary: false,
+    ...extra,
+  });
+
+  return {
+    organizations: [{ id: 'org', name: 'Organization', groupIds: [], collapsed: false }],
+    groups: [],
+    departments: [],
+    persons: [],
+    positions: [
+      position('head', 'Head', { isHead: true, expanded: true }),
+      position('a', 'Selected A'),
+      position('b', 'Expandable B'),
+      position('b-child', 'B child'),
+      position('c', 'Expandable C'),
+      position('c-child', 'C child'),
+    ],
+    reportLines: [
+      { fromId: 'head', toId: 'a', kind: 'admin' },
+      { fromId: 'head', toId: 'b', kind: 'admin' },
+      { fromId: 'b', toId: 'b-child', kind: 'admin' },
+      { fromId: 'head', toId: 'c', kind: 'admin' },
+      { fromId: 'c', toId: 'c-child', kind: 'admin' },
+    ],
+  };
+}
+
+function personData(photoUrl?: string): DiagramData {
+  return {
+    organizations: [{ id: 'org', name: 'Organization', groupIds: [], collapsed: false }],
+    groups: [],
+    departments: [],
+    persons: [{ id: 'person', fullName: 'Ada Person', ...(photoUrl ? { photoUrl } : {}) }],
+    positions: [
+      {
+        id: 'seat',
+        title: 'Head',
+        organizationId: 'org',
+        groupIds: [],
+        personId: 'person',
+        status: 'filled',
+        isTemporary: false,
+        isHead: true,
+      },
+    ],
+    reportLines: [],
+  };
+}
+
+async function mount(
+  data: DiagramData,
+  config: Omit<Partial<OrgHierarchyConfig<DiagramData>>, 'data'> = {},
+): Promise<Mounted> {
+  const container = document.createElement('div');
+  container.style.width = '800px';
+  container.style.height = '600px';
+  Object.defineProperty(container, 'clientWidth', { configurable: true, value: 800 });
+  Object.defineProperty(container, 'clientHeight', { configurable: true, value: 600 });
+  document.body.appendChild(container);
+  const diagram = await OrgHierarchyDiagram.create(container, {
+    data,
+    useWorker: false,
+    ...config,
+  });
+  const result = { container, diagram };
+  mounted.push(result);
+  return result;
+}
+
+function orgRef(id: string): NodeRef {
+  return { kind: 'organization', id, organizationId: id };
+}
+
+function positionRef(id: string): NodeRef {
+  return { kind: 'position', id, organizationId: 'org', positionId: id };
+}
+
+function expandedOrgIds(diagram: OrgHierarchyDiagram): string[] {
+  return diagram
+    .getData()
+    .organizations.filter((organization) => organization.collapsed !== true)
+    .map((organization) => organization.id)
+    .sort();
+}
+
+function hostOf(diagram: OrgHierarchyDiagram): NonNullable<DiagramInternals['host']> {
+  const host = (diagram as unknown as DiagramInternals).host;
+  if (!host) throw new Error('probe expected a mounted Pixi host');
+  return host;
+}
+
+function pointerEvent(
+  mods: Partial<{ ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }> = {},
+): FederatedPointerEvent {
+  return {
+    button: 0,
+    pointerId: 1,
+    clientX: 120,
+    clientY: 80,
+    global: { x: 120, y: 80 },
+    ctrlKey: Boolean(mods.ctrlKey),
+    metaKey: Boolean(mods.metaKey),
+    shiftKey: Boolean(mods.shiftKey),
+    stopPropagation: () => {},
+    preventDefault: () => {},
+    getLocalPosition: () => ({ x: 40, y: 40 }),
+  } as unknown as FederatedPointerEvent;
+}
+
+function firstOrgView(diagram: OrgHierarchyDiagram): OrganizationNodeView {
+  const view = hostOf(diagram).renderer.layers.organizations.children.find(
+    (child): child is OrganizationNodeView => child instanceof OrganizationNodeView,
+  );
+  if (!view) throw new Error('probe expected a rendered organization view');
+  return view;
+}
+
+function firstPersonView(diagram: OrgHierarchyDiagram): PersonNodeView {
+  const view = hostOf(diagram).renderer.layers.persons.children.find(
+    (child): child is PersonNodeView => child instanceof PersonNodeView,
+  );
+  if (!view) throw new Error('probe expected a rendered person/position view');
+  return view;
+}
+
+async function flush(): Promise<void> {
+  await Promise.resolve();
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, 0);
+  });
+}
+
+async function waitUntil(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (predicate()) return;
+    await flush();
+  }
+}
+
+describe('temporary cassiopeia TreeDiagramEngine swap-seam conformance probe', () => {
+  it('row 01 — create paints into the supplied host element', async () => {
+    const { container, diagram } = await mount(orgTreeData());
+    const canvas = diagram.getCanvas();
+
+    expect(
+      canvas !== null && (canvas.parentElement === container || container.contains(canvas)),
+      'getCanvas() was not mounted in the HTMLElement passed to create()',
+    ).toBe(true);
+  });
+
+  it('row 02 — identical setData preserves expansion and selection', async () => {
+    const { diagram } = await mount(orgTreeData(true));
+    await diagram.toggleOrgExpand('root');
+    await diagram.select(orgRef('branch'));
+    const snapshot = diagram.getData();
+    const before = {
+      expanded: expandedOrgIds(diagram),
+      selected: diagram.getSelections(),
+    };
+
+    await diagram.setData(snapshot);
+
+    expect(
+      { expanded: expandedOrgIds(diagram), selected: diagram.getSelections() },
+      'setData() with an identical snapshot did not preserve both expanded organizations and selection',
+    ).toEqual(before);
+  });
+
+  it('row 03 — expanding B leaves selection exactly {A}', async () => {
+    const { diagram } = await mount(staffTreeData(), {
+      staffCurrentOrgId: 'org',
+      staffLayout: { staffCoordMode: 'tree', collapseUnexpandedPositions: true },
+    });
+    await diagram.select(positionRef('a'));
+
+    await diagram.togglePositionExpand('b');
+
+    expect(
+      diagram.getSelections(),
+      'togglePositionExpand(B) changed the selection that contained only A',
+    ).toEqual([positionRef('a')]);
+  });
+
+  it('row 04 — collapsing a parent retains its now-hidden selected child', async () => {
+    const data = staffTreeData();
+    data.positions = data.positions.map((position) =>
+      position.id === 'b' ? { ...position, expanded: true } : position,
+    );
+    const { diagram } = await mount(data, {
+      staffCurrentOrgId: 'org',
+      staffLayout: { staffCoordMode: 'tree', collapseUnexpandedPositions: true },
+    });
+    await diagram.select(positionRef('b-child'));
+
+    await diagram.togglePositionExpand('b');
+
+    expect(
+      diagram.getSelections(),
+      'collapsing B removed or changed the selected child B-child after it became hidden',
+    ).toEqual([positionRef('b-child')]);
+  });
+
+  it('row 05 — setSelection is exact, idempotent, and does not emit node click', async () => {
+    const onSelectionChange = rstest.fn();
+    const onNodeClick = rstest.fn();
+    const { diagram } = await mount(staffTreeData(), {
+      staffCurrentOrgId: 'org',
+      callbacks: { onSelectionChange, onNodeClick },
+    });
+    await diagram.selectMany([positionRef('a'), positionRef('b')]);
+    onSelectionChange.mockClear();
+
+    await diagram.selectMany([positionRef('a')]);
+    await diagram.selectMany([positionRef('a')]);
+
+    expect(
+      {
+        selected: diagram.getSelections(),
+        selectionEvents: onSelectionChange.mock.calls.length,
+        nodeClicks: onNodeClick.mock.calls.length,
+      },
+      'selectMany([A]) did not replace B exactly once without emitting onNodeClick',
+    ).toEqual({ selected: [positionRef('a')], selectionEvents: 1, nodeClicks: 0 });
+  });
+
+  it('row 06 — reveal preserves selection and materializes a node below a collapsed branch', async () => {
+    const data = orgTreeData();
+    data.organizations = data.organizations.map((organization) =>
+      organization.id === 'branch' ? { ...organization, collapsed: true } : organization,
+    );
+    const { diagram } = await mount(data);
+    await diagram.select(orgRef('root'));
+    const beforeVisible = diagram.listTestAnchors().some((anchor) => anchor.ref.id === 'leaf');
+
+    const revealed = await diagram.revealPath('leaf');
+    const afterVisible = diagram.listTestAnchors().some((anchor) => anchor.ref.id === 'leaf');
+
+    expect(
+      { revealed, beforeVisible, afterVisible, selected: diagram.getSelections() },
+      'revealPath(leaf) was lost below a collapsed branch or changed selection away from Root',
+    ).toEqual({
+      revealed: true,
+      beforeVisible: false,
+      afterVisible: true,
+      selected: [orgRef('root')],
+    });
+  });
+
+  it('row 07 — zoom-in then zoom-out is a reversible discrete step', async () => {
+    const { diagram } = await mount(orgTreeData());
+    const initial = diagram.getZoom();
+
+    diagram.zoomBy(1.25);
+    const increased = diagram.getZoom();
+    diagram.zoomBy(0.8);
+
+    expect(
+      { increased: increased > initial, returned: Math.abs(diagram.getZoom() - initial) < 1e-9 },
+      'zoomBy(1.25) followed by zoomBy(0.8) did not increase and return to the original scale',
+    ).toEqual({ increased: true, returned: true });
+  });
+
+  it('row 08 — zoom-out then zoom-in is reversible and the lower bound is a positive no-op', async () => {
+    const { diagram } = await mount(orgTreeData());
+    const initial = diagram.getZoom();
+    diagram.zoomBy(0.8);
+    diagram.zoomBy(1.25);
+    const returned = diagram.getZoom();
+    for (let step = 0; step < 20; step += 1) diagram.zoomBy(0.5);
+    const lowerBound = diagram.getZoom();
+    diagram.zoomBy(0.5);
+
+    expect(
+      {
+        reversible: Math.abs(returned - initial) < 1e-9,
+        lowerBound,
+        lowerBoundWasNoOp: diagram.getZoom() === lowerBound,
+      },
+      'zoom-out/zoom-in was not reversible or an extra zoom-out crossed the positive lower bound',
+    ).toEqual({ reversible: true, lowerBound: 0.15, lowerBoundWasNoOp: true });
+  });
+
+  it('row 09 — fitView puts every rendered visible node inside the viewport', async () => {
+    const { diagram } = await mount(orgTreeData());
+    const fitted = diagram.fitView(24, { animate: false });
+    await flush();
+    const viewport = diagram.getViewport();
+    const screen = diagram.getScreenSize();
+    const outside = diagram.listTestAnchors().filter(({ world }) => {
+      const left = world.x * viewport.scale + viewport.x;
+      const top = world.y * viewport.scale + viewport.y;
+      const right = (world.x + world.width) * viewport.scale + viewport.x;
+      const bottom = (world.y + world.height) * viewport.scale + viewport.y;
+      return left < 0 || top < 0 || right > screen.width || bottom > screen.height;
+    });
+
+    expect(
+      { fitted, hasVisibleNodes: diagram.listTestAnchors().length > 0, outside },
+      'fitView() left at least one rendered visible node outside the viewport',
+    ).toEqual({ fitted: true, hasVisibleNodes: true, outside: [] });
+  });
+
+  it('row 10 — visible node count excludes descendants of a collapsed organization', async () => {
+    const { diagram } = await mount(orgTreeData());
+    const before = diagram.listTestAnchors().length;
+
+    await diagram.collapseOrg('root');
+    const after = diagram.listTestAnchors().length;
+
+    expect(
+      { before, after, decreased: after < before },
+      'the rendered-visible node count did not decrease after collapsing Root over descendants',
+    ).toEqual({ before: 3, after: 1, decreased: true });
+  });
+
+  it('row 11 — visible node keys match the visible count and omit collapsed descendants', async () => {
+    const { diagram } = await mount(orgTreeData());
+    await diagram.collapseOrg('root');
+    const anchors = diagram.listTestAnchors();
+    const keys = anchors.map((anchor) => anchor.ref.id);
+
+    expect(
+      { count: anchors.length, keys, containsBranch: keys.includes('branch') },
+      'visible keys disagreed with visible count or included Branch below collapsed Root',
+    ).toEqual({ count: 1, keys: ['root'], containsBranch: false });
+  });
+
+  it('row 12 — selectedKeys returns node keys that setSelection accepts without conversion', async () => {
+    const { diagram } = await mount(staffTreeData(), { staffCurrentOrgId: 'org' });
+    await diagram.selectMany([positionRef('a'), positionRef('b')]);
+    const selectedKeys = diagram.getSelections();
+
+    expect(
+      selectedKeys,
+      'getSelections() returned NodeRef objects instead of the node-key values required by selectedKeys()',
+    ).toEqual(['a', 'b']);
+  });
+
+  it('row 13 — node center is viewport-space at non-unit transform (analytical, not jsdom hit-testing)', async () => {
+    const { diagram } = await mount(orgTreeData());
+    diagram.setViewport({ x: 137, y: 83, scale: 1.7 });
+    const root = diagram.listTestAnchors().find((anchor) => anchor.ref.id === 'root');
+    if (!root) throw new Error('probe expected Root test-anchor geometry');
+    const returned = {
+      x: root.world.x + root.world.width / 2,
+      y: root.world.y + root.world.height / 2,
+    };
+    const expectedViewport = {
+      x: returned.x * 1.7 + 137,
+      y: returned.y * 1.7 + 83,
+    };
+    const missing = diagram.listTestAnchors().find((anchor) => anchor.ref.id === 'missing');
+
+    expect(
+      { returned, missing },
+      'listTestAnchors() exposed a scene-space center (and undefined for a missing key), not viewport pixels and null',
+    ).toEqual({ returned: expectedViewport, missing: null });
+  });
+
+  it('row 14 — expander center toggles without selection (public DOM target; no jsdom pixel hit-test)', async () => {
+    const { container, diagram } = await mount(orgTreeData());
+    await diagram.select(orgRef('leaf'));
+    diagram.setViewport({ x: 137, y: 83, scale: 1.7 });
+    const anchor = diagram.listTestAnchors().find((candidate) => candidate.ref.id === 'root');
+    if (!anchor?.expander) throw new Error('probe expected Root expander geometry');
+    const returnedCenter = {
+      x: anchor.expander.x + anchor.expander.width / 2,
+      y: anchor.expander.y + anchor.expander.height / 2,
+    };
+    const overlay = createTestAnchorOverlay({ diagram, mount: container, interactive: true });
+    const expander = container.querySelector('[data-testid="node-root-expander"]');
+    const node = container.querySelector('[data-testid="node-root"]');
+    const viewportCenter = expander instanceof HTMLElement
+      ? {
+          x: Number.parseFloat(expander.style.left) + Number.parseFloat(expander.style.width) / 2,
+          y: Number.parseFloat(expander.style.top) + Number.parseFloat(expander.style.height) / 2,
+        }
+      : null;
+    const orderedAboveNode = Boolean(
+      expander && node && (node.compareDocumentPosition(expander) & Node.DOCUMENT_POSITION_FOLLOWING),
+    );
+
+    (expander as HTMLButtonElement | null)?.click();
+    await waitUntil(
+      () => diagram.getData().organizations.find((organization) => organization.id === 'root')?.collapsed === true,
+    );
+
+    expect(
+      {
+        hasExpanderTarget: expander instanceof HTMLButtonElement,
+        returnedCenter,
+        orderedAboveNode,
+        collapsed: diagram.getData().organizations.find((organization) => organization.id === 'root')?.collapsed,
+        selected: diagram.getSelections(),
+      },
+      'expander geometry was scene-space rather than the viewport point, or its target failed to toggle without selection',
+    ).toEqual({
+      hasExpanderTarget: true,
+      returnedCenter: viewportCenter,
+      orderedAboveNode: true,
+      collapsed: true,
+      selected: [orgRef('leaf')],
+    });
+    overlay.dispose();
+  });
+
+  it('row 15 — invalidating a used icon reloads its live node and an unused ref is a no-op', async () => {
+    const firstTexture = Texture.WHITE;
+    const secondTexture = Texture.EMPTY;
+    const loader = rstest
+      .fn()
+      .mockResolvedValueOnce(firstTexture)
+      .mockResolvedValueOnce(secondTexture);
+    configureNodeTextureLoader(loader);
+    const { diagram } = await mount(personData('/person.png'), { staffCurrentOrgId: 'org' });
+    diagram.setZoom(1.4);
+    await waitUntil(() => loader.mock.calls.length === 1);
+    const view = firstPersonView(diagram) as unknown as { photoSprite: { texture: Texture } };
+    const before = view.photoSprite.texture;
+
+    await diagram.media.refresh({
+      kind: 'person',
+      id: 'person',
+      organizationId: 'org',
+      positionId: 'seat',
+      personId: 'person',
+    });
+    const after = view.photoSprite.texture;
+    const callsAfterUsed = loader.mock.calls.length;
+    await diagram.media.refresh({ kind: 'organization', id: 'unused', organizationId: 'unused' });
+
+    expect(
+      { before, after, callsAfterUsed, callsAfterUnused: loader.mock.calls.length },
+      'refresh(usedRef) did not replace the live node texture, or refresh(unusedRef) performed a load',
+    ).toEqual({
+      before: firstTexture,
+      after: secondTexture,
+      callsAfterUsed: 2,
+      callsAfterUnused: 2,
+    });
+  });
+
+  it('row 16 — PNG export returns Promise<Blob> repeatedly without changing scene state', async () => {
+    const { diagram } = await mount(orgTreeData());
+    await diagram.select(orgRef('branch'));
+    diagram.setViewport({ x: 19, y: 23, scale: 1.3 });
+    const before = {
+      viewport: diagram.getViewport(),
+      selected: diagram.getSelections(),
+    };
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'toBlob');
+    Object.defineProperty(HTMLCanvasElement.prototype, 'toBlob', {
+      configurable: true,
+      value(callback: BlobCallback) {
+        callback(new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], { type: 'image/png' }));
+      },
+    });
+
+    try {
+      const first = await diagram.export({ format: 'png' });
+      const second = await diagram.export({ format: 'png' });
+      expect(
+        {
+          blobs: [first instanceof Blob, second instanceof Blob],
+          types: [(first as Blob).type, (second as Blob).type],
+          after: {
+            viewport: diagram.getViewport(),
+            selected: diagram.getSelections(),
+          },
+        },
+        'repeated PNG export did not return PNG Blobs or changed viewport or selection',
+      ).toEqual({ blobs: [true, true], types: ['image/png', 'image/png'], after: before });
+    } finally {
+      if (descriptor) Object.defineProperty(HTMLCanvasElement.prototype, 'toBlob', descriptor);
+      else Reflect.deleteProperty(HTMLCanvasElement.prototype, 'toBlob');
+    }
+  });
+
+  it('row 17 — applying a theme preserves model and two expanded branches', async () => {
+    const { diagram } = await mount(staffTreeData(), {
+      theme: 'light',
+      staffCurrentOrgId: 'org',
+      staffLayout: { staffCoordMode: 'tree', collapseUnexpandedPositions: true },
+    });
+    await diagram.togglePositionExpand('b');
+    await diagram.togglePositionExpand('c');
+    const before = {
+      data: diagram.getData(),
+      expanded: [...diagram.getStaffExpandedPositionIds()].sort(),
+    };
+
+    await diagram.setTheme('dark');
+
+    expect(
+      { data: diagram.getData(), expanded: [...diagram.getStaffExpandedPositionIds()].sort() },
+      'setTheme(dark) changed the model or the two expanded position branches',
+    ).toEqual(before);
+  });
+
+  it('row 18 — late event subscription returns a working unsubscriber', async () => {
+    const { diagram } = await mount(orgTreeData());
+    const candidate = diagram as unknown as {
+      on?: (event: string, callback: (payload: unknown) => void) => () => void;
+    };
+    const calls: unknown[] = [];
+    let unsubscribe: (() => void) | undefined;
+    if (typeof candidate.on === 'function') {
+      unsubscribe = candidate.on('nodeClicked', (payload) => calls.push(payload));
+      firstOrgView(diagram).emit('pointertap', pointerEvent());
+      unsubscribe();
+      firstOrgView(diagram).emit('pointertap', pointerEvent());
+    }
+
+    expect(
+      { lateSubscription: typeof candidate.on === 'function', unsubscribe: typeof unsubscribe, calls: calls.length },
+      'OrgHierarchyDiagram has no post-create on(event, callback) subscription that returns an unsubscriber',
+    ).toEqual({ lateSubscription: true, unsubscribe: 'function', calls: 1 });
+  });
+
+  it('row 19 — destroy cancels callbacks already queued by viewport work', async () => {
+    const onViewportChange = rstest.fn();
+    const { diagram } = await mount(orgTreeData(), {
+      viewportSettleMs: 5,
+      callbacks: { onViewportChange },
+    });
+
+    diagram.setZoom(1.4);
+    diagram.destroy();
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 20);
+    });
+
+    expect(
+      onViewportChange.mock.calls.length,
+      'a viewport callback queued before destroy() fired after destroy()',
+    ).toBe(0);
+  });
+
+  it('row 20 — nodeClicked carries raw shift/ctrl/meta modifiers', async () => {
+    const onNodeClick = rstest.fn();
+    const { diagram } = await mount(orgTreeData(), { callbacks: { onNodeClick } });
+
+    firstOrgView(diagram).emit(
+      'pointertap',
+      pointerEvent({ shiftKey: true, ctrlKey: true, metaKey: true }),
+    );
+    const payload = onNodeClick.mock.calls[0]?.[0] as Record<string, unknown> | undefined;
+
+    expect(
+      payload,
+      'onNodeClick payload has no raw shiftKey/ctrlKey/metaKey modifier fields',
+    ).toMatchObject({ shiftKey: true, ctrlKey: true, metaKey: true });
+  });
+
+  it('row 21 — nodeDoubleClick emits a node key for both organization and person', async () => {
+    const orgDoubleClick = rstest.fn();
+    const personDoubleClick = rstest.fn();
+    const singleOrg = orgTreeData();
+    singleOrg.organizations = [singleOrg.organizations[0]!];
+    const org = await mount(singleOrg, { callbacks: { onNodeDoubleClick: orgDoubleClick } });
+    const person = await mount(personData(), {
+      staffCurrentOrgId: 'org',
+      callbacks: { onNodeDoubleClick: personDoubleClick },
+    });
+
+    firstOrgView(org.diagram).emit('pointertap', pointerEvent());
+    firstOrgView(org.diagram).emit('pointertap', pointerEvent());
+    firstPersonView(person.diagram).emit('pointertap', pointerEvent());
+    firstPersonView(person.diagram).emit('pointertap', pointerEvent());
+
+    expect(
+      {
+        org: orgDoubleClick.mock.calls.map((call) => (call[0] as NodeRef).id),
+        person: personDoubleClick.mock.calls.map((call) => (call[0] as NodeRef).id),
+      },
+      'onNodeDoubleClick did not emit one organization key and one person key',
+    ).toEqual({ org: ['root'], person: ['person'] });
+  });
+
+  it('row 22 — background click is emitted outward and does not decide selection', async () => {
+    const onBackgroundClicked = rstest.fn();
+    const callbacks = { onBackgroundClicked } as UnknownCallbacks;
+    const { diagram } = await mount(orgTreeData(), { callbacks });
+    await diagram.select(orgRef('root'));
+
+    hostOf(diagram).renderer.layers.root.emit('pointertap');
+
+    expect(
+      { backgroundEvents: onBackgroundClicked.mock.calls.length, selected: diagram.getSelections() },
+      'background click emitted no public event and cleared selection inside the diagram',
+    ).toEqual({ backgroundEvents: 1, selected: [orgRef('root')] });
+  });
+
+  it('row 23 — every organization expander toggle emits its new expanded state', async () => {
+    const onExpanderToggled = rstest.fn();
+    const callbacks = { onExpanderToggled } as UnknownCallbacks;
+    const { diagram } = await mount(orgTreeData(true), { callbacks });
+
+    const expanded = await diagram.toggleOrgExpand('root');
+    const collapsed = await diagram.toggleOrgExpand('root');
+
+    expect(
+      {
+        toggleResults: [expanded, collapsed],
+        events: onExpanderToggled.mock.calls.map((call) => call[0]),
+      },
+      'organization toggles completed but no expanderToggled payloads carried expanded=true then false',
+    ).toEqual({
+      toggleResults: [true, false],
+      events: [
+        { nodeKey: 'root', expanded: true },
+        { nodeKey: 'root', expanded: false },
+      ],
+    });
+  });
+
+  it('row 24 — contextMenu carries incomingLink and a viewport point', async () => {
+    const onContextMenu = rstest.fn();
+    const data = orgTreeData();
+    data.orgLinks = [
+      { fromOrgId: 'root', toOrgId: 'branch', kind: 'administrative' },
+    ];
+    const { diagram } = await mount(data, { callbacks: { onContextMenu } });
+
+    diagram.openContextMenu(orgRef('branch'), { clientX: 37, clientY: 41 });
+    const request = onContextMenu.mock.calls[0]?.[0] as
+      | { pointer?: { clientX?: number; clientY?: number }; incomingLink?: unknown }
+      | undefined;
+
+    expect(
+      request?.pointer,
+      'contextMenu payload did not preserve the supplied viewport client point',
+    ).toMatchObject({ clientX: 37, clientY: 41 });
+    expect(
+      request?.incomingLink,
+      'contextMenu payload has no incomingLink for the Branch node',
+    ).toEqual({ fromOrgId: 'root', toOrgId: 'branch', kind: 'administrative' });
+  });
+
+  it('row 25 — reparent emits {nodeKey, newParentKey|null}, including null detachment', async () => {
+    const patches: LayoutPatch[] = [];
+    const { diagram } = await mount(staffTreeData(), {
+      staffCurrentOrgId: 'org',
+      callbacks: { onLayoutChange: (patch) => patches.push(patch) },
+    });
+
+    await diagram.reparentPosition('b-child', 'c');
+    const reparent = patches.find((patch) => patch.type === 'position-reparent');
+    let detachError: string | null = null;
+    try {
+      await (
+        diagram.reparentPosition as unknown as (
+          positionId: string,
+          managerId: string | null,
+        ) => Promise<void>
+      )('b-child', null);
+    } catch (error) {
+      detachError = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(
+      { reparent, detachError },
+      'reparent payload used positionId/fromManagerId/toManagerId and null detachment was refused',
+    ).toEqual({
+      reparent: { nodeKey: 'b-child', newParentKey: 'c' },
+      detachError: null,
+    });
+  });
+
+  it('row 26 — link click emits structureId and fromDate/toDate', async () => {
+    const onLinkClick = rstest.fn();
+    const data = staffTreeData();
+    const enrichedLine = {
+      fromId: 'head',
+      toId: 'a',
+      kind: 'admin' as const,
+      structureId: 'structure-1',
+      fromDate: '2026-01-01',
+      toDate: null,
+    };
+    data.reportLines = [enrichedLine];
+    const callbacks = { onLinkClick } as UnknownCallbacks;
+    const { diagram } = await mount(data, { staffCurrentOrgId: 'org', callbacks });
+
+    hostOf(diagram).renderer.layers.edges.emit('pointertap', pointerEvent());
+
+    expect(
+      {
+        eventMode: hostOf(diagram).renderer.layers.edges.eventMode,
+        events: onLinkClick.mock.calls.map((call) => call[0]),
+      },
+      'the edge layer is non-interactive and emitted no linkClick payload with structure/date metadata',
+    ).toEqual({
+      eventMode: 'static',
+      events: [
+        {
+          structureId: 'structure-1',
+          fromDate: '2026-01-01',
+          toDate: null,
+        },
+      ],
+    });
+  });
+});
