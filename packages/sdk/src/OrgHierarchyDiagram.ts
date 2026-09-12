@@ -546,13 +546,14 @@ export class OrgHierarchyDiagram {
     }
   }
 
+  // Precondition: both arrays describe the same organizations and differ only in collapsed flags.
+  // This is not the only emitter: setData sends its snapshot signal directly. A guard for
+  // every emission belongs in callHostCallback, the door both paths share.
   private emitOrgExpandChange(
     reason: OrgExpandChange['reason'],
     before: readonly DiagramOrganization[],
     after: readonly DiagramOrganization[],
   ): void {
-    // This is not the only emitter: setData sends its snapshot signal directly. A guard for
-    // every emission belongs in callHostCallback, the door both paths share.
     const collapsedBefore = new Map(before.map((org) => [org.id, isOrgCollapsed(org)]));
     const changed = after.filter((org) => {
       const previous = collapsedBefore.get(org.id);
@@ -922,6 +923,9 @@ export class OrgHierarchyDiagram {
       // Expand ancestors too — otherwise row-tree roots at the leaf and drops the forest (A12).
       organizations: revealOrgPath(this.data.organizations, orgId),
     };
+    // Purposefully unequal for now: onOrgExpandChange swallows and reports host errors;
+    // onOrgModeChange still lets them cancel the frame. Equalizing that is a separate behavior
+    // change to the existing public contract.
     this.callbacks.onOrgModeChange?.(this.getOrgMode());
     this.emitOrgExpandChange('toggle', organizationsBefore, this.data.organizations);
     await this.render();

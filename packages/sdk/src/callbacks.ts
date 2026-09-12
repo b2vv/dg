@@ -82,7 +82,11 @@ export interface OrgExpandChange {
   reason: 'toggle' | 'data' | 'reveal' | 'reveal-rollback';
   /** Organizations whose collapsed flag actually changed. Empty for `data`. */
   changedIds: readonly string[];
-  /** Their new expanded state; null for `data` or a non-uniform transition. */
+  /**
+   * Their new expanded state. `null` means not applicable: a `data` snapshot carries no delta,
+   * so there is no single state to report. This is intentionally wider than the precedent
+   * `onPositionExpandChange`, whose payload has no snapshot-shaped reason.
+   */
   expanded: boolean | null;
 }
 
