@@ -920,6 +920,9 @@ export class DiagramRenderer {
         orgId: card.orgId,
         doubleTap: this.nodeDoubleTap,
         handlers: options,
+        // Staff-scene org cards are not selectable — only positions are
+        // manipulable here (owner 2026-09-13). Tap expands/drills, never selects.
+        selectable: false,
         // Tier-3 card: expand in place when the host offers it, else drill in.
         onSingleTap: (orgId) => {
           if (options.onStaffOrgExpandToggle) options.onStaffOrgExpandToggle(orgId);

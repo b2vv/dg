@@ -239,7 +239,10 @@ describe('onNodeDoubleClick (T69)', () => {
     card.emit('pointertap', tapEvent());
 
     expect(onStaffOrgExpandToggle).toHaveBeenCalledTimes(1);
-    expect(onOrgClick).toHaveBeenCalledTimes(1);
+    // A12/A13: staff-scene org cards are not selectable — a plain tap expands
+    // (onStaffOrgExpandToggle) but never selects (owner 2026-09-13). This was 1
+    // while the shared handler fed selection on every scene; now 0.
+    expect(onOrgClick).not.toHaveBeenCalled();
     expect(onOrgDoubleClick).toHaveBeenCalledTimes(1);
 
     renderer.destroy();
