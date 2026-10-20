@@ -52,6 +52,14 @@ export interface DiagramOrganization {
   symbolUrlLight?: string;
   symbolUrlDark?: string;
   parentOrgId?: string;
+  /**
+   * Host role in the staff scene: `'leading'` = tier-1 governing org (leadership
+   * block), `'current'` = the org the structure is shown for. Flows to
+   * {@link OrgHierarchyDiagram.listPromoteCandidates} `node.organization.role` so a
+   * host HTML overlay can style `.porg` / `.org.cur`. Canvas state rendering is
+   * additive (follow-up). Independent of the `staffCurrentOrgId` config hint.
+   */
+  role?: 'leading' | 'current';
   groupIds: string[];
   collapsed?: boolean;
   /** Порядок у matrix mode (D&D reorder) */
@@ -108,6 +116,14 @@ export interface DiagramPosition {
    * and has no admin parent in `reportLines` — flag is optional additive.
    */
   detached?: boolean;
+  /**
+   * Host flag: a foreign position from another structure, surfaced inside our
+   * leadership block («подвійна»). INDEPENDENT of `detached` — a different concept
+   * (foreign-but-placed, not orphaned; see host mapper). Flows to
+   * {@link OrgHierarchyDiagram.listPromoteCandidates} `node.position.external` for a
+   * host HTML overlay; canvas state rendering is additive (follow-up).
+   */
+  external?: boolean;
   /** Розмір картки (staff layout AABB) */
   width?: number;
   height?: number;

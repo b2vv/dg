@@ -41,6 +41,22 @@ describe('resolveContextMenuNodeData', () => {
     expect(payload.ref.positionId).toBe('pos1');
   });
 
+  // Контракт host-read: `role` (org) і `external` (position) мають протікати у
+  // node БЕЗ втрати — host HTML-overlay читає їх назад через listPromoteCandidates.
+  it('passthrough: org.role and position.external survive into node', () => {
+    const d = data();
+    d.organizations[0]!.role = 'leading';
+    d.positions[0]!.external = true;
+    const payload = resolveContextMenuNodeData(d, {
+      kind: 'position',
+      id: 'pos1',
+      positionId: 'pos1',
+      organizationId: 'org1',
+    });
+    expect(payload.organization?.role).toBe('leading');
+    expect(payload.position?.external).toBe(true);
+  });
+
   it('failure: unknown ids → sparse payload, still has ref', () => {
     const payload = resolveContextMenuNodeData(data(), {
       kind: 'person',
