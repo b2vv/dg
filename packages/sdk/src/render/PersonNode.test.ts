@@ -306,6 +306,49 @@ describe('PersonNodeView', () => {
       expect(view.hasPeriodChip()).toBe(false);
     });
 
+    // S1 — host шле ТВО як `status:'acting'` БЕЗ `isTemporary` (Cass 1: їхнє
+    // темпоральне поняття одне). Маркер має з'явитись тим самим hourglass.
+    it('acting via status (no isTemporary): hourglass after the name', async () => {
+      const view = PersonNodeView.create(
+        { id: 'p1', fullName: 'Alex Morgan' },
+        {
+          id: 'pos1',
+          title: 'First deputy',
+          organizationId: 'org1',
+          groupIds: [],
+          status: 'acting',
+          isTemporary: false,
+        },
+        figmaSeat,
+        'near',
+      );
+      await view.mediaReady;
+      const name = view.findText('Alex Morgan');
+      const hourglass = view.findText('⏳');
+      expect(name).toBeTruthy();
+      expect(hourglass).toBeTruthy();
+      expect(hourglass!.position.x).toBeGreaterThan(name!.position.x);
+    });
+
+    // S3 — звичайна (filled, не-temporal) посада маркера НЕ отримує.
+    it('filled non-temporal seat: no hourglass marker', async () => {
+      const view = PersonNodeView.create(
+        { id: 'p2', fullName: 'Dana Lee' },
+        {
+          id: 'pos2',
+          title: 'Analyst',
+          organizationId: 'org1',
+          groupIds: [],
+          status: 'filled',
+          isTemporary: false,
+        },
+        figmaSeat,
+        'near',
+      );
+      await view.mediaReady;
+      expect(view.findText('⏳')).toBeUndefined();
+    });
+
     it('vacant seat: title only (no «(вакансія)» line)', async () => {
       const view = PersonNodeView.create(
         undefined,

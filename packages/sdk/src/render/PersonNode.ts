@@ -474,6 +474,9 @@ export class PersonNodeView extends Container {
     }
 
     const vacant = position.status === 'vacant';
+    // ТВО приходить як `status:'acting'` (host) АБО `isTemporary` (demo/legacy) —
+    // один amber-hourglass маркер на canvas, форма за `tempMarkerStyle`.
+    const temporal = position.isTemporary === true || position.status === 'acting';
     const gojsRowNear = layout === 'gojs-row' && lod === 'near';
     let cardY = 0;
     let cardH = style.height;
@@ -505,7 +508,7 @@ export class PersonNodeView extends Container {
       nameFill = style.titleColor;
     } else if (gojsRow && position.isKeyPosition) {
       nameFill = style.brandColor ?? style.nameColor;
-    } else if (!gojsRow && position.isTemporary && style.temporaryNameColor !== undefined) {
+    } else if (!gojsRow && temporal && style.temporaryNameColor !== undefined) {
       nameFill = style.temporaryNameColor;
     }
 
@@ -533,8 +536,8 @@ export class PersonNodeView extends Container {
     }
 
     const hourglassTemp = style.tempMarkerStyle === 'hourglass';
-    const showLegacyTempBadge = position.isTemporary && !gojsRow && !hourglassTemp;
-    const showHourglass = position.isTemporary && hourglassTemp && this.nameText.visible;
+    const showLegacyTempBadge = temporal && !gojsRow && !hourglassTemp;
+    const showHourglass = temporal && hourglassTemp && this.nameText.visible;
     this.badge.visible = showLegacyTempBadge;
     this.badgeLabel.visible = showLegacyTempBadge || showHourglass;
     if (showLegacyTempBadge) {
