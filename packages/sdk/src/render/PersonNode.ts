@@ -380,7 +380,7 @@ export class PersonNodeView extends Container {
     let stroke = style.border;
     const detached = layout === 'gojs-row' && position.detached === true;
     if (layout === 'gojs-row') {
-      if (position.isKeyPosition) stroke = style.brandColor ?? 0x2563eb;
+      if (position.isKeyPosition || position.isHead) stroke = style.brandColor ?? 0x2563eb;
       else if (detached) stroke = style.detachedBorderColor ?? style.titleColor;
     }
 
@@ -506,6 +506,10 @@ export class PersonNodeView extends Container {
       nameFill = style.vacantLabelColor ?? style.nameColor;
     } else if (vacant && gojsRow) {
       nameFill = style.titleColor;
+    } else if (position.isHead && style.brandColor !== undefined) {
+      // Head of structure — brand-accent name (blueprint §4). Card-split keeps the
+      // pixel-exact glow / brand-soft on the host HTML overlay; canvas marks the state.
+      nameFill = style.brandColor;
     } else if (gojsRow && position.isKeyPosition) {
       nameFill = style.brandColor ?? style.nameColor;
     } else if (!gojsRow && temporal && style.temporaryNameColor !== undefined) {

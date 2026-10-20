@@ -349,6 +349,47 @@ describe('PersonNodeView', () => {
       expect(view.findText('⏳')).toBeUndefined();
     });
 
+    // H1 — head-позиція (керівник структури) має brand-акцент імені на canvas
+    // (blueprint §4: head `.pos` → brand). Розрізнюваність для far/mid/export/pan.
+    const headSeat = { ...figmaSeat, brandColor: 0xe5491d, permanentNameColor: 0xe8490f };
+    it('head seat: name painted in brandColor', async () => {
+      const view = PersonNodeView.create(
+        { id: 'p1', fullName: 'Ivan Head' },
+        {
+          id: 'pos1',
+          title: 'Commander',
+          organizationId: 'org1',
+          groupIds: [],
+          status: 'filled',
+          isTemporary: false,
+          isHead: true,
+        },
+        headSeat,
+        'near',
+      );
+      await view.mediaReady;
+      expect(view.findText('Ivan Head')?.style.fill).toBe(0xe5491d);
+    });
+
+    it('non-head filled seat: name NOT in brandColor', async () => {
+      const view = PersonNodeView.create(
+        { id: 'p2', fullName: 'Olena Staff' },
+        {
+          id: 'pos2',
+          title: 'Officer',
+          organizationId: 'org1',
+          groupIds: [],
+          status: 'filled',
+          isTemporary: false,
+          isHead: false,
+        },
+        headSeat,
+        'near',
+      );
+      await view.mediaReady;
+      expect(view.findText('Olena Staff')?.style.fill).not.toBe(0xe5491d);
+    });
+
     it('vacant seat: title only (no «(вакансія)» line)', async () => {
       const view = PersonNodeView.create(
         undefined,
