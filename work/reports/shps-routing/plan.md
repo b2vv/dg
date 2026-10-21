@@ -1,8 +1,9 @@
 # plan — реалізація роутера ліній підпорядкування ШПС
 
-**Status:** `probe-build` ·後 spec `GATE-r2-PASS`. Критика: GATE r2 PASS зняв 5 blocking; цей план
-веде від рішення рушія (A конструктив vs B ELK) через СИМЕТРИЧНІ проби до plan-GATE і далі
-impl→verify. Йд-траєкторія: 0 знахідок поки (новий документ); plan-GATE попереду.
+**Status:** `plan-GATE-PASS → impl` · рушій = **A (конструктив)** (рішення власника + plan-GATE r1
+PASS). Критика: spec GATE r2 зняв 5 blocking; проби (A vs B) виміряно симетрично; plan-GATE r1 PASS
+(0 blocking, 5 non-blocking → tasks, NB1 elkjs→devDeps виправлено). Далі: impl A-v2 (задачі нижче)
+behind `staffEdgeRouter` flag, acceptance §10.1.4=0 (NB2).
 **Поріг:** 🔴 найвищий (успадковано від spec): нова публічна поведінка (гарантії схеми) + новий
 контракт (`highlightPath`, `lead-org` kind) + ймовірна нова залежність (ELK.js).
 **Джерела:** spec `work/reports/shps-routing/spec.md`; вимоги host
@@ -98,8 +99,48 @@ spec на GATE PASS, рушій НЕ обрано — рішення винес�
   diagram-link`: dark `#c2502a`/light `#b35a23`), не на око.
 - **Plan-GATE перед промоцією:** plan-critique + plan-defense над цим планом + таблицею проб.
 
+## Задачі (impl A-v2, після plan-GATE PASS)
+Рушій — **A (конструктив)**, за вердиктом власника; B лишається еталоном якості й fallback.
+Acceptance піднято за умовою GATE (нижче). Порядок:
+1. **Obstacle-avoidance роутер** на наявних примітивах (`polylineHitsBoxInterior`/
+   `segmentHitsBoxInterior` `staffEdgeGeometry.ts`): міждепарт. ребро обходить чужі картки (8px)
+   і рамки (не крізь третю, §3.2). Контрольна проба RED: вхід, де наївний шлях порушив би 8px.
+2. **Bounded-резолюція коридорів** (spec §5 п.5): доріжки 8px, ≤K проходів монотонною мірою, стоп.
+3. **🔴 Acceptance §10.1.4 = 0 перетинів (умова GATE NB2):** B довів, що 0 ДОСЯЖНИЙ на s2/s4/s5,
+   тож A-v2 має дати **0** на цих схемах, а НЕ «позначити 3». §12-маркер — лише для входу, де 0
+   справді інфізибельний; **додати фікстуру такого входу** (інакше §12-гілка не exercised і маркер
+   маскуватиме недобудований obstacle-avoidance).
+4. **Carry-forward зі spec r2 (GATE NB3), поіменно в tasks/тестах:** (a) валідація входу — цикл
+   `parentId`, **dangling `parentId`** (на неіснуючу/відфільтровану), **self-parent** (`id===parentId`)
+   → structured-error, не hang; (b) фікстури **0 посад / 1 посада** (N6); (c) **epoch-guard**
+   re-entrancy (`setData`/ресайз під час маршрутизації скасовує прогін, патерн `ingestIsCurrent`).
+5. **Шов + прапор:** `staffEdgeRouter:'legacy'|'v2'` (default legacy, spec B5) у
+   `paintStaffFrameAndEdges` (`DiagramRenderer.ts:769`) → `StaffEdgesView.fromLayout` (`:72`).
+   Колір через `EdgeStyle.color` (`types.ts:174`).
+6. **highlightPath** — публічний метод `OrgHierarchyDiagram` (root→X + прямі, решта 40%).
+7. **Прибирання:** зняти probe-скаффолд `_shps-routing-probe/` + **elkjs з devDependencies** (NB1).
+8. Перф-гейт лишається ≤50мс/500 (A probe = 31–32мс, бюджет є).
+
 ## Критика
-(заповнюється на plan-GATE — після побудови харнесу й обох проб, за реальною таблицею метрик)
+**plan-GATE r1 (свіжий контекст, Opus 4.8) — ✅ PASS.** Метрики відтворено (18 control-тестів +
+measure-таблиця + перф A-500=32мс/B-500=196мс), code-заяви звірено правдивими на HEAD 19e6c13.
+Рішення A над B визнано ЧЕСНИМ (не cherry-pick): звіт сам визнає, що прототип A програв на якості й
+що B довів 0 на s4 (спростувавши §12-посилку для s4); вибір будується на твердій гарантії tree-0 +
+добудовуваній слабкості + 0 deps + sync, з B як fallback. Blocking: немає. Non-blocking (усі → tasks):
+- **NB2** (топ-умова): acceptance A-v2 §10.1.4 = 0 (feasibility доведена B), + фікстура реально-
+  інфізибельного входу для §12-гілки. → задача 3.
+- **NB1** (виправлено ЗАРАЗ): elkjs був у `dependencies`, не devDependencies — перенесено в
+  devDependencies; план-крок 4 («devDependency — reversible») тепер правдивий.
+- **NB3**: carry-forward spec-r2 (dangling/self-parent enumerate; 0/1-посади N6; epoch-guard) — у
+  задачу 4 (усі покриті спекою GATE-r2-PASS; probeA вже має cycle-guard:52 і dept-0-members:89).
+- **NB4**: B-перф не профільовано (не доведено «не тюниться», лише out-of-box промах) — rationale
+  чесно хеджує; B лишається fallback.
+- **NB5**: npm audit 4 high-sev не верифіковано рев'ювером — not load-bearing (A обрано, deps=0).
+- Seam line-drift: `fromLayout:72` (план казав :800) — виправлено у задачі 5.
+- **Вердикт r1:** PASS. Код A-v2 можна починати; acceptance за NB2.
 
 ## Закрито в grilling
-(заповнюється після plan-GATE + рішення рушія)
+- **Рушій A над B:** рішення власника + plan-GATE PASS (чесність підтверджена незалежно).
+- **§12 драбина:** лишається, але acceptance A-v2 на §10.1.4 = 0 (B довів досяжність); маркер — для
+  справді-інфізибельного входу (додати фікстуру).
+- **elkjs:** перенесено в devDependencies; зняти разом зі скаффолдом після промоції A.
