@@ -84,6 +84,20 @@ export interface DiagramDepartment {
   id: string;
   name: string;
   organizationId: string;
+  /**
+   * Host-set routing input (routing-input §2): керівна посада, якій підпорядкований
+   * департамент. `null`/відсутнє → кореневий департамент (без висхідного зв'язку).
+   * Споживається staff-роутером (spec `work/reports/shps-routing/`, landing крок 3);
+   * host core-mapper його заповнює (поки TODO(dg-landing:routing)). Additive: layout/
+   * рендер без нього не змінюються.
+   */
+  parentPositionId?: string | null;
+  /**
+   * Host-set routing input (routing-input §2): порядок департаментів-сусідів одного
+   * керівника, зліва направо (`order` у вимогах §2). Споживається staff-роутером для
+   * детермінованого tie-break; additive.
+   */
+  order?: number;
   /** Grid cells для tetris pack (заповнює layout) */
   layoutCells?: GridCell[];
   /** Плавний органічний контур (заповнює WASM після pack) */

@@ -57,6 +57,23 @@ describe('resolveContextMenuNodeData', () => {
     expect(payload.position?.external).toBe(true);
   });
 
+  // Контракт host-read: routing-input поля департаменту (`parentPositionId`, `order`,
+  // routing-input §2) мають протікати у node БЕЗ втрати — staff-роутер читає їх зі
+  // знімка; ingest (mergeById) заміняє об'єкт цілком по id, тож поля виживають.
+  it('passthrough: department.parentPositionId and order survive into node', () => {
+    const d = data();
+    d.departments[0]!.parentPositionId = 'pos1';
+    d.departments[0]!.order = 3;
+    const payload = resolveContextMenuNodeData(d, {
+      kind: 'position',
+      id: 'pos1',
+      positionId: 'pos1',
+      departmentId: 'IT',
+    });
+    expect(payload.department?.parentPositionId).toBe('pos1');
+    expect(payload.department?.order).toBe(3);
+  });
+
   it('failure: unknown ids → sparse payload, still has ref', () => {
     const payload = resolveContextMenuNodeData(data(), {
       kind: 'person',
