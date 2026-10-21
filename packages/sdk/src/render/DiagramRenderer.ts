@@ -39,6 +39,7 @@ import type { WorldRect } from './staffZoneBounds.js';
 import { enrichStaffTierBands, unionBoxes } from './staffZoneBounds.js';
 import { OrgEdgesView } from './OrgEdgesView.js';
 import { StaffEdgesView } from './StaffEdgesView.js';
+import { resolveStaffRouting } from './staffRouterV2.js';
 import { PersonNodeView } from './PersonNode.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
 import type {
@@ -626,6 +627,7 @@ export class DiagramRenderer {
       refCellHeight: config.cellHeight,
       zoneLabelBand,
       ...options.staff?.layout,
+      deptGrouping: config.staffEdgeRouter === 'v2',
       expandedOrgIds: options.staff?.expandedOrgIds ?? options.staff?.layout?.expandedOrgIds,
     };
     const canvas = await layoutStaffCanvas(
@@ -786,23 +788,42 @@ export class DiagramRenderer {
       }
     }
 
-    const edgeBoxes = mapStaffEdgeBoxesForLod(
-      mapPositionNodesToStaffEdgeBoxes(canvas.positionNodes, geom.positionById, theme.person),
-      canvas.orgCards.map((c) => ({
-        id: c.orgId,
-        x: c.x,
-        y: c.y,
-        width: c.width,
-        height: c.height,
-      })),
-      options.lod ?? 'near',
-    );
-    this.layers.edges.addChild(
-      StaffEdgesView.fromLayout(canvas.edges, edgeBoxes, {
-        theme: resolvedTheme,
-        edge: theme.edge,
-      }),
-    );
+    const orgCardBoxes = canvas.orgCards.map((c) => ({
+      id: c.orgId,
+      x: c.x,
+      y: c.y,
+      width: c.width,
+      height: c.height,
+    }));
+    if (config.staffEdgeRouter === 'v2') {
+      const { routedSegments, markedCrossings } = resolveStaffRouting({
+        positionNodes: canvas.positionNodes,
+        edges: canvas.edges,
+        positionById: geom.positionById,
+        personTheme: theme.person,
+        lod: options.lod ?? 'near',
+        orgCards: orgCardBoxes,
+      });
+      const markedKeys = new Set(markedCrossings.map((c) => `${c.fromId}\u0000${c.toId}`));
+      this.layers.edges.addChild(
+        StaffEdgesView.fromLayout(canvas.edges, [], {
+          theme: resolvedTheme,
+          edge: theme.edge,
+        }, { segments: routedSegments, markedKeys }),
+      );
+    } else {
+      const edgeBoxes = mapStaffEdgeBoxesForLod(
+        mapPositionNodesToStaffEdgeBoxes(canvas.positionNodes, geom.positionById, theme.person),
+        orgCardBoxes,
+        options.lod ?? 'near',
+      );
+      this.layers.edges.addChild(
+        StaffEdgesView.fromLayout(canvas.edges, edgeBoxes, {
+          theme: resolvedTheme,
+          edge: theme.edge,
+        }),
+      );
+    }
   }
 
   private addStaffPersonCards(

@@ -4,6 +4,7 @@ import {
   type StaffEdgeBox,
   type StaffEdgeLink,
   type StaffEdgePoint,
+  type StaffEdgeSegment,
 } from '../layout/staffEdgeGeometry.js';
 import {
   arrowHeadTriangle,
@@ -14,6 +15,8 @@ import {
 import type { EdgeStyle } from './types.js';
 
 const ARROW_SIZE = 7;
+/** §12 placeholder for residual routing crossings. */
+const MARKED_COLOR = 0xdc2626;
 
 const STROKE_LIGHT: Record<StaffEdgeLink['kind'], { color: number; width: number; dash?: number[] }> = {
   admin: { color: 0x334155, width: 2.25 },
@@ -73,22 +76,32 @@ export class StaffEdgesView extends Container {
     edges: StaffEdgeLink[],
     boxes: StaffEdgeBox[],
     paint: StaffEdgePaint = {},
+    routed?: { segments?: StaffEdgeSegment[]; markedKeys?: ReadonlySet<string> },
   ): StaffEdgesView {
     const view = new StaffEdgesView();
-    view.redraw(edges, boxes, paint);
+    view.redraw(edges, boxes, paint, routed);
     return view;
   }
 
-  redraw(edges: StaffEdgeLink[], boxes: StaffEdgeBox[], paint: StaffEdgePaint = {}): void {
+  redraw(
+    edges: StaffEdgeLink[],
+    boxes: StaffEdgeBox[],
+    paint: StaffEdgePaint = {},
+    routed?: { segments?: StaffEdgeSegment[]; markedKeys?: ReadonlySet<string> },
+  ): void {
     this.graphics.clear();
     const { theme = 'light', edge } = paint;
     const stroke = staffEdgeStrokes(theme, edge);
     const dotted = edge?.terminator === 'dot';
     const dotRadius = edge?.dotRadius ?? 2.5;
     const radius = edge?.cornerRadius ?? 0;
-    const segments = buildStaffEdgeSegments(edges, boxes);
+    const segments = routed?.segments ?? buildStaffEdgeSegments(edges, boxes);
     for (const seg of segments) {
-      const style = stroke[seg.kind] ?? stroke.admin;
+      const baseStyle = stroke[seg.kind] ?? stroke.admin;
+      const key = `${seg.fromId}\u0000${seg.toId}`;
+      const style = routed?.markedKeys?.has(key)
+        ? { ...baseStyle, color: MARKED_COLOR, width: baseStyle.width + 0.75 }
+        : baseStyle;
       const withArrow = !dotted && (seg.kind === 'admin' || seg.kind === 'cross-tier');
       if (style.dash) {
         drawDashedPolyline(this.graphics, seg.points, style.dash);

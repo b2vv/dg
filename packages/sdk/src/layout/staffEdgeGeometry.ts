@@ -21,6 +21,13 @@ export interface StaffEdgeRect {
   height: number;
 }
 
+/** A department frame blocks only edges with neither endpoint among its members. */
+export interface StaffEdgeFrame {
+  deptId: string;
+  rect: StaffEdgeRect;
+  memberIds: Set<string>;
+}
+
 export interface StaffEdgeBox {
   id: string;
   x: number;
@@ -233,6 +240,20 @@ function isClean(points: StaffEdgePoint[], from: StaffEdgeBox, to: StaffEdgeBox)
   return !polylineHitsBoxInterior(points, from) && !polylineHitsBoxInterior(points, to);
 }
 
+/** Detect foreign-frame intrusion, including in unchecked forced routes. */
+export function edgeIntrudesForeignFrame(
+  points: StaffEdgePoint[],
+  from: StaffEdgeBox,
+  to: StaffEdgeBox,
+  frames: StaffEdgeFrame[],
+): boolean {
+  return frames.some((frame) =>
+    !frame.memberIds.has(from.id) &&
+    !frame.memberIds.has(to.id) &&
+    polylineHitsBoxInterior(points, frame.rect),
+  );
+}
+
 export type StaffEdgeRouteVia = 'direct' | 'around' | 'forced';
 
 export interface StaffEdgeRoute {
@@ -295,6 +316,7 @@ export function classifyStaffEdgeRoute(
   to: StaffEdgeBox,
   kind: StaffEdgeLink['kind'] = 'admin',
   obstacles: StaffEdgeBox[] = [],
+  frames: StaffEdgeFrame[] = [],
 ): StaffEdgeRoute {
   const fromCy = from.y + from.height / 2;
   const toCy = to.y + to.height / 2;
@@ -335,7 +357,7 @@ export function classifyStaffEdgeRoute(
       if (r.x > maxX + 1 || r.x + r.width < minX - 1 || r.y + r.height < minY - 1) continue;
       if (polylineHitsBoxInterior(line, routerObstacle(box))) return true;
     }
-    return false;
+    return edgeIntrudesForeignFrame(line, from, to, frames);
   };
   const hasOthers = obstacles.some((b) => b.id !== from.id && b.id !== to.id);
 
@@ -386,14 +408,16 @@ export function classifyStaffEdgeRoute(
  * Prefer clear vertical/horizontal gaps; if boxes overlap, lane around them.
  * Optional `obstacles` (other cards) force a lane route when the direct path
  * would cut through them — critical for matrix org trees.
+ * Optional department frames block edges unless either endpoint is a member.
  */
 export function staffEdgePolyline(
   from: StaffEdgeBox,
   to: StaffEdgeBox,
   kind: StaffEdgeLink['kind'] = 'admin',
   obstacles: StaffEdgeBox[] = [],
+  frames: StaffEdgeFrame[] = [],
 ): StaffEdgePoint[] {
-  return classifyStaffEdgeRoute(from, to, kind, obstacles).points;
+  return classifyStaffEdgeRoute(from, to, kind, obstacles, frames).points;
 }
 
 export function staffEdgePolylineToSvg(points: StaffEdgePoint[]): string {
@@ -409,6 +433,7 @@ export function staffEdgePolylineToSvg(points: StaffEdgePoint[]): string {
 export function buildStaffEdgeSegments(
   edges: StaffEdgeLink[],
   boxes: StaffEdgeBox[],
+  frames: StaffEdgeFrame[] = [],
 ): StaffEdgeSegment[] {
   const byId = new Map(boxes.map((b) => [b.id, b]));
   const out: StaffEdgeSegment[] = [];
@@ -416,7 +441,7 @@ export function buildStaffEdgeSegments(
     const from = byId.get(edge.fromId);
     const to = byId.get(edge.toId);
     if (!from || !to) continue;
-    const points = staffEdgePolyline(from, to, edge.kind, boxes);
+    const points = staffEdgePolyline(from, to, edge.kind, boxes, frames);
     const first = points[0]!;
     const last = points[points.length - 1]!;
     out.push({

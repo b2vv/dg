@@ -13,6 +13,8 @@ import {
   PERSON_CARD_WIDTH,
 } from '../render/types.js';
 import { buildStaffEdgeSegments } from '../layout/staffEdgeGeometry.js';
+import type { StaffEdgeSegment } from '../layout/staffEdgeGeometry.js';
+import { resolveStaffRouting } from '../render/staffRouterV2.js';
 import { mapStaffEdgeBoxesForLod, mapPositionNodesToStaffEdgeBoxes } from '../render/visualEdgeBox.js';
 import { paintMagneticGroups } from '../render/contour/paintMagneticGroups.js';
 import type { ContourMemberBox } from '../render/contour/contourClearance.js';
@@ -189,6 +191,7 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
       refCellWidth: config.cellWidth,
       refCellHeight: config.cellHeight,
       ...input.staffLayout,
+      deptGrouping: config.staffEdgeRouter === 'v2',
       expandedOrgIds: input.expandedOrgIds ?? input.staffLayout?.expandedOrgIds,
     };
     const canvas = await layoutStaffCanvas(
@@ -267,27 +270,44 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
       ...input.personTheme,
     };
 
-    const segments = buildStaffEdgeSegments(
-      canvas.edges,
-      mapStaffEdgeBoxesForLod(
-        mapPositionNodesToStaffEdgeBoxes(canvas.positionNodes, positionById, personTheme),
-        canvas.orgCards.map((c) => ({
-          id: c.orgId,
-          x: c.x,
-          y: c.y,
-          width: c.width,
-          height: c.height,
-        })),
-        'near',
-      ),
-    );
+    const orgCardBoxes = canvas.orgCards.map((c) => ({
+      id: c.orgId,
+      x: c.x,
+      y: c.y,
+      width: c.width,
+      height: c.height,
+    }));
+    let segments: StaffEdgeSegment[];
+    let markedKeys: Set<string>;
+    if (config.staffEdgeRouter === 'v2') {
+      const routing = resolveStaffRouting({
+        positionNodes: canvas.positionNodes,
+        edges: canvas.edges,
+        positionById,
+        personTheme,
+        lod: 'near',
+        orgCards: orgCardBoxes,
+      });
+      segments = routing.routedSegments;
+      markedKeys = new Set(routing.markedCrossings.map((c) => `${c.fromId}\u0000${c.toId}`));
+    } else {
+      segments = buildStaffEdgeSegments(
+        canvas.edges,
+        mapStaffEdgeBoxesForLod(
+          mapPositionNodesToStaffEdgeBoxes(canvas.positionNodes, positionById, personTheme),
+          orgCardBoxes,
+          'near',
+        ),
+      );
+      markedKeys = new Set<string>();
+    }
     parts.push('<g id="edges">');
     for (const s of segments) {
       const withArrow = s.kind === 'admin' || s.kind === 'cross-tier';
       const drawPts = withArrow ? shortenPolylineForArrow(s.points, ARROW_SIZE) : s.points;
       const d = drawPts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x} ${p.y}`).join(' ');
       parts.push(
-        `<path d="${d}" fill="none" stroke="${EDGE_STROKE}" stroke-width="${EDGE_W}" stroke-linecap="round" stroke-linejoin="round"/>`,
+        `<path d="${d}" fill="none" stroke="${markedKeys.has(`${s.fromId}\u0000${s.toId}`) ? '#dc2626' : EDGE_STROKE}" stroke-width="${EDGE_W}" stroke-linecap="round" stroke-linejoin="round"/>`,
       );
       if (withArrow && s.points.length >= 2) {
         const tri = arrowHeadTriangle(

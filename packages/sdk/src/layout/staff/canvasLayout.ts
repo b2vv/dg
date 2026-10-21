@@ -68,7 +68,7 @@ export async function layoutStaffCanvas(
 
     if (head) {
       const leadership = leadershipOf(head, mgrPositions, data.reports);
-      const block = await layoutStaffOrgBlock(leadership, data.reports, managingId, options);
+      const block = await layoutStaffOrgBlock(leadership, data.reports, managingId, { ...options, departments: data.departments });
       // The zone's own label owns a strip at the top of the band; content starts
       // below it (T94). Without the reservation the first row lands in that strip
       // and the card frame is drawn over the zone name.
@@ -103,7 +103,7 @@ export async function layoutStaffCanvas(
     data.positions,
     data.reports,
     currentOrgId,
-    options,
+    { ...options, departments: data.departments },
   );
   const t2nodes = tier2.nodes.map((n) => ({
     ...n,
@@ -156,7 +156,7 @@ export async function layoutStaffCanvas(
         data.positions,
         data.reports,
         child.id,
-        options,
+        { ...options, departments: data.departments },
       );
       const originX = cardX;
       const originY = cardY + opts.orgCardHeight + opts.verticalGap;

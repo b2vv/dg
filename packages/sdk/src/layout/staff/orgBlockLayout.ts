@@ -14,6 +14,8 @@ import {
   resolveStaffHead,
 } from './resolveHead.js';
 import { adminDescendantIds, visiblePositions } from './positionExpand.js';
+import { validateRouteInput } from './routing/validateRouteInput.js';
+import { groupStaffByDepartment } from './staffDeptGrouping.js';
 import {
   DEFAULT_STAFF_LAYOUT_OPTIONS,
   StaffLayoutError,
@@ -41,7 +43,7 @@ function adminEdges(
 }
 
 /** Layout one connected admin forest with a known root (WASM unique-root). */
-async function layoutConnectedTree(
+export async function layoutConnectedTree(
   positions: DiagramPosition[],
   reports: DiagramReportLine[],
   orgId: string,
@@ -198,6 +200,55 @@ async function layoutTreeBlock(
   return [...attachedNodes, ...detachedNodes];
 }
 
+async function layoutDeptGroupedBlock(
+  inOrg: DiagramPosition[],
+  reports: DiagramReportLine[],
+  orgId: string,
+  geom: StaffGeom,
+  options: StaffLayoutOptions,
+): Promise<StaffOrgBlockResult> {
+  const adminParents = adminParentMap(inOrg, reports, orgId);
+  const departments = options.departments ?? [];
+  const validation = validateRouteInput(
+    inOrg.map((p) => ({ id: p.id, parentId: adminParents.get(p.id) ?? null, deptId: p.departmentId })),
+    departments.map((d) => ({ id: d.id })),
+  );
+  if (!validation.ok) {
+    const nodes = await layoutTreeBlock(inOrg, reports, orgId, geom, 'tree');
+    return {
+      organizationId: orgId,
+      mode: 'tree',
+      nodes,
+      edges: adminEdges(inOrg, reports, orgId),
+      ...bounds(nodes, geom.margin),
+      diagnostics: [`dept-grouping skipped (${validation.error.code})`],
+    };
+  }
+
+  const positionsById = new Map(inOrg.map((p) => [p.id, p]));
+  const orderedPositions: DiagramPosition[] = validation.positions.map((p) => {
+    // Validation only sorts/normalizes the supplied positions; every id exists here.
+    const original = positionsById.get(p.id)!;
+    return p.deptId === null ? { ...original, departmentId: undefined } : original;
+  });
+  if (options.memberOrder !== undefined) {
+    const rank = new Map<string, number>();
+    for (const id of options.memberOrder) {
+      if (!rank.has(id)) rank.set(id, rank.size);
+    }
+    orderedPositions.sort((a, b) => (rank.get(a.id) ?? rank.size) - (rank.get(b.id) ?? rank.size));
+  }
+  const grouped = await groupStaffByDepartment(orderedPositions, reports, [...departments], orgId, geom);
+  return {
+    organizationId: orgId,
+    mode: 'tree',
+    nodes: grouped.nodes,
+    edges: adminEdges(inOrg, reports, orgId),
+    ...bounds(grouped.nodes, geom.margin),
+    diagnostics: [...grouped.diagnostics, ...validation.diagnostics],
+  };
+}
+
 function layoutMatrixBlock(
   positions: DiagramPosition[],
   orgId: string,
@@ -320,6 +371,13 @@ async function layoutStaffOrgBlockCore(
   }
 
   if (mode === 'tree' || (mode === 'hybrid' && withCoords.length === 0) || withCoords.length === 0) {
+    if (
+      options.deptGrouping === true &&
+      (options.departments?.length ?? 0) > 0 &&
+      inOrg.some((p) => p.departmentId)
+    ) {
+      return layoutDeptGroupedBlock(inOrg, reports, orgId, geom, options);
+    }
     const nodes = await layoutTreeBlock(inOrg, reports, orgId, geom, 'tree');
     const b = bounds(nodes, geom.margin);
     return {

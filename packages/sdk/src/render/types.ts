@@ -236,6 +236,8 @@ export interface RenderConfig {
   staffZoneChrome?: boolean;
   /** T64: department paint mode (default blob). */
   departmentStyle?: DepartmentPaintStyle;
+  /** Enables dept-grouping layout + v2 routing; default legacy. */
+  staffEdgeRouter?: 'legacy' | 'v2';
   /** T64 / B8a: dashed frame around grid union. */
   dashedGridFrame?: boolean;
   /**
@@ -412,6 +414,7 @@ export const defaultRenderConfig: RenderConfig = {
   minContourMembers: 1,
   staffZoneChrome: false,
   departmentStyle: 'blob',
+  staffEdgeRouter: 'legacy',
   dashedGridFrame: false,
   orgSiblingGroupChrome: false,
   orgSiblingGroupStyle: 'zone',
