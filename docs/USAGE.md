@@ -139,6 +139,10 @@ const mappers = {
 | `renderer` | **`'auto'` (default) \| `'webgl'` \| `'canvas'`** — який рушій малює сцену (нижче) |
 | `callbacks` | див. §9 |
 
+`setStyles(partial: NodeThemeOverrides | undefined): Promise<void>` замінює style-overrides
+під час роботи й перемальовує діаграму, симетрично `setTheme()` для зміни активної теми.
+`setStyles(undefined)` прибирає overrides і повертає дефолти активної теми.
+
 ### `renderer` — на чому малювати
 
 Потрібне тим, хто ставить бібліотеку на машини **без GPU** (тонкі й нульові клієнти, RDP-сесії,

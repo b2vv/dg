@@ -1,3 +1,4 @@
+import { defaultNodeTheme, type NodeTheme } from './types.js';
 import { Container, Graphics, Rectangle, Text, type FederatedPointerEvent } from 'pixi.js';
 
 export interface ContextMenuPointer {
@@ -62,6 +63,7 @@ export function attachMenuButton(
   y = 4,
   onMenu: (pointer: ContextMenuPointer) => void,
   x?: number,
+  nodeTheme: Pick<NodeTheme, 'fonts'> = defaultNodeTheme,
 ): Container {
   const btn = new Container();
   btn.x = x ?? cardWidth - BTN - 4;
@@ -73,7 +75,7 @@ export function attachMenuButton(
   bg.stroke({ color: 0x94a3b8, width: 1 });
   const label = new Text({
     text: '⋮',
-    style: { fill: 0x334155, fontSize: 14, fontWeight: '700' },
+    style: { fontFamily: nodeTheme.fonts?.sans ?? 'system-ui, sans-serif', fill: 0x334155, fontSize: 14, fontWeight: '700' },
   });
   label.anchor.set(0.5);
   label.position.set(BTN / 2, BTN / 2 + 1);
@@ -92,6 +94,7 @@ export function attachIconButton(
   symbol: string,
   title: string,
   onTap: () => void,
+  nodeTheme: Pick<NodeTheme, 'fonts'> = defaultNodeTheme,
 ): Container {
   const btn = new Container();
   btn.x = x;
@@ -103,7 +106,7 @@ export function attachIconButton(
   bg.stroke({ color: 0x94a3b8, width: 1 });
   const label = new Text({
     text: symbol,
-    style: { fill: 0x1e40af, fontSize: 13, fontWeight: '700' },
+    style: { fontFamily: nodeTheme.fonts?.sans ?? 'system-ui, sans-serif', fill: 0x1e40af, fontSize: 13, fontWeight: '700' },
   });
   label.anchor.set(0.5);
   label.position.set(BTN / 2, BTN / 2);

@@ -1,7 +1,7 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { parseSvgPath } from '../svgPath.js';
 import { simplifyPolyline, type LodLevel } from '../lod.js';
-import type { DepartmentBlobStyle } from '../types.js';
+import { defaultNodeTheme, type NodeTheme, type DepartmentBlobStyle } from '../types.js';
 
 /**
  * Department membership blob: fill stays under cards; stroke Graphics is
@@ -18,17 +18,17 @@ export class DepartmentBlobView extends Container {
   private readonly countBadge: Text;
   private lastPoints: { x: number; y: number }[] = [];
 
-  constructor(label: string, lod: LodLevel = 'near') {
+  constructor(label: string, lod: LodLevel = 'near', nodeTheme: Pick<NodeTheme, 'fonts'> = defaultNodeTheme) {
     super();
     this.label = label;
     this.lod = lod;
     this.labelText = new Text({
       text: label,
-      style: { fill: 0x1e3a5f, fontSize: 14 },
+      style: { fontFamily: nodeTheme.fonts?.sans ?? 'system-ui, sans-serif', fill: 0x1e3a5f, fontSize: 14 },
     });
     this.countBadge = new Text({
       text: '',
-      style: { fill: 0x1e3a5f, fontSize: 12, fontWeight: '600' },
+      style: { fontFamily: nodeTheme.fonts?.mono ?? 'JetBrains Mono, monospace', fill: 0x1e3a5f, fontSize: 12, fontWeight: '600' },
     });
     this.addChild(this.fillGraphics, this.labelText, this.countBadge);
   }
@@ -39,8 +39,9 @@ export class DepartmentBlobView extends Container {
     style: DepartmentBlobStyle,
     lod: LodLevel = 'near',
     personCount?: number,
+    nodeTheme: Pick<NodeTheme, 'fonts'> = defaultNodeTheme,
   ): DepartmentBlobView {
-    const view = new DepartmentBlobView(label, lod);
+    const view = new DepartmentBlobView(label, lod, nodeTheme);
     view.redraw(path, style, lod, personCount);
     return view;
   }
@@ -51,8 +52,9 @@ export class DepartmentBlobView extends Container {
     style: DepartmentBlobStyle,
     lod: LodLevel = 'near',
     personCount?: number,
+    nodeTheme: Pick<NodeTheme, 'fonts'> = defaultNodeTheme,
   ): DepartmentBlobView {
-    const view = new DepartmentBlobView(label, lod);
+    const view = new DepartmentBlobView(label, lod, nodeTheme);
     view.redrawPoints(points, style, lod, personCount);
     return view;
   }

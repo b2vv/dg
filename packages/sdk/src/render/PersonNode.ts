@@ -9,7 +9,7 @@ import {
   formatPositionCountsBadge,
   VACANT_POSITION_LABEL,
 } from './orgCardChrome.js';
-import type { PersonNodeStyle } from './types.js';
+import { defaultNodeTheme, type NodeTheme, type PersonNodeStyle } from './types.js';
 import {
   attachMenuButton,
   attachIconButton,
@@ -55,6 +55,7 @@ export interface PersonNodeExpandChrome {
 }
 
 export interface PersonNodeOptions {
+  nodeTheme?: Pick<NodeTheme, 'fonts'>;
   onContextMenu?: (pointer: ContextMenuPointer) => void;
   /** Position subtree expand (T66) — shown when hasChildren. */
   expand?: PersonNodeExpandChrome;
@@ -101,6 +102,7 @@ export class PersonNodeView extends Container {
     lod: LodLevel,
     mediaReady: Promise<void>,
     avatarFill: number,
+    nodeTheme: Pick<NodeTheme, 'fonts'>,
   ) {
     super();
     this.lod = lod;
@@ -109,20 +111,20 @@ export class PersonNodeView extends Container {
     this.eventMode = 'static';
     this.cursor = 'pointer';
 
-    this.nameText = new Text({ text: '', style: { fill: style.nameColor, fontSize: style.nameFontSize } });
+    this.nameText = new Text({ text: '', style: { fontFamily: nodeTheme.fonts?.sans ?? 'system-ui, sans-serif', fill: style.nameColor, fontSize: style.nameFontSize } });
     this.titleText = new Text({
       text: '',
-      style: { fill: style.titleColor, fontSize: style.titleFontSize },
+      style: { fontFamily: nodeTheme.fonts?.sans ?? 'system-ui, sans-serif', fill: style.titleColor, fontSize: style.titleFontSize },
     });
     this.initialsText = new Text({
       text: '',
-      style: { fill: 0xffffff, fontSize: 14, fontWeight: '600' },
+      style: { fontFamily: nodeTheme.fonts?.sans ?? 'system-ui, sans-serif', fill: 0xffffff, fontSize: 14, fontWeight: '600' },
     });
     this.initialsText.anchor.set(0.5);
     this.badge = new Graphics();
     this.badgeLabel = new Text({
       text: 'T',
-      style: { fill: style.badgeTextColor, fontSize: 9, fontWeight: '700' },
+      style: { fontFamily: nodeTheme.fonts?.sans ?? 'system-ui, sans-serif', fill: style.badgeTextColor, fontSize: 9, fontWeight: '700' },
     });
     this.periodChipLabel = new Text({
       text: '',
@@ -130,7 +132,7 @@ export class PersonNodeView extends Container {
         fill: style.periodChipTextColor ?? 0x15803d,
         fontSize: style.periodChipFontSize ?? 12,
         fontWeight: '500',
-        fontFamily: 'JetBrains Mono, monospace',
+        fontFamily: nodeTheme.fonts?.sans ?? 'system-ui, sans-serif',
       },
     });
     this.countBarLabel = new Text({
@@ -139,12 +141,12 @@ export class PersonNodeView extends Container {
         fill: style.countBarTextColor ?? style.titleColor,
         fontSize: style.countBarFontSize ?? 11,
         fontWeight: '500',
-        fontFamily: 'JetBrains Mono, monospace',
+        fontFamily: nodeTheme.fonts?.mono ?? 'JetBrains Mono, monospace',
       },
     });
     this.pendingLabel = new Text({
       text: '⏳',
-      style: { fontSize: 9 },
+      style: { fontFamily: nodeTheme.fonts?.sans ?? 'system-ui, sans-serif', fontSize: 9 },
     });
     this.pendingLabel.visible = false;
 
@@ -216,7 +218,7 @@ export class PersonNodeView extends Container {
       resolveMedia = resolve;
     });
     const avatarFill = avatarColorFromName(person?.fullName);
-    const view = new PersonNodeView(style, lod, mediaReady, avatarFill);
+    const view = new PersonNodeView(style, lod, mediaReady, avatarFill, options.nodeTheme ?? defaultNodeTheme);
     view.loadTexture = options.loadTexture ?? loadNodeTexture;
     view.mediaRevision = person?.media?.revision;
     view.photoUrl = resolvePersonPhotoUrl(person);
@@ -271,7 +273,7 @@ export class PersonNodeView extends Container {
     const visual = personVisualLocalRect(style.width, style.height, lod);
     let x = 4;
     if (options.onContextMenu) {
-      const menu = attachMenuButton(this.chromeControls, style.width, visual.y + 4, options.onContextMenu, x);
+      const menu = attachMenuButton(this.chromeControls, style.width, visual.y + 4, options.onContextMenu, x, options.nodeTheme);
       menu.label = 'person-menu';
       x += 28;
     }
@@ -283,6 +285,7 @@ export class PersonNodeView extends Container {
         options.expand.expanded ? '▲' : '▼',
         options.expand.expanded ? 'Collapse reports' : 'Expand reports',
         options.expand.onToggle,
+        options.nodeTheme,
       );
       expand.label = 'person-expand';
     }

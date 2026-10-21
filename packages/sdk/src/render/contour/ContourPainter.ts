@@ -21,6 +21,7 @@ interface ContourSession {
   inputs: ContourPositionInput[];
   magnet: ContourMagnetConfig;
   style: DepartmentBlobStyle;
+  nodeTheme: Pick<NodeTheme, 'fonts'>;
   lod: LodLevel;
   morphMs: number;
   deptNames: Map<string, string>;
@@ -92,6 +93,7 @@ export class ContourPainter {
     inputs: ContourPositionInput[];
     magnet: ContourMagnetConfig;
     style: DepartmentBlobStyle;
+    nodeTheme: Pick<NodeTheme, 'fonts'>;
     lod: LodLevel;
     morphMs: number;
     deptNames: Map<string, string>;
@@ -198,6 +200,7 @@ export class ContourPainter {
             session.style,
             session.lod,
             count,
+            session.nodeTheme,
           );
           blobs.push(blob);
           this.mountDeptBlob(blob);
@@ -247,6 +250,7 @@ export class ContourPainter {
       inputs,
       magnet,
       style: theme.department,
+      nodeTheme: theme,
       lod,
       morphMs: request.morphMs ?? DEFAULT_MORPH_MS,
       deptNames,

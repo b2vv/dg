@@ -183,6 +183,8 @@ export interface EdgeStyle {
 }
 
 export interface NodeTheme {
+  /** Font families with CSS fallbacks; the host loads custom fonts before rendering. */
+  fonts?: { sans?: string; mono?: string; serif?: string };
   organization: OrganizationNodeStyle;
   department: DepartmentBlobStyle;
   person: PersonNodeStyle;
@@ -297,6 +299,11 @@ export function variantBAdjacentEdgeClearance(): {
 }
 
 export const defaultNodeTheme: NodeTheme = {
+  fonts: {
+    sans: 'system-ui, sans-serif',
+    mono: 'JetBrains Mono, monospace',
+    serif: 'Times New Roman, serif',
+  },
   department: {
     fill: 0xdbeafe,
     fillAlpha: 0.28,
@@ -351,6 +358,11 @@ export const defaultNodeTheme: NodeTheme = {
 
 /** Dark canvas node palette (page chrome uses CSS vars separately). */
 export const darkNodeTheme: NodeTheme = {
+  fonts: {
+    sans: 'system-ui, sans-serif',
+    mono: 'JetBrains Mono, monospace',
+    serif: 'Times New Roman, serif',
+  },
   department: {
     fill: 0x1e3a5f,
     fillAlpha: 0.32,
@@ -427,6 +439,7 @@ export function mergeTheme(
 ): NodeTheme {
   if (!partial) {
     return {
+      fonts: { ...defaultNodeTheme.fonts, ...base.fonts },
       organization: { ...base.organization },
       department: { ...base.department },
       person: { ...base.person },
@@ -437,6 +450,7 @@ export function mergeTheme(
     };
   }
   return {
+    fonts: { ...defaultNodeTheme.fonts, ...base.fonts, ...partial.fonts },
     organization: { ...base.organization, ...partial.organization },
     department: { ...base.department, ...partial.department },
     person: { ...base.person, ...partial.person },

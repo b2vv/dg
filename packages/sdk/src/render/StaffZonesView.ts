@@ -1,11 +1,12 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import type { StaffTierBand } from '../layout/staff/types.js';
-import type { StaffZoneStyle } from './types.js';
+import { defaultNodeTheme, type NodeTheme, type StaffZoneStyle } from './types.js';
 import { worldBoundsForTier, type WorldRect } from './staffZoneBounds.js';
 import type { StaffNodeBox, StaffOrgCard } from '../layout/staff/types.js';
 import { paintDashedFrame } from './dashedStroke.js';
 
 export interface StaffZonePaintInput {
+  nodeTheme?: Pick<NodeTheme, 'fonts'>;
   tiers: readonly StaffTierBand[];
   positionNodes: readonly StaffNodeBox[];
   orgCards: readonly StaffOrgCard[];
@@ -26,6 +27,7 @@ export class StaffZonesView extends Container {
     const view = new StaffZonesView();
     view.eventMode = 'none';
     const {
+      nodeTheme = defaultNodeTheme,
       tiers,
       positionNodes,
       orgCards,
@@ -69,7 +71,7 @@ export class StaffZonesView extends Container {
             style: {
               fill: style.labelColor,
               fontSize: style.labelFontSize,
-              fontFamily: 'system-ui, sans-serif',
+              fontFamily: nodeTheme.fonts?.sans ?? 'system-ui, sans-serif',
             },
           });
           const pad = style.labelPadding ?? 8;

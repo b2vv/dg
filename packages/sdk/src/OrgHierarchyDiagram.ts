@@ -1138,6 +1138,12 @@ export class OrgHierarchyDiagram {
     return this.workerPool;
   }
 
+  /** Replace style overrides; undefined restores the active theme defaults. */
+  async setStyles(partial: NodeThemeOverrides | undefined): Promise<void> {
+    this.stylesPartial = partial;
+    await this.render();
+  }
+
   async setTheme(theme: 'light' | 'dark' | 'auto'): Promise<void> {
     this.viewState.themeMode = theme;
     this.mediaService?.setActiveThemeKey(resolveTheme(theme));

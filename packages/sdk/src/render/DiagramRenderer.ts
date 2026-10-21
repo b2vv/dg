@@ -703,6 +703,7 @@ export class DiagramRenderer {
         positionNodes: canvas.positionNodes,
         orgCards: canvas.orgCards,
         style: resolveStaffZoneStyle(theme, resolvedTheme),
+        nodeTheme: theme,
         margin: geom.margin,
         canvasWidth: canvas.width,
         contentPadding,
@@ -863,6 +864,7 @@ export class DiagramRenderer {
         { ...theme.person, width: n.width, height: n.height },
         lod,
         {
+          nodeTheme: theme,
           loadTexture: options.loadTexture,
           onContextMenu: options.onPersonContextMenu
             ? (pointer) =>
@@ -915,7 +917,7 @@ export class DiagramRenderer {
         resolvedTheme,
         orgStyle,
         options.lod ?? 'near',
-        orgStaffCardOptions(org, card, options, config),
+        { ...orgStaffCardOptions(org, card, options, config), nodeTheme: theme },
       );
       view.position.set(card.x, card.y);
       view.eventMode = 'static';
@@ -995,6 +997,7 @@ export class DiagramRenderer {
       if (!position.gridCell) continue;
       const person = position.personId ? personById.get(position.personId) : undefined;
       const node = PersonNodeView.create(person, position, theme.person, options.lod ?? 'near', {
+        nodeTheme: theme,
         loadTexture: options.loadTexture,
         onContextMenu: options.onPersonContextMenu
           ? (pointer) =>
@@ -1096,7 +1099,7 @@ export class DiagramRenderer {
           height: ln.height,
         },
         options.lod ?? 'near',
-        orgTreeOptions(org, data, options, config),
+        { ...orgTreeOptions(org, data, options, config), nodeTheme: theme },
       );
       node.position.set(ln.x, ln.y);
       this.rememberBox({
@@ -1135,6 +1138,7 @@ export class DiagramRenderer {
       const members = memberBoxesByDept.get(dept.id) ?? [];
       const card = DepartmentCardView.fromMembers(dept, members, style, {
         minMembers,
+        nodeTheme: theme,
       });
       if (card) this.layers.departments.addChild(card);
     }
