@@ -1,7 +1,7 @@
 # CTO research — Org Hierarchy SDK (`b2vv/dg`)
 
-**Дата:** 2026-09-11 (другий перезбір того ж дня)
-**Базис:** `main` @ `f3e7958` (після злиття swap-seam-events і партій 4–9 Ф2)
+**Дата:** 2026-09-11 · **фокусний рефреш 2026-10-21** (host-інтеграція ШПС на dg)
+**Базис:** `bulk-mutations` @ `b8104ea` (host-інтеграція ШПС; гілка ще не злита — при merge перебити на фінальний SHA у `main`)
 і **пробив стелю 25** — гейт спрацював саме так, як задуманий: перезбір став умовою пушу, а не
 доброю звичкою)
 
@@ -14,6 +14,27 @@ SHA, записаний у документі репо, переживе `merge`
 **Призначення:** єдиний брифінг перед будь-якою імплементацією. Це не тікет і не ADR.
 
 Кожна теза нижче веде в первинне джерело (код, workflow, `work/tasks/`, `docs/`). Якщо джерело і цей файл розходяться — править джерело, не цей кеш.
+
+**Що змінилось із `f3e7958` (host-інтеграція ШПС, 2026-10-21):** почалася **повна заміна GoJS на dg**
+у хості `cassiopeia-admin-ui` (інтегратор — паралельна сесія; спершу ШПС/positions 1:1, потім орг).
+Стан dg-сторони й пін контракту — `work/reports/host-integration/_wip-dg-side-state-for-integration.md`;
+host-контракт — `cassiopeia-admin-ui:work/queue/2026-10-12-sprint-13/4311-host-sdk-contract.md`.
+- 🔑 **Card-split:** pixel-exact картка-позиція на робочому зумі — **host HTML-overlay** через
+  `near-visible` promote (`react/createReactPromoteOverlay.ts`); dg canvas несе **розрізнювані стани**
+  (far/mid/export/pan, поза-капові). **Контейнери й лінії** (`.org.cur`/`.porg`/`.plink`/`.dept`/edges)
+  — **завжди dg canvas**, не overlay.
+- ✅ **Поставлено (гілка `bulk-mutations`):** A12/A13 — org-картка штатної сцени не виділяється
+  (`9a20c2b`); ТВО `status:'acting'` canvas-стан (`4301ce9`); head-accent `isHead` (`948d1ae`);
+  поля `DiagramOrganization.role` + `DiagramPosition.external` (`b8104ea`). Специфікації —
+  `work/reports/shps-card-states/`.
+- 🔜 **Черга:** 1b-ii `role`→canvas container-chrome (`.org.cur`/`.porg`); edge-highlight hook
+  `highlightPath` (accent `#e5491d` + dim 40%); **routing rebuild** — найбільший, окрема спека+GATE
+  (власний орто-роутер vs ELK.js), вимоги `cassiopeia-admin-ui:…/4311-shps-line-routing-requirements.md`.
+- ⏸ **Відкладено (Q2, рішення власника):** `external`/ОР canvas-маркер для far/export (поки поля
+  досить, canvas-маркер не будуємо).
+- Піновані поля контракту: `isHead`, `status:'acting'`, vacancy=derive `personId`, `departmentId`,
+  `Department.parentPositionId`, `reportLines.kind` `admin|matrix|dotted` (+новий `lead-org`),
+  `organization.role`, `position.external`; тема — рантайм `setTheme()`.
 
 **Що змінилось із `6b199a4`:** 29 комітів, і зріз тут один: **закрито найбільшу агент-реді
 роботу в репо й половину другої.** **T80** — `cell-flood` і весь Rust-контур прибрані (реліз
