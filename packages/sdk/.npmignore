@@ -1,0 +1,12 @@
+# Packaging allowlist is `files: ["dist", "README.md"]` in package.json. This
+# .npmignore exists so npm pack/publish does NOT fall back to the repo-root
+# .gitignore (which has `dist/`) — otherwise the built WASM binary under
+# dist/wasm/pkg is dropped from the tarball while the .js beside it ships, and
+# consumers hit WasmLoadError at runtime. With this file present, `files`
+# governs and all of dist/ (incl. *.wasm) ships. See TD05.
+src
+scripts
+*.test.ts
+*.test.tsx
+tsconfig*.json
+rsbuild.config.*
