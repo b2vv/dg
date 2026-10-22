@@ -1,3 +1,4 @@
+import { nodeEntityKey, parseNodeEntityKey } from './interaction/nodeKey.js';
 import type {
   DiagramData,
   DiagramOrganization,
@@ -861,6 +862,7 @@ export class OrgHierarchyDiagram {
     // The scene changed; nothing paints on its own any more (T84).
     host.requestPaint();
     if (this.destroyed || !this.host) return;
+    this.repaintHighlight();
     this.callbacks.onLayoutDiagnostics?.(this.getLayoutDiagnostics());
     this.notifyPromoteSync();
     prefetchOpenMedia({
@@ -1111,6 +1113,8 @@ export class OrgHierarchyDiagram {
     this.searchService.adopt(index);
     this.seedExpandedPositionsFromData();
     this.applySelection(null);
+    this.viewState.highlightedNode = null;
+    this.viewState.foundFocus = null;
     const ms =
       (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()) - t0;
     this.callbacks.onDataMapped?.({
@@ -1482,6 +1486,38 @@ export class OrgHierarchyDiagram {
   async clearSelection(): Promise<void> {
     this.applySelection(null);
     this.repaintSelection();
+  }
+
+  /** Accent the admin reporting path and direct reports using raw position ids. */
+  highlightPath(nodeId: string | null): void {
+    if (this.destroyed) return;
+    this.viewState.highlightedNode = nodeId || null;
+    this.repaintHighlight();
+  }
+
+  /** Dim cards outside the supplied bare ids or typed entity keys. */
+  setFoundFocus(ids: string[] | string | null): void {
+    if (this.destroyed) return;
+    const keys = new Set<string>();
+    for (const id of typeof ids === 'string' ? [ids] : (ids ?? [])) {
+      if (!id) continue;
+      if (parseNodeEntityKey(id)) keys.add(id);
+      else {
+        for (const kind of ['position', 'organization', 'person'] as const) {
+          keys.add(nodeEntityKey(kind, id));
+        }
+      }
+    }
+    this.viewState.foundFocus = keys.size > 0 ? keys : null;
+    this.repaintHighlight();
+  }
+
+  private repaintHighlight(): void {
+    if (this.destroyed) return;
+    this.renderer?.repaintHighlight(
+      this.viewState.highlightedNode, this.viewState.foundFocus, this.data.reportLines, this.nodeTheme,
+    );
+    this.host?.requestPaint();
   }
 
   /** T75 D1: selection chrome only — keeps nodeViews alive. */

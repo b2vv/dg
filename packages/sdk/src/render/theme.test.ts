@@ -176,3 +176,13 @@ describe('font theme layers', () => {
     }
   });
 });
+
+describe('found-focus theme', () => {
+  it('success: preserves base and partial scalars including zero', () => {
+    const base = { ...defaultNodeTheme, foundDimAlpha: 0.25 };
+    expect(mergeTheme(undefined, base).foundDimAlpha).toBe(0.25);
+    expect(mergeTheme({}, base).foundDimAlpha).toBe(0.25);
+    expect(mergeTheme({ foundDimAlpha: 0 }, base).foundDimAlpha).toBe(0);
+    expect(mergeTheme({ edge: { accentColor: 0x00ff00, accentWidth: 3, dimAlpha: 0.2 } }).edge).toEqual({ accentColor: 0x00ff00, accentWidth: 3, dimAlpha: 0.2 });
+  });
+});

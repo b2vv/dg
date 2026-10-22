@@ -1,3 +1,5 @@
+import { reportPath } from '../interaction/reportPath.js';
+import type { DiagramReportLine } from '../data/types.js';
 import { Container, Graphics } from 'pixi.js';
 import { LayerManager } from './LayerManager.js';
 import { DropTargetIndex } from './dropTargetIndex.js';
@@ -167,6 +169,8 @@ export class DiagramRenderer {
   private destroyed = false;
   /** Bumped at each render entry; stale async passes bail after await (T75 D2). */
   private renderEpoch = 0;
+  private highlightReady = false;
+  private highlightApplied = false;
   /** Boxes, views and promote state for what the last render put on screen. */
   private readonly scene = new SceneRegistry();
   private lastDiagnostics: string[] = [];
@@ -425,6 +429,8 @@ export class DiagramRenderer {
     options: RenderOptions = {},
   ): Promise<void> {
     if (this.destroyed) return;
+    this.highlightReady = false;
+    this.highlightApplied = false;
     const epoch = ++this.renderEpoch;
     this.currentPositions = data.positions;
     this.contours.reset();
@@ -456,6 +462,7 @@ export class DiagramRenderer {
 
     this.drawSelection(options.selected ?? []);
     this.scene.applyPromoteVisibility();
+    this.highlightReady = true;
   }
 
   /**
@@ -485,6 +492,31 @@ export class DiagramRenderer {
       child.destroy({ children: true });
     }
     this.drawSelection(selected);
+  }
+
+  /** Repaint cached edges and card alpha only, independently of selection chrome. */
+  repaintHighlight(
+    highlightedNode: string | null,
+    foundFocus: ReadonlySet<string> | null,
+    lines: readonly DiagramReportLine[],
+    theme: NodeTheme,
+  ): void {
+    if (this.destroyed || !this.highlightReady) return;
+    if (highlightedNode === null && !foundFocus?.size && !this.highlightApplied) return;
+    const views = this.scene.listViews();
+    if (views.length === 0) return;
+    const found = foundFocus && views.some(({ key }) => foundFocus.has(key)) ? foundFocus : null;
+    const path = highlightedNode === null ? null : reportPath(highlightedNode, lines);
+    const dim = Boolean(path?.nodeKeys.size || found);
+    for (const { key, view, baselineAlpha } of views) {
+      view.alpha = found && !found.has(key) ? (theme.foundDimAlpha ?? 0.38) : baselineAlpha;
+    }
+    for (const view of this.layers.edges.children) {
+      if (view instanceof StaffEdgesView || view instanceof OrgEdgesView) {
+        view.applyHighlight({ accentKeys: path?.edgeKeys ?? new Set(), dim });
+      }
+    }
+    this.highlightApplied = dim;
   }
 
   destroy(): void {

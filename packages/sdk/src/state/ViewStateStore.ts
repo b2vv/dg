@@ -8,6 +8,8 @@ import type { ThemeMode } from '../render/types.js';
  * Does not own DiagramData — that stays on the facade until DataStore lands.
  */
 export class ViewStateStore {
+  highlightedNode: string | null = null;
+  foundFocus: ReadonlySet<string> | null = null;
   themeMode: ThemeMode = 'auto';
   lodLevel: LodLevel = 'near';
   lodThresholds: LodThresholds = defaultLodThresholds;

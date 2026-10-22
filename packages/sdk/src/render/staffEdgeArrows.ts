@@ -84,15 +84,16 @@ export function traceRoundedPolyline(
  * `radius <= 0` paints nothing, so callers can pass the resolved style through.
  */
 export function drawEdgeEndDots(
-  g: { circle(x: number, y: number, radius: number): unknown; fill(style: { color: number }): unknown },
+  g: { circle(x: number, y: number, radius: number): unknown; fill(style: { color: number; alpha?: number }): unknown },
   points: readonly StaffEdgePoint[],
   color: number,
   radius: number,
+  alpha = 1,
 ): void {
   const first = points[0];
   const last = points[points.length - 1];
   if (!first || !last || radius <= 0) return;
   g.circle(first.x, first.y, radius);
   g.circle(last.x, last.y, radius);
-  g.fill({ color });
+  g.fill({ color, alpha });
 }

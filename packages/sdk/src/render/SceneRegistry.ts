@@ -38,6 +38,7 @@ interface MediaView {
 export class SceneRegistry {
   private boxes = new Map<string, NodeWorldBox>();
   private views = new Map<string, Container>();
+  private baselineAlphas = new Map<string, number>();
   private mediaViews = new Map<string, Set<MediaView>>();
   private promoted = new Set<string>();
 
@@ -45,6 +46,7 @@ export class SceneRegistry {
   clear(): void {
     this.boxes.clear();
     this.views.clear();
+    this.baselineAlphas.clear();
     this.mediaViews.clear();
   }
 
@@ -82,6 +84,12 @@ export class SceneRegistry {
     return this.views.get(nodeEntityKey(kind, id));
   }
 
+  listViews(): readonly { key: string; view: Container; baselineAlpha: number }[] {
+    return [...this.views].map(([key, view]) => ({
+      key, view, baselineAlpha: this.baselineAlphas.get(key) ?? view.alpha,
+    }));
+  }
+
   listBoxes(): readonly NodeWorldBox[] {
     return [...this.boxes.values()];
   }
@@ -110,6 +118,7 @@ export class SceneRegistry {
   registerView(kind: NodeWorldBox['kind'], id: string, view: Container): void {
     const key = nodeEntityKey(kind, id);
     this.views.set(key, view);
+    this.baselineAlphas.set(key, view.alpha);
     view.visible = !this.isPromoted(key);
   }
 

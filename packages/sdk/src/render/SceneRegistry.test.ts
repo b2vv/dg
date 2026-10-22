@@ -71,3 +71,14 @@ describe('SceneRegistry', () => {
     expect(scene.viewsForMediaUrls(['', '   '])).toEqual([]);
   });
 });
+
+it('success: captures alpha at registration, unaffected by later dimming', () => {
+  const scene = new SceneRegistry();
+  const view = new Container();
+  view.alpha = 0.55;
+  scene.registerView('person', 'external', view);
+  view.alpha = 0.38;
+  expect(scene.listViews()).toEqual([{ key: 'person:external', view, baselineAlpha: 0.55 }]);
+  scene.clear();
+  expect(scene.listViews()).toEqual([]);
+});

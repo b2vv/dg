@@ -63,9 +63,17 @@ export interface StaffEdgePaint {
   edge?: EdgeStyle;
 }
 
+export interface EdgeHighlight {
+  accentKeys: ReadonlySet<string>;
+  dim: boolean;
+}
+
 /** Report lines between staff position boxes (admin solid; matrix/dotted dashed). */
 export class StaffEdgesView extends Container {
   private readonly graphics = new Graphics();
+  private lastSegments: StaffEdgeSegment[] = [];
+  private paint: StaffEdgePaint = {};
+  private markedKeys: ReadonlySet<string> | undefined;
 
   constructor() {
     super();
@@ -89,41 +97,52 @@ export class StaffEdgesView extends Container {
     paint: StaffEdgePaint = {},
     routed?: { segments?: StaffEdgeSegment[]; markedKeys?: ReadonlySet<string> },
   ): void {
+    this.lastSegments = routed?.segments ?? buildStaffEdgeSegments(edges, boxes);
+    this.paint = paint;
+    this.markedKeys = routed?.markedKeys;
+    this.applyHighlight({ accentKeys: new Set(), dim: false });
+  }
+
+  applyHighlight({ accentKeys, dim }: EdgeHighlight): void {
     this.graphics.clear();
-    const { theme = 'light', edge } = paint;
+    const { theme = 'light', edge } = this.paint;
     const stroke = staffEdgeStrokes(theme, edge);
     const dotted = edge?.terminator === 'dot';
     const dotRadius = edge?.dotRadius ?? 2.5;
     const radius = edge?.cornerRadius ?? 0;
-    const segments = routed?.segments ?? buildStaffEdgeSegments(edges, boxes);
-    for (const seg of segments) {
+    for (const seg of this.lastSegments) {
       const baseStyle = stroke[seg.kind] ?? stroke.admin;
       const key = `${seg.fromId}\u0000${seg.toId}`;
-      const style = routed?.markedKeys?.has(key)
+      const markedStyle = this.markedKeys?.has(key)
         ? { ...baseStyle, color: MARKED_COLOR, width: baseStyle.width + 0.75 }
         : baseStyle;
+      const accented = (seg.kind === 'admin' || seg.kind === 'cross-tier') && accentKeys.has(key);
+      const style = accented
+        ? { ...markedStyle, color: edge?.accentColor ?? 0xe5491d, width: edge?.accentWidth ?? 2 }
+        : markedStyle;
+      const alpha = dim && !accented ? (edge?.dimAlpha ?? 0.40) : 1;
       const withArrow = !dotted && (seg.kind === 'admin' || seg.kind === 'cross-tier');
       if (style.dash) {
         drawDashedPolyline(this.graphics, seg.points, style.dash);
-        this.graphics.stroke({ color: style.color, width: style.width });
-        if (dotted) drawEdgeEndDots(this.graphics, seg.points, style.color, dotRadius);
+        this.graphics.stroke({ color: style.color, width: style.width, alpha });
+        if (dotted) drawEdgeEndDots(this.graphics, seg.points, style.color, dotRadius, alpha);
         continue;
       }
       const pts = seg.points;
       if (pts.length < 2) continue;
       const drawPts = withArrow ? shortenPolylineForArrow(pts, ARROW_SIZE) : pts;
       traceRoundedPolyline(this.graphics, drawPts, radius);
-      this.graphics.stroke({ color: style.color, width: style.width, join: 'round', cap: 'round' });
+      this.graphics.stroke({ color: style.color, width: style.width, alpha, join: 'round', cap: 'round' });
       if (withArrow) {
-        drawArrowHead(this.graphics, pts, style.color);
+        drawArrowHead(this.graphics, pts, style.color, alpha);
       } else if (dotted) {
-        drawEdgeEndDots(this.graphics, pts, style.color, dotRadius);
+        drawEdgeEndDots(this.graphics, pts, style.color, dotRadius, alpha);
       }
     }
   }
 }
 
-function drawArrowHead(g: Graphics, points: StaffEdgePoint[], color: number): void {
+function drawArrowHead(g: Graphics, points: StaffEdgePoint[], color: number, alpha: number): void {
   const a = points[points.length - 2]!;
   const b = points[points.length - 1]!;
   const tri = arrowHeadTriangle(a, b, ARROW_SIZE);
@@ -132,7 +151,7 @@ function drawArrowHead(g: Graphics, points: StaffEdgePoint[], color: number): vo
   g.lineTo(tri[1].x, tri[1].y);
   g.lineTo(tri[2].x, tri[2].y);
   g.closePath();
-  g.fill({ color });
+  g.fill({ color, alpha });
 }
 
 function drawDashedPolyline(g: Graphics, points: StaffEdgePoint[], pattern: number[]): void {

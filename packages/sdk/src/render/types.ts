@@ -170,6 +170,9 @@ export interface OrganizationNodeStyle {
  * the default arrowhead.
  */
 export interface EdgeStyle {
+  accentColor?: number;
+  accentWidth?: number;
+  dimAlpha?: number;
   /** Stroke color for every edge kind. */
   color?: number;
   /** Stroke width; per-view default when unset. */
@@ -183,6 +186,8 @@ export interface EdgeStyle {
 }
 
 export interface NodeTheme {
+  /** Alpha of non-matching cards during found-focus (default 0.38). */
+  foundDimAlpha?: number;
   /** Font families with CSS fallbacks; the host loads custom fonts before rendering. */
   fonts?: { sans?: string; mono?: string; serif?: string };
   organization: OrganizationNodeStyle;
@@ -445,6 +450,7 @@ export function mergeTheme(
       person: { ...base.person },
       departmentCard: base.departmentCard ? { ...base.departmentCard } : undefined,
       staffZone: base.staffZone ? { ...base.staffZone } : undefined,
+      foundDimAlpha: base.foundDimAlpha,
       canvasBackground: base.canvasBackground,
       edge: base.edge ? { ...base.edge } : undefined,
     };
@@ -454,6 +460,7 @@ export function mergeTheme(
     organization: { ...base.organization, ...partial.organization },
     department: { ...base.department, ...partial.department },
     person: { ...base.person, ...partial.person },
+    foundDimAlpha: partial.foundDimAlpha ?? base.foundDimAlpha,
     canvasBackground: partial.canvasBackground ?? base.canvasBackground,
     edge: base.edge || partial.edge ? { ...base.edge, ...partial.edge } : undefined,
     departmentCard:
