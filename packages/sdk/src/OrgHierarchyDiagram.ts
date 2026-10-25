@@ -13,7 +13,7 @@ import {
   resolveRendererPreference,
   type RendererKindPreference,
 } from './render/PixiHost.js';
-import type { DiagramRenderer } from './render/DiagramRenderer.js';
+import type { DiagramRenderer, RenderOptions } from './render/DiagramRenderer.js';
 import { MediaService, type DiagramMediaFacade, type MediaPlaceholderRegistry } from './media/index.js';
 import { mediaUrlsForRef, prefetchOpenMedia } from './media/diagramMedia.js';
 import {
@@ -737,28 +737,72 @@ export class OrgHierarchyDiagram {
   private async renderNow(): Promise<void> {
     if (!this.host || this.destroyed) return;
     const host = this.host;
+    const { nodeTheme, resolved } = this.applyRenderTheme(host);
+    this.bindCanReparent(host);
+    const { drawing, drawingStaffOrgIds } = this.captureDrawingState();
+    await this.reportIfRenderFails(
+      host.renderer.render(
+        drawing,
+        nodeTheme,
+        resolved,
+        this.renderConfig,
+        this.buildRenderOptions(),
+      ),
+      drawing,
+      drawingStaffOrgIds,
+    );
+    this.afterRender(host);
+  }
+
+  /**
+   * Resolve the theme and push the canvas background. Writes `this.nodeTheme`
+   * (a side effect, by design — `repaintHighlight` and others read the field
+   * later); the returned pair is just the two values this frame draws with.
+   */
+  private applyRenderTheme(host: PixiHost) {
     const resolved = resolveTheme(this.viewState.themeMode);
     this.nodeTheme = resolveNodeTheme(resolved, this.stylesPartial);
     host.setBackground(
       this.nodeTheme.canvasBackground ?? canvasBackgroundForTheme(resolved),
     );
-    // Rebound on every render, because a drop changes the report lines the
-    // answer depends on — and every drop is followed by a render. The roster is
-    // built here rather than inside the closure so a drag that sweeps across
-    // the wall does not rebuild it once per target.
+    return { nodeTheme: this.nodeTheme, resolved };
+  }
+
+  /**
+   * Rebound on every render, because a drop changes the report lines the
+   * answer depends on — and every drop is followed by a render. The roster is
+   * built here rather than inside the closure so a drag that sweeps across
+   * the wall does not rebuild it once per target.
+   */
+  private bindCanReparent(host: PixiHost): void {
     const roster = rosterOf(this.data.positions);
     const reportLinesNow = this.data.reportLines;
     host.renderer.canReparent = (positionId, managerId) =>
       canReparent(reportLinesNow, positionId, managerId, roster);
-    // Captured before the await, because that is the state the renderer is
-    // handed. Reading `this.data` afterwards would record whatever a mutator
-    // wrote *during* the frame — a state nobody drew (T104 review).
-    const drawing = this.data;
-    // Same capture, same reason, for the one bit of view state no rollback can
-    // re-derive from the data (T109).
-    const drawingStaffOrgIds = [...this.viewState.staffExpandedOrgIds];
-    await this.reportIfRenderFails(
-      host.renderer.render(drawing, this.nodeTheme, resolved, this.renderConfig, {
+  }
+
+  /**
+   * Snapshot the state the renderer is handed, before any await. Reading
+   * `this.data` afterwards would record whatever a mutator wrote *during* the
+   * frame — a state nobody drew (T104 review). `drawingStaffOrgIds` is the one
+   * bit of view state no rollback can re-derive from the data (T109), so it is
+   * captured with it.
+   */
+  private captureDrawingState() {
+    return {
+      drawing: this.data,
+      drawingStaffOrgIds: [...this.viewState.staffExpandedOrgIds],
+    };
+  }
+
+  /**
+   * The renderer options for this frame: scene knobs plus the interaction
+   * callbacks. Called synchronously before the `render()` await — the scalar
+   * knobs are read now; the callbacks close over `this` and read `this.data`
+   * at call time (late), which is the existing behaviour.
+   */
+  private buildRenderOptions(): RenderOptions {
+    return {
       lod: this.viewState.lodLevel,
       orgLayout: this.viewState.orgLayout,
       staff: this.viewState.staffCurrentOrgId
@@ -855,11 +899,15 @@ export class OrgHierarchyDiagram {
           throw err;
         });
       },
-      }),
-      drawing,
-      drawingStaffOrgIds,
-    );
-    // The scene changed; nothing paints on its own any more (T84).
+    };
+  }
+
+  /**
+   * Post-render side effects, in order. Re-checks liveness after requesting
+   * the paint, because the scene changed and nothing paints on its own any
+   * more (T84).
+   */
+  private afterRender(host: PixiHost): void {
     host.requestPaint();
     if (this.destroyed || !this.host) return;
     this.repaintHighlight();
