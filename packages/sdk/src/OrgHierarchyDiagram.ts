@@ -31,6 +31,10 @@ import {
   type NodeWorldBox,
 } from './render/index.js';
 import { inferStaffCurrentOrgId } from './render/inferStaffCurrentOrgId.js';
+import {
+  buildStaffLayoutOptions,
+  resolveStaffCurrentOrgId,
+} from './render/staffLayoutInputs.js';
 import { resolveLodLevel, type LodLevel, type LodThresholds } from './render/lod.js';
 import { createRenderCoalesce } from './render/renderCoalesce.js';
 import { SelectionStore } from './state/SelectionStore.js';
@@ -59,6 +63,7 @@ import {
   positionHasAdminChildren,
   victimsForExpand,
   computeOrgLayout,
+  layoutStaffCanvas,
   type OrgDisplayMode,
   type OrgLayoutOptions,
   type StaffLayoutOptions,
@@ -761,13 +766,39 @@ export class OrgHierarchyDiagram {
                 this.viewState.orgLayout,
               )
             : undefined;
+        const options = this.buildRenderOptions();
+        // Staff branch (split T2b): mirror render()'s dispatch — positions ⇒ staff,
+        // and within it the shared resolver decides focus-org vs bare grid, with
+        // the SAME logic and options the renderer would use (so the pre-computed
+        // canvas and the renderer's own geometry cannot drift). null ⇒ grid, and
+        // the renderer draws it; a real org ⇒ compute, awaited here so a
+        // StaffLayoutError routes through reportIfRenderFails like the org throw.
+        const staffCurrentOrgId =
+          drawing.positions.length > 0
+            ? resolveStaffCurrentOrgId(drawing, options.staff?.currentOrgId)
+            : null;
+        const staffCanvasResult = staffCurrentOrgId
+          ? await layoutStaffCanvas(
+              {
+                organizations: drawing.organizations,
+                positions: drawing.positions,
+                reports: drawing.reportLines,
+                groups: drawing.groups,
+                departments: drawing.departments,
+                persons: drawing.persons,
+              },
+              staffCurrentOrgId,
+              buildStaffLayoutOptions(nodeTheme, this.renderConfig, resolved, options.staff).options,
+            )
+          : undefined;
         await host.renderer.render(
           drawing,
           nodeTheme,
           resolved,
           this.renderConfig,
-          this.buildRenderOptions(),
+          options,
           orgLayoutResult,
+          staffCanvasResult,
         );
       })(),
       drawing,

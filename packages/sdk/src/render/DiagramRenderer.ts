@@ -48,7 +48,6 @@ import type {
   DepartmentCardStyle,
   NodeTheme,
   RenderConfig,
-  StaffZoneStyle,
 } from './types.js';
 import { defaultRenderConfig } from './types.js';
 import type { DiagramData, DiagramPosition } from '../data/types.js';
@@ -62,7 +61,11 @@ import {
 import {
   type ContourMemberBox,
 } from './contour/contourClearance.js';
-import { inferStaffCurrentOrgId } from './inferStaffCurrentOrgId.js';
+import {
+  buildStaffLayoutOptions,
+  resolveStaffCurrentOrgId,
+  resolveStaffZoneStyle,
+} from './staffLayoutInputs.js';
 import { orgStaffCardOptions, orgTreeOptions } from './organizationNodeOptions.js';
 
 export interface RenderOptions {
@@ -428,6 +431,7 @@ export class DiagramRenderer {
     config: RenderConfig = defaultRenderConfig,
     options: RenderOptions = {},
     orgLayoutResult?: OrgLayoutResult,
+    staffCanvasResult?: StaffCanvasResult,
   ): Promise<void> {
     if (this.destroyed) return;
     this.highlightReady = false;
@@ -455,7 +459,7 @@ export class DiagramRenderer {
     this.lastLod = lod;
     const hasStaff = data.positions.length > 0;
     if (hasStaff) {
-      await this.renderStaff(data, theme, resolvedTheme, config, { ...options, lod }, epoch);
+      await this.renderStaff(data, theme, resolvedTheme, config, { ...options, lod }, epoch, staffCanvasResult);
     } else if (data.organizations.length > 0) {
       await this.renderOrganizations(data, theme, resolvedTheme, config, { ...options, lod }, epoch, orgLayoutResult);
     }
@@ -619,11 +623,12 @@ export class DiagramRenderer {
     config: RenderConfig,
     options: RenderOptions,
     epoch: number,
+    staffCanvasResult?: StaffCanvasResult,
   ): Promise<void> {
     const ctx: StaffSceneContext = { data, theme, resolvedTheme, config, options, epoch };
-    const currentOrgId = options.staff?.currentOrgId ?? inferStaffCurrentOrgId(data);
-    if (currentOrgId && data.organizations.some((o) => o.id === currentOrgId)) {
-      await this.renderStaffCanvas(ctx, currentOrgId);
+    const currentOrgId = resolveStaffCurrentOrgId(data, options.staff?.currentOrgId);
+    if (currentOrgId) {
+      await this.renderStaffCanvas(ctx, currentOrgId, staffCanvasResult);
       return;
     }
     // No focus org: seats fall back to the bare cell grid (mockups, tests).
@@ -631,50 +636,42 @@ export class DiagramRenderer {
   }
 
   /** SPEC §2.2 three-tier canvas: zones, contours, edges, seats, org cards. */
-  private async renderStaffCanvas(ctx: StaffSceneContext, currentOrgId: string): Promise<void> {
+  private async renderStaffCanvas(
+    ctx: StaffSceneContext,
+    currentOrgId: string,
+    staffCanvasResult?: StaffCanvasResult,
+  ): Promise<void> {
     const { data, theme, config, options, epoch } = ctx;
-    // Only the renderer knows the label's font size, so the strip the zone name
-    // needs is computed here and reserved by the layout (T94).
-    //
-    // Resolved through resolveStaffZoneStyle rather than read off theme.staffZone:
-    // a theme can leave staffZone undefined and still paint zones, because the
-    // painter falls back to its own per-mode defaults. Reading the raw field gave
-    // a band of zero on exactly the tab the collision was reported on.
-    //
-    // Just the label's own strip. The department wrapper's padding is already in
-    // the zone's `contentPadding`, so adding it here counted it twice — and since
-    // it differs per tab (a dashed card pads differently from a magnetic
-    // contour), the same zone ended up with a different top gap on every tab.
-    const zoneLabelBand = config.staffZoneChrome
-      ? (() => {
-          const zone = resolveStaffZoneStyle(theme, ctx.resolvedTheme);
-          return (zone.labelPadding ?? 8) + zone.labelFontSize + 6;
-        })()
-      : 0;
-    this.lastZoneLabelBand = zoneLabelBand;
-    const staffOpts: StaffLayoutOptions = {
-      // Keep staff boxes on the same pitch as contour cells.
-      nodeWidth: theme.person.width,
-      nodeHeight: theme.person.height,
-      refCellWidth: config.cellWidth,
-      refCellHeight: config.cellHeight,
-      zoneLabelBand,
-      ...options.staff?.layout,
-      deptGrouping: config.staffEdgeRouter === 'v2',
-      expandedOrgIds: options.staff?.expandedOrgIds ?? options.staff?.layout?.expandedOrgIds,
-    };
-    const canvas = await layoutStaffCanvas(
-      {
-        organizations: data.organizations,
-        positions: data.positions,
-        reports: data.reportLines,
-        groups: data.groups,
-        departments: data.departments,
-        persons: data.persons,
-      },
-      currentOrgId,
-      staffOpts,
+    // Options (and the reserved zone-label band) come from the shared builder so
+    // the orchestrator's pre-computed canvas and this renderer's own geometry are
+    // built from the same inputs (split T2b). `lastZoneLabelBand` records the
+    // *computed* band — the band before `staff.layout` is spread into the options
+    // — so it can differ from `staffOpts.zoneLabelBand`.
+    const { options: staffOpts, zoneLabelBand } = buildStaffLayoutOptions(
+      theme,
+      config,
+      ctx.resolvedTheme,
+      options.staff,
     );
+    this.lastZoneLabelBand = zoneLabelBand;
+    // Layout is computed by the orchestrator (#4) and handed in (split T2b); the
+    // in-renderer compute stays as a fallback for direct callers (tests) and any
+    // path not yet pre-computing. A StaffLayoutError still routes through the
+    // orchestrator's `reportIfRenderFails`, which awaits this.
+    const canvas =
+      staffCanvasResult ??
+      (await layoutStaffCanvas(
+        {
+          organizations: data.organizations,
+          positions: data.positions,
+          reports: data.reportLines,
+          groups: data.groups,
+          departments: data.departments,
+          persons: data.persons,
+        },
+        currentOrgId,
+        staffOpts,
+      ));
     if (!this.isRenderCurrent(epoch)) return;
 
     this.lastDiagnostics = [...canvas.diagnostics];
@@ -1227,35 +1224,6 @@ function departmentWrapperPadding(theme: NodeTheme, config: RenderConfig): numbe
     return padding + (card?.labelRow ? (card.labelFontSize ?? 12) + 6 : 0);
   }
   return contourButtonGroupMargin(config.paddingCells ?? 0, theme.department.strokeWidth);
-}
-
-function resolveStaffZoneStyle(
-  theme: NodeTheme,
-  mode: 'light' | 'dark',
-): StaffZoneStyle {
-  if (theme.staffZone) return theme.staffZone;
-  if (mode === 'dark') {
-    return {
-      fill: 0x191f26,
-      fillAlpha: 0.95,
-      stroke: 0x3d5067,
-      strokeWidth: 1,
-      borderRadius: 12,
-      labelColor: 0xf1f5f9,
-      labelFontSize: 14,
-      labelAlign: 'right',
-    };
-  }
-  return {
-    fill: 0xf1f5f9,
-    fillAlpha: 0.95,
-    stroke: 0xcbd5e1,
-    strokeWidth: 1,
-    borderRadius: 12,
-    labelColor: 0x0f172a,
-    labelFontSize: 14,
-    labelAlign: 'right',
-  };
 }
 
 function resolveDepartmentCardStyle(theme: NodeTheme): DepartmentCardStyle {
