@@ -122,9 +122,9 @@ describe('groupStaffByDepartment', () => {
     const departments = [department('a')];
     const first = await groupStaffByDepartment([z, root, a], reports, departments, orgId, geom);
     const reversed = await groupStaffByDepartment([a, root, z], reports, departments, orgId, geom);
-    // Verified x-order reverses input order; see ploeg_layout.rs:48 node.children.iter().rev().
-    expect(nodeX(first.nodes, 'a')).toBeLessThan(nodeX(first.nodes, 'z'));
-    expect(nodeX(reversed.nodes, 'z')).toBeLessThan(nodeX(reversed.nodes, 'a'));
+    // gap#6 fix (org_tree.rs): x-order ЗБЕРІГАЄ порядок членів — перший у каналі лівіше.
+    expect(nodeX(first.nodes, 'z')).toBeLessThan(nodeX(first.nodes, 'a'));
+    expect(nodeX(reversed.nodes, 'a')).toBeLessThan(nodeX(reversed.nodes, 'z'));
     const rootBox = first.nodes.find((node) => node.id === 'root');
     const childBox = first.nodes.find((node) => node.id === 'z');
     expect(rootBox?.y).toBeLessThan(childBox?.y ?? 0);

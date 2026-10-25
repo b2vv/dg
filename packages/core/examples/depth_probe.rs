@@ -33,6 +33,8 @@ fn chain(depth: usize) -> Vec<OrgFlatInput> {
                 Some(format!("org-{}", i - 1))
             },
             name: format!("Org {i}"),
+            width: None,
+            height: None,
         })
         .collect()
 }
@@ -48,6 +50,8 @@ fn flat_of(orgs: &[OrgFlatInput]) -> Vec<org_hierarchy_core::FlatNodeInput> {
             person: None,
             department: None,
             status: None,
+            width: None,
+            height: None,
         })
         .collect()
 }

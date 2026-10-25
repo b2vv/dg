@@ -40,8 +40,8 @@ pub fn compute_ploeg_layered_layout(root: &HierarchyNode, opts: &LayoutOptions) 
 
         tree.add_node(
             num,
-            opts.node_width as f64,
-            opts.node_height as f64,
+            node.width.unwrap_or(opts.node_width) as f64,
+            node.height.unwrap_or(opts.node_height) as f64,
             parent_num,
         );
 
@@ -61,12 +61,24 @@ pub fn compute_ploeg_layered_layout(root: &HierarchyNode, opts: &LayoutOptions) 
     let mut i = 0usize;
     while i + 2 < positions.len() {
         let num = positions[i] as usize;
-        let mut x = positions[i + 1] as f32;
+        let source = source_by_num[&num];
+        let width = source.width.unwrap_or(opts.node_width);
+        let height = source.height.unwrap_or(opts.node_height);
+
+        // tidy зберігає `Node.x` як ЦЕНТР вузла (крейт скрізь міряє `x ± width/2`:
+        // contour у tidy_layout.rs, `intersects` у node.rs), а наша `LayoutNode.x`
+        // — верхній-ЛІВИЙ кут (так її читають edge_path, bounds, SDK/хост). Тому
+        // центр треба перевести в ліву грань. За однакових ширин зсув на `width/2`
+        // однаковий для всіх вузлів і повністю поглинається нормалізацією нижче
+        // (різниці координат і `max_x − min_x` інваріантні), тож старий код
+        // «працював» лише як рівномірний зсув. Для per-node ширин зсув різний —
+        // без цієї конвертації ширші картки налізали б на сусідів. `y` у крейта
+        // вже верхній край (AABB `y..y+height`), конвертувати не треба.
+        let mut x = positions[i + 1] as f32 - width / 2.0;
         let mut y = positions[i + 2] as f32;
         x += opts.margin;
         y += opts.margin;
 
-        let source = source_by_num[&num];
         let parent_id = parent_numeric
             .get(&num)
             .and_then(|p| numeric_to_id.get(p).cloned());
@@ -81,8 +93,8 @@ pub fn compute_ploeg_layered_layout(root: &HierarchyNode, opts: &LayoutOptions) 
             status: source.status.clone(),
             x,
             y,
-            width: opts.node_width,
-            height: opts.node_height,
+            width,
+            height,
             depth: depth_by_num[&num],
             parent_id,
             org_id: source.id.clone(),
@@ -173,6 +185,8 @@ mod tests {
             person: None,
             department: None,
             status: "filled".into(),
+            width: None,
+            height: None,
             children,
         }
     }

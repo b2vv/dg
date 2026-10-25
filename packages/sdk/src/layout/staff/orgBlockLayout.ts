@@ -4,6 +4,7 @@ import { computeOrgRowTreeLayoutWasm } from '../../wasm/layoutBridge.js';
 import {
   aabbOverlap,
   positionHasCoords,
+  positionSize,
   resolveGeom,
   resolvePositionAABB,
   type StaffGeom,
@@ -59,6 +60,10 @@ export async function layoutConnectedTree(
     id: p.id,
     parentOrgId: p.id === rootId ? null : (parents.get(p.id) ?? null),
     name: p.title,
+    // Per-node w×h → WASM tidy розводить за реальними розмірами карток (не uniform
+    // node_width). positionSize падає на geom.* коли картка без власних розмірів,
+    // тож без p.width/p.height поведінка лишається колишньою (backward-compat).
+    ...positionSize(p, geom),
   }));
 
   // Staff *positions*, not organizations. Hanging organization parentOrgId is

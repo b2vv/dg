@@ -75,16 +75,17 @@ describe('layoutStaffOrgBlock department grouping', () => {
     const second = await layoutStaffOrgBlock(positions, reports, orgId, {
       deptGrouping: true, departments, memberOrder: ['a1', 'b1', 'a2', 'b2'],
     });
-    // Ploeg reverses sibling input order (design-v3 implementation correction).
+    // gap#6 fix (org_tree.rs): x-order зберігає порядок членів — ранніший у memberOrder лівіше.
     for (const prefix of ['a', 'b']) {
-      expect(nodeX(first.nodes, `${prefix}1`)).toBeLessThan(nodeX(first.nodes, `${prefix}2`));
-      expect(nodeX(second.nodes, `${prefix}2`)).toBeLessThan(nodeX(second.nodes, `${prefix}1`));
+      expect(nodeX(first.nodes, `${prefix}2`)).toBeLessThan(nodeX(first.nodes, `${prefix}1`));
+      expect(nodeX(second.nodes, `${prefix}1`)).toBeLessThan(nodeX(second.nodes, `${prefix}2`));
     }
     const partial = await layoutStaffOrgBlock(positions, reports, orgId, {
       deptGrouping: true, departments, memberOrder: ['missing', 'a2'],
     });
-    expect(nodeX(partial.nodes, 'a1')).toBeLessThan(nodeX(partial.nodes, 'a2'));
-    expect(nodeX(partial.nodes, 'b2')).toBeLessThan(nodeX(partial.nodes, 'b1'));
+    // a2 запінено першим → лівіше за unranked a1; b-хвіст лишається канонічним (b1 перед b2).
+    expect(nodeX(partial.nodes, 'a2')).toBeLessThan(nodeX(partial.nodes, 'a1'));
+    expect(nodeX(partial.nodes, 'b1')).toBeLessThan(nodeX(partial.nodes, 'b2'));
   });
 
   it('falls back to the legacy tree for an admin cycle with an explicit staff head', async () => {
@@ -112,7 +113,7 @@ describe('layoutStaffOrgBlock department grouping', () => {
     expect(reversed.diagnostics).toEqual(result.diagnostics);
     expect([reversed.width, reversed.height]).toEqual([result.width, result.height]);
     expect(result.nodes).toHaveLength(4);
-    expect(nodeX(result.nodes, 'z')).toBeLessThan(nodeX(result.nodes, 'a'));
+    expect(nodeX(result.nodes, 'a')).toBeLessThan(nodeX(result.nodes, 'z'));
     const dept = departmentBounds(result.nodes, positions, 'a');
     expect(nodeX(result.nodes, 'unknown')).toBeGreaterThan(dept.x + dept.width);
     expect(result.diagnostics).toContain('unknown-department:unknown:stale');
