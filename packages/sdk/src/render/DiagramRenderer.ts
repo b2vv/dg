@@ -26,7 +26,7 @@ import {
 } from '../layout/staff/positionExpand.js';
 import { computeOrgLayout } from '../layout/rowTreeLayout.js';
 import { siblingOrgGroupBounds } from '../layout/siblingOrgGroups.js';
-import type { OrgLayoutOptions } from '../layout/types.js';
+import type { OrgLayoutOptions, OrgLayoutResult } from '../layout/types.js';
 import { orgHasChildren } from '../layout/orgMode.js';
 import type { ChromeBox } from './orgNodeChrome.js';
 import { DoubleTapTracker } from '../interaction/doubleTap.js';
@@ -427,6 +427,7 @@ export class DiagramRenderer {
     resolvedTheme: 'light' | 'dark',
     config: RenderConfig = defaultRenderConfig,
     options: RenderOptions = {},
+    orgLayoutResult?: OrgLayoutResult,
   ): Promise<void> {
     if (this.destroyed) return;
     this.highlightReady = false;
@@ -456,7 +457,7 @@ export class DiagramRenderer {
     if (hasStaff) {
       await this.renderStaff(data, theme, resolvedTheme, config, { ...options, lod }, epoch);
     } else if (data.organizations.length > 0) {
-      await this.renderOrganizations(data, theme, resolvedTheme, config, { ...options, lod }, epoch);
+      await this.renderOrganizations(data, theme, resolvedTheme, config, { ...options, lod }, epoch, orgLayoutResult);
     }
     if (!this.isRenderCurrent(epoch)) return;
 
@@ -1075,12 +1076,19 @@ export class DiagramRenderer {
     config: RenderConfig,
     options: RenderOptions,
     epoch: number,
+    orgLayoutResult?: OrgLayoutResult,
   ): Promise<void> {
-    const layout = await computeOrgLayout(
-      data.organizations,
-      data.orgLinks ?? [],
-      options.orgLayout,
-    );
+    // Layout is computed by the orchestrator (#4) and handed down (split T2a);
+    // the in-renderer compute stays only as a fallback for callers that pass
+    // none (tests, and any path not yet pre-computing). Removing it is a later
+    // cut, once every caller hands a result in.
+    const layout =
+      orgLayoutResult ??
+      (await computeOrgLayout(
+        data.organizations,
+        data.orgLinks ?? [],
+        options.orgLayout,
+      ));
     if (!this.isRenderCurrent(epoch)) return;
 
     const edgesView = OrgEdgesView.fromEdges(layout.edges, {

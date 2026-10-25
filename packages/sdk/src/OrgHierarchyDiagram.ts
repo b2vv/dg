@@ -58,6 +58,7 @@ import {
   adminDescendantIds,
   positionHasAdminChildren,
   victimsForExpand,
+  computeOrgLayout,
   type OrgDisplayMode,
   type OrgLayoutOptions,
   type StaffLayoutOptions,
@@ -739,15 +740,36 @@ export class OrgHierarchyDiagram {
     const host = this.host;
     const { nodeTheme, resolved } = this.applyRenderTheme(host);
     this.bindCanReparent(host);
+    // #4 owns the layout compute now (split T2a): for the org branch, place the
+    // nodes here and hand the result to the renderer, so `render()` draws
+    // already-positioned nodes instead of computing them. Computed from the
+    // captured `drawing` — the same snapshot the renderer is handed (T104) — and
+    // with the same view state. Compute and render go through ONE promise so a
+    // layout throw (`validateOrgHierarchy` on a bad hierarchy) still routes
+    // through `reportIfRenderFails` → onRenderFailed / getLastRenderFailure, as
+    // it did when the compute lived inside `render()` (T97). The staff branch
+    // still computes inside the renderer until T2b; the mode test mirrors
+    // `render()`'s own dispatch (positions ⇒ staff, else orgs).
     const { drawing, drawingStaffOrgIds } = this.captureDrawingState();
     await this.reportIfRenderFails(
-      host.renderer.render(
-        drawing,
-        nodeTheme,
-        resolved,
-        this.renderConfig,
-        this.buildRenderOptions(),
-      ),
+      (async () => {
+        const orgLayoutResult =
+          drawing.positions.length === 0 && drawing.organizations.length > 0
+            ? await computeOrgLayout(
+                drawing.organizations,
+                drawing.orgLinks ?? [],
+                this.viewState.orgLayout,
+              )
+            : undefined;
+        await host.renderer.render(
+          drawing,
+          nodeTheme,
+          resolved,
+          this.renderConfig,
+          this.buildRenderOptions(),
+          orgLayoutResult,
+        );
+      })(),
       drawing,
       drawingStaffOrgIds,
     );

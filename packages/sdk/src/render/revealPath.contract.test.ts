@@ -81,6 +81,46 @@ describe('revealPath (T97 defense)', () => {
     diagram.destroy();
   });
 
+  it('success: a layout compute that throws is reported on the same channel (split T2a)', async () => {
+    // T2a lifted the org layout compute into the facade, ahead of render(); it
+    // must stay inside `reportIfRenderFails`. A bad hierarchy makes
+    // `computeOrgLayout` → `validateOrgHierarchy` throw, and that failure has to
+    // reach `onRenderFailed` / `getLastRenderFailure` exactly as it did when the
+    // compute lived inside render(). The render-throw test above injects at
+    // `host.renderer.render`, which does not exercise the compute path.
+    const seen: string[] = [];
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    document.body.appendChild(container);
+    const diagram = await OrgHierarchyDiagram.create(container, {
+      data: data(),
+      useWorker: false,
+      callbacks: { onRenderFailed: (f) => seen.push(f.reason) },
+    });
+
+    // A parentOrgId cycle: valid-looking data that only `validateOrgHierarchy`
+    // (inside computeOrgLayout) rejects — so the throw originates in the compute,
+    // not in the renderer.
+    const cyclic = {
+      organizations: [
+        { id: 'a', name: 'A', parentOrgId: 'b', groupIds: [], collapsed: false, matrixOrder: 0 },
+        { id: 'b', name: 'B', parentOrgId: 'a', groupIds: [], collapsed: false, matrixOrder: 1 },
+      ],
+      groups: [],
+      departments: [],
+      persons: [],
+      positions: [],
+      reportLines: [],
+      orgLinks: [] as const,
+    };
+
+    await expect(diagram.setData(cyclic)).rejects.toThrow(/cycle/i);
+    expect(seen.length).toBe(1);
+    expect(diagram.getLastRenderFailure()?.reason).toMatch(/cycle/i);
+    diagram.destroy();
+  });
+
   it('failure: a render that throws leaves the tree as it was', async () => {
     const { diagram } = await mount();
     // Poking the renderer directly is the only way to make the render fail from
