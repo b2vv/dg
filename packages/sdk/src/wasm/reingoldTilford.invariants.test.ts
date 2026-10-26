@@ -60,8 +60,8 @@ function treeSized(
     id,
     parentOrgId,
     name: id,
-    ...(width !== undefined ? { width } : {}),
-    ...(height !== undefined ? { height } : {}),
+    ...(width === undefined ? {} : { width }),
+    ...(height === undefined ? {} : { height }),
   }));
 }
 

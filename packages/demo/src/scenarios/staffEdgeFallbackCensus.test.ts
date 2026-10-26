@@ -222,8 +222,8 @@ describe('staff edge fallback census (demo tabs)', () => {
       {
         "dirty": 0,
         "dirtyPct": 0,
-        "forced": 2,
-        "forcedPct": 5.56,
+        "forced": 3,
+        "forcedPct": 8.33,
         "tabs": [
           {
             "around": 0,
@@ -277,9 +277,9 @@ describe('staff edge fallback census (demo tabs)', () => {
           },
           {
             "around": 0,
-            "direct": 9,
+            "direct": 8,
             "dirty": 0,
-            "forced": 0,
+            "forced": 1,
             "kinds": {
               "admin": {
                 "dirty": 0,
@@ -293,7 +293,7 @@ describe('staff edge fallback census (demo tabs)', () => {
               },
               "dotted": {
                 "dirty": 0,
-                "forced": 0,
+                "forced": 1,
                 "total": 1,
               },
             },
