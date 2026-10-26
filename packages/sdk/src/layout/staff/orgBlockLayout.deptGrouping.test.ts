@@ -96,7 +96,11 @@ describe('layoutStaffOrgBlock department grouping', () => {
     expect(result.nodes.map((node) => node.id).sort()).toEqual(['a', 'b']);
     expect(result.diagnostics).toContain('dept-grouping skipped (cycle)');
     const legacy = await layoutStaffOrgBlock(positions, reports, orgId);
-    expect(result.nodes).toEqual(legacy.nodes);
+    // Порядко-нечутливо (як вище у «disabled === legacy»): cycle-fallback іде raw через
+    // layoutTreeBlock, а порядок Vec у raw.nodes з WASM недетермінований між процесами
+    // (Rust HashMap seed per-process → macOS збігається, Linux-CI ні). Контракт — та сама
+    // пара вузлів із тими самими x/y/depth/role, не порядок масиву.
+    expect(nodesById(result)).toEqual(nodesById(legacy));
   });
 
   it('normalizes unknown departments to loose without mutating input and uses canonical order', async () => {
