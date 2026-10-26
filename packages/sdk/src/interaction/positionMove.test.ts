@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@rstest/core';
 import type { DiagramPosition } from '../data/types.js';
-import { applySeatDrop, movePositionToCell, resolveSeatDrop } from './positionMove.js';
-import { InteractionError } from './types.js';
+import { applySeatDrop, movePositionToCell, resolveSeatDrop } from '../core/index.js';
+import { InteractionError } from '../core/index.js';
 
 function seat(id: string, cell: { col: number; row: number } | null, orgId = 'org1'): DiagramPosition {
   return {

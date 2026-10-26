@@ -198,9 +198,7 @@ export {
   mergeSearchIndexes,
   flattenPositionSearchRows,
   revealOrgPath,
-  movePositionToCell,
   shiftPositionBlock,
-  InteractionError,
   bulkContextMenuItems,
   defaultContextMenuItems,
   resolveContextMenuNodeData,
@@ -213,6 +211,8 @@ export {
   type SelectionPointerMods,
 } from './interaction/index.js';
 export {
+  movePositionToCell,
+  InteractionError,
   nodeDomTestId,
   normalizeTestIdKey,
   orgTestId,

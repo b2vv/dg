@@ -21,3 +21,12 @@ export {
   resolveTestIdInData,
   type TestAnchorCandidate,
 } from './nodeTestId.js';
+export { InteractionError } from './errors.js';
+export {
+  resolveSeatDrop,
+  applySeatDrop,
+  isValidGridCell,
+  movePositionToCell,
+  projectedOccupantMove,
+  type SeatDrop,
+} from './seatDrop.js';

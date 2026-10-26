@@ -96,14 +96,11 @@ import { createTransformWorker, WorkerPool } from './worker/index.js';
 import {
   revealOrgPath,
   resolveOrganizationIdForNode,
-  resolveSeatDrop,
-  applySeatDrop,
-  type SeatDrop,
   shiftPositionBlock,
-  InteractionError,
   type ContextMenuRequest,
   type ContextMenuPointer,
 } from './interaction/index.js';
+import { resolveSeatDrop, applySeatDrop, type SeatDrop, InteractionError } from './core/index.js';
 import {
   SearchIndexService,
   knownSearchIds,

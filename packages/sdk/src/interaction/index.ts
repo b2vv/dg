@@ -3,7 +3,6 @@ export type {
   ContextMenuPointer,
   ContextMenuRequest,
 } from './contextMenuPayload.js';
-export { InteractionError } from './types.js';
 export {
   buildSearchIndex,
   buildSearchIndexAsync,
@@ -23,13 +22,8 @@ export { revealOrgPath, resolveOrganizationIdForNode } from './revealPath.js';
 export {
   snapToGrid,
   snapWorldToCell,
-  isValidGridCell,
-  movePositionToCell,
-  resolveSeatDrop,
-  applySeatDrop,
   shiftPositionBlock,
   type GridSnap,
-  type SeatDrop,
 } from './positionMove.js';
 export {
   adminParentsOf,

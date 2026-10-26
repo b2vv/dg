@@ -5,7 +5,8 @@ import { LayerManager } from './LayerManager.js';
 import { DropTargetIndex } from './dropTargetIndex.js';
 import { nodeEntityKey, normalizeSelected, parseNodeEntityKey, type NodeRef } from '../core/index.js';
 import { SceneRegistry, type NodeWorldBox } from './SceneRegistry.js';
-import { ContourPainter, projectedOccupantMove } from './contour/ContourPainter.js';
+import { ContourPainter } from './contour/ContourPainter.js';
+import { projectedOccupantMove } from '../core/index.js';
 import {
   PersonInteractions,
   type DragGrid,
@@ -49,7 +50,7 @@ import type {
 } from './types.js';
 import { defaultRenderConfig } from './types.js';
 import type { DiagramData, DiagramPosition } from '../data/types.js';
-import { resolveSeatDrop, type SeatDrop } from '../interaction/positionMove.js';
+import { resolveSeatDrop, type SeatDrop } from '../core/index.js';
 import type { LodLevel } from './lod.js';
 import { mapStaffEdgeBoxesForLod, mapPositionNodesToStaffEdgeBoxes } from './visualEdgeBox.js';
 import {
