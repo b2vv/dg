@@ -294,3 +294,28 @@ describe('deleteOrgSubtree', () => {
     expect(data).toEqual(before);
   });
 });
+
+// Регрес-гард: org-операції НЕ ведуть matrix активно, але МУСЯТЬ зберігати matrix-поля
+// (matrixOrder/matrixRow/matrixCol/inMatrix) незайманими — сітка деривується з них downstream.
+// Замок проти тихого дропу, якщо spread/filter заміниться явним списком полів.
+describe('matrix-поля організацій зберігаються', () => {
+  const MATRIX = { matrixOrder: 3, matrixRow: 1, matrixCol: 2, inMatrix: false } as const;
+  const pick = (org: { matrixOrder?: number; matrixRow?: number; matrixCol?: number; inMatrix?: boolean }) => ({
+    matrixOrder: org.matrixOrder, matrixRow: org.matrixRow, matrixCol: org.matrixCol, inMatrix: org.inMatrix,
+  });
+
+  it('transferChildOrgs зберігає matrix-поля переміщеної org (міняє лише parentOrgId)', () => {
+    const data = orgFixture();
+    data.organizations = data.organizations.map((org) => (org.id === 'c1' ? { ...org, ...MATRIX } : org));
+    const moved = transferChildOrgs(data, 'a', 'b').data.organizations.find((o) => o.id === 'c1')!;
+    expect(moved.parentOrgId).toBe('b');
+    expect(pick(moved)).toEqual(MATRIX);
+  });
+
+  it('deleteOrgSubtree лишає matrix-поля вцілілої org недоторканими', () => {
+    const data = orgDeletionFixture();
+    data.organizations = data.organizations.map((org) => (org.id === 'b' ? { ...org, ...MATRIX } : org));
+    const survivor = deleteOrgSubtree(data, 'a').data.organizations.find((o) => o.id === 'b')!;
+    expect(pick(survivor)).toEqual(MATRIX);
+  });
+});
