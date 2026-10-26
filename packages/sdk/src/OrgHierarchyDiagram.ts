@@ -1,4 +1,16 @@
-import { nodeEntityKey, parseNodeEntityKey } from './interaction/nodeKey.js';
+import {
+  nodeEntityKey,
+  parseNodeEntityKey,
+  orgNodeRef,
+  personNodeRef,
+  resolveNodeRefInData,
+  seatNodeRef,
+  testIdForRef,
+  resolveTestIdInData,
+  type NodeRef,
+  type SearchResult,
+  type TestAnchorCandidate,
+} from './core/index.js';
 import type {
   DiagramData,
   DiagramOrganization,
@@ -88,26 +100,15 @@ import {
   applySeatDrop,
   type SeatDrop,
   shiftPositionBlock,
-  type NodeRef,
-  type SearchResult,
   InteractionError,
   type ContextMenuRequest,
   type ContextMenuPointer,
-  resolveTestIdInData,
-  type TestAnchorCandidate,
 } from './interaction/index.js';
 import {
   SearchIndexService,
   knownSearchIds,
 } from './interaction/SearchIndexService.js';
 import { ContextMenuController } from './interaction/ContextMenuController.js';
-import {
-  orgNodeRef,
-  personNodeRef,
-  resolveNodeRefInData,
-  seatNodeRef,
-  testIdForRef,
-} from './interaction/nodeRefs.js';
 import {
   exportDiagram as runExport,
   printDiagram,

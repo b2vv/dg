@@ -184,6 +184,9 @@ export type {
   SearchResult,
   MenuItem,
   NodeKind,
+  TestAnchorCandidate,
+} from './core/index.js';
+export type {
   ContextMenuRequest,
   ContextMenuNodeData,
   ContextMenuPointer,
@@ -201,12 +204,6 @@ export {
   bulkContextMenuItems,
   defaultContextMenuItems,
   resolveContextMenuNodeData,
-  nodeDomTestId,
-  normalizeTestIdKey,
-  orgTestId,
-  personTestId,
-  positionTestId,
-  resolveTestIdInData,
   selectNode,
   selectMany,
   sameNodeRef,
@@ -214,8 +211,15 @@ export {
   toggleInSelection,
   isSelectionToggleModifier,
   type SelectionPointerMods,
-  type TestAnchorCandidate,
 } from './interaction/index.js';
+export {
+  nodeDomTestId,
+  normalizeTestIdKey,
+  orgTestId,
+  personTestId,
+  positionTestId,
+  resolveTestIdInData,
+} from './core/index.js';
 export {
   buildSearchIndexInWorker,
   buildSearchIndexInPool,

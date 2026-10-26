@@ -6,8 +6,7 @@ import {
   searchIndex as querySearchIndex,
   type SearchIndex,
 } from './searchIndex.js';
-import type { SearchResult } from './types.js';
-import { nodeEntityKey } from './nodeKey.js';
+import { nodeEntityKey, type SearchResult } from '../core/index.js';
 import { createSearchWorkerClient } from './searchWorker.js';
 
 /** Prefer the chunked / worker build once org+position count exceeds this. */

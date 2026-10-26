@@ -1,5 +1,5 @@
 import type { Container } from 'pixi.js';
-import { nodeEntityKey, parseNodeEntityKey } from '../interaction/nodeKey.js';
+import { nodeEntityKey, parseNodeEntityKey } from '../core/index.js';
 import { promoteIdMatches, type WorldBox } from './promoteMath.js';
 
 export interface NodeWorldBox {

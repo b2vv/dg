@@ -1,6 +1,6 @@
 import { createElement, type ReactElement } from 'react';
 import type { ReactContextMenuRenderProps } from './createReactContextMenuHost.js';
-import type { MenuItem } from '../interaction/types.js';
+import type { MenuItem } from '../core/index.js';
 
 function clampMenuPosition(clientX: number, clientY: number, menuW = 200, menuH = 240): {
   left: number;

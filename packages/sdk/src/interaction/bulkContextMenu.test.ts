@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@rstest/core';
 import { bulkContextMenuItems, defaultContextMenuItems } from './contextMenu.js';
-import type { NodeRef } from './types.js';
+import type { NodeRef } from '../core/index.js';
 
 const org = (id: string): NodeRef => ({ kind: 'organization', id });
 const person = (id: string): NodeRef => ({ kind: 'person', id });

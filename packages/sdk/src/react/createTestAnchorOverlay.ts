@@ -1,7 +1,5 @@
 import type { ContextMenuPointer } from '../interaction/contextMenuPayload.js';
-import type { NodeRef } from '../interaction/types.js';
-import { nodeDomTestId } from '../interaction/nodeTestId.js';
-import type { TestAnchorCandidate } from '../interaction/nodeTestId.js';
+import { nodeDomTestId, type NodeRef, type TestAnchorCandidate } from '../core/index.js';
 import { screenRectInView, worldBoxToScreen } from '../render/promoteMath.js';
 import type { ViewportTransform } from '../render/Viewport.js';
 

@@ -3,7 +3,7 @@ import type { DiagramReportLine } from '../data/types.js';
 import { Container, Graphics } from 'pixi.js';
 import { LayerManager } from './LayerManager.js';
 import { DropTargetIndex } from './dropTargetIndex.js';
-import { nodeEntityKey, parseNodeEntityKey } from '../interaction/nodeKey.js';
+import { nodeEntityKey, normalizeSelected, parseNodeEntityKey, type NodeRef } from '../core/index.js';
 import { SceneRegistry, type NodeWorldBox } from './SceneRegistry.js';
 import { ContourPainter, projectedOccupantMove } from './contour/ContourPainter.js';
 import {
@@ -32,8 +32,6 @@ import type { ChromeBox } from './orgNodeChrome.js';
 import { DoubleTapTracker } from '../interaction/doubleTap.js';
 import type { SelectionPointerMods } from '../interaction/selection.js';
 import type { ContextMenuPointer } from '../interaction/contextMenuPayload.js';
-import { normalizeSelected } from '../interaction/nodeRefs.js';
-import type { NodeRef } from '../interaction/types.js';
 import { DepartmentCardView } from './DepartmentCardView.js';
 import { paintDashedFrame } from './dashedStroke.js';
 import { StaffZonesView } from './StaffZonesView.js';

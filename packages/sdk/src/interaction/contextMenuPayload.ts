@@ -5,7 +5,7 @@ import type {
   DiagramPerson,
   DiagramPosition,
 } from '../data/types.js';
-import type { MenuItem, NodeRef } from './types.js';
+import type { MenuItem, NodeRef } from '../core/index.js';
 
 /** Snapshot of diagram entities for the node under the cursor. */
 export interface ContextMenuNodeData {

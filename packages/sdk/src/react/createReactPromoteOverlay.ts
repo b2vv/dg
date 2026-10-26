@@ -7,7 +7,7 @@ import {
 } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ContextMenuNodeData } from '../interaction/contextMenuPayload.js';
-import type { NodeKind, NodeRef } from '../interaction/types.js';
+import type { NodeKind, NodeRef } from '../core/index.js';
 import type { LodLevel } from '../render/lod.js';
 import type { PromoteCandidate, PromoteChrome } from '../render/promoteTypes.js';
 

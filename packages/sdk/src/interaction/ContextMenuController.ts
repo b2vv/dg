@@ -5,8 +5,7 @@ import {
   type ContextMenuPointer,
   type ContextMenuRequest,
 } from './contextMenuPayload.js';
-import { nodeEntityKey } from './nodeKey.js';
-import type { MenuItem, NodeRef } from './types.js';
+import { nodeEntityKey, type MenuItem, type NodeRef } from '../core/index.js';
 
 /** Subset of the host callbacks this controller needs (avoids a module cycle). */
 export interface ContextMenuHooks {

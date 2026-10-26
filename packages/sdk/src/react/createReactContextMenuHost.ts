@@ -1,7 +1,7 @@
 import { createElement, type ComponentType, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ContextMenuRequest } from '../interaction/contextMenuPayload.js';
-import type { MenuItem } from '../interaction/types.js';
+import type { MenuItem } from '../core/index.js';
 
 export interface ReactContextMenuRenderProps {
   request: ContextMenuRequest;

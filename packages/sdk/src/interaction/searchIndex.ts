@@ -1,7 +1,6 @@
 import type { DiagramData, DiagramOrganization, DiagramPerson, DiagramPosition } from '../data/types.js';
-import { orgTestId, personTestId, positionTestId } from './nodeTestId.js';
+import { orgTestId, personTestId, positionTestId, type NodeRef, type SearchResult } from '../core/index.js';
 import { TopKCollector } from './topK.js';
-import type { NodeRef, SearchResult } from './types.js';
 
 export interface SearchIndexEntry {
   node: NodeRef;

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, rstest } from '@rstest/core';
 import { createTestAnchorOverlay, type TestAnchorOverlayDiagram } from './createTestAnchorOverlay.js';
-import type { TestAnchorCandidate } from '../interaction/nodeTestId.js';
+import type { TestAnchorCandidate } from '../core/index.js';
 
 function makeDiagram(overrides: Partial<TestAnchorOverlayDiagram> = {}): TestAnchorOverlayDiagram {
   const anchor: TestAnchorCandidate = {

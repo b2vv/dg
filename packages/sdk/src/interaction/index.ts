@@ -1,4 +1,3 @@
-export type { NodeKind, NodeRef, SearchResult, MenuItem } from './types.js';
 export type {
   ContextMenuNodeData,
   ContextMenuPointer,
@@ -58,12 +57,5 @@ export {
   type ContextMenuItemsOptions,
 } from './contextMenu.js';
 export { resolveContextMenuNodeData } from './contextMenuPayload.js';
-export {
-  nodeDomTestId,
-  normalizeTestIdKey,
-  orgTestId,
-  personTestId,
-  positionTestId,
-  resolveTestIdInData,
-  type TestAnchorCandidate,
-} from './nodeTestId.js';
+// nodeDomTestId / normalizeTestIdKey / orgTestId / personTestId / positionTestId /
+// resolveTestIdInData / TestAnchorCandidate перенесені у `../core` (спліт dg T3a).

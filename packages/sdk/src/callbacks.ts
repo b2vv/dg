@@ -1,6 +1,6 @@
 import type { GridCell } from './data/types.js';
 import type { OrgDisplayMode } from './layout/index.js';
-import type { MenuItem, NodeRef } from './interaction/types.js';
+import type { MenuItem, NodeRef } from './core/index.js';
 import type { ContextMenuRequest } from './interaction/contextMenuPayload.js';
 import type { ViewportTransform } from './render/Viewport.js';
 
