@@ -160,7 +160,15 @@ export function deleteOrgSubtree(
   const removedPositionIds = new Set(removedPositions.map((p) => p.id));
   const positions = data.positions.filter((p) => !removedPositionIds.has(p.id));
   const removedDepartments = data.departments.filter((d) => removedOrgIds.has(d.organizationId));
-  const departments = data.departments.filter((d) => !removedOrgIds.has(d.organizationId));
+  // Вцілілий департамент міг тримати routing-anchor (parentPositionId) на посаду у ВИДАЛЕНІЙ орг
+  // (крос-орг дозволено, OQ2). Занулюємо такий dangling-реф — симетрично N1 у deleteSubtree.
+  const departments = data.departments
+    .filter((d) => !removedOrgIds.has(d.organizationId))
+    .map((d) =>
+      d.parentPositionId != null && removedPositionIds.has(d.parentPositionId)
+        ? { ...d, parentPositionId: null }
+        : d,
+    );
   const reportLines = data.reportLines.filter((r) => !removedPositionIds.has(r.fromId) && !removedPositionIds.has(r.toId));
   const originalOrgLinks = data.orgLinks ?? [];
   const orgLinks = originalOrgLinks.filter((link) => !removedOrgIds.has(link.fromOrgId) && !removedOrgIds.has(link.toOrgId));

@@ -229,6 +229,15 @@ function orgDeletionFixture(): DiagramData {
 }
 
 describe('deleteOrgSubtree', () => {
+  it('занулює dangling parentPositionId вцілілого департаменту на видалену посаду (симетрія з deleteSubtree)', () => {
+    const data = orgDeletionFixture();
+    // db належить вцілілій org 'b', але його routing-anchor вказує на pa — посаду у ВИДАЛЕНІЙ
+    // org 'a' (крос-орг anchor дозволений, OQ2). deleteSubtree занулює такі (N1); deleteOrgSubtree мусить теж.
+    data.departments = data.departments.map((d) => (d.id === 'db' ? { ...d, parentPositionId: 'pa' } : d));
+    const result = deleteOrgSubtree(data, 'a');
+    const db = result.data.departments.find((d) => d.id === 'db')!;
+    expect(db.parentPositionId).toBeNull();
+  });
   it('OD1/OD2 cascades through org descendants and counts each removed incident link once', () => {
     const data = orgDeletionFixture();
     const before = structuredClone(data);
