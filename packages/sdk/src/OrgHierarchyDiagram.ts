@@ -94,6 +94,14 @@ import type {
 import type { ViewportTransform } from './render/Viewport.js';
 import { createTransformWorker, WorkerPool } from './worker/index.js';
 import {
+  transferChildren,
+  deleteSubtree,
+  transferChildOrgs,
+  deleteOrgSubtree,
+  type TransferChildrenSummary,
+  type DeleteSubtreeSummary,
+  type TransferOrgsSummary,
+  type DeleteOrgSubtreeSummary,
   revealOrgPath,
   resolveOrganizationIdForNode,
   shiftPositionBlock,
@@ -1878,6 +1886,50 @@ export class OrgHierarchyDiagram {
     if (motion.animate !== true) {
       this.onViewportTransform(1);
     }
+  }
+
+  async transferChildren(fromPositionId: string, toPositionId: string): Promise<TransferChildrenSummary> {
+    const { data: next, summary } = transferChildren(this.data, fromPositionId, toPositionId);
+    if (summary.movedChildIds.length === 0) return summary;
+    await this.commitDataChange(next, {
+      type: 'bulk-transfer-children',
+      fromPositionId,
+      toPositionId,
+      movedChildIds: summary.movedChildIds,
+    });
+    return summary;
+  }
+
+  async deleteSubtree(positionId: string): Promise<DeleteSubtreeSummary> {
+    const { data: next, summary } = deleteSubtree(this.data, positionId);
+    await this.commitDataChange(next, {
+      type: 'subtree-delete',
+      positionId,
+      removedPositionIds: summary.removedPositionIds,
+    });
+    return summary;
+  }
+
+  async transferChildOrgs(fromOrgId: string, toOrgId: string): Promise<TransferOrgsSummary> {
+    const { data: next, summary } = transferChildOrgs(this.data, fromOrgId, toOrgId);
+    if (summary.movedOrgIds.length === 0) return summary;
+    await this.commitDataChange(next, {
+      type: 'org-transfer-children',
+      fromOrgId,
+      toOrgId,
+      movedOrgIds: summary.movedOrgIds,
+    });
+    return summary;
+  }
+
+  async deleteOrgSubtree(orgId: string): Promise<DeleteOrgSubtreeSummary> {
+    const { data: next, summary } = deleteOrgSubtree(this.data, orgId);
+    await this.commitDataChange(next, {
+      type: 'org-subtree-delete',
+      orgId,
+      removedOrgIds: summary.removedOrgIds,
+    });
+    return summary;
   }
 
   /**

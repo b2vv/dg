@@ -338,6 +338,110 @@ diagram.getLodLevel();                        // 'far' | 'mid' | 'near'
 Жести на канвасі: `Ctrl`/`⌘` + колесо — зум, просто колесо — панорама, `Shift`/`⌘` + клік —
 множинний вибір.
 
+### Bulk-мутації ієрархії
+
+Чотири async-методи змінюють дані діаграми, перемальовують її й повертають Summary з фактичним
+обсягом зміни. Валідація відхиляє Promise з `InteractionError` **до зміни даних**, без патча.
+Нижче `unknown`, `cycle`, `head`, `root` — причини в повідомленні помилки, не окреме поле-код.
+Успішна зміна емітить один `LayoutPatch` через `onLayoutChange` після кадру; відмова рендера
+також відхиляє Promise (див. §9).
+
+**Контракт single-flight: хост серіалізує мутації.** Викликайте наступну лише після `await`
+попередньої. Конкурентні in-flight виклики **не підтримуються**: внутрішньої черги немає,
+діє успадкований від `commitDataChange` last-writer-wins, як у `reparentPosition` /
+`movePersonToCell`. Перекрита зміна може відхилитися з повідомленням
+`never reached the screen and was not applied`.
+
+```ts
+await diagram.transferChildren('manager-old', 'manager-new');
+await diagram.deleteSubtree('manager-old');
+```
+
+#### `transferChildren`
+
+```ts
+diagram.transferChildren(fromPositionId: string, toPositionId: string): Promise<TransferChildrenSummary>
+```
+
+`fromPositionId` — посада, чиїх **прямих admin-підлеглих** переносимо; `toPositionId` — їхній
+новий керівник. Admin-батько кожної дитини замінюється; її власне піддерево зберігається.
+Matrix/dotted-зв'язки не змінюються, перенесення між організаціями дозволене.
+
+Повертає `TransferChildrenSummary`: `movedChildIds: string[]` — id перенесених прямих дітей,
+`fromPositionId: string` і `toPositionId: string` — вхідні id.
+Відмови `InteractionError`: `unknown`, якщо будь-яка посада невідома; `cycle`, якщо ціль —
+справжній admin-нащадок джерела. Обмеження `head`/`root` тут немає.
+Для однакових **відомих** id або джерела без admin-дітей повертає `movedChildIds: []`, без
+перемальовування й патча. Інакше емітить `bulk-transfer-children` (§9).
+
+#### `deleteSubtree`
+
+```ts
+diagram.deleteSubtree(positionId: string): Promise<DeleteSubtreeSummary>
+```
+
+`positionId` — корінь видалення: прибирає саму посаду й усіх її admin-нащадків, у тому числі
+в інших організаціях. Каскад прибирає всі `reportLines` будь-якого kind, що торкаються видалених
+посад, і їхніх `persons`, лише якщо на людину більше не посилається жодна вціліла посада.
+Відділи зберігаються; їхній `parentPositionId`, що вказував на видалену посаду, стає `null`.
+
+Повертає `DeleteSubtreeSummary`: `removedPositionIds: string[]` — видалені посади,
+`removedPersonIds: string[]` — видалені осиротілі люди, `removedReportLineCount: number` —
+кількість прибраних зв'язків. Відмови `InteractionError`: `unknown` для невідомої посади;
+`head`, якщо **будь-яка** посада в піддереві має `isHead: true`. Окремої відмови `root` немає:
+захист керівної посади тут називається `head`. Емітить `subtree-delete` (§9).
+
+#### `transferChildOrgs`
+
+```ts
+diagram.transferChildOrgs(fromOrgId: string, toOrgId: string): Promise<TransferOrgsSummary>
+```
+
+`fromOrgId` — організація-джерело; `toOrgId` — новий батько її **прямих дочірніх організацій**.
+Змінює їхній `parentOrgId`, зберігаючи піддерева й дані всередині них.
+
+Повертає `TransferOrgsSummary`: `movedOrgIds: string[]` — id перенесених прямих дітей,
+`fromOrgId: string` і `toOrgId: string` — вхідні id.
+Відмови `InteractionError`: `unknown`, якщо будь-яка org невідома; `cycle`, якщо ціль —
+справжній нащадок джерела за `parentOrgId`. Обмеження `head`/`root` тут немає.
+Для однакових **відомих** id або джерела без дочірніх org повертає `movedOrgIds: []`, без
+перемальовування й патча. Інакше емітить `org-transfer-children` (§9).
+
+#### `deleteOrgSubtree`
+
+```ts
+diagram.deleteOrgSubtree(orgId: string): Promise<DeleteOrgSubtreeSummary>
+```
+
+`orgId` — org, яку видаляємо разом з усіма нащадками за `parentOrgId`. Каскад прибирає їхні
+`positions` (включно з керівними) і `departments`, усі `reportLines`, що торкаються видалених
+посад, та `orgLinks`, що торкаються видалених org. Люди видалених посад прибираються лише
+коли на них не посилається жодна вціліла посада. Також прибираються всі осиротілі `groups`:
+група зберігається, якщо її згадує `groupIds` хоча б однієї вцілілої org **або посади**.
+
+Повертає `DeleteOrgSubtreeSummary`:
+
+| Поле | Що містить |
+|---|---|
+| `removedOrgIds: string[]` | id видаленої org та її нащадків |
+| `removedDepartmentIds: string[]` | id видалених відділів |
+| `removedPositionIds: string[]` | id видалених посад |
+| `removedPersonIds: string[]` | id видалених осиротілих людей |
+| `removedGroupIds: string[]` | id видалених осиротілих груп |
+| `removedReportLineCount: number` | кількість прибраних зв'язків посад |
+| `removedOrgLinkCount: number` | кількість прибраних зв'язків організацій |
+
+Відмови `InteractionError`: `unknown` для невідомої org; `root`, якщо вона не має
+`parentOrgId`. Емітить `org-subtree-delete` (§9).
+
+Обидві org-операції перевіряють орг-ієрархію перед обходом піддерева: наявний цикл,
+дублікат id або невідомий `parentOrgId` також відхиляються як `InteractionError`.
+Виняток — перенесення між однаковими відомими id: це одразу no-op.
+
+⚠️ **Видалення org із `role: 'current'` (`staffCurrentOrgId`), зокрема в складі піддерева,
+лишає порожній вид.** Вибрати нову поточну організацію — відповідальність хоста; SDK
+автоматично її не підставляє.
+
 ### Оновлення закешованих медіа (T74)
 
 `diagram.media` — завантажувач та інвалідатор медіа **конкретної діаграми**. Читайте його після
@@ -436,6 +540,19 @@ callbacks: {
 поточного контракту й окреме відкрите продуктове рішення про власність виділення, не фіча.
 
 `onLayoutChange` — єдиний канал персистентності. SDK нікуди не пише.
+
+**Bulk-варіанти `LayoutPatch`** (методи й повні Summary — у §8):
+
+| `type` | Поля патча, крім `type` |
+|---|---|
+| `bulk-transfer-children` | `fromPositionId: string`, `toPositionId: string`, `movedChildIds: string[]` |
+| `subtree-delete` | `positionId: string`, `removedPositionIds: string[]` |
+| `org-transfer-children` | `fromOrgId: string`, `toOrgId: string`, `movedOrgIds: string[]` |
+| `org-subtree-delete` | `orgId: string`, `removedOrgIds: string[]` |
+
+Патч видалення компактний: решта каскаду описана в Summary, який повертає метод.
+No-op перенесення патча не надсилає. Якщо хост розбирає `LayoutPatch` в exhaustive switch,
+додайте ці чотири гілки.
 
 ### Drop на зайняту клітину: посунути, поміняти або спитати (T111)
 

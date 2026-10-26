@@ -187,11 +187,19 @@ export type {
   TestAnchorCandidate,
 } from './core/index.js';
 export type {
+  TransferChildrenSummary,
+  DeleteSubtreeSummary,
+  TransferOrgsSummary,
+  DeleteOrgSubtreeSummary,
   ContextMenuRequest,
   ContextMenuNodeData,
   ContextMenuPointer,
 } from './interaction/index.js';
 export {
+  transferChildren,
+  deleteSubtree,
+  transferChildOrgs,
+  deleteOrgSubtree,
   buildSearchIndex,
   buildSearchIndexAsync,
   searchIndex as runSearchIndex,

@@ -53,3 +53,13 @@ export {
 export { resolveContextMenuNodeData } from './contextMenuPayload.js';
 // nodeDomTestId / normalizeTestIdKey / orgTestId / personTestId / positionTestId /
 // resolveTestIdInData / TestAnchorCandidate перенесені у `../core` (спліт dg T3a).
+export {
+  transferChildren,
+  deleteSubtree,
+  transferChildOrgs,
+  deleteOrgSubtree,
+  type TransferChildrenSummary,
+  type DeleteSubtreeSummary,
+  type TransferOrgsSummary,
+  type DeleteOrgSubtreeSummary,
+} from './bulkMutations.js';
