@@ -69,6 +69,8 @@ mod tests {
                 person: Some("Alice".into()),
                 department: None,
                 status: None,
+                width: None,
+                height: None,
             },
             FlatNodeInput {
                 id: "2".into(),
@@ -79,6 +81,8 @@ mod tests {
                 person: Some("Bob".into()),
                 department: None,
                 status: None,
+                width: None,
+                height: None,
             },
         ];
         let root = build_from_flat(items).unwrap();

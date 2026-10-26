@@ -1,6 +1,6 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import type { DiagramDepartment } from '../data/types.js';
-import type { DepartmentCardStyle } from './types.js';
+import { defaultNodeTheme, type NodeTheme, type DepartmentCardStyle } from './types.js';
 import { unionBoxes } from './staffZoneBounds.js';
 import { paintDashedFrame } from './dashedStroke.js';
 
@@ -19,8 +19,9 @@ export class DepartmentCardView extends Container {
     dept: DiagramDepartment,
     members: readonly DeptMemberBox[],
     style: DepartmentCardStyle,
-    options?: { padding?: number; minMembers?: number },
+    options?: { padding?: number; minMembers?: number; nodeTheme?: Pick<NodeTheme, 'fonts'> },
   ): DepartmentCardView | null {
+    const nodeTheme = options?.nodeTheme ?? defaultNodeTheme;
     const minMembers = options?.minMembers ?? 1;
     if (members.length < minMembers) return null;
     const padding = options?.padding ?? style.padding ?? 8;
@@ -58,7 +59,7 @@ export class DepartmentCardView extends Container {
       style: {
         fill: style.labelColor,
         fontSize: style.labelFontSize,
-        fontFamily: 'system-ui, sans-serif',
+        fontFamily: nodeTheme.fonts?.sans ?? 'system-ui, sans-serif',
       },
     });
     const labelPad = Math.min(16, padding);

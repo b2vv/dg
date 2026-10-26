@@ -28,6 +28,13 @@ export interface OrgCardBindArgs {
    * cards use it to expand in place or drill in; org-tree cards have none.
    */
   onSingleTap?: (orgId: string) => void;
+  /**
+   * Whether this card may enter the selection set. Staff-scene org cards are
+   * drawn beside positions but must not be selectable — there only positions
+   * are manipulable (owner 2026-09-13). Default `true` (org-tree cards keep
+   * selecting on tap and modifier-tap).
+   */
+  selectable?: boolean;
 }
 
 /**
@@ -38,16 +45,18 @@ export function bindOrgCardInteractions(
   view: OrganizationNodeView,
   args: OrgCardBindArgs,
 ): void {
-  const { orgId, doubleTap, handlers, onSingleTap } = args;
+  const { orgId, doubleTap, handlers, onSingleTap, selectable = true } = args;
 
   view.on('pointertap', (e) => {
     if (!isPrimaryPointerTap(e)) return;
     e.stopPropagation();
     const mods = readSelectionPointerMods(e);
     // Modifier+click toggles set membership — do not feed double-tap (T69).
+    // A non-selectable card (staff-scene org) swallows the modifier tap without
+    // entering the set; it still must not fall through to the plain-tap path.
     if (isSelectionToggleModifier(mods)) {
       doubleTap.reset();
-      handlers.onOrgClick?.(orgId, mods);
+      if (selectable) handlers.onOrgClick?.(orgId, mods);
       return;
     }
     if (doubleTap.tap(`org:${orgId}`) === 'double') {
@@ -55,7 +64,7 @@ export function bindOrgCardInteractions(
       return;
     }
     onSingleTap?.(orgId);
-    handlers.onOrgClick?.(orgId, mods);
+    if (selectable) handlers.onOrgClick?.(orgId, mods);
   });
 
   view.on('pointerdown', (e) => {

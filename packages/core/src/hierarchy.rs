@@ -73,6 +73,8 @@ pub fn build_from_flat(items: Vec<FlatNodeInput>) -> Result<HierarchyNode, Strin
                 person: input.person.clone(),
                 department: input.department.clone(),
                 status,
+                width: input.width,
+                height: input.height,
                 children,
             },
         );
@@ -102,6 +104,8 @@ mod tests {
                 person: None,
                 department: None,
                 status: None,
+                width: None,
+                height: None,
             })
             .collect()
     }
@@ -142,6 +146,8 @@ mod tests {
                 person: None,
                 department: None,
                 status: None,
+                width: None,
+                height: None,
             });
         }
         let root = build_from_flat(items).expect("builds");

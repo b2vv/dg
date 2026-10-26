@@ -1,5 +1,5 @@
 import type { Texture } from 'pixi.js';
-import type { NodeRef } from '../interaction/types.js';
+import type { NodeRef } from '../core/index.js';
 import {
   acquireNodeTextureUrl,
   evictNodeTextureCache,

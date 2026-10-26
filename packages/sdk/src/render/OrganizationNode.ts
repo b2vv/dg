@@ -6,7 +6,7 @@ import { fitContain } from './fitContain.js';
 import { formatOrgPeriodLabel } from './formatPeriodLabel.js';
 import { estimateTextWidth, formatOrgCountsBadge } from './orgCardChrome.js';
 import type { LodLevel } from './lod.js';
-import type { OrganizationNodeStyle } from './types.js';
+import { defaultNodeTheme, type NodeTheme, type OrganizationNodeStyle } from './types.js';
 import {
   attachMenuButton,
   type ContextMenuPointer,
@@ -21,6 +21,7 @@ import {
 } from './orgSymbolBox.js';
 
 export interface OrganizationNodeOptions {
+  nodeTheme?: Pick<NodeTheme, 'fonts'>;
   chrome?: OrgNodeChrome;
   onContextMenu?: (pointer: ContextMenuPointer) => void;
   /** Opt-in E11 prefetch of inactive theme symbol (default false). */
@@ -71,6 +72,7 @@ export class OrganizationNodeView extends Container {
     style: OrganizationNodeStyle,
     lod: LodLevel,
     mediaReady: Promise<void>,
+    nodeTheme: Pick<NodeTheme, 'fonts'>,
   ) {
     super();
     this.org = org;
@@ -88,11 +90,11 @@ export class OrganizationNodeView extends Container {
 
     this.nameText = new Text({
       text: this.symbolLayout.displayName,
-      style: { fill: style.nameColor, fontSize: style.nameFontSize, fontWeight: '500' },
+      style: { fontFamily: nodeTheme.fonts?.sans ?? 'system-ui, sans-serif', fill: style.nameColor, fontSize: style.nameFontSize, fontWeight: '500' },
     });
     this.fullNameFallbackText = new Text({
       text: this.symbolLayout.fullNameFallback,
-      style: {
+      style: { fontFamily: nodeTheme.fonts?.sans ?? 'system-ui, sans-serif',
         fill: style.nameColor,
         fontSize: style.nameFontSize - 1,
         fontWeight: '400',
@@ -106,17 +108,17 @@ export class OrganizationNodeView extends Container {
       style: {
         fill: style.metaColor ?? style.groupColor,
         fontSize: style.metaFontSize ?? 11,
-        fontFamily: 'Times New Roman, serif',
+        fontFamily: nodeTheme.fonts?.serif ?? nodeTheme.fonts?.sans ?? 'Times New Roman, serif',
       },
     });
     this.groupText = new Text({
       text: group?.name ?? '',
-      style: { fill: style.groupColor, fontSize: style.groupFontSize },
+      style: { fontFamily: nodeTheme.fonts?.sans ?? 'system-ui, sans-serif', fill: style.groupColor, fontSize: style.groupFontSize },
     });
     const periodLabel = formatOrgPeriodLabel(org) ?? '';
     this.periodText = new Text({
       text: periodLabel,
-      style: {
+      style: { fontFamily: nodeTheme.fonts?.sans ?? 'system-ui, sans-serif',
         fill: style.periodColor ?? 0x15803d,
         fontSize: style.periodFontSize ?? 10,
         fontWeight: '500',
@@ -124,7 +126,7 @@ export class OrganizationNodeView extends Container {
     });
     this.tempBadgeLabel = new Text({
       text: '⏳',
-      style: {
+      style: { fontFamily: nodeTheme.fonts?.sans ?? 'system-ui, sans-serif',
         fill: style.badgeTextColor ?? 0xffffff,
         fontSize: 10,
         fontWeight: '700',
@@ -136,7 +138,7 @@ export class OrganizationNodeView extends Container {
         fill: style.countsBadgeTextColor ?? 0x334155,
         fontSize: style.countsBadgeFontSize ?? 13,
         fontWeight: '500',
-        fontFamily: 'JetBrains Mono, monospace',
+        fontFamily: nodeTheme.fonts?.mono ?? 'JetBrains Mono, monospace',
       },
     });
 
@@ -185,7 +187,7 @@ export class OrganizationNodeView extends Container {
     const mediaReady = new Promise<void>((resolve) => {
       resolveMedia = resolve;
     });
-    const view = new OrganizationNodeView(org, group, theme, style, lod, mediaReady);
+    const view = new OrganizationNodeView(org, group, theme, style, lod, mediaReady, options.nodeTheme ?? defaultNodeTheme);
     view.loadTexture = options.loadTexture ?? loadNodeTexture;
     view.mediaRevision = org.media?.revision;
     view.applyChrome(style, lod, options);
@@ -268,6 +270,7 @@ export class OrganizationNodeView extends Container {
         options.chrome,
         options.onContextMenu ?? (() => {}),
         {
+          nodeTheme: options.nodeTheme,
           cardHeight: style.height,
           brandColor: style.brandColor ?? 0x2563eb,
           gojsTree: gojsTree && options.chrome.kind === 'tree',
@@ -278,7 +281,7 @@ export class OrganizationNodeView extends Container {
     }
 
     if (!this.hideMenu(style) && options.onContextMenu) {
-      const menu = attachMenuButton(this.chromeControls, style.width, 4, options.onContextMenu);
+      const menu = attachMenuButton(this.chromeControls, style.width, 4, options.onContextMenu, undefined, options.nodeTheme);
       menu.label = 'org-menu';
     }
   }

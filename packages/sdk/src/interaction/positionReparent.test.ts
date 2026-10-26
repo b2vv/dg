@@ -7,7 +7,7 @@ import {
   rosterOf,
   type SeatRoster,
 } from './positionReparent.js';
-import { InteractionError } from './types.js';
+import { InteractionError } from '../core/index.js';
 import type { DiagramReportLine } from '../data/types.js';
 
 /** T91 rows 1-10 — validation, as pure functions. */

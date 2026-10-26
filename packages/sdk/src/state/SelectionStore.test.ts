@@ -1,6 +1,6 @@
 import { describe, expect, it, rstest } from '@rstest/core';
 import { SelectionStore } from './SelectionStore.js';
-import type { NodeRef } from '../interaction/types.js';
+import type { NodeRef } from '../core/index.js';
 
 const org = (id: string): NodeRef => ({ kind: 'organization', id, organizationId: id });
 

@@ -170,6 +170,9 @@ export interface OrganizationNodeStyle {
  * the default arrowhead.
  */
 export interface EdgeStyle {
+  accentColor?: number;
+  accentWidth?: number;
+  dimAlpha?: number;
   /** Stroke color for every edge kind. */
   color?: number;
   /** Stroke width; per-view default when unset. */
@@ -183,6 +186,10 @@ export interface EdgeStyle {
 }
 
 export interface NodeTheme {
+  /** Alpha of non-matching cards during found-focus (default 0.38). */
+  foundDimAlpha?: number;
+  /** Font families with CSS fallbacks; the host loads custom fonts before rendering. */
+  fonts?: { sans?: string; mono?: string; serif?: string };
   organization: OrganizationNodeStyle;
   department: DepartmentBlobStyle;
   person: PersonNodeStyle;
@@ -236,6 +243,8 @@ export interface RenderConfig {
   staffZoneChrome?: boolean;
   /** T64: department paint mode (default blob). */
   departmentStyle?: DepartmentPaintStyle;
+  /** Enables dept-grouping layout + v2 routing; default legacy. */
+  staffEdgeRouter?: 'legacy' | 'v2';
   /** T64 / B8a: dashed frame around grid union. */
   dashedGridFrame?: boolean;
   /**
@@ -295,6 +304,11 @@ export function variantBAdjacentEdgeClearance(): {
 }
 
 export const defaultNodeTheme: NodeTheme = {
+  fonts: {
+    sans: 'system-ui, sans-serif',
+    mono: 'JetBrains Mono, monospace',
+    serif: 'Times New Roman, serif',
+  },
   department: {
     fill: 0xdbeafe,
     fillAlpha: 0.28,
@@ -349,6 +363,11 @@ export const defaultNodeTheme: NodeTheme = {
 
 /** Dark canvas node palette (page chrome uses CSS vars separately). */
 export const darkNodeTheme: NodeTheme = {
+  fonts: {
+    sans: 'system-ui, sans-serif',
+    mono: 'JetBrains Mono, monospace',
+    serif: 'Times New Roman, serif',
+  },
   department: {
     fill: 0x1e3a5f,
     fillAlpha: 0.32,
@@ -412,6 +431,7 @@ export const defaultRenderConfig: RenderConfig = {
   minContourMembers: 1,
   staffZoneChrome: false,
   departmentStyle: 'blob',
+  staffEdgeRouter: 'legacy',
   dashedGridFrame: false,
   orgSiblingGroupChrome: false,
   orgSiblingGroupStyle: 'zone',
@@ -424,19 +444,23 @@ export function mergeTheme(
 ): NodeTheme {
   if (!partial) {
     return {
+      fonts: { ...defaultNodeTheme.fonts, ...base.fonts },
       organization: { ...base.organization },
       department: { ...base.department },
       person: { ...base.person },
       departmentCard: base.departmentCard ? { ...base.departmentCard } : undefined,
       staffZone: base.staffZone ? { ...base.staffZone } : undefined,
+      foundDimAlpha: base.foundDimAlpha,
       canvasBackground: base.canvasBackground,
       edge: base.edge ? { ...base.edge } : undefined,
     };
   }
   return {
+    fonts: { ...defaultNodeTheme.fonts, ...base.fonts, ...partial.fonts },
     organization: { ...base.organization, ...partial.organization },
     department: { ...base.department, ...partial.department },
     person: { ...base.person, ...partial.person },
+    foundDimAlpha: partial.foundDimAlpha ?? base.foundDimAlpha,
     canvasBackground: partial.canvasBackground ?? base.canvasBackground,
     edge: base.edge || partial.edge ? { ...base.edge, ...partial.edge } : undefined,
     departmentCard:

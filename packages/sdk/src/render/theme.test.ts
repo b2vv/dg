@@ -148,3 +148,41 @@ describe('theme overrides go one field at a time', () => {
     expect(theme.departmentCard?.borderRadius).toBe(8);
   });
 });
+
+describe('font theme layers', () => {
+  it('success: layers default, base and partial font fields without mutation', () => {
+    const base = { ...defaultNodeTheme, fonts: { sans: 'Base Sans', mono: 'Base Mono' } };
+    const partial = { fonts: { mono: 'Host Mono' } };
+    expect(mergeTheme(partial, base).fonts).toEqual({
+      sans: 'Base Sans', mono: 'Host Mono', serif: 'Times New Roman, serif',
+    });
+    expect(base.fonts).toEqual({ sans: 'Base Sans', mono: 'Base Mono' });
+    expect(partial.fonts).toEqual({ mono: 'Host Mono' });
+    expect(mergeTheme(undefined, base).fonts).toEqual({
+      sans: 'Base Sans', mono: 'Base Mono', serif: 'Times New Roman, serif',
+    });
+  });
+
+  it('failure: absent base fonts and empty overrides retain defaults in both branches', () => {
+    const base = { ...defaultNodeTheme, fonts: undefined };
+    const expected = { sans: 'system-ui, sans-serif', mono: 'JetBrains Mono, monospace', serif: 'Times New Roman, serif' };
+    expect(mergeTheme(undefined, base).fonts).toEqual(expected);
+    expect(mergeTheme({ fonts: {} }, base).fonts).toEqual(expected);
+    for (const mode of ['light', 'dark'] as const) {
+      expect(resolveNodeTheme(mode).fonts).toEqual(expected);
+      expect(resolveNodeTheme(mode, { fonts: { sans: 'Comic Sans MS' } }).fonts).toEqual({
+        ...expected, sans: 'Comic Sans MS',
+      });
+    }
+  });
+});
+
+describe('found-focus theme', () => {
+  it('success: preserves base and partial scalars including zero', () => {
+    const base = { ...defaultNodeTheme, foundDimAlpha: 0.25 };
+    expect(mergeTheme(undefined, base).foundDimAlpha).toBe(0.25);
+    expect(mergeTheme({}, base).foundDimAlpha).toBe(0.25);
+    expect(mergeTheme({ foundDimAlpha: 0 }, base).foundDimAlpha).toBe(0);
+    expect(mergeTheme({ edge: { accentColor: 0x00ff00, accentWidth: 3, dimAlpha: 0.2 } }).edge).toEqual({ accentColor: 0x00ff00, accentWidth: 3, dimAlpha: 0.2 });
+  });
+});

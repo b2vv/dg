@@ -2,8 +2,9 @@ import { describe, expect, it } from '@rstest/core';
 import type { DiagramData } from '../data/types.js';
 import { buildSearchIndex, buildSearchIndexAsync, searchIndex } from './searchIndex.js';
 import { revealOrgPath, resolveOrganizationIdForNode } from './revealPath.js';
-import { movePositionToCell, shiftPositionBlock, snapToGrid, snapWorldToCell } from './positionMove.js';
-import { InteractionError } from './types.js';
+import { movePositionToCell } from '../core/index.js';
+import { shiftPositionBlock, snapToGrid, snapWorldToCell } from './positionMove.js';
+import { InteractionError } from '../core/index.js';
 import {
   selectNode,
   selectMany,

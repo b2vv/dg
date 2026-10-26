@@ -1,9 +1,7 @@
 # CTO research — Org Hierarchy SDK (`b2vv/dg`)
 
-**Дата:** 2026-09-11 (другий перезбір того ж дня)
-**Базис:** `main` @ `f3e7958` (після злиття swap-seam-events і партій 4–9 Ф2)
-і **пробив стелю 25** — гейт спрацював саме так, як задуманий: перезбір став умовою пушу, а не
-доброю звичкою)
+**Дата:** 2026-09-11 · фокусні рефреші 2026-10-21 (host-інтеграція ШПС) і **2026-10-26** (4311 перед мержем у `main`)
+**Базис:** `bulk-mutations` @ `c810489` (останній коміт 4311 перед мержем PR #95; мерж — **merge-комітом**, тож цей SHA переживе його в `main`. Squash/rebase його б стерли — див. нижче)
 
 ⚠️ **Базис переписано 2026-09-05, і причина варта запису.** Тут стояв `613acb8` — коміт, який
 **перестав існувати**: PR #78 злився через `rebase`, і той переписав усі SHA гілки. Локально гейт
@@ -14,6 +12,55 @@ SHA, записаний у документі репо, переживе `merge`
 **Призначення:** єдиний брифінг перед будь-якою імплементацією. Це не тікет і не ADR.
 
 Кожна теза нижче веде в первинне джерело (код, workflow, `work/tasks/`, `docs/`). Якщо джерело і цей файл розходяться — править джерело, не цей кеш.
+
+**Що змінилось із `b8104ea` (2026-10-26):** 25 комітів, гілка `bulk-mutations` стала PR #95 і йде в `main`.
+Чотири лінії — і перелічую, що з них **зробило неправдою рядки цього файлу**, бо саме там він бреше:
+- **Bulk-мутації ієрархії** (`715559d`, фікси `df23dce`/`c810489`) — нова публічна поверхня:
+  `transferChildren`, `deleteSubtree`, `transferChildOrgs`, `deleteOrgSubtree`
+  (`OrgHierarchyDiagram.ts:1891-1925`, чисті функції — `interaction/bulkMutations.ts`). Кожна валідує
+  й кидає `InteractionError` **до** побудови нового стану, коміт — через `commitDataChange`.
+  Контракт — `docs/USAGE.md` §8, разом із тим, чого вони **не** роблять: matrix-сітку не ведуть.
+  Реліз `@org-hierarchy/sdk` **0.5.1 → 0.6.0** (`packages/sdk/package.json`).
+- **Спліт dg на міні-бібліотеки, кроки #0–#5** (`f67731c`, `19e865b`, `17b237e`, `261991c`, `530d24c`):
+  `renderNow` розчеплено на названі методи; ORG- і STAFF-layout compute піднято з рендерера
+  (`render/staffLayoutInputs.ts`); словник вузлів (`NodeRef`/`NodeKind`/`nodeKey`/`nodeRefs`/`nodeTestId`)
+  і drop-pipeline (`SeatDrop`/`resolveSeatDrop`/`applySeatDrop`/`movePositionToCell`/`InteractionError`)
+  переїхали в новий модуль **`core/`** (`core/index.ts`). ⚠️ Шлях `interaction/nodeTestId.ts`,
+  який факт №7 цитував, **більше не існує** — виправлено на `core/nodeTestId.ts`; знайдено скриптом,
+  що перевіряє кожен шлях цього файлу на диску, і це був **єдиний** мертвий.
+- **SHPS-routing, ВАРІАНТ C + Амендмент A** (`50fa73d`; спека/GATE/проби — `work/reports/shps-routing/`):
+  штатні ребра відділів групуються й роутяться власним кодом (`layout/staff/staffDeptGrouping.ts`,
+  `staffEdgeGeometry.ts`, `orgBlockLayout.ts`), експорт іде тим самим шляхом (`svgExport.ts`).
+  ELK.js програв проби й лишився **лише** devDep пробника (`_shps-routing-probe/probeB.elk.ts`).
+  ⚠️ **Router v2 не почато**: `reports/shps-routing/implementation-status.md` — це журнал
+  незавершеного test-first воркрі, а не стан поставки (у дереві від нього лише `validateRouteInput.ts`).
+- **Рендер і дані:** `setStyles` + шрифти теми (`e316549`), `highlightPath` + dim знайденого
+  (`fe48991`, `OrgHierarchyDiagram.ts:1599`), per-node w×h у dg-tidy (`1a34034`), центрування кореня
+  штатного блоку над прольотом піддерева (`804915c`), `DiagramDepartment.parentPositionId` + `order` (`036c2c1`).
+
+Розділи: шапка, черга нижче, факт №7 п.1, §5 перезібрані. §4 — без змін (`git diff b8104ea..HEAD -- .github/workflows/` порожній); Cargo — без змін.
+⚠️ §2.2 (рядок про `renderNow` і ~24 члени `this`) **не переміряно** після T0 — число могло застаріти.
+
+**Що змінилось із `f3e7958` (host-інтеграція ШПС, 2026-10-21):** почалася **повна заміна GoJS на dg**
+у хості `cassiopeia-admin-ui` (інтегратор — паралельна сесія; спершу ШПС/positions 1:1, потім орг).
+Стан dg-сторони й пін контракту — `work/reports/host-integration/_wip-dg-side-state-for-integration.md`;
+host-контракт — `cassiopeia-admin-ui:work/queue/2026-10-12-sprint-13/4311-host-sdk-contract.md`.
+- 🔑 **Card-split:** pixel-exact картка-позиція на робочому зумі — **host HTML-overlay** через
+  `near-visible` promote (`react/createReactPromoteOverlay.ts`); dg canvas несе **розрізнювані стани**
+  (far/mid/export/pan, поза-капові). **Контейнери й лінії** (`.org.cur`/`.porg`/`.plink`/`.dept`/edges)
+  — **завжди dg canvas**, не overlay.
+- ✅ **Поставлено (гілка `bulk-mutations`):** A12/A13 — org-картка штатної сцени не виділяється
+  (`9a20c2b`); ТВО `status:'acting'` canvas-стан (`4301ce9`); head-accent `isHead` (`948d1ae`);
+  поля `DiagramOrganization.role` + `DiagramPosition.external` (`b8104ea`). Специфікації —
+  `work/reports/shps-card-states/`.
+- 🔜 **Черга:** 1b-ii `role`→canvas container-chrome (`.org.cur`/`.porg`); edge-highlight hook
+  `highlightPath` (accent `#e5491d` + dim 40%); **routing rebuild** — найбільший, окрема спека+GATE
+  (власний орто-роутер vs ELK.js), вимоги `cassiopeia-admin-ui:…/4311-shps-line-routing-requirements.md`.
+- ⏸ **Відкладено (Q2, рішення власника):** `external`/ОР canvas-маркер для far/export (поки поля
+  досить, canvas-маркер не будуємо).
+- Піновані поля контракту: `isHead`, `status:'acting'`, vacancy=derive `personId`, `departmentId`,
+  `Department.parentPositionId`, `reportLines.kind` `admin|matrix|dotted` (+новий `lead-org`),
+  `organization.role`, `position.external`; тема — рантайм `setTheme()`.
 
 **Що змінилось із `6b199a4`:** 29 комітів, і зріз тут один: **закрито найбільшу агент-реді
 роботу в репо й половину другої.** **T80** — `cell-flood` і весь Rust-контур прибрані (реліз
@@ -215,7 +262,7 @@ CI ганяє окрему пробіжку з `SOFTWARE_GL=1`, бо гілка 
 спеки якоря — усі три знайдені **в коді**; пп. 3–6 переписані 2026-09-11 **після** реалізації, бо
 три з них цикл зробив неправдою, а четвертий уточнив):
 
-1. **`listTestAnchors()` віддає `world` — сценові координати, не піксель.** Ім'я поля не метафора ([`interaction/nodeTestId.ts:84-89`](../packages/sdk/src/interaction/nodeTestId.ts)); `page.mouse.click(anchor.world.x, …)` влучить не туди на будь-якому масштабі, крім одиничного. Переводить `worldBoxToScreen` + `getViewport()` + `getCanvas()` ([`docs/USAGE.md` §14](../docs/USAGE.md)).
+1. **`listTestAnchors()` віддає `world` — сценові координати, не піксель.** Ім'я поля не метафора ([`core/nodeTestId.ts:84-89`](../packages/sdk/src/core/nodeTestId.ts), переїхав з `interaction/` у спліті #5); `page.mouse.click(anchor.world.x, …)` влучить не туди на будь-якому масштабі, крім одиничного. Переводить `worldBoxToScreen` + `getViewport()` + `getCanvas()` ([`docs/USAGE.md` §14](../docs/USAGE.md)).
 2. **Небезпечний не оверлей, а прапорець `interactive: true`.** У цьому режимі якорі — невидимі клікабельні кнопки **поверх карток** (`opacity: 0.001`, `pointer-events: auto`), тобто в проді вони заберуть кліки користувача. SDK це **не** гейтить і не буде: читати `import.meta.env` у бібліотеці означає зашити припущення про чужу збірку. Зразок гейта — наше демо (`?e2e=1`, [`packages/demo/src/app/App.ts:600`](../packages/demo/src/app/App.ts)).
 3. ✅ **Якір експандера є з 2026-09-11 (T115 крок 2, К1–К6).** До того було так: кут кнопки залежить від режиму сцени, тож ззовні з боксу картки його **не обчислити** ([`render/orgNodeChrome.ts:42-48`](../packages/sdk/src/render/orgNodeChrome.ts) проти `:95-117`), і ми платили за це самі — розгортання в наших e2e йшло через міст `window.__demoE2e`. Тепер бокс віддає **той, хто кнопку монтує** (`mountOrgNodeChrome` → `OrganizationNodeView.expanderBox()` → `NodeWorldBox.expander` → `TestAnchorCandidate.expander`), а оверлей чіпляє другий якір `data-testid="node-<testId>-expander"`. Наш `e2e/flat-orgs.spec.ts` більше не імпортує `expandOrg` із містка. Розбір і чотири варіанти, з яких обрано цей, — [`reports/test-seam/decisions.md`](./reports/test-seam/decisions.md); цикл — [`reports/expander-anchor/`](./reports/expander-anchor/).
    ✅ **2026-09-10 хост підтвердив потребу — виміром, не думкою.** Два його тести
@@ -664,6 +711,7 @@ GitHub Issues на `b2vv/dg` **порожні**; живий беклог — `wo
 | Lint | **oxlint** ^1.74, **oxfmt** ^0.65 | перший лінтер у репо |
 | Компілятор | **TypeScript ^7.0** (було ^5.6) | |
 | Граф | `ttsc` / `@ttsc/graph` ^0.28 | інструмент агента, не рантайм |
+| Проба | `elkjs` ^0.12 — **devDep, не рантайм** | лишок проби SHPS-routing; ELK програв ВАРІАНТУ C, у проді не використовується (`_shps-routing-probe/probeB.elk.ts`) |
 | WASM | wasm-bindgen 0.2, serde-wasm-bindgen 0.6, tidy-tree 0.1, tinyset pin 0.4.10 | **лише Ploeg row-tree** — контуру в крейті немає з T80. Прямі залежності [`packages/core/Cargo.toml`](../packages/core/Cargo.toml): `wasm-bindgen`, `serde`, `serde_json`, `serde-wasm-bindgen`, `tidy-tree`, `getrandom` (feature `js`), `tinyset` жорстко на `=0.4.10`, `ts-rs` — опційно під feature `ts-export` |
 | PDF | **немає jspdf** | мінімальний RGB PDF у `pdfExport.ts` |
 | Node | `engines: >=20` | |

@@ -1,10 +1,9 @@
 import type { LodLevel } from './lod.js';
 import type { ViewportTransform } from './Viewport.js';
-import type { NodeKind, NodeRef } from '../interaction/types.js';
-import { nodeEntityKey, parseNodeEntityKey } from '../interaction/nodeKey.js';
+import { nodeEntityKey, parseNodeEntityKey, type NodeKind, type NodeRef } from '../core/index.js';
 
 // The key format is entity identity, not render geometry — it lives in
-// `interaction/nodeKey.ts` and is re-exported here for existing callers.
+// `core/nodeKey.ts` and is re-exported here for existing callers.
 export { nodeEntityKey, parseNodeEntityKey };
 
 export type { PromoteCandidate } from './promoteTypes.js';

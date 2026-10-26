@@ -1,6 +1,6 @@
 import type { GridCell } from './data/types.js';
 import type { OrgDisplayMode } from './layout/index.js';
-import type { MenuItem, NodeRef } from './interaction/types.js';
+import type { MenuItem, NodeRef } from './core/index.js';
 import type { ContextMenuRequest } from './interaction/contextMenuPayload.js';
 import type { ViewportTransform } from './render/Viewport.js';
 
@@ -18,6 +18,10 @@ export type LayoutPatch =
       row: number;
       displacedPositionId?: string;
     }
+  | { type: 'bulk-transfer-children'; fromPositionId: string; toPositionId: string; movedChildIds: string[] }
+  | { type: 'subtree-delete'; positionId: string; removedPositionIds: string[] }
+  | { type: 'org-transfer-children'; fromOrgId: string; toOrgId: string; movedOrgIds: string[] }
+  | { type: 'org-subtree-delete'; orgId: string; removedOrgIds: string[] }
   | { type: 'matrix-reorder'; orgId: string; newIndex: number }
   | { type: 'matrix-cell'; orgId: string; row: number; col: number; ejectedOrgId?: string }
   | { type: 'block-shift'; positionIds: string[]; deltaLevel: number }

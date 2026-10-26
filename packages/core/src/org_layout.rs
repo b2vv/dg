@@ -27,6 +27,8 @@ pub fn compute_org_row_tree_layout(
             person: None,
             department: None,
             status: None,
+            width: o.width,
+            height: o.height,
         })
         .collect();
 
@@ -55,6 +57,8 @@ mod tests {
             id: id.into(),
             parent_org_id: parent.map(str::to_string),
             name: name.into(),
+            width: None,
+            height: None,
         }
     }
 

@@ -1,5 +1,5 @@
 import type { DiagramPosition, DiagramReportLine } from '../data/types.js';
-import { InteractionError } from './types.js';
+import { InteractionError } from '../core/index.js';
 
 /**
  * Re-parenting a seat: which manager a position reports to.

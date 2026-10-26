@@ -14,6 +14,14 @@ pub struct OrgFlatInput {
     #[serde(rename = "parentOrgId")]
     pub parent_org_id: Option<String>,
     pub name: String,
+    /// Per-node layout width; falls back to `LayoutOptions.node_width` when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts-export", ts(optional))]
+    pub width: Option<f32>,
+    /// Per-node layout height; falls back to `LayoutOptions.node_height` when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts-export", ts(optional))]
+    pub height: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,6 +41,12 @@ pub struct FlatNodeInput {
     pub person: Option<String>,
     pub department: Option<String>,
     pub status: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts-export", ts(optional))]
+    pub width: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts-export", ts(optional))]
+    pub height: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,6 +65,12 @@ pub struct HierarchyNode {
     pub department: Option<String>,
     #[serde(default = "default_status")]
     pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts-export", ts(optional))]
+    pub width: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts-export", ts(optional))]
+    pub height: Option<f32>,
     #[serde(default)]
     pub children: Vec<HierarchyNode>,
 }

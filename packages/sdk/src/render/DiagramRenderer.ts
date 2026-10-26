@@ -1,9 +1,12 @@
+import { reportPath } from '../interaction/reportPath.js';
+import type { DiagramReportLine } from '../data/types.js';
 import { Container, Graphics } from 'pixi.js';
 import { LayerManager } from './LayerManager.js';
 import { DropTargetIndex } from './dropTargetIndex.js';
-import { nodeEntityKey, parseNodeEntityKey } from '../interaction/nodeKey.js';
+import { nodeEntityKey, normalizeSelected, parseNodeEntityKey, type NodeRef } from '../core/index.js';
 import { SceneRegistry, type NodeWorldBox } from './SceneRegistry.js';
-import { ContourPainter, projectedOccupantMove } from './contour/ContourPainter.js';
+import { ContourPainter } from './contour/ContourPainter.js';
+import { projectedOccupantMove } from '../core/index.js';
 import {
   PersonInteractions,
   type DragGrid,
@@ -24,14 +27,12 @@ import {
 } from '../layout/staff/positionExpand.js';
 import { computeOrgLayout } from '../layout/rowTreeLayout.js';
 import { siblingOrgGroupBounds } from '../layout/siblingOrgGroups.js';
-import type { OrgLayoutOptions } from '../layout/types.js';
+import type { OrgLayoutOptions, OrgLayoutResult } from '../layout/types.js';
 import { orgHasChildren } from '../layout/orgMode.js';
 import type { ChromeBox } from './orgNodeChrome.js';
 import { DoubleTapTracker } from '../interaction/doubleTap.js';
 import type { SelectionPointerMods } from '../interaction/selection.js';
 import type { ContextMenuPointer } from '../interaction/contextMenuPayload.js';
-import { normalizeSelected } from '../interaction/nodeRefs.js';
-import type { NodeRef } from '../interaction/types.js';
 import { DepartmentCardView } from './DepartmentCardView.js';
 import { paintDashedFrame } from './dashedStroke.js';
 import { StaffZonesView } from './StaffZonesView.js';
@@ -39,17 +40,17 @@ import type { WorldRect } from './staffZoneBounds.js';
 import { enrichStaffTierBands, unionBoxes } from './staffZoneBounds.js';
 import { OrgEdgesView } from './OrgEdgesView.js';
 import { StaffEdgesView } from './StaffEdgesView.js';
+import { resolveStaffRouting } from './staffRouterV2.js';
 import { PersonNodeView } from './PersonNode.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
 import type {
   DepartmentCardStyle,
   NodeTheme,
   RenderConfig,
-  StaffZoneStyle,
 } from './types.js';
 import { defaultRenderConfig } from './types.js';
 import type { DiagramData, DiagramPosition } from '../data/types.js';
-import { resolveSeatDrop, type SeatDrop } from '../interaction/positionMove.js';
+import { resolveSeatDrop, type SeatDrop } from '../core/index.js';
 import type { LodLevel } from './lod.js';
 import { mapStaffEdgeBoxesForLod, mapPositionNodesToStaffEdgeBoxes } from './visualEdgeBox.js';
 import {
@@ -59,7 +60,11 @@ import {
 import {
   type ContourMemberBox,
 } from './contour/contourClearance.js';
-import { inferStaffCurrentOrgId } from './inferStaffCurrentOrgId.js';
+import {
+  buildStaffLayoutOptions,
+  resolveStaffCurrentOrgId,
+  resolveStaffZoneStyle,
+} from './staffLayoutInputs.js';
 import { orgStaffCardOptions, orgTreeOptions } from './organizationNodeOptions.js';
 
 export interface RenderOptions {
@@ -166,6 +171,8 @@ export class DiagramRenderer {
   private destroyed = false;
   /** Bumped at each render entry; stale async passes bail after await (T75 D2). */
   private renderEpoch = 0;
+  private highlightReady = false;
+  private highlightApplied = false;
   /** Boxes, views and promote state for what the last render put on screen. */
   private readonly scene = new SceneRegistry();
   private lastDiagnostics: string[] = [];
@@ -422,8 +429,12 @@ export class DiagramRenderer {
     resolvedTheme: 'light' | 'dark',
     config: RenderConfig = defaultRenderConfig,
     options: RenderOptions = {},
+    orgLayoutResult?: OrgLayoutResult,
+    staffCanvasResult?: StaffCanvasResult,
   ): Promise<void> {
     if (this.destroyed) return;
+    this.highlightReady = false;
+    this.highlightApplied = false;
     const epoch = ++this.renderEpoch;
     this.currentPositions = data.positions;
     this.contours.reset();
@@ -447,14 +458,15 @@ export class DiagramRenderer {
     this.lastLod = lod;
     const hasStaff = data.positions.length > 0;
     if (hasStaff) {
-      await this.renderStaff(data, theme, resolvedTheme, config, { ...options, lod }, epoch);
+      await this.renderStaff(data, theme, resolvedTheme, config, { ...options, lod }, epoch, staffCanvasResult);
     } else if (data.organizations.length > 0) {
-      await this.renderOrganizations(data, theme, resolvedTheme, config, { ...options, lod }, epoch);
+      await this.renderOrganizations(data, theme, resolvedTheme, config, { ...options, lod }, epoch, orgLayoutResult);
     }
     if (!this.isRenderCurrent(epoch)) return;
 
     this.drawSelection(options.selected ?? []);
     this.scene.applyPromoteVisibility();
+    this.highlightReady = true;
   }
 
   /**
@@ -484,6 +496,31 @@ export class DiagramRenderer {
       child.destroy({ children: true });
     }
     this.drawSelection(selected);
+  }
+
+  /** Repaint cached edges and card alpha only, independently of selection chrome. */
+  repaintHighlight(
+    highlightedNode: string | null,
+    foundFocus: ReadonlySet<string> | null,
+    lines: readonly DiagramReportLine[],
+    theme: NodeTheme,
+  ): void {
+    if (this.destroyed || !this.highlightReady) return;
+    if (highlightedNode === null && !foundFocus?.size && !this.highlightApplied) return;
+    const views = this.scene.listViews();
+    if (views.length === 0) return;
+    const found = foundFocus && views.some(({ key }) => foundFocus.has(key)) ? foundFocus : null;
+    const path = highlightedNode === null ? null : reportPath(highlightedNode, lines);
+    const dim = Boolean(path?.nodeKeys.size || found);
+    for (const { key, view, baselineAlpha } of views) {
+      view.alpha = found && !found.has(key) ? (theme.foundDimAlpha ?? 0.38) : baselineAlpha;
+    }
+    for (const view of this.layers.edges.children) {
+      if (view instanceof StaffEdgesView || view instanceof OrgEdgesView) {
+        view.applyHighlight({ accentKeys: path?.edgeKeys ?? new Set(), dim });
+      }
+    }
+    this.highlightApplied = dim;
   }
 
   destroy(): void {
@@ -585,11 +622,12 @@ export class DiagramRenderer {
     config: RenderConfig,
     options: RenderOptions,
     epoch: number,
+    staffCanvasResult?: StaffCanvasResult,
   ): Promise<void> {
     const ctx: StaffSceneContext = { data, theme, resolvedTheme, config, options, epoch };
-    const currentOrgId = options.staff?.currentOrgId ?? inferStaffCurrentOrgId(data);
-    if (currentOrgId && data.organizations.some((o) => o.id === currentOrgId)) {
-      await this.renderStaffCanvas(ctx, currentOrgId);
+    const currentOrgId = resolveStaffCurrentOrgId(data, options.staff?.currentOrgId);
+    if (currentOrgId) {
+      await this.renderStaffCanvas(ctx, currentOrgId, staffCanvasResult);
       return;
     }
     // No focus org: seats fall back to the bare cell grid (mockups, tests).
@@ -597,49 +635,42 @@ export class DiagramRenderer {
   }
 
   /** SPEC §2.2 three-tier canvas: zones, contours, edges, seats, org cards. */
-  private async renderStaffCanvas(ctx: StaffSceneContext, currentOrgId: string): Promise<void> {
+  private async renderStaffCanvas(
+    ctx: StaffSceneContext,
+    currentOrgId: string,
+    staffCanvasResult?: StaffCanvasResult,
+  ): Promise<void> {
     const { data, theme, config, options, epoch } = ctx;
-    // Only the renderer knows the label's font size, so the strip the zone name
-    // needs is computed here and reserved by the layout (T94).
-    //
-    // Resolved through resolveStaffZoneStyle rather than read off theme.staffZone:
-    // a theme can leave staffZone undefined and still paint zones, because the
-    // painter falls back to its own per-mode defaults. Reading the raw field gave
-    // a band of zero on exactly the tab the collision was reported on.
-    //
-    // Just the label's own strip. The department wrapper's padding is already in
-    // the zone's `contentPadding`, so adding it here counted it twice — and since
-    // it differs per tab (a dashed card pads differently from a magnetic
-    // contour), the same zone ended up with a different top gap on every tab.
-    const zoneLabelBand = config.staffZoneChrome
-      ? (() => {
-          const zone = resolveStaffZoneStyle(theme, ctx.resolvedTheme);
-          return (zone.labelPadding ?? 8) + zone.labelFontSize + 6;
-        })()
-      : 0;
-    this.lastZoneLabelBand = zoneLabelBand;
-    const staffOpts: StaffLayoutOptions = {
-      // Keep staff boxes on the same pitch as contour cells.
-      nodeWidth: theme.person.width,
-      nodeHeight: theme.person.height,
-      refCellWidth: config.cellWidth,
-      refCellHeight: config.cellHeight,
-      zoneLabelBand,
-      ...options.staff?.layout,
-      expandedOrgIds: options.staff?.expandedOrgIds ?? options.staff?.layout?.expandedOrgIds,
-    };
-    const canvas = await layoutStaffCanvas(
-      {
-        organizations: data.organizations,
-        positions: data.positions,
-        reports: data.reportLines,
-        groups: data.groups,
-        departments: data.departments,
-        persons: data.persons,
-      },
-      currentOrgId,
-      staffOpts,
+    // Options (and the reserved zone-label band) come from the shared builder so
+    // the orchestrator's pre-computed canvas and this renderer's own geometry are
+    // built from the same inputs (split T2b). `lastZoneLabelBand` records the
+    // *computed* band — the band before `staff.layout` is spread into the options
+    // — so it can differ from `staffOpts.zoneLabelBand`.
+    const { options: staffOpts, zoneLabelBand } = buildStaffLayoutOptions(
+      theme,
+      config,
+      ctx.resolvedTheme,
+      options.staff,
     );
+    this.lastZoneLabelBand = zoneLabelBand;
+    // Layout is computed by the orchestrator (#4) and handed in (split T2b); the
+    // in-renderer compute stays as a fallback for direct callers (tests) and any
+    // path not yet pre-computing. A StaffLayoutError still routes through the
+    // orchestrator's `reportIfRenderFails`, which awaits this.
+    const canvas =
+      staffCanvasResult ??
+      (await layoutStaffCanvas(
+        {
+          organizations: data.organizations,
+          positions: data.positions,
+          reports: data.reportLines,
+          groups: data.groups,
+          departments: data.departments,
+          persons: data.persons,
+        },
+        currentOrgId,
+        staffOpts,
+      ));
     if (!this.isRenderCurrent(epoch)) return;
 
     this.lastDiagnostics = [...canvas.diagnostics];
@@ -701,6 +732,7 @@ export class DiagramRenderer {
         positionNodes: canvas.positionNodes,
         orgCards: canvas.orgCards,
         style: resolveStaffZoneStyle(theme, resolvedTheme),
+        nodeTheme: theme,
         margin: geom.margin,
         canvasWidth: canvas.width,
         contentPadding,
@@ -786,23 +818,42 @@ export class DiagramRenderer {
       }
     }
 
-    const edgeBoxes = mapStaffEdgeBoxesForLod(
-      mapPositionNodesToStaffEdgeBoxes(canvas.positionNodes, geom.positionById, theme.person),
-      canvas.orgCards.map((c) => ({
-        id: c.orgId,
-        x: c.x,
-        y: c.y,
-        width: c.width,
-        height: c.height,
-      })),
-      options.lod ?? 'near',
-    );
-    this.layers.edges.addChild(
-      StaffEdgesView.fromLayout(canvas.edges, edgeBoxes, {
-        theme: resolvedTheme,
-        edge: theme.edge,
-      }),
-    );
+    const orgCardBoxes = canvas.orgCards.map((c) => ({
+      id: c.orgId,
+      x: c.x,
+      y: c.y,
+      width: c.width,
+      height: c.height,
+    }));
+    if (config.staffEdgeRouter === 'v2') {
+      const { routedSegments, markedCrossings } = resolveStaffRouting({
+        positionNodes: canvas.positionNodes,
+        edges: canvas.edges,
+        positionById: geom.positionById,
+        personTheme: theme.person,
+        lod: options.lod ?? 'near',
+        orgCards: orgCardBoxes,
+      });
+      const markedKeys = new Set(markedCrossings.map((c) => `${c.fromId}\u0000${c.toId}`));
+      this.layers.edges.addChild(
+        StaffEdgesView.fromLayout(canvas.edges, [], {
+          theme: resolvedTheme,
+          edge: theme.edge,
+        }, { segments: routedSegments, markedKeys }),
+      );
+    } else {
+      const edgeBoxes = mapStaffEdgeBoxesForLod(
+        mapPositionNodesToStaffEdgeBoxes(canvas.positionNodes, geom.positionById, theme.person),
+        orgCardBoxes,
+        options.lod ?? 'near',
+      );
+      this.layers.edges.addChild(
+        StaffEdgesView.fromLayout(canvas.edges, edgeBoxes, {
+          theme: resolvedTheme,
+          edge: theme.edge,
+        }),
+      );
+    }
   }
 
   private addStaffPersonCards(
@@ -842,6 +893,7 @@ export class DiagramRenderer {
         { ...theme.person, width: n.width, height: n.height },
         lod,
         {
+          nodeTheme: theme,
           loadTexture: options.loadTexture,
           onContextMenu: options.onPersonContextMenu
             ? (pointer) =>
@@ -894,7 +946,7 @@ export class DiagramRenderer {
         resolvedTheme,
         orgStyle,
         options.lod ?? 'near',
-        orgStaffCardOptions(org, card, options, config),
+        { ...orgStaffCardOptions(org, card, options, config), nodeTheme: theme },
       );
       view.position.set(card.x, card.y);
       view.eventMode = 'static';
@@ -920,6 +972,9 @@ export class DiagramRenderer {
         orgId: card.orgId,
         doubleTap: this.nodeDoubleTap,
         handlers: options,
+        // Staff-scene org cards are not selectable — only positions are
+        // manipulable here (owner 2026-09-13). Tap expands/drills, never selects.
+        selectable: false,
         // Tier-3 card: expand in place when the host offers it, else drill in.
         onSingleTap: (orgId) => {
           if (options.onStaffOrgExpandToggle) options.onStaffOrgExpandToggle(orgId);
@@ -971,6 +1026,7 @@ export class DiagramRenderer {
       if (!position.gridCell) continue;
       const person = position.personId ? personById.get(position.personId) : undefined;
       const node = PersonNodeView.create(person, position, theme.person, options.lod ?? 'near', {
+        nodeTheme: theme,
         loadTexture: options.loadTexture,
         onContextMenu: options.onPersonContextMenu
           ? (pointer) =>
@@ -1016,12 +1072,19 @@ export class DiagramRenderer {
     config: RenderConfig,
     options: RenderOptions,
     epoch: number,
+    orgLayoutResult?: OrgLayoutResult,
   ): Promise<void> {
-    const layout = await computeOrgLayout(
-      data.organizations,
-      data.orgLinks ?? [],
-      options.orgLayout,
-    );
+    // Layout is computed by the orchestrator (#4) and handed down (split T2a);
+    // the in-renderer compute stays only as a fallback for callers that pass
+    // none (tests, and any path not yet pre-computing). Removing it is a later
+    // cut, once every caller hands a result in.
+    const layout =
+      orgLayoutResult ??
+      (await computeOrgLayout(
+        data.organizations,
+        data.orgLinks ?? [],
+        options.orgLayout,
+      ));
     if (!this.isRenderCurrent(epoch)) return;
 
     const edgesView = OrgEdgesView.fromEdges(layout.edges, {
@@ -1072,7 +1135,7 @@ export class DiagramRenderer {
           height: ln.height,
         },
         options.lod ?? 'near',
-        orgTreeOptions(org, data, options, config),
+        { ...orgTreeOptions(org, data, options, config), nodeTheme: theme },
       );
       node.position.set(ln.x, ln.y);
       this.rememberBox({
@@ -1111,6 +1174,7 @@ export class DiagramRenderer {
       const members = memberBoxesByDept.get(dept.id) ?? [];
       const card = DepartmentCardView.fromMembers(dept, members, style, {
         minMembers,
+        nodeTheme: theme,
       });
       if (card) this.layers.departments.addChild(card);
     }
@@ -1159,35 +1223,6 @@ function departmentWrapperPadding(theme: NodeTheme, config: RenderConfig): numbe
     return padding + (card?.labelRow ? (card.labelFontSize ?? 12) + 6 : 0);
   }
   return contourButtonGroupMargin(config.paddingCells ?? 0, theme.department.strokeWidth);
-}
-
-function resolveStaffZoneStyle(
-  theme: NodeTheme,
-  mode: 'light' | 'dark',
-): StaffZoneStyle {
-  if (theme.staffZone) return theme.staffZone;
-  if (mode === 'dark') {
-    return {
-      fill: 0x191f26,
-      fillAlpha: 0.95,
-      stroke: 0x3d5067,
-      strokeWidth: 1,
-      borderRadius: 12,
-      labelColor: 0xf1f5f9,
-      labelFontSize: 14,
-      labelAlign: 'right',
-    };
-  }
-  return {
-    fill: 0xf1f5f9,
-    fillAlpha: 0.95,
-    stroke: 0xcbd5e1,
-    strokeWidth: 1,
-    borderRadius: 12,
-    labelColor: 0x0f172a,
-    labelFontSize: 14,
-    labelAlign: 'right',
-  };
 }
 
 function resolveDepartmentCardStyle(theme: NodeTheme): DepartmentCardStyle {

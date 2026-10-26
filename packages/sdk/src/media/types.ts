@@ -1,6 +1,6 @@
 import type { ThemedMedia } from '../data/types.js';
 import type { Texture } from 'pixi.js';
-import type { NodeRef } from '../interaction/types.js';
+import type { NodeRef } from '../core/index.js';
 export type { ThemedMedia } from '../data/types.js';
 
 export type MediaPlaceholderKind = 'loading' | 'error' | 'far';
@@ -34,7 +34,7 @@ export interface DiagramMediaFacade {
   /** M1: SDK map + Pixi Assets unload + live sprite refresh. */
   invalidate(url: string | readonly string[]): Promise<void>;
   /** Resolve current media URLs for node ref and invalidate. */
-  refresh(ref: import('../interaction/types.js').NodeRef): Promise<void>;
+  refresh(ref: NodeRef): Promise<void>;
   setPrefetchThemeKeys(keys: readonly string[]): void;
   /** Fire-and-forget prefetch for configured theme keys (M4). */
   prefetch(media: ThemedMedia | undefined, revision?: string | number): void;

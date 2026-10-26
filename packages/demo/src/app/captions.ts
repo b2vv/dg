@@ -6,6 +6,10 @@ import type { DemoTab } from './tabs.js';
  * entry show none — the scene speaks for itself.
  */
 const STATIC_CAPTIONS: Partial<Record<DemoTab, string>> = {
+  'staff-dept-legacy':
+    'Staff dept-routing · legacy · interleaved departments, lines can cross foreign frames',
+  'staff-dept-v2':
+    'Staff dept-routing · v2 · grouped departments, lines route around foreign frames, residual marked red',
   'variant-b':
     'Blue wash = magnetic groups (same dept, adjacent cells) · arrows = reports · orange T = temporary',
   'mockup-orgs-figma':

@@ -4,6 +4,7 @@ import { computeOrgRowTreeLayoutWasm } from '../../wasm/layoutBridge.js';
 import {
   aabbOverlap,
   positionHasCoords,
+  positionSize,
   resolveGeom,
   resolvePositionAABB,
   type StaffGeom,
@@ -14,6 +15,8 @@ import {
   resolveStaffHead,
 } from './resolveHead.js';
 import { adminDescendantIds, visiblePositions } from './positionExpand.js';
+import { validateRouteInput } from './routing/validateRouteInput.js';
+import { groupStaffByDepartment } from './staffDeptGrouping.js';
 import {
   DEFAULT_STAFF_LAYOUT_OPTIONS,
   StaffLayoutError,
@@ -41,7 +44,7 @@ function adminEdges(
 }
 
 /** Layout one connected admin forest with a known root (WASM unique-root). */
-async function layoutConnectedTree(
+export async function layoutConnectedTree(
   positions: DiagramPosition[],
   reports: DiagramReportLine[],
   orgId: string,
@@ -57,6 +60,10 @@ async function layoutConnectedTree(
     id: p.id,
     parentOrgId: p.id === rootId ? null : (parents.get(p.id) ?? null),
     name: p.title,
+    // Per-node w×h → WASM tidy розводить за реальними розмірами карток (не uniform
+    // node_width). positionSize падає на geom.* коли картка без власних розмірів,
+    // тож без p.width/p.height поведінка лишається колишньою (backward-compat).
+    ...positionSize(p, geom),
   }));
 
   // Staff *positions*, not organizations. Hanging organization parentOrgId is
@@ -76,6 +83,23 @@ async function layoutConnectedTree(
     verticalGap: geom.verticalGap,
     margin: geom.margin,
   });
+
+  // Центруємо корінь над ПОВНИМ прольотом піддерева («над стрічкою депів» — вимога мокапа).
+  // WASM layered-tidy ставить корінь у midpoint першої/останньої дитини → для асиметричних
+  // піддерев (напр. одна гілка на 3 листки, друга на 1) він видимо зсунутий. Рухаємо ЛИШЕ
+  // корінь-ноду до bbox-центру всіх вузлів: інтра-дерева позиції не чіпаємо, тож інтра-маршрути
+  // роутера лишаються чисті, а ребра корінь→діти деривуються з боксів downstream (не запікаються
+  // тут), отже переруться під нову позицію кореня.
+  const rootRaw = raw.nodes.find((n) => n.id === rootId);
+  if (rootRaw && raw.nodes.length > 1) {
+    let minX = Infinity;
+    let maxX = -Infinity;
+    for (const n of raw.nodes) {
+      if (n.x < minX) minX = n.x;
+      if (n.x + n.width > maxX) maxX = n.x + n.width;
+    }
+    rootRaw.x = (minX + maxX) / 2 - rootRaw.width / 2;
+  }
 
   const sizeById = new Map(positions.map((p) => [p.id, p]));
   return raw.nodes.map((n) => {
@@ -196,6 +220,55 @@ async function layoutTreeBlock(
 
   const detachedNodes = packSideColumn(detachedGroups, attachedNodes, geom);
   return [...attachedNodes, ...detachedNodes];
+}
+
+async function layoutDeptGroupedBlock(
+  inOrg: DiagramPosition[],
+  reports: DiagramReportLine[],
+  orgId: string,
+  geom: StaffGeom,
+  options: StaffLayoutOptions,
+): Promise<StaffOrgBlockResult> {
+  const adminParents = adminParentMap(inOrg, reports, orgId);
+  const departments = options.departments ?? [];
+  const validation = validateRouteInput(
+    inOrg.map((p) => ({ id: p.id, parentId: adminParents.get(p.id) ?? null, deptId: p.departmentId })),
+    departments.map((d) => ({ id: d.id })),
+  );
+  if (!validation.ok) {
+    const nodes = await layoutTreeBlock(inOrg, reports, orgId, geom, 'tree');
+    return {
+      organizationId: orgId,
+      mode: 'tree',
+      nodes,
+      edges: adminEdges(inOrg, reports, orgId),
+      ...bounds(nodes, geom.margin),
+      diagnostics: [`dept-grouping skipped (${validation.error.code})`],
+    };
+  }
+
+  const positionsById = new Map(inOrg.map((p) => [p.id, p]));
+  const orderedPositions: DiagramPosition[] = validation.positions.map((p) => {
+    // Validation only sorts/normalizes the supplied positions; every id exists here.
+    const original = positionsById.get(p.id)!;
+    return p.deptId === null ? { ...original, departmentId: undefined } : original;
+  });
+  if (options.memberOrder !== undefined) {
+    const rank = new Map<string, number>();
+    for (const id of options.memberOrder) {
+      if (!rank.has(id)) rank.set(id, rank.size);
+    }
+    orderedPositions.sort((a, b) => (rank.get(a.id) ?? rank.size) - (rank.get(b.id) ?? rank.size));
+  }
+  const grouped = await groupStaffByDepartment(orderedPositions, reports, [...departments], orgId, geom);
+  return {
+    organizationId: orgId,
+    mode: 'tree',
+    nodes: grouped.nodes,
+    edges: adminEdges(inOrg, reports, orgId),
+    ...bounds(grouped.nodes, geom.margin),
+    diagnostics: [...grouped.diagnostics, ...validation.diagnostics],
+  };
 }
 
 function layoutMatrixBlock(
@@ -320,6 +393,13 @@ async function layoutStaffOrgBlockCore(
   }
 
   if (mode === 'tree' || (mode === 'hybrid' && withCoords.length === 0) || withCoords.length === 0) {
+    if (
+      options.deptGrouping === true &&
+      (options.departments?.length ?? 0) > 0 &&
+      inOrg.some((p) => p.departmentId)
+    ) {
+      return layoutDeptGroupedBlock(inOrg, reports, orgId, geom, options);
+    }
     const nodes = await layoutTreeBlock(inOrg, reports, orgId, geom, 'tree');
     const b = bounds(nodes, geom.margin);
     return {

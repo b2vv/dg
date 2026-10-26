@@ -1,7 +1,7 @@
 import { describe, expect, it, rstest } from '@rstest/core';
 import { emptyDiagramData } from '../data/types.js';
 import { ContextMenuController, type ContextMenuCommands } from './ContextMenuController.js';
-import type { NodeRef } from './types.js';
+import type { NodeRef } from '../core/index.js';
 
 const data = {
   ...emptyDiagramData(),

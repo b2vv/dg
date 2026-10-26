@@ -12,7 +12,7 @@ import type { ContourMagnetConfig, ContourPositionInput } from './types.js';
 import type { ContourMemberBox } from './contourClearance.js';
 import type { LodLevel } from '../lod.js';
 import type { DiagramData, GridCell } from '../../data/types.js';
-import type { SeatDrop } from '../../interaction/positionMove.js';
+import { projectedOccupantMove, type SeatDrop } from '../../core/index.js';
 
 const DEFAULT_MORPH_MS = 160;
 
@@ -21,6 +21,7 @@ interface ContourSession {
   inputs: ContourPositionInput[];
   magnet: ContourMagnetConfig;
   style: DepartmentBlobStyle;
+  nodeTheme: Pick<NodeTheme, 'fonts'>;
   lod: LodLevel;
   morphMs: number;
   deptNames: Map<string, string>;
@@ -92,6 +93,7 @@ export class ContourPainter {
     inputs: ContourPositionInput[];
     magnet: ContourMagnetConfig;
     style: DepartmentBlobStyle;
+    nodeTheme: Pick<NodeTheme, 'fonts'>;
     lod: LodLevel;
     morphMs: number;
     deptNames: Map<string, string>;
@@ -198,6 +200,7 @@ export class ContourPainter {
             session.style,
             session.lod,
             count,
+            session.nodeTheme,
           );
           blobs.push(blob);
           this.mountDeptBlob(blob);
@@ -247,6 +250,7 @@ export class ContourPainter {
       inputs,
       magnet,
       style: theme.department,
+      nodeTheme: theme,
       lod,
       morphMs: request.morphMs ?? DEFAULT_MORPH_MS,
       deptNames,
@@ -364,48 +368,6 @@ export class ContourPainter {
       .find((b) => b.positionId === positionId);
     return { col: input.col, row: input.row, box: box ? { x: box.x, y: box.y } : undefined };
   }
-}
-
-/**
- * Where the seat a drop displaces should preview to, given the mover's
- * authored cell. `free` displaces nobody. `push` sends the occupant to the
- * cell `resolveSeatDrop` already found free. `swap` — and `ask`, shown as a
- * swap because it is the only preview `resolveSeatDrop`'s answer supports
- * before the user picks (plan §3) — sends the occupant to the cell the mover
- * is leaving; without a known origin for the mover there is nowhere sound to
- * put the occupant, so it is left where it started.
- */
-/**
- * Where the *other* seat ends up under a resolved drop, if it moves at all.
- *
- * Exported because the sprite layer (T111-K4b) has to place the neighbour's
- * card at exactly the cell this contour projection puts its member box in.
- * Two copies of this switch would be two chances for the ring and the card to
- * disagree — the very split plan §1 exists to prevent.
- *
- * `moverBase` is only read for its cell, so it is typed as such: the contour
- * session passes a `ContourPositionInput`, the renderer a `DiagramPosition`'s
- * `gridCell`, and neither needs to know about the other.
- */
-export function projectedOccupantMove(
-  drop: SeatDrop,
-  moverBase: { col: number; row: number } | undefined,
-): { occupantId: string; to: GridCell } | undefined {
-  switch (drop.kind) {
-    case 'free':
-      return undefined;
-    case 'push':
-      return { occupantId: drop.occupantId, to: drop.to };
-    case 'swap':
-    case 'ask':
-      return moverBase ? { occupantId: drop.occupantId, to: { col: moverBase.col, row: moverBase.row } } : undefined;
-    default:
-      return assertNeverSeatDrop(drop);
-  }
-}
-
-function assertNeverSeatDrop(x: never): never {
-  throw new Error(`Unexpected SeatDrop kind: ${String((x as SeatDrop).kind)}`);
 }
 
 /** Seats per department — drives `minContourMembers` and the blob badge. */

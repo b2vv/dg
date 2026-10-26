@@ -112,4 +112,59 @@ describe('bindOrgCardInteractions', () => {
       canvasY: 6,
     });
   });
+
+  // A12/A13 — у штатній сцені org-картка не бере участі у виділенні (власник
+  // 2026-09-13: «малюються разом, але маніпулювати можна тільки посадами»).
+  // `selectable: false` гейтить обидва виклики `onOrgClick`, лишаючи expand/drill,
+  // double-tap і context menu. Деревна сцена (`selectable` за замовчуванням) — без змін.
+  it('A12: selectable:false — a modifier tap does not add the org to the selection', () => {
+    const card = fakeCard();
+    const h = handlers();
+    const onSingleTap = rstest.fn();
+    bindOrgCardInteractions(card.view, {
+      orgId: 'o1',
+      doubleTap: new DoubleTapTracker(),
+      handlers: h,
+      onSingleTap,
+      selectable: false,
+    });
+
+    card.fire('pointertap', { shiftKey: true });
+    expect(h.onOrgClick).not.toHaveBeenCalled();
+    expect(onSingleTap).not.toHaveBeenCalled();
+  });
+
+  it('A13: selectable:false — a plain tap still expands/drills but does not select', () => {
+    const card = fakeCard();
+    const h = handlers();
+    const onSingleTap = rstest.fn();
+    bindOrgCardInteractions(card.view, {
+      orgId: 'o1',
+      doubleTap: new DoubleTapTracker(),
+      handlers: h,
+      onSingleTap,
+      selectable: false,
+    });
+
+    card.fire('pointertap');
+    expect(onSingleTap).toHaveBeenCalledWith('o1');
+    expect(h.onOrgClick).not.toHaveBeenCalled();
+  });
+
+  it('A13: selectable:false — a double tap still reports the double-click', () => {
+    const card = fakeCard();
+    const h = handlers();
+    const doubleTap = new DoubleTapTracker();
+    bindOrgCardInteractions(card.view, {
+      orgId: 'o1',
+      doubleTap,
+      handlers: h,
+      onSingleTap: rstest.fn(),
+      selectable: false,
+    });
+
+    card.fire('pointertap');
+    card.fire('pointertap');
+    expect(h.onOrgDoubleClick).toHaveBeenCalledWith('o1');
+  });
 });

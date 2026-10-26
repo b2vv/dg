@@ -1,10 +1,8 @@
-export type { NodeKind, NodeRef, SearchResult, MenuItem } from './types.js';
 export type {
   ContextMenuNodeData,
   ContextMenuPointer,
   ContextMenuRequest,
 } from './contextMenuPayload.js';
-export { InteractionError } from './types.js';
 export {
   buildSearchIndex,
   buildSearchIndexAsync,
@@ -24,13 +22,8 @@ export { revealOrgPath, resolveOrganizationIdForNode } from './revealPath.js';
 export {
   snapToGrid,
   snapWorldToCell,
-  isValidGridCell,
-  movePositionToCell,
-  resolveSeatDrop,
-  applySeatDrop,
   shiftPositionBlock,
   type GridSnap,
-  type SeatDrop,
 } from './positionMove.js';
 export {
   adminParentsOf,
@@ -58,12 +51,15 @@ export {
   type ContextMenuItemsOptions,
 } from './contextMenu.js';
 export { resolveContextMenuNodeData } from './contextMenuPayload.js';
+// nodeDomTestId / normalizeTestIdKey / orgTestId / personTestId / positionTestId /
+// resolveTestIdInData / TestAnchorCandidate перенесені у `../core` (спліт dg T3a).
 export {
-  nodeDomTestId,
-  normalizeTestIdKey,
-  orgTestId,
-  personTestId,
-  positionTestId,
-  resolveTestIdInData,
-  type TestAnchorCandidate,
-} from './nodeTestId.js';
+  transferChildren,
+  deleteSubtree,
+  transferChildOrgs,
+  deleteOrgSubtree,
+  type TransferChildrenSummary,
+  type DeleteSubtreeSummary,
+  type TransferOrgsSummary,
+  type DeleteOrgSubtreeSummary,
+} from './bulkMutations.js';

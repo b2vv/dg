@@ -1,3 +1,5 @@
+import type { DiagramDepartment } from '../../data/types.js';
+
 export type StaffCoordMode = 'hybrid' | 'tree' | 'matrix' | 'strict';
 
 export class StaffLayoutError extends Error {
@@ -8,6 +10,12 @@ export class StaffLayoutError extends Error {
 }
 
 export interface StaffLayoutOptions {
+  /** Group tree positions into disjoint department regions. Default false. */
+  deptGrouping?: boolean;
+  /** Departments belonging to this organisation block. */
+  departments?: readonly DiagramDepartment[];
+  /** Grouping reorder hint; unlisted ids retain canonical order at the end. */
+  memberOrder?: readonly string[];
   /**
    * Vertical strip reserved at the top of each staff-block zone for the zone's
    * own label (T94). The renderer supplies it, because only it knows the label
@@ -50,12 +58,13 @@ export interface StaffLayoutOptions {
 }
 
 export const DEFAULT_STAFF_LAYOUT_OPTIONS: Required<
-  Omit<StaffLayoutOptions, 'expandedOrgIds' | 'expandedPositionIds' | 'maxExpandedPositions'>
+  Omit<StaffLayoutOptions, 'expandedOrgIds' | 'expandedPositionIds' | 'maxExpandedPositions' | 'departments' | 'memberOrder'>
 > & {
   expandedOrgIds: readonly string[];
   expandedPositionIds: readonly string[];
   maxExpandedPositions: number;
 } = {
+  deptGrouping: false,
   zoneLabelBand: 0,
   staffCoordMode: 'hybrid',
   nodeWidth: 136,

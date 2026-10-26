@@ -8,7 +8,15 @@ export type LayoutOptions = { direction: string, node_width: number, node_height
 
 export type LayoutResult = { nodes: Array<LayoutNode>, edges: Array<LayoutEdge>, width: number, height: number, direction: string, };
 
-export type OrgFlatInput = { id: string, parentOrgId: string | null, name: string, };
+export type OrgFlatInput = { id: string, parentOrgId: string | null, name: string, 
+/**
+ * Per-node layout width; falls back to `LayoutOptions.node_width` when absent.
+ */
+width?: number, 
+/**
+ * Per-node layout height; falls back to `LayoutOptions.node_height` when absent.
+ */
+height?: number, };
 
 export type OrgRowTreeLayoutResult = { mode: string, 
 /**

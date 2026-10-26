@@ -1,5 +1,5 @@
 import type { ContextMenuNodeData } from '../interaction/contextMenuPayload.js';
-import type { NodeKind } from '../interaction/types.js';
+import type { NodeKind } from '../core/index.js';
 import type { WorldBox } from './promoteMath.js';
 
 /**

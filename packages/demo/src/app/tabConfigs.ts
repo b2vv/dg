@@ -9,6 +9,7 @@ import {
 } from '@org-hierarchy/sdk';
 import { buildVariantBData } from '../scenarios/variantB.js';
 import { buildStaffTreeData } from '../scenarios/staffTree.js';
+import { buildStaffDeptRoutingData } from '../scenarios/staffDeptRouting.js';
 import { buildStaffBrigadeData } from '../scenarios/staffBrigade.js';
 import {
   buildMockupOrgsFigmaData,
@@ -128,6 +129,32 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
           refCellWidth: 140,
           refCellHeight: 160,
           collapseUnexpandedPositions: true,
+        },
+      };
+    case 'staff-dept-legacy':
+    case 'staff-dept-v2':
+      return {
+        ...base,
+        data: buildStaffDeptRoutingData(),
+        staffCurrentOrgId: 'unit',
+        render: {
+          ...base.render,
+          staffZoneChrome: true,
+          departmentStyle: 'card',
+          staffEdgeRouter: tab === 'staff-dept-v2' ? 'v2' : 'legacy',
+        },
+        staffLayout: {
+          horizontalGap: 40,
+          verticalGap: 52,
+          tierGap: 36,
+          margin: 24,
+          nodeWidth: 136,
+          nodeHeight: 156,
+          orgCardWidth: 200,
+          orgCardHeight: 64,
+          refCellWidth: 140,
+          refCellHeight: 160,
+          collapseUnexpandedPositions: false,
         },
       };
     case 'mockup-orgs-figma':

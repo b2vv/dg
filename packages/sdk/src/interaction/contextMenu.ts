@@ -1,5 +1,5 @@
 import { sameNodeRef } from './selection.js';
-import type { MenuItem, NodeRef } from './types.js';
+import type { MenuItem, NodeRef } from '../core/index.js';
 
 export interface ContextMenuItemsOptions {
   /**

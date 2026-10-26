@@ -2,6 +2,11 @@
 
 Guidance for coding agents working in **Org Hierarchy SDK** (`b2vv/dg`).
 
+> **Local AI tooling (optional):** if a local `.ai/` directory is present, read `.ai/README.md`
+> first — it pins the external AI Factory workflow/skills and the project adapter. `.ai/` is
+> local and git-ignored; this repo works without it. Local project norms here always take
+> precedence over that tooling.
+
 ## Stack (short)
 
 - `packages/core` — Rust → WASM (contours + Ploeg row-tree; canvas paint is TS)
@@ -36,7 +41,7 @@ It checks six things, each because that drift already happened here and nothing 
   merely documentation: the threshold below defines the public API as *what `docs/USAGE.md`
   describes*, so a method absent from it cannot be seen by the rule that decides how carefully it
   may be changed. Twenty-one were missing when the check went in — a named baseline that may shrink
-  and never grow. **Eight now:** T104 documented the five mutators, which it had to, since the
+  and never grow. **Seven now** (eight until this commit): T104 documented the five mutators, which it had to, since the
   three with the worst failure semantics in the tree were formally below the threshold until then;
   T105 then dropped `getData`, which the script had been reporting as documented for a day; T119
   took one off by the other route — `getLastContextMenu` was **deleted**, not documented, being a
@@ -54,8 +59,9 @@ It checks six things, each because that drift already happened here and nothing 
   `scripts/facadeSurface.mjs`, which scans **only** the body of `export class OrgHierarchyDiagram`
   and throws when that header is not found, because an unrun scan would otherwise pass the gate
   silently. **The baseline did not move:** the phantoms were never in the *undocumented* set —
-  they passed the substring test — so it is eight before and eight after. What did change is that
-  `media` is now documented (`docs/USAGE.md` §8) rather than merely unseen. The third weakness is
+  they passed the substring test — so it was eight before and eight after that fix. What did change is that
+  `media` is now documented (`docs/USAGE.md` §8) rather than merely unseen. This commit then takes the
+  baseline from eight to **seven**: `setTheme`, documented back in `e316549` but never pruned, finally comes off it. The third weakness is
   **deliberately left**: «documented» is still `usage.includes(name)`, a bare substring. Both
   stricter rules were measured and cost more than they save — requiring the name in backticks
   makes 47 members undocumented **and still** misses `media`, because `` `media` `` already

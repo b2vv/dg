@@ -3,6 +3,8 @@ import { defaultLodThresholds, type LodThresholds } from '@org-hierarchy/sdk';
 export type DemoTab =
   | 'variant-b'
   | 'staff-tree'
+  | 'staff-dept-legacy'
+  | 'staff-dept-v2'
   | 'mockup-orgs-figma'
   | 'mockup-orgs-gojs'
   | 'mockup-staff-figma'
@@ -33,6 +35,8 @@ export interface DemoTabMeta {
 export const TAB_META: Record<DemoTab, DemoTabMeta> = {
   'variant-b': { label: 'Variant B', contourControls: true, reloadsOnContourSlider: true },
   'staff-tree': { label: 'Staff tree' },
+  'staff-dept-legacy': { label: 'Staff dept · legacy' },
+  'staff-dept-v2': { label: 'Staff dept · v2' },
   'mockup-orgs-figma': { label: 'Orgs · Figma', family: 'figma' },
   'mockup-orgs-gojs': { label: 'Orgs · GoJS', family: 'gojs' },
   'mockup-staff-figma': { label: 'Staff · Figma', family: 'figma' },

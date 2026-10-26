@@ -1,3 +1,16 @@
+import {
+  nodeEntityKey,
+  parseNodeEntityKey,
+  orgNodeRef,
+  personNodeRef,
+  resolveNodeRefInData,
+  seatNodeRef,
+  testIdForRef,
+  resolveTestIdInData,
+  type NodeRef,
+  type SearchResult,
+  type TestAnchorCandidate,
+} from './core/index.js';
 import type {
   DiagramData,
   DiagramOrganization,
@@ -12,7 +25,7 @@ import {
   resolveRendererPreference,
   type RendererKindPreference,
 } from './render/PixiHost.js';
-import type { DiagramRenderer } from './render/DiagramRenderer.js';
+import type { DiagramRenderer, RenderOptions } from './render/DiagramRenderer.js';
 import { MediaService, type DiagramMediaFacade, type MediaPlaceholderRegistry } from './media/index.js';
 import { mediaUrlsForRef, prefetchOpenMedia } from './media/diagramMedia.js';
 import {
@@ -30,6 +43,10 @@ import {
   type NodeWorldBox,
 } from './render/index.js';
 import { inferStaffCurrentOrgId } from './render/inferStaffCurrentOrgId.js';
+import {
+  buildStaffLayoutOptions,
+  resolveStaffCurrentOrgId,
+} from './render/staffLayoutInputs.js';
 import { resolveLodLevel, type LodLevel, type LodThresholds } from './render/lod.js';
 import { createRenderCoalesce } from './render/renderCoalesce.js';
 import { SelectionStore } from './state/SelectionStore.js';
@@ -57,6 +74,8 @@ import {
   adminDescendantIds,
   positionHasAdminChildren,
   victimsForExpand,
+  computeOrgLayout,
+  layoutStaffCanvas,
   type OrgDisplayMode,
   type OrgLayoutOptions,
   type StaffLayoutOptions,
@@ -75,32 +94,26 @@ import type {
 import type { ViewportTransform } from './render/Viewport.js';
 import { createTransformWorker, WorkerPool } from './worker/index.js';
 import {
+  transferChildren,
+  deleteSubtree,
+  transferChildOrgs,
+  deleteOrgSubtree,
+  type TransferChildrenSummary,
+  type DeleteSubtreeSummary,
+  type TransferOrgsSummary,
+  type DeleteOrgSubtreeSummary,
   revealOrgPath,
   resolveOrganizationIdForNode,
-  resolveSeatDrop,
-  applySeatDrop,
-  type SeatDrop,
   shiftPositionBlock,
-  type NodeRef,
-  type SearchResult,
-  InteractionError,
   type ContextMenuRequest,
   type ContextMenuPointer,
-  resolveTestIdInData,
-  type TestAnchorCandidate,
 } from './interaction/index.js';
+import { resolveSeatDrop, applySeatDrop, type SeatDrop, InteractionError } from './core/index.js';
 import {
   SearchIndexService,
   knownSearchIds,
 } from './interaction/SearchIndexService.js';
 import { ContextMenuController } from './interaction/ContextMenuController.js';
-import {
-  orgNodeRef,
-  personNodeRef,
-  resolveNodeRefInData,
-  seatNodeRef,
-  testIdForRef,
-} from './interaction/nodeRefs.js';
 import {
   exportDiagram as runExport,
   printDiagram,
@@ -736,28 +749,119 @@ export class OrgHierarchyDiagram {
   private async renderNow(): Promise<void> {
     if (!this.host || this.destroyed) return;
     const host = this.host;
+    const { nodeTheme, resolved } = this.applyRenderTheme(host);
+    this.bindCanReparent(host);
+    // #4 owns the layout compute now (split T2a): for the org branch, place the
+    // nodes here and hand the result to the renderer, so `render()` draws
+    // already-positioned nodes instead of computing them. Computed from the
+    // captured `drawing` — the same snapshot the renderer is handed (T104) — and
+    // with the same view state. Compute and render go through ONE promise so a
+    // layout throw (`validateOrgHierarchy` on a bad hierarchy) still routes
+    // through `reportIfRenderFails` → onRenderFailed / getLastRenderFailure, as
+    // it did when the compute lived inside `render()` (T97). The staff branch
+    // still computes inside the renderer until T2b; the mode test mirrors
+    // `render()`'s own dispatch (positions ⇒ staff, else orgs).
+    const { drawing, drawingStaffOrgIds } = this.captureDrawingState();
+    await this.reportIfRenderFails(
+      (async () => {
+        const orgLayoutResult =
+          drawing.positions.length === 0 && drawing.organizations.length > 0
+            ? await computeOrgLayout(
+                drawing.organizations,
+                drawing.orgLinks ?? [],
+                this.viewState.orgLayout,
+              )
+            : undefined;
+        const options = this.buildRenderOptions();
+        // Staff branch (split T2b): mirror render()'s dispatch — positions ⇒ staff,
+        // and within it the shared resolver decides focus-org vs bare grid, with
+        // the SAME logic and options the renderer would use (so the pre-computed
+        // canvas and the renderer's own geometry cannot drift). null ⇒ grid, and
+        // the renderer draws it; a real org ⇒ compute, awaited here so a
+        // StaffLayoutError routes through reportIfRenderFails like the org throw.
+        const staffCurrentOrgId =
+          drawing.positions.length > 0
+            ? resolveStaffCurrentOrgId(drawing, options.staff?.currentOrgId)
+            : null;
+        const staffCanvasResult = staffCurrentOrgId
+          ? await layoutStaffCanvas(
+              {
+                organizations: drawing.organizations,
+                positions: drawing.positions,
+                reports: drawing.reportLines,
+                groups: drawing.groups,
+                departments: drawing.departments,
+                persons: drawing.persons,
+              },
+              staffCurrentOrgId,
+              buildStaffLayoutOptions(nodeTheme, this.renderConfig, resolved, options.staff).options,
+            )
+          : undefined;
+        await host.renderer.render(
+          drawing,
+          nodeTheme,
+          resolved,
+          this.renderConfig,
+          options,
+          orgLayoutResult,
+          staffCanvasResult,
+        );
+      })(),
+      drawing,
+      drawingStaffOrgIds,
+    );
+    this.afterRender(host);
+  }
+
+  /**
+   * Resolve the theme and push the canvas background. Writes `this.nodeTheme`
+   * (a side effect, by design — `repaintHighlight` and others read the field
+   * later); the returned pair is just the two values this frame draws with.
+   */
+  private applyRenderTheme(host: PixiHost) {
     const resolved = resolveTheme(this.viewState.themeMode);
     this.nodeTheme = resolveNodeTheme(resolved, this.stylesPartial);
     host.setBackground(
       this.nodeTheme.canvasBackground ?? canvasBackgroundForTheme(resolved),
     );
-    // Rebound on every render, because a drop changes the report lines the
-    // answer depends on — and every drop is followed by a render. The roster is
-    // built here rather than inside the closure so a drag that sweeps across
-    // the wall does not rebuild it once per target.
+    return { nodeTheme: this.nodeTheme, resolved };
+  }
+
+  /**
+   * Rebound on every render, because a drop changes the report lines the
+   * answer depends on — and every drop is followed by a render. The roster is
+   * built here rather than inside the closure so a drag that sweeps across
+   * the wall does not rebuild it once per target.
+   */
+  private bindCanReparent(host: PixiHost): void {
     const roster = rosterOf(this.data.positions);
     const reportLinesNow = this.data.reportLines;
     host.renderer.canReparent = (positionId, managerId) =>
       canReparent(reportLinesNow, positionId, managerId, roster);
-    // Captured before the await, because that is the state the renderer is
-    // handed. Reading `this.data` afterwards would record whatever a mutator
-    // wrote *during* the frame — a state nobody drew (T104 review).
-    const drawing = this.data;
-    // Same capture, same reason, for the one bit of view state no rollback can
-    // re-derive from the data (T109).
-    const drawingStaffOrgIds = [...this.viewState.staffExpandedOrgIds];
-    await this.reportIfRenderFails(
-      host.renderer.render(drawing, this.nodeTheme, resolved, this.renderConfig, {
+  }
+
+  /**
+   * Snapshot the state the renderer is handed, before any await. Reading
+   * `this.data` afterwards would record whatever a mutator wrote *during* the
+   * frame — a state nobody drew (T104 review). `drawingStaffOrgIds` is the one
+   * bit of view state no rollback can re-derive from the data (T109), so it is
+   * captured with it.
+   */
+  private captureDrawingState() {
+    return {
+      drawing: this.data,
+      drawingStaffOrgIds: [...this.viewState.staffExpandedOrgIds],
+    };
+  }
+
+  /**
+   * The renderer options for this frame: scene knobs plus the interaction
+   * callbacks. Called synchronously before the `render()` await — the scalar
+   * knobs are read now; the callbacks close over `this` and read `this.data`
+   * at call time (late), which is the existing behaviour.
+   */
+  private buildRenderOptions(): RenderOptions {
+    return {
       lod: this.viewState.lodLevel,
       orgLayout: this.viewState.orgLayout,
       staff: this.viewState.staffCurrentOrgId
@@ -854,13 +958,18 @@ export class OrgHierarchyDiagram {
           throw err;
         });
       },
-      }),
-      drawing,
-      drawingStaffOrgIds,
-    );
-    // The scene changed; nothing paints on its own any more (T84).
+    };
+  }
+
+  /**
+   * Post-render side effects, in order. Re-checks liveness after requesting
+   * the paint, because the scene changed and nothing paints on its own any
+   * more (T84).
+   */
+  private afterRender(host: PixiHost): void {
     host.requestPaint();
     if (this.destroyed || !this.host) return;
+    this.repaintHighlight();
     this.callbacks.onLayoutDiagnostics?.(this.getLayoutDiagnostics());
     this.notifyPromoteSync();
     prefetchOpenMedia({
@@ -1111,6 +1220,8 @@ export class OrgHierarchyDiagram {
     this.searchService.adopt(index);
     this.seedExpandedPositionsFromData();
     this.applySelection(null);
+    this.viewState.highlightedNode = null;
+    this.viewState.foundFocus = null;
     const ms =
       (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()) - t0;
     this.callbacks.onDataMapped?.({
@@ -1136,6 +1247,12 @@ export class OrgHierarchyDiagram {
 
   getWorkerPool(): WorkerPool | null {
     return this.workerPool;
+  }
+
+  /** Replace style overrides; undefined restores the active theme defaults. */
+  async setStyles(partial: NodeThemeOverrides | undefined): Promise<void> {
+    this.stylesPartial = partial;
+    await this.render();
   }
 
   async setTheme(theme: 'light' | 'dark' | 'auto'): Promise<void> {
@@ -1478,6 +1595,38 @@ export class OrgHierarchyDiagram {
     this.repaintSelection();
   }
 
+  /** Accent the admin reporting path and direct reports using raw position ids. */
+  highlightPath(nodeId: string | null): void {
+    if (this.destroyed) return;
+    this.viewState.highlightedNode = nodeId || null;
+    this.repaintHighlight();
+  }
+
+  /** Dim cards outside the supplied bare ids or typed entity keys. */
+  setFoundFocus(ids: string[] | string | null): void {
+    if (this.destroyed) return;
+    const keys = new Set<string>();
+    for (const id of typeof ids === 'string' ? [ids] : (ids ?? [])) {
+      if (!id) continue;
+      if (parseNodeEntityKey(id)) keys.add(id);
+      else {
+        for (const kind of ['position', 'organization', 'person'] as const) {
+          keys.add(nodeEntityKey(kind, id));
+        }
+      }
+    }
+    this.viewState.foundFocus = keys.size > 0 ? keys : null;
+    this.repaintHighlight();
+  }
+
+  private repaintHighlight(): void {
+    if (this.destroyed) return;
+    this.renderer?.repaintHighlight(
+      this.viewState.highlightedNode, this.viewState.foundFocus, this.data.reportLines, this.nodeTheme,
+    );
+    this.host?.requestPaint();
+  }
+
   /** T75 D1: selection chrome only — keeps nodeViews alive. */
   private repaintSelection(): void {
     if (!this.host || this.destroyed) return;
@@ -1737,6 +1886,50 @@ export class OrgHierarchyDiagram {
     if (motion.animate !== true) {
       this.onViewportTransform(1);
     }
+  }
+
+  async transferChildren(fromPositionId: string, toPositionId: string): Promise<TransferChildrenSummary> {
+    const { data: next, summary } = transferChildren(this.data, fromPositionId, toPositionId);
+    if (summary.movedChildIds.length === 0) return summary;
+    await this.commitDataChange(next, {
+      type: 'bulk-transfer-children',
+      fromPositionId,
+      toPositionId,
+      movedChildIds: summary.movedChildIds,
+    });
+    return summary;
+  }
+
+  async deleteSubtree(positionId: string): Promise<DeleteSubtreeSummary> {
+    const { data: next, summary } = deleteSubtree(this.data, positionId);
+    await this.commitDataChange(next, {
+      type: 'subtree-delete',
+      positionId,
+      removedPositionIds: summary.removedPositionIds,
+    });
+    return summary;
+  }
+
+  async transferChildOrgs(fromOrgId: string, toOrgId: string): Promise<TransferOrgsSummary> {
+    const { data: next, summary } = transferChildOrgs(this.data, fromOrgId, toOrgId);
+    if (summary.movedOrgIds.length === 0) return summary;
+    await this.commitDataChange(next, {
+      type: 'org-transfer-children',
+      fromOrgId,
+      toOrgId,
+      movedOrgIds: summary.movedOrgIds,
+    });
+    return summary;
+  }
+
+  async deleteOrgSubtree(orgId: string): Promise<DeleteOrgSubtreeSummary> {
+    const { data: next, summary } = deleteOrgSubtree(this.data, orgId);
+    await this.commitDataChange(next, {
+      type: 'org-subtree-delete',
+      orgId,
+      removedOrgIds: summary.removedOrgIds,
+    });
+    return summary;
   }
 
   /**

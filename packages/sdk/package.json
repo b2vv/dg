@@ -1,7 +1,7 @@
 {
   "name": "@org-hierarchy/sdk",
-  "version": "0.5.1",
-  "description": "Org hierarchy diagram SDK \u2014 data, mappers, worker helpers",
+  "version": "0.6.0",
+  "description": "Org hierarchy diagram SDK — data, mappers, worker helpers",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -56,6 +56,7 @@
     "@types/node": "^26.4.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "elkjs": "^0.12.0",
     "jsdom": "^25.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

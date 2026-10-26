@@ -1,5 +1,5 @@
 import type { DiagramData, DiagramOrganization } from '../data/types.js';
-import type { NodeRef } from '../interaction/types.js';
+import type { NodeRef } from '../core/index.js';
 import { resolvePersonPhotoUrl } from '../render/PersonNode.js';
 import { getOrgSymbolUrl, resolveTheme } from '../render/theme.js';
 import type { LodLevel } from '../render/lod.js';

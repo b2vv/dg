@@ -1,3 +1,4 @@
+import { defaultNodeTheme, type NodeTheme } from './types.js';
 import { Container, Graphics, Text } from 'pixi.js';
 import {
   CHROME_BTN_SIZE,
@@ -63,6 +64,7 @@ export function mountGojsTreeChrome(
   cardHeight: number,
   chrome: OrgTreeChrome,
   brandColor: number,
+  nodeTheme: Pick<NodeTheme, 'fonts'> = defaultNodeTheme,
 ): Container | undefined {
   if (!chrome.hasChildren) return undefined;
 
@@ -79,7 +81,7 @@ export function mountGojsTreeChrome(
 
   const glyph = new Text({
     text: chrome.collapsed ? '+' : '−',
-    style: { fill: 0xffffff, fontSize: 14, fontWeight: '700' },
+    style: { fontFamily: nodeTheme.fonts?.sans ?? 'system-ui, sans-serif', fill: 0xffffff, fontSize: 14, fontWeight: '700' },
   });
   glyph.anchor.set(0.5);
   glyph.position.set(EXPANDER_D / 2, EXPANDER_D / 2);
@@ -105,7 +107,7 @@ export function mountOrgNodeChrome(
   cardWidth: number,
   chrome: OrgNodeChrome,
   onContextMenu: (pointer: ContextMenuPointer) => void,
-  options: { cardHeight?: number; brandColor?: number; gojsTree?: boolean } = {},
+  options: { cardHeight?: number; brandColor?: number; gojsTree?: boolean; nodeTheme?: Pick<NodeTheme, 'fonts'> } = {},
 ): OrgNodeChromeMount {
   if (options.gojsTree && chrome.kind === 'tree') {
     const cardHeight = options.cardHeight ?? 121;
@@ -115,6 +117,7 @@ export function mountOrgNodeChrome(
       cardHeight,
       chrome,
       options.brandColor ?? 0x2563eb,
+      options.nodeTheme,
     );
     return {
       expandButton,
@@ -140,12 +143,12 @@ export function mountOrgNodeChrome(
 
   if (chrome.kind === 'tree') {
     if (chrome.hasChildren && chrome.collapsed) {
-      expandButton = attachIconButton(host, x, 4, '+', 'Expand', chrome.onExpand);
+      expandButton = attachIconButton(host, x, 4, '+', 'Expand', chrome.onExpand, options.nodeTheme);
       expandButton.label = 'org-expand';
       expanderBox = boxOf(expandButton);
       x -= 28;
     } else if (chrome.hasChildren && !chrome.collapsed) {
-      expandButton = attachIconButton(host, x, 4, '−', 'Collapse', chrome.onCollapse);
+      expandButton = attachIconButton(host, x, 4, '−', 'Collapse', chrome.onCollapse, options.nodeTheme);
       expandButton.label = 'org-expand';
       expanderBox = boxOf(expandButton);
       x -= 28;
@@ -158,6 +161,7 @@ export function mountOrgNodeChrome(
       chrome.expanded ? '▲' : '▼',
       chrome.expanded ? 'Collapse staff' : 'Expand staff',
       chrome.onToggle,
+      options.nodeTheme,
     );
     expandButton.label = 'org-expand';
     // ⚠️ `expanderBox` тут **свідомо не заповнюється**. Спершу заповнювався —
@@ -168,7 +172,7 @@ export function mountOrgNodeChrome(
     x -= 28;
   }
 
-  const menuButton = attachMenuButton(host, cardWidth, 4, onContextMenu);
+  const menuButton = attachMenuButton(host, cardWidth, 4, onContextMenu, undefined, options.nodeTheme);
   menuButton.label = 'org-menu';
   menuButton.x = x;
 

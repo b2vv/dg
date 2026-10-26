@@ -1,4 +1,4 @@
-import type { NodeRef } from './types.js';
+import type { NodeRef } from '../core/index.js';
 
 export function sameNodeRef(a: NodeRef | null | undefined, b: NodeRef | null | undefined): boolean {
   if (!a || !b) return false;

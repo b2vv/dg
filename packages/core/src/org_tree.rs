@@ -141,7 +141,11 @@ pub fn extract_subtree<'a>(
         let org = by_id[id];
         result.push(org);
         if let Some(kids) = children_by_parent.get(id) {
-            stack.extend(kids.iter().copied());
+            // Діти кладуться в стек у ЗВОРОТНОМУ порядку, щоб LIFO-pop знімав їх
+            // зліва направо — інакше кожен рівень дзеркалиться (порушення R-T
+            // естетики 2: порядок даних має зберегтися). Той самий прийом, що й у
+            // `ploeg_layout.rs`; тут він раніше бракував і давав реверс сиблінгів.
+            stack.extend(kids.iter().rev().copied());
         }
     }
     Ok(result)
@@ -156,6 +160,8 @@ mod tests {
             id: id.into(),
             parent_org_id: parent.map(str::to_string),
             name: name.into(),
+            width: None,
+            height: None,
         }
     }
 
@@ -210,5 +216,20 @@ mod tests {
         let orgs = vec![org("a", None, "A")];
         let err = extract_subtree(&orgs, "missing").unwrap_err();
         assert!(matches!(err, OrgTreeError::UnknownOrg(_)));
+    }
+
+    /// R-T естетика 2: порядок сиблінгів = порядок даних. Обхід не має дзеркалити
+    /// рівні. Регрес: `stack.extend(kids)` без `.rev()` давав [root, c3, c2, c1].
+    #[test]
+    fn extract_subtree_keeps_sibling_order() {
+        let orgs = vec![
+            org("root", None, "Root"),
+            org("c1", Some("root"), "C1"),
+            org("c2", Some("root"), "C2"),
+            org("c3", Some("root"), "C3"),
+        ];
+        let subtree = extract_subtree(&orgs, "root").unwrap();
+        let ids: Vec<&str> = subtree.iter().map(|o| o.id.as_str()).collect();
+        assert_eq!(ids, vec!["root", "c1", "c2", "c3"]);
     }
 }
