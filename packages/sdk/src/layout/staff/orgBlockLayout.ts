@@ -84,6 +84,23 @@ export async function layoutConnectedTree(
     margin: geom.margin,
   });
 
+  // Центруємо корінь над ПОВНИМ прольотом піддерева («над стрічкою депів» — вимога мокапа).
+  // WASM layered-tidy ставить корінь у midpoint першої/останньої дитини → для асиметричних
+  // піддерев (напр. одна гілка на 3 листки, друга на 1) він видимо зсунутий. Рухаємо ЛИШЕ
+  // корінь-ноду до bbox-центру всіх вузлів: інтра-дерева позиції не чіпаємо, тож інтра-маршрути
+  // роутера лишаються чисті, а ребра корінь→діти деривуються з боксів downstream (не запікаються
+  // тут), отже переруться під нову позицію кореня.
+  const rootRaw = raw.nodes.find((n) => n.id === rootId);
+  if (rootRaw && raw.nodes.length > 1) {
+    let minX = Infinity;
+    let maxX = -Infinity;
+    for (const n of raw.nodes) {
+      if (n.x < minX) minX = n.x;
+      if (n.x + n.width > maxX) maxX = n.x + n.width;
+    }
+    rootRaw.x = (minX + maxX) / 2 - rootRaw.width / 2;
+  }
+
   const sizeById = new Map(positions.map((p) => [p.id, p]));
   return raw.nodes.map((n) => {
     const src = sizeById.get(n.id);
