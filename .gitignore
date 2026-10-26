@@ -28,3 +28,12 @@ worktrees/
 
 # JetBrains IDE — local settings, not project config
 .idea/
+
+# AI Factory local tooling — managed package lives in an external dedicated root;
+# this holds only machine-specific pin/adapter/entrypoint (absolute paths), so it
+# stays local and out of a public repo. Nothing here was ever tracked.
+.ai/
+
+# Repo-root scratch — codex prompt drafts and throwaway logs, never tracked.
+# (The session scratchpad lives elsewhere; this one is just local noise.)
+scratchpad/

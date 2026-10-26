@@ -117,7 +117,6 @@ const UNDOCUMENTED_BASELINE = new Set([
   'openContextMenu',
   'runContextMenuAction',
   'setStaffFocus',
-  'setTheme',
   'subscribePromoteSync',
 ]);
 
