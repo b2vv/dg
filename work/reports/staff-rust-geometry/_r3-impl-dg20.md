@@ -82,3 +82,18 @@ T127a:52 «прибрати +2×padding → червоний» схиляє до
 Готово: зрізи 1 (department_frame), 2 (pack_departments B4/I-T5-A) — закомічено f3b4549; 3 (B1) — green, не закомічено.
 Лишилось: B3/I-A2 (зсув no-dept-коренів = padding+шапка, обидва входи; зачіпає header-offset dept-карток → межа R3/R4),
 B5 (magnetic-розріз, потребує S7 card+blob). Обидва — суттєві, з пінненими рішеннями вище.
+
+## Зріз 4 (B3/I-A2) — GREEN (Dg20)
+Модель (підтв. власником): рамка ВКЛЮЧАЄ шапку. frame_top = cards_top − padding − header.
+- `department_frame` +параметр `header_height`: y −= header, height += header.
+- `pack_departments` +параметр `dept_header_height`; dy = (margin+padding+header) − min_y →
+  frame_top сідає на margin, картки під шапкою+padding.
+- `DepartmentMembers` +поле `wrapped`: true=відділ (рамка), false=вільна група (no-dept корені,
+  рамки нема, але картки вирівняні — I-A2).
+Тести: 4a (header-offset: card.y=110, frame.y=40, h=262), 4b (loose вирівняний r1.y==a1.y, рамок=["a"]).
+Мутація: прибрати +header у dy → 4a червоний; прибрати `if wrapped` → 4b червоний.
+Гейти: staff_packing 6/6 · cargo test 0 · clippy 0 · fmt 0. [4] ✓  НЕ закомічено.
+
+## Стан R3: лишився лише B5
+Готово: 1 (frame), 2 (B4/I-T5-A), 3 (B1), 4 (B3/I-A2). Лишилось: **B5 magnetic-розріз** (один відділ =
+кілька частин зі спільним departmentId + partIndex; потребує S7 card+blob контурів) — окремий checkpoint.

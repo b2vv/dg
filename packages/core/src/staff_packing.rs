@@ -8,11 +8,14 @@
 use crate::types::{StaffDepartmentFrameGeo, StaffNodeGeo};
 
 /// Рамка одного (нерозрізаного) відділу з уже розкладених членів.
-/// `None`, якщо членів немає (порожню рамку рахує окремий шлях B1 — наступний зріз).
+/// `None`, якщо членів немає (порожній відділ виключається — B1).
+/// Рамка **включає смугу шапки** (header, B3/I-A2): верхнє «хром» = header + padding,
+/// нижнє = padding. frame_top = cards_min_y − padding − header_height.
 pub fn department_frame(
     department_id: &str,
     members: &[StaffNodeGeo],
     content_padding: f32,
+    header_height: f32,
 ) -> Option<StaffDepartmentFrameGeo> {
     let first = members.first()?;
     let mut min_x = first.x;
@@ -30,17 +33,20 @@ pub fn department_frame(
         department_id: department_id.to_string(),
         part_index: None,
         x: min_x - pad,
-        y: min_y - pad,
+        y: min_y - pad - header_height,
         width: (max_x - min_x) + pad * 2.0,
-        height: (max_y - min_y) + pad * 2.0,
+        height: (max_y - min_y) + pad * 2.0 + header_height,
     })
 }
 
 /// Один відділ із уже розкладеними (локальні координати) членами — вхід пакування.
 /// Члени приходять із row-tree (`compute_org_row_tree_layout`), пакування лише розставляє регіони.
+/// `wrapped`: `true` — справжній відділ (емітить рамку); `false` — вільна група без відділу
+/// (no-dept корені, I-A2): рамки нема, але картки вирівняні з першим рядом карток відділів.
 pub struct DepartmentMembers {
     pub department_id: String,
     pub members: Vec<StaffNodeGeo>,
+    pub wrapped: bool,
 }
 
 /// Результат пакування: вузли у світових координатах + рамка на кожен відділ.
@@ -58,6 +64,7 @@ pub fn pack_departments(
     _vertical_gap: f32,
     content_padding: f32,
     margin: f32,
+    dept_header_height: f32,
 ) -> StaffPackResult {
     let mut nodes: Vec<StaffNodeGeo> = Vec::new();
     let mut department_frames: Vec<StaffDepartmentFrameGeo> = Vec::new();
@@ -66,7 +73,7 @@ pub fn pack_departments(
     let mut cursor_x = margin;
     for dept in departments {
         let Some(first) = dept.members.first() else {
-            continue; // порожній відділ — окремий шлях B1 (інший зріз)
+            continue; // порожній відділ — виключається (B1)
         };
         let mut min_x = first.x;
         let mut min_y = first.y;
@@ -77,7 +84,8 @@ pub fn pack_departments(
             max_x = max_x.max(member.x + member.width);
         }
         let dx = cursor_x - min_x;
-        let dy = margin - min_y;
+        // Картки сідають під шапкою+padding (B3/I-A2): рамка (frame_top) опиняється на margin.
+        let dy = (margin + content_padding + dept_header_height) - min_y;
         let placed: Vec<StaffNodeGeo> = dept
             .members
             .iter()
@@ -87,8 +95,15 @@ pub fn pack_departments(
                 ..member.clone()
             })
             .collect();
-        if let Some(frame) = department_frame(&dept.department_id, &placed, content_padding) {
-            department_frames.push(frame);
+        if dept.wrapped {
+            if let Some(frame) = department_frame(
+                &dept.department_id,
+                &placed,
+                content_padding,
+                dept_header_height,
+            ) {
+                department_frames.push(frame);
+            }
         }
         nodes.extend(placed);
         cursor_x += (max_x - min_x) + region_gap;
@@ -126,7 +141,7 @@ mod tests {
     #[test]
     fn single_member_frame_expands_bbox_by_padding() {
         let members = vec![node("p1", 100.0, 200.0, 136.0, 156.0)];
-        let frame = department_frame("d1", &members, 36.0).expect("frame for non-empty dept");
+        let frame = department_frame("d1", &members, 36.0, 0.0).expect("frame for non-empty dept");
         assert_eq!(frame.department_id, "d1");
         assert_eq!(frame.part_index, None);
         assert_eq!(frame.x, 64.0);
@@ -142,7 +157,7 @@ mod tests {
             node("p1", 100.0, 200.0, 136.0, 156.0),
             node("p2", 100.0, 264.0, 136.0, 156.0),
         ];
-        let frame = department_frame("d1", &members, 36.0).expect("frame");
+        let frame = department_frame("d1", &members, 36.0, 0.0).expect("frame");
         // union: x 100..236, y 200..420 → bbox (100,200,136,220)
         assert_eq!(frame.x, 64.0);
         assert_eq!(frame.y, 164.0);
@@ -155,6 +170,7 @@ mod tests {
         DepartmentMembers {
             department_id: id.to_string(),
             members: vec![node(member_id, 0.0, 0.0, 136.0, 156.0)],
+            wrapped: true,
         }
     }
 
@@ -175,7 +191,7 @@ mod tests {
     #[test]
     fn two_departments_frame_edge_gap_equals_horizontal_gap() {
         let departments = vec![dept("a", "a1"), dept("b", "b1")];
-        let result = pack_departments(&departments, 20.0, 28.0, 36.0, 40.0);
+        let result = pack_departments(&departments, 20.0, 28.0, 36.0, 40.0, 0.0);
 
         assert_eq!(node_x(&result, "a1"), 40.0);
         assert_eq!(node_x(&result, "b1"), 268.0);
@@ -199,10 +215,11 @@ mod tests {
             DepartmentMembers {
                 department_id: "empty".to_string(),
                 members: vec![],
+                wrapped: true,
             },
             dept("b", "b1"),
         ];
-        let result = pack_departments(&departments, 20.0, 28.0, 36.0, 40.0);
+        let result = pack_departments(&departments, 20.0, 28.0, 36.0, 40.0, 0.0);
 
         let ids: Vec<&str> = result
             .department_frames
@@ -213,5 +230,46 @@ mod tests {
         assert_eq!(result.nodes.len(), 2);
         // Порожній відділ не зсунув b: та сама позиція, що й без нього.
         assert_eq!(node_x(&result, "b1"), 268.0);
+    }
+
+    // B3/I-A2 (header-offset). margin=40, padding=36, header=34.
+    // Картки відділу сідають під шапкою+padding: cards_row_y = 40+36+34 = 110.
+    // Рамка включає шапку: frame_top = cards_top − padding − header = 110−36−34 = 40 = margin.
+    // frame.height = 156 + 2·36 + 34 = 262.
+    #[test]
+    fn department_cards_sit_below_header_and_frame_includes_it() {
+        let result = pack_departments(&[dept("a", "a1")], 20.0, 28.0, 36.0, 40.0, 34.0);
+        let a1 = result.nodes.iter().find(|n| n.id == "a1").expect("a1");
+        assert_eq!(a1.y, 110.0);
+        let frame_a = frame_of(&result, "a");
+        assert_eq!(frame_a.y, 40.0);
+        assert_eq!(frame_a.height, 262.0);
+    }
+
+    // B3/I-A2 (no-dept корінь). Вільна група (wrapped=false) не дає рамки, але її картка
+    // вирівняна верхом із першим рядом карток відділу (обидві на cards_row_y=110).
+    #[test]
+    fn loose_root_aligns_with_department_row_and_has_no_frame() {
+        let departments = vec![
+            dept("a", "a1"),
+            DepartmentMembers {
+                department_id: "loose".to_string(),
+                members: vec![node("r1", 0.0, 0.0, 136.0, 156.0)],
+                wrapped: false,
+            },
+        ];
+        let result = pack_departments(&departments, 20.0, 28.0, 36.0, 40.0, 34.0);
+
+        let a1_y = result.nodes.iter().find(|n| n.id == "a1").expect("a1").y;
+        let r1_y = result.nodes.iter().find(|n| n.id == "r1").expect("r1").y;
+        assert_eq!(a1_y, 110.0);
+        assert_eq!(r1_y, a1_y); // I-A2: верх картки no-dept-кореня == верх ряду карток відділу
+
+        let frame_ids: Vec<&str> = result
+            .department_frames
+            .iter()
+            .map(|f| f.department_id.as_str())
+            .collect();
+        assert_eq!(frame_ids, vec!["a"]); // вільна група рамки НЕ дає
     }
 }
