@@ -14,8 +14,6 @@ import {
 } from './personInteractions.js';
 import { bindOrgCardInteractions } from './orgCardInteractions.js';
 import { contourSceneInputs, matrixNodeBoxes } from './contour/contourInputs.js';
-import { contourButtonGroupMargin } from './contour/contourButtonGroup.js';
-import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
 import type { StaffCanvasResult, StaffNodeBox } from '../layout/staff/types.js';
 import {
   DEFAULT_STAFF_LAYOUT_OPTIONS,
@@ -38,10 +36,9 @@ import { countDepartmentPositions } from './departmentPositionsBadge.js';
 import { paintDashedFrame } from './dashedStroke.js';
 import { StaffZonesView } from './StaffZonesView.js';
 import type { WorldRect } from './staffZoneBounds.js';
-import { enrichStaffTierBands, unionBoxes } from './staffZoneBounds.js';
+import { unionBoxes } from './staffZoneBounds.js';
 import { OrgEdgesView } from './OrgEdgesView.js';
 import { StaffEdgesView } from './StaffEdgesView.js';
-import { resolveStaffRouting } from './staffRouterV2.js';
 import { PersonNodeView } from './PersonNode.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
 import type {
@@ -53,7 +50,7 @@ import { defaultRenderConfig } from './types.js';
 import type { DiagramData, DiagramPosition } from '../data/types.js';
 import { resolveSeatDrop, type SeatDrop } from '../core/index.js';
 import type { LodLevel } from './lod.js';
-import { mapStaffEdgeBoxesForLod, mapPositionNodesToStaffEdgeBoxes } from './visualEdgeBox.js';
+import { computeStaffLiveGeometry, type StaffLiveGeometry } from './staffLiveGeometry.js';
 import {
   resolveContourWorldTransform,
   type ContourWorldTransform,
@@ -62,7 +59,6 @@ import {
   type ContourMemberBox,
 } from './contour/contourClearance.js';
 import {
-  buildStaffLayoutOptions,
   resolveStaffCurrentOrgId,
   resolveStaffZoneStyle,
 } from './staffLayoutInputs.js';
@@ -642,41 +638,28 @@ export class DiagramRenderer {
     staffCanvasResult?: StaffCanvasResult,
   ): Promise<void> {
     const { data, theme, config, options, epoch } = ctx;
-    // Options (and the reserved zone-label band) come from the shared builder so
-    // the orchestrator's pre-computed canvas and this renderer's own geometry are
-    // built from the same inputs (split T2b). `lastZoneLabelBand` records the
-    // *computed* band — the band before `staff.layout` is spread into the options
-    // — so it can differ from `staffOpts.zoneLabelBand`.
-    const { options: staffOpts, zoneLabelBand } = buildStaffLayoutOptions(
+    // Layout, zone bands and routed edges come from one shared computation so the
+    // renderer and the golden regression test run the same geometry, not two
+    // copies that can drift (see staffLiveGeometry.ts). The orchestrator may hand
+    // in a pre-computed canvas (split T2b); when it does, it is reused as-is.
+    const live = await computeStaffLiveGeometry({
+      data,
+      currentOrgId,
       theme,
+      resolvedTheme: ctx.resolvedTheme,
       config,
-      ctx.resolvedTheme,
-      options.staff,
-    );
-    this.lastZoneLabelBand = zoneLabelBand;
-    // Layout is computed by the orchestrator (#4) and handed in (split T2b); the
-    // in-renderer compute stays as a fallback for direct callers (tests) and any
-    // path not yet pre-computing. A StaffLayoutError still routes through the
-    // orchestrator's `reportIfRenderFails`, which awaits this.
-    const canvas =
-      staffCanvasResult ??
-      (await layoutStaffCanvas(
-        {
-          organizations: data.organizations,
-          positions: data.positions,
-          reports: data.reportLines,
-          groups: data.groups,
-          departments: data.departments,
-          persons: data.persons,
-        },
-        currentOrgId,
-        staffOpts,
-      ));
+      staff: options.staff,
+      lod: options.lod ?? 'near',
+      canvas: staffCanvasResult,
+    });
     if (!this.isRenderCurrent(epoch)) return;
-
+    const { canvas } = live;
+    // `lastZoneLabelBand` records the *computed* band — before `staff.layout` is
+    // spread into the options — so it can differ from `staffOptions.zoneLabelBand`.
+    this.lastZoneLabelBand = live.zoneLabelBand;
     this.lastDiagnostics = [...canvas.diagnostics];
 
-    const staffMerged = { ...DEFAULT_STAFF_LAYOUT_OPTIONS, ...staffOpts };
+    const staffMerged = { ...DEFAULT_STAFF_LAYOUT_OPTIONS, ...live.staffOptions };
     const geom: StaffSceneGeometry = {
       positionById: new Map(data.positions.map((p) => [p.id, p])),
       margin: staffMerged.margin,
@@ -694,34 +677,21 @@ export class DiagramRenderer {
       insetY: geom.insetY,
     };
 
-    if (config.staffZoneChrome) this.paintStaffZones(ctx, canvas, geom);
+    if (config.staffZoneChrome) this.paintStaffZones(ctx, live, geom);
     await this.paintStaffDepartments(ctx, canvas, geom);
     if (!this.isRenderCurrent(epoch)) return;
-    this.paintStaffFrameAndEdges(ctx, canvas, geom);
+    this.paintStaffFrameAndEdges(ctx, live);
     this.addStaffPersonCards(ctx, canvas, geom);
     this.addStaffOrgCards(ctx, canvas);
   }
 
   private paintStaffZones(
     ctx: StaffSceneContext,
-    canvas: StaffCanvasResult,
+    live: StaffLiveGeometry,
     geom: StaffSceneGeometry,
   ): void {
-    const { theme, resolvedTheme, config, data } = ctx;
-    // The org block wraps the department wrappers, not the bare seats.
-    const contentPadding = departmentWrapperPadding(theme, config);
-    const tiers = enrichStaffTierBands(
-      canvas.tiers,
-      canvas.positionNodes,
-      canvas.orgCards,
-      data.organizations,
-      {
-        margin: geom.margin,
-        canvasWidth: canvas.width,
-        contentPadding,
-        labelBand: this.lastZoneLabelBand,
-      },
-    );
+    const { theme, resolvedTheme } = ctx;
+    const { canvas, zones: tiers, contentPadding } = live;
     for (const tier of tiers) {
       if (tier.x !== undefined && tier.width !== undefined) {
         this.rememberChrome({ x: tier.x, y: tier.y, width: tier.width, height: tier.height });
@@ -799,12 +769,9 @@ export class DiagramRenderer {
     });
   }
 
-  private paintStaffFrameAndEdges(
-    ctx: StaffSceneContext,
-    canvas: StaffCanvasResult,
-    geom: StaffSceneGeometry,
-  ): void {
-    const { theme, resolvedTheme, config, options } = ctx;
+  private paintStaffFrameAndEdges(ctx: StaffSceneContext, live: StaffLiveGeometry): void {
+    const { theme, resolvedTheme, config } = ctx;
+    const { canvas, routes, markedCrossings } = live;
     if (config.dashedGridFrame) {
       const frame = unionBoxes(
         canvas.positionNodes.map((n) => ({ x: n.x, y: n.y, width: n.width, height: n.height })),
@@ -819,42 +786,19 @@ export class DiagramRenderer {
       }
     }
 
-    const orgCardBoxes = canvas.orgCards.map((c) => ({
-      id: c.orgId,
-      x: c.x,
-      y: c.y,
-      width: c.width,
-      height: c.height,
-    }));
-    if (config.staffEdgeRouter === 'v2') {
-      const { routedSegments, markedCrossings } = resolveStaffRouting({
-        positionNodes: canvas.positionNodes,
-        edges: canvas.edges,
-        positionById: geom.positionById,
-        personTheme: theme.person,
-        lod: options.lod ?? 'near',
-        orgCards: orgCardBoxes,
-      });
-      const markedKeys = new Set(markedCrossings.map((c) => `${c.fromId}\u0000${c.toId}`));
-      this.layers.edges.addChild(
-        StaffEdgesView.fromLayout(canvas.edges, [], {
-          theme: resolvedTheme,
-          edge: theme.edge,
-        }, { segments: routedSegments, markedKeys }),
-      );
-    } else {
-      const edgeBoxes = mapStaffEdgeBoxesForLod(
-        mapPositionNodesToStaffEdgeBoxes(canvas.positionNodes, geom.positionById, theme.person),
-        orgCardBoxes,
-        options.lod ?? 'near',
-      );
-      this.layers.edges.addChild(
-        StaffEdgesView.fromLayout(canvas.edges, edgeBoxes, {
-          theme: resolvedTheme,
-          edge: theme.edge,
-        }),
-      );
-    }
+    // Both routers hand the view ready-made segments (the view would otherwise
+    // recompute them from boxes — see StaffEdgesView.redraw), so the picture the
+    // golden captures is exactly the one painted here. markedKeys is empty for
+    // the legacy router, which marks no foreign-frame crossings.
+    const markedKeys = new Set(markedCrossings.map((c) => `${c.fromId}\u0000${c.toId}`));
+    this.layers.edges.addChild(
+      StaffEdgesView.fromLayout(
+        canvas.edges,
+        [],
+        { theme: resolvedTheme, edge: theme.edge },
+        { segments: routes, markedKeys },
+      ),
+    );
   }
 
   private addStaffPersonCards(
@@ -1209,22 +1153,6 @@ function worldExpanderBox(
       height: local.height,
     },
   };
-}
-
-/**
- * How far a department wrapper reaches past its seats: the magnetic wash margin
- * for contours, or the card padding plus its label row for `departmentStyle:
- * 'card'`. Applied on every side — a per-side inset would only matter for the
- * card's label row, and over-padding the org block is the safe direction.
- */
-function departmentWrapperPadding(theme: NodeTheme, config: RenderConfig): number {
-  const style = config.departmentStyle ?? defaultRenderConfig.departmentStyle ?? 'blob';
-  if (style === 'card') {
-    const card = theme.departmentCard;
-    const padding = card?.padding ?? 8;
-    return padding + (card?.labelRow ? (card.labelFontSize ?? 12) + 6 : 0);
-  }
-  return contourButtonGroupMargin(config.paddingCells ?? 0, theme.department.strokeWidth);
 }
 
 function resolveDepartmentCardStyle(theme: NodeTheme): DepartmentCardStyle {

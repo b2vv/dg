@@ -85,6 +85,7 @@ export {
   variantBAdjacentEdgeClearance,
   mergeTheme,
   resolveNodeTheme,
+  resolveTheme,
   canvasBackgroundForTheme,
   loadNodeTexture,
   configureNodeTextureLoader,
@@ -119,6 +120,7 @@ export {
   getOrgSymbolUrl,
   getInactiveOrgSymbolUrl,
   clusterPositionsByDepartment,
+  computeStaffLiveGeometry,
 } from './render/index.js';
 export {
   MediaService,
@@ -163,6 +165,8 @@ export type {
   StaffEdgeBox,
   StaffEdgeLink,
   StaffEdgeRouteVia,
+  StaffLiveGeometry,
+  StaffLiveGeometryInput,
 } from './render/index.js';
 export { SEARCH_PAGE_SIZE } from './callbacks.js';
 export type {

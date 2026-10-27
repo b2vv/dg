@@ -13,6 +13,8 @@ export { personInitials, avatarColorFromName } from './personInitials.js';
 export { OrganizationNodeView } from './OrganizationNode.js';
 export { OrgEdgesView } from './OrgEdgesView.js';
 export { StaffEdgesView } from './StaffEdgesView.js';
+export { computeStaffLiveGeometry } from './staffLiveGeometry.js';
+export type { StaffLiveGeometry, StaffLiveGeometryInput } from './staffLiveGeometry.js';
 export { arrowHeadTriangle, shortenPolylineForArrow } from './staffEdgeArrows.js';
 export {
   buildStaffEdgeSegments,
