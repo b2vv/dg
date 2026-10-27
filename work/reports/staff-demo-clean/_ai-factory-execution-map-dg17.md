@@ -52,13 +52,13 @@
 | C1 | Scope + acceptance (acceptance-spec: happy/boundary/failure сценарії) | NOT_RUN | інваріанти є, сценаріїв нема; `/acceptance-spec` |
 | C2 | Рішення власника дослівно, відокремлені від інференцій | **PASS** | `_owner-requirements-ledger-dg17.md` O-1…O-49; аудит `_final-audit-critic-dg17.md` 🟢 (на знімку до O-48/O-49 — після них НЕ повторювався → частково stale) |
 | C3 | Відкриті питання власнику закриті | **PASS** | відкритих 0 (O-49) |
-| C4 | Залежності/writer: task branch, WIP | **FAIL** | 22 незакомічені файли на `feat/shps-staff-demo`; без дозволу власника не перемикати/комітити — **потрібне рішення** |
+| C4 | Залежності/writer: task branch, WIP | **PASS** (оновлено після O-51) | WIP закомічено дозволом власника («Роби коміт»): `a2b8ca8`, `1b7c13d`, `b3545b8`; дерево чисте; база для task branch T126 — `b3545b8`; один writer. *(було FAIL: 22 незакомічені файли)* |
 | C5 | Scoped impact (callers/contracts/tests, file:line, межі покриття) | PARTIAL→NOT_RUN | факти з `path:line` є; **споживачі `tiers`/`StaffTierBand` — повний grep = результат R1/a3**; CRG не використано |
 | C6 | `plan-critique` (4 лінзи, незалежний) | NOT_RUN | `/plan-critique` на спеці R1 |
 | C7 | `plan-defense` (5 питань) | NOT_RUN | `/plan-defense` |
 | C8 | Briefing свіжий | **PASS** (7<25) / ⚠️ стек-нота зміниться | `check:docs` |
 | C9 | Явне «го» власника на код | NOT_RUN | не дано |
-**Readiness: 3/9 (33%) — інформаційно; BLOCKED блокерами C1, C4, C6, C7, C9.** Наступна дія для розблокування: **/spec-flow T126** (stage 1 `acceptance-spec`) після рішення по C4 і «го».
+**Readiness: 4/9 (44%) — інформаційно (було 3/9; C4 став PASS після коміту); BLOCKED блокерами C1, C6, C7, C9.** Наступна дія для розблокування: створити task branch від `b3545b8`, далі **/spec-flow T126** (stage 1 `acceptance-spec`) після «го».
 
 ### T127a/T127b — розбиття за застосовністю
 - **Незалежні візуальні / документні (малий маршрут):** T127a a2, a7, a8, a9, a10, a12; T127b b0, b1, b2, b6a-e. Pre-code checkpoint — компактний, **кожен окремо**. **a2** — читання/вимір, **без мутації продукту** → checkpoint N/A для коду; дозволений read-only за O-50.
