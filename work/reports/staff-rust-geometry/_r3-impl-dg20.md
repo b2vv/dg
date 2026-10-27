@@ -113,3 +113,18 @@ tree-режиму НЕ визначене (саме тому magnetic там п�
 
 ДАЛІ: рішення власника — (1) архітектура (pack несе готові частини vs сам кластеризує),
 (2) правило кластеризації tree-режиму. Або винести B5 на свіжу сесію з handoff.
+
+## B5 ВИРІШЕНО (Dg21, 2026-10-28)
+- **S7 (правило кластеризації):** закрито без нового алгоритму. «Розріз» — феномен grid-розміщення, не
+  дерева; правило = наявний TS `clusterPositionIds` (union-find Manhattan на col,row). tree-only розрізу
+  не має. Деталі: `_s7-cluster-research.md`, доменна чернетка `work/_draft-shps-grid-matrix-model.md`.
+- **Рішення 1 (архітектура):** M4 (2 незалежні критики Opus 4.8 + я, конвергенція). Мембершип — єдине
+  джерело в TS (драг контуру синхронний, T77/T80 — Rust не може кластеризувати на hot-path); Rust
+  споживає групи, володіє пікселями, штампує part_index; `pack_departments` = В1. Деталі:
+  `_decision1-pack-contract.md`, критики `_gate-decision1-critic.md`/`_gate-decision1b-critic.md`.
+- **Код (чесний мінімум R3, TDD red→green):** `DepartmentMembers` отримав `part_index: Option<u32>`;
+  `department_frame` приймає `part_index`; `pack_departments` штампує його на рамку й ноди з поданих груп.
+  Новий тест `split_department_stamps_part_index_on_frames_and_nodes`. Хардкод `part_index: None`
+  (`staff_packing.rs`) усунено — контракт розрізу тепер ЖИВИЙ (None лишається валідним для цілого відділу).
+  Гейти: cargo test 35/35, clippy -D warnings 0, fmt 0. TS/`types.rs` не чіпались.
+- **R3 ЗАКРИТО** (зрізи 1-5). Далі за tasks.md: R4 (композиція/namespaces/вісь) + R0-golden ребейз.
