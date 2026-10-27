@@ -25,6 +25,14 @@ export type OrgRowTreeLayoutResult = { mode: string,
 algorithm: string, nodes: Array<LayoutNode>, edges: Array<LayoutEdge>, width: number, height: number, direction: string, };
 
 /**
+ * Межі рамки відділу (dept-wrapper) — **єдине Rust-джерело** для live+SVG (R5),
+ * усуває подвійний padding (ADR §13: live `departmentWrapperPadding` vs SVG
+ * `contourButtonGroupMargin`). `partIndex` присутній, коли відділ розрізано
+ * magnetic-групуванням (B5): одна рамка на частину зі спільним `departmentId`.
+ */
+export type StaffDepartmentFrameGeo = { departmentId: string, partIndex?: number, x: number, y: number, width: number, height: number, };
+
+/**
  * Відділ — вхід для пакування й magnetic-розрізу (O-38, O-48 п.5).
  */
 export type StaffDepartmentInput = { id: string, };
@@ -52,7 +60,7 @@ export type StaffEdgeRoute = { fromId: string, toId: string, kind: string, point
 /**
  * Єдиний вихід staff-геометрії (замінює `StaffCanvasResult`; `tiers`→`namespaces`).
  */
-export type StaffGeometryResult = { currentOrgId: string, nodes: Array<StaffNodeGeo>, orgCards: Array<StaffOrgCardGeo>, namespaces: Array<StaffNamespace>, edges: Array<StaffEdge>, routes: StaffRouteSet, width: number, height: number, diagnostics: Array<string>, };
+export type StaffGeometryResult = { currentOrgId: string, nodes: Array<StaffNodeGeo>, orgCards: Array<StaffOrgCardGeo>, namespaces: Array<StaffNamespace>, departmentFrames: Array<StaffDepartmentFrameGeo>, edges: Array<StaffEdge>, routes: StaffRouteSet, width: number, height: number, diagnostics: Array<string>, };
 
 /**
  * Повний вхід staff-геометрії. `lod`: "near" | "mid" | "far" (вхід; Rust віддає
@@ -69,8 +77,8 @@ export type StaffLayoutMetrics = { nodeWidth: number, nodeHeight: number, refCel
 
 /**
  * Іменована область (було `tiers`/`StaffTierBand`). Межі x/y/width/height
- * **завжди присутні** — єдине джерело для live+SVG (R5). label/role — TS-адаптер.
- * `kind`: "staff-block" | "org-cards".
+ * **завжди присутні** — смуги ярусів (не рамки відділів: ті — `StaffDepartmentFrameGeo`).
+ * label/role — TS-адаптер. `kind`: "staff-block" | "org-cards".
  */
 export type StaffNamespace = { tier: number, kind: string, organizationId?: string, x: number, y: number, width: number, height: number, };
 
@@ -78,7 +86,15 @@ export type StaffNamespace = { tier: number, kind: string, organizationId?: stri
  * Координати посади у світовій системі. `tier`: 1|2|3. `role`:
  * "anchor"|"floating"|"tree"|"matrix"|"detached"|"external" (роль лейауту).
  */
-export type StaffNodeGeo = { id: string, organizationId: string, x: number, y: number, width: number, height: number, tier: number, role?: string, depth?: number, };
+export type StaffNodeGeo = { id: string, organizationId: string, x: number, y: number, width: number, height: number, tier: number, role?: string, depth?: number, 
+/**
+ * Відділ, якому належить картка (вхідна умова B5-маршруту до не-головної картки).
+ */
+departmentId?: string, 
+/**
+ * Частина розрізаного відділу (magnetic, B5); узгоджено з `StaffDepartmentFrameGeo.partIndex`.
+ */
+partIndex?: number, };
 
 /**
  * DOM-виміряний розмір картки посади (O-16, content-driven). Механізм подачі/кешу

@@ -37,9 +37,13 @@ O-16 (розмір content-driven з DOM), O-33 (одна правда для т
 |---|---|---|---|
 | nodeSize[id] | `{width, height}` | **DOM-вимір** (two-pass) | механізм подачі/кешу/фолбеку — **R2**, не R1. R1 лише оголошує, що розмір — вхід, а не константа. Фолбек = `nodeWidth/nodeHeight` з 2c |
 
-### 2c. Числові опції (із `StaffLayoutOptions`, `layout/staff/types.ts:12-58`)
-`nodeWidth, nodeHeight, refCellWidth, refCellHeight, horizontalGap, verticalGap, margin, tierGap,
-orgCardWidth, orgCardHeight, zoneLabelBand, contentPadding`.
+### 2c. Числові опції
+З `StaffLayoutOptions` (`layout/staff/types.ts:12-58`): `nodeWidth, nodeHeight, refCellWidth,
+refCellHeight, horizontalGap, verticalGap, margin, tierGap, orgCardWidth, orgCardHeight,
+zoneLabelBand`.
+**`contentPadding` — НЕ поле `StaffLayoutOptions`** (Dg20-правка): це **обчислюване** TS-значення
+(`staffLiveGeometry.departmentWrapperPadding` → `contourButtonGroupMargin`), яке подається в Rust
+як число — саме так форма стає однією.
 - `contentPadding` — **значення** переходить як вхід; його **похідну з theme/config**
   (`departmentWrapperPadding`) лишаємо TS-адаптером (залежить від `NodeTheme`/`RenderConfig`,
   які в Rust не їдуть). Це усуває подвійну формулу (ADR §13), бо обчислення стає одним і його
@@ -67,9 +71,10 @@ expandedPositionIds, maxExpandedPositions, collapseUnexpandedPositions` — ус
 
 | Вихід | Форма | Замінює сьогодні |
 |---|---|---|
-| nodes | `[{id, organizationId, x, y, width, height, tier, role, depth?}]` | `StaffCanvasResult.positionNodes` |
+| nodes | `[{id, organizationId, x, y, width, height, tier, role, depth?, departmentId?, partIndex?}]` | `StaffCanvasResult.positionNodes` (+`departmentId`/`partIndex` — вхідна умова B5-маршруту до не-головної картки) |
 | orgCards | `[{orgId, x, y, width, height}]` | `StaffOrgCard` геометрія (name/positionCount/expanded — TS, §6) |
-| **namespaces** | `[{tier, kind, organizationId?, x, y, width, height}]` | **`tiers: StaffTierBand[]`** — перейменовано (§5); межі x/y/w/h **завжди присутні** (єдине джерело для live+SVG, прибирає подвійний padding — R5) |
+| **namespaces** | `[{tier, kind, organizationId?, x, y, width, height}]` | **`tiers: StaffTierBand[]`** — перейменовано (§5); межі x/y/w/h **завжди присутні**. **Лише смуги ярусів** (`staff-block`/`org-cards`), НЕ рамки відділів |
+| **departmentFrames** | `[{departmentId, partIndex?, x, y, width, height}]` | **нема окремого типу сьогодні** — рамку відділу live і SVG рахують КОЖЕН сам (`staffLiveGeometry.departmentWrapperPadding` vs `svgExport` `contourButtonGroupMargin`, ADR §13). Rust-вихід = **єдине джерело** для live+SVG (R5); `partIndex` виражає magnetic-розріз (B5) — одна рамка на частину зі спільним `departmentId` |
 | edges | `[{fromId, toId, kind}]` | `StaffCanvasResult.edges` |
 | routes | `{lod, segments: [{fromId, toId, kind, points:[{x,y}]}]}` | те, що рахував рендер (`DiagramRenderer`→`staffEdgeGeometry`); тепер вихід Rust (R6) |
 | width, height | `f32` | canvas-розмір |
@@ -85,7 +90,8 @@ Rust-виході; TS-адаптер збагачує (§6).
 | row-tree одного орг-блоку | Rust (`core/src/lib.rs`) | Rust |
 | пакування відділів + обгортки + внутр. відступи | TS (`staffDeptGrouping.ts`) | **Rust** (R3) |
 | композиція ярусів, namespaces, вісь, пере-центрування кореня, зсуви | TS (`canvasLayout.ts:80-152`, `orgBlockLayout.ts:87-102`) | **Rust** (R4) |
-| межі обгорток/namespaces | TS (`staffZoneBounds.ts` `enrichStaffTierBands`) | **Rust**, єдине джерело (R5) |
+| межі смуг ярусів (namespaces) | TS (`staffZoneBounds.ts` `enrichStaffTierBands`) | **Rust** `namespaces`, єдине джерело (R5) |
+| межі рамок відділів (+magnetic-частин) | TS дві формули (`staffLiveGeometry.departmentWrapperPadding` vs `svgExport`) | **Rust** `departmentFrames`, єдине джерело (R5) |
 | точки лінків / маршрути | TS (`staffEdgeGeometry.ts`, `visualEdgeBox.ts`, рендер) | **Rust** (R6) |
 | padding обгортки (значення) | TS дві формули (live `departmentWrapperPadding` ≈36 / SVG `contourButtonGroupMargin` ≈6) | TS рахує **один** раз → вхід у Rust (усуває розбіжність ADR §13) |
 | DOM-вимір розміру картки | — | TS (browser), подає в Rust (R2) |
@@ -100,12 +106,18 @@ Rust-виході; TS-адаптер збагачує (§6).
 `StaffCanvasResult.tiers: StaffTierBand[]` → `namespaces: StaffNamespace[]` з обов'язковими межами.
 Хост цей SDK не споживає (AGENTS.md) → публічний API хосту не рветься понад це.
 
-**Повний список споживачів — дослівно з plan.md §4** (звірити грепом `\.tiers\b|StaffTierBand`
-перед зміною, R4/R7): `canvasLayout`, `StaffZonesView`, `staffZoneBounds`, **`personInteractions`**,
-**`render/types`**, тести, `svgExport`, **`e2eBridge`**, `DiagramRenderer`. Плюс новий
-`render/staffLiveGeometry.ts` (повертає `zones` → перейменувати на `namespaces`) і golden-тест
-`staffGeometry.golden.test.ts` (ключ `zones`). *(Dg19-правка: раніше тут була підмножина — тепер
-за планом повністю.)*
+**Споживачі (plan.md §4 називає; авторитетний список — ре-греп `\.tiers\b|StaffTierBand` на R7,
+plan §4/§7):** plan §4 називає `canvasLayout`, `StaffZonesView`, `staffZoneBounds`,
+`personInteractions`, `render/types`, тести, `svgExport`, `e2eBridge`, `DiagramRenderer`.
+*(Dg20-звірка грепом — не overclaim «повністю»):* прямі `.tiers`/`StaffTierBand` сьогодні мають
+`layout/staff/types.ts` (визначення+поле), **барелі** `layout/staff/index.ts:8` і
+`render/index.ts:151` (були пропущені планом), `canvasLayout`, `StaffZonesView`,
+`render/staffLiveGeometry.ts` (`zones` + `enrichStaffTierBands` → перейменувати на `namespaces`),
+`staffZoneBounds`, `export/svgExport.ts`; `render/types.ts:279` — лише коментар. **НЕ** мають
+прямого `.tiers`: `personInteractions`, `e2eBridge` (читає `canvas.edges`), `DiagramRenderer`
+(опосередковано через `staffLiveGeometry`) — over-inclusion плану. Плюс golden-тест
+`staffGeometry.golden.test.ts` (ключ `zones`). Ризик пропуску закриває **мандат ре-грепу на R7**
+тим самим патерном — він, а не цей список, є гарантією «усі в одній зміні».
 
 **R0-golden НЕ у формі `namespaces` (plan.md §5.1 + §8 B8 — ОБОВ'ЯЗКОВО):** baseline R0 знімає
 **нормалізовану геометрію** (координати/межі/edges/orgCards, ±1px), інваріантну до імені секції;
@@ -146,8 +158,9 @@ golden порівнянням перейменування `tiers`→`namespaces
 `OrgFlatInput`/`OrgRowTreeLayoutResult`.
 
 **R1 додає у `types.rs` (лише форма, без логіки):** `StaffLayoutInput`, `StaffNodeSize`,
-`StaffNodeGeo`, `StaffOrgCardGeo`, `StaffNamespace`, `StaffEdge`, `StaffRoutePoint`,
-`StaffEdgeRoute`, `StaffRouteSet`, `StaffGeometryResult` + `validate()` на вхідних метриках.
+`StaffNodeGeo` (+`departmentId?`/`partIndex?`), `StaffOrgCardGeo`, `StaffNamespace`,
+`StaffDepartmentFrameGeo`, `StaffEdge`, `StaffRoutePoint`, `StaffEdgeRoute`, `StaffRouteSet`,
+`StaffGeometryResult` (+`departmentFrames`) + `validate()` на вхідних метриках.
 TS-сторона `StaffCanvasResult` **не** змінюється в R1 (злам застосовується, коли Rust заміняє
 TS-композицію — R4/R7).
 
@@ -158,14 +171,35 @@ TS-композицію — R4/R7).
 для варіанта 1; якщо R10 завертає — межа звужується до «TS рахує якір/маршрути, Rust лишається
 row-tree», решта контракту (DOM-вимір як вхід, одна формула padding) лишається чинною.
 
-## 10. Відкриті пункти для гейту (звірено з plan.md)
+## 10. Пункти гейту — РОЗВ'ЯЗАНО (GATE 2, рев'ю `_gate2-r1-critique.md`)
 
-- **G1 (відкрите):** чи `dockHints` (виведені з DOM) — окремий вхід, чи Rust рахує їх із
-  `edgePort` + nodeSize (тоді figma-row avatar-tile геометрія теж у Rust). Схиляюсь: вхід (DOM знає
-  тайл), але це розширює межу — на критику GATE 2.
-- **G2 (ЗАКРИТО планом):** назва `namespaces` зафіксована `plan.md §4` і ADR — не відкрите питання.
-- **G3 (відкрите):** чи `diagnostics` лишаються частиною геометро-виходу, чи окремим каналом — на
-  критику.
+- **G1 (ЗАКРИТО → окремий ВХІД):** `dockHints` — окремий вхід, не Rust-обчислення. Вимушено
+  межею §6: `dockHints` виводяться з `figmaRowAvatar`/`resolveGojsRowLayoutMetrics`
+  (`visualEdgeBox.ts:70-91`), що залежать від `PersonNodeStyle`/теми, а §6 свідомо тримає резолв
+  теми в TS. Застереження: `dockHints` ще **відсутній** у `StaffLayoutInput` — внести на **R6**
+  (non-blocking, бо вхід маршрутизації, а не R1-форми результату).
+- **G2 (ЗАКРИТО планом):** назва `namespaces` зафіксована `plan.md §4` і ADR.
+- **G3 (ЗАКРИТО → лишити в результаті):** `diagnostics` лишаються полем `StaffGeometryResult`
+  (збіг зі `StaffCanvasResult.diagnostics`, KISS, на канал менше). Окремий канал виправданий лише
+  за вимогою незалежного стрімінгу, якої в спеці нема.
+- **БЛОКЕР GATE 2 (ЗАКРИТО):** вихід не ніс меж рамок відділів (центральний дефект «двох правд»
+  padding, ADR §13) і не виражав magnetic-частин (B5). Додано `StaffDepartmentFrameGeo` (окремий
+  вихід, рішення власника Dg20, Варіант A) + `departmentId`/`partIndex` на `StaffNodeGeo`; regen
+  `rust-types.ts`; Rust-гейти зелені (fmt/clippy/`cargo test` 54/0, export-тест), TS typecheck 0.
+  Ре-гейт (`_gate2-r1-recheck.md`) підтвердив закриття блокера → **GATE 2 PASS-with-nonblocking**.
+
+### Відкладені non-blocking (ре-гейт Dg20 — закрити на вказаному кроці)
+- **N-R1a (→R3/R6):** `StaffDepartmentFrameGeo` без `organizationId`/`tier`; контракт не фіксує
+  глобальну унікальність `departmentId`. Паінт по абсолютних координатах не страждає, але
+  node→frame-мапінг по `(departmentId, partIndex)` двозначний у багатоорг-вікні (яруси 1/2), якщо
+  `departmentId` не унікальний глобально. **Робоче припущення R1:** `departmentId` глобально
+  унікальний (як `id` у `data.departments`); якщо R3/R6 виявлять колізію між орг-блоками — додати
+  `organizationId` у `StaffDepartmentFrameGeo` тоді, не зараз (R1 — мінімум форми).
+- **N-R1b (угода, зафіксовано тут):** `partIndex` — **0-базний**; `None` = нерозрізаний відділ
+  (знімає двозначність «None vs 0»). Нумерація вузол↔рамка спільна. Угода в prose, не в типі —
+  R3 (magnetic-розріз) мусить її дотримати.
+- **N-R1c (→R6):** `dockHints` оголошено входом (§2e), але ще відсутній у `StaffLayoutInput` —
+  внести на R6 (вхід маршрутизації, перенесено з G1).
 
 ## 11. Основа реалізації R6 (маршрути) — reuse з plan.md §3
 

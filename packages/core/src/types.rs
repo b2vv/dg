@@ -435,6 +435,16 @@ pub struct StaffNodeGeo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "ts-export", ts(optional))]
     pub depth: Option<u32>,
+    /// Відділ, якому належить картка (вхідна умова B5-маршруту до не-головної картки).
+    #[serde(rename = "departmentId")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts-export", ts(optional))]
+    pub department_id: Option<String>,
+    /// Частина розрізаного відділу (magnetic, B5); узгоджено з `StaffDepartmentFrameGeo.partIndex`.
+    #[serde(rename = "partIndex")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts-export", ts(optional))]
+    pub part_index: Option<u32>,
 }
 
 /// Геометрія картки організації (ярус 3). name/positionCount/expanded — TS, не тут.
@@ -453,9 +463,32 @@ pub struct StaffOrgCardGeo {
     pub height: f32,
 }
 
+/// Межі рамки відділу (dept-wrapper) — **єдине Rust-джерело** для live+SVG (R5),
+/// усуває подвійний padding (ADR §13: live `departmentWrapperPadding` vs SVG
+/// `contourButtonGroupMargin`). `partIndex` присутній, коли відділ розрізано
+/// magnetic-групуванням (B5): одна рамка на частину зі спільним `departmentId`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts-export", derive(TS))]
+#[cfg_attr(
+    feature = "ts-export",
+    ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
+)]
+pub struct StaffDepartmentFrameGeo {
+    #[serde(rename = "departmentId")]
+    pub department_id: String,
+    #[serde(rename = "partIndex")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts-export", ts(optional))]
+    pub part_index: Option<u32>,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
 /// Іменована область (було `tiers`/`StaffTierBand`). Межі x/y/width/height
-/// **завжди присутні** — єдине джерело для live+SVG (R5). label/role — TS-адаптер.
-/// `kind`: "staff-block" | "org-cards".
+/// **завжди присутні** — смуги ярусів (не рамки відділів: ті — `StaffDepartmentFrameGeo`).
+/// label/role — TS-адаптер. `kind`: "staff-block" | "org-cards".
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-export", derive(TS))]
 #[cfg_attr(
@@ -544,6 +577,8 @@ pub struct StaffGeometryResult {
     #[serde(rename = "orgCards")]
     pub org_cards: Vec<StaffOrgCardGeo>,
     pub namespaces: Vec<StaffNamespace>,
+    #[serde(rename = "departmentFrames")]
+    pub department_frames: Vec<StaffDepartmentFrameGeo>,
     pub edges: Vec<StaffEdge>,
     pub routes: StaffRouteSet,
     pub width: f32,
@@ -576,6 +611,7 @@ mod ts_export {
         StaffNodeGeo::export().expect("StaffNodeGeo");
         StaffOrgCardGeo::export().expect("StaffOrgCardGeo");
         StaffNamespace::export().expect("StaffNamespace");
+        StaffDepartmentFrameGeo::export().expect("StaffDepartmentFrameGeo");
         StaffEdge::export().expect("StaffEdge");
         StaffRoutePoint::export().expect("StaffRoutePoint");
         StaffEdgeRoute::export().expect("StaffEdgeRoute");
