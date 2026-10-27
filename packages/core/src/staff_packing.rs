@@ -188,4 +188,30 @@ mod tests {
         let edge_gap = frame_b.x - (frame_a.x + frame_a.width);
         assert_eq!(edge_gap, 20.0);
     }
+
+    // B1: відділ без посад ВИКЛЮЧАЄТЬСЯ (рішення власника Dg20) — рамки нема,
+    // розкладка не падає, непорожні відділи не зсуваються порожнім. Мутація:
+    // прибрати `let Some(first) … else continue` → не компілюється/панікує (guard load-bearing).
+    #[test]
+    fn empty_department_is_excluded_without_panicking() {
+        let departments = vec![
+            dept("a", "a1"),
+            DepartmentMembers {
+                department_id: "empty".to_string(),
+                members: vec![],
+            },
+            dept("b", "b1"),
+        ];
+        let result = pack_departments(&departments, 20.0, 28.0, 36.0, 40.0);
+
+        let ids: Vec<&str> = result
+            .department_frames
+            .iter()
+            .map(|f| f.department_id.as_str())
+            .collect();
+        assert_eq!(ids, vec!["a", "b"]); // "empty" відсутній
+        assert_eq!(result.nodes.len(), 2);
+        // Порожній відділ не зсунув b: та сама позиція, що й без нього.
+        assert_eq!(node_x(&result, "b1"), 268.0);
+    }
 }
