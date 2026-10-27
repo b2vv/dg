@@ -2,6 +2,7 @@ mod hierarchy;
 mod org_layout;
 mod org_tree;
 mod ploeg_layout;
+mod staff_packing;
 mod types;
 
 use serde_wasm_bindgen::{from_value, to_value};
@@ -10,6 +11,7 @@ use wasm_bindgen::prelude::*;
 pub use hierarchy::build_from_flat;
 pub use org_layout::compute_org_row_tree_layout;
 pub use org_tree::{extract_subtree, validate_org_hierarchy, OrgTreeError};
+pub use staff_packing::{pack_departments, DepartmentMembers, StaffPackResult};
 pub use types::*;
 
 /// Row-tree layout для org: validate → subtree → Ploeg layered tidy
