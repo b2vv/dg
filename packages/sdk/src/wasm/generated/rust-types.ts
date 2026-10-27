@@ -23,3 +23,91 @@ export type OrgRowTreeLayoutResult = { mode: string,
  * layout engine id, e.g. ploeg-layered-tidy (diagram-lib compatible)
  */
 algorithm: string, nodes: Array<LayoutNode>, edges: Array<LayoutEdge>, width: number, height: number, direction: string, };
+
+/**
+ * Відділ — вхід для пакування й magnetic-розрізу (O-38, O-48 п.5).
+ */
+export type StaffDepartmentInput = { id: string, };
+
+/**
+ * Ребро у виході (без шляху — шлях у `StaffEdgeRoute`). `kind` як у вході + "cross-tier".
+ */
+export type StaffEdge = { fromId: string, toId: string, kind: string, };
+
+/**
+ * Ребро підпорядкування. `kind`: "admin" | "matrix" | "dotted" | "cross-tier".
+ */
+export type StaffEdgeInput = { fromId: string, toId: string, kind: string, };
+
+/**
+ * Оголошений нодою порт докування лінка (ADR-0002). `port`: "center" | "avatar".
+ */
+export type StaffEdgePortInput = { id: string, port: string, };
+
+/**
+ * Повний ортогональний маршрут лінка (O-48 п.3: повні маршрути, не лише порти).
+ */
+export type StaffEdgeRoute = { fromId: string, toId: string, kind: string, points: Array<StaffRoutePoint>, };
+
+/**
+ * Єдиний вихід staff-геометрії (замінює `StaffCanvasResult`; `tiers`→`namespaces`).
+ */
+export type StaffGeometryResult = { currentOrgId: string, nodes: Array<StaffNodeGeo>, orgCards: Array<StaffOrgCardGeo>, namespaces: Array<StaffNamespace>, edges: Array<StaffEdge>, routes: StaffRouteSet, width: number, height: number, diagnostics: Array<string>, };
+
+/**
+ * Повний вхід staff-геометрії. `lod`: "near" | "mid" | "far" (вхід; Rust віддає
+ * маршрути для переданого lod — _r1-boundary.md §2e).
+ */
+export type StaffLayoutInput = { currentOrgId: string, positions: Array<StaffPositionInput>, reports: Array<StaffEdgeInput>, organizations: Array<StaffOrgInput>, departments: Array<StaffDepartmentInput>, nodeSizes: Array<StaffNodeSize>, options: StaffLayoutMetrics, edgePorts: Array<StaffEdgePortInput>, expandedOrgIds: Array<string>, lod: string, };
+
+/**
+ * Числові метрики лейауту (підмножина `StaffLayoutOptions`, що є суто геометрією).
+ * `content_padding`/`zone_label_band` — значення; їхня похідна з theme/config
+ * лишається TS-адаптером (_r1-boundary.md §2c).
+ */
+export type StaffLayoutMetrics = { nodeWidth: number, nodeHeight: number, refCellWidth: number, refCellHeight: number, horizontalGap: number, verticalGap: number, margin: number, tierGap: number, orgCardWidth: number, orgCardHeight: number, zoneLabelBand: number, contentPadding: number, deptGrouping: boolean, };
+
+/**
+ * Іменована область (було `tiers`/`StaffTierBand`). Межі x/y/width/height
+ * **завжди присутні** — єдине джерело для live+SVG (R5). label/role — TS-адаптер.
+ * `kind`: "staff-block" | "org-cards".
+ */
+export type StaffNamespace = { tier: number, kind: string, organizationId?: string, x: number, y: number, width: number, height: number, };
+
+/**
+ * Координати посади у світовій системі. `tier`: 1|2|3. `role`:
+ * "anchor"|"floating"|"tree"|"matrix"|"detached"|"external" (роль лейауту).
+ */
+export type StaffNodeGeo = { id: string, organizationId: string, x: number, y: number, width: number, height: number, tier: number, role?: string, depth?: number, };
+
+/**
+ * DOM-виміряний розмір картки посади (O-16, content-driven). Механізм подачі/кешу
+ * — R2; фолбек — `StaffLayoutMetrics.node_width/height`.
+ */
+export type StaffNodeSize = { id: string, width: number, height: number, };
+
+/**
+ * Геометрія картки організації (ярус 3). name/positionCount/expanded — TS, не тут.
+ */
+export type StaffOrgCardGeo = { orgId: string, x: number, y: number, width: number, height: number, };
+
+/**
+ * Організація — вхід (current + managing-parent для ярусів 1/2). `name`/`role`
+ * переходять для TS-збагачення namespace-ів, не для геометрії.
+ */
+export type StaffOrgInput = { id: string, parentOrgId?: string, };
+
+/**
+ * Посада — вхід у staff-лейаут (членство в орг-блоці/відділі/ярусі).
+ */
+export type StaffPositionInput = { id: string, organizationId: string, isHead: boolean, departmentId?: string, };
+
+/**
+ * Точка ортогонального маршруту.
+ */
+export type StaffRoutePoint = { x: number, y: number, };
+
+/**
+ * Маршрути для одного LOD (`lod`: "near"|"mid"|"far").
+ */
+export type StaffRouteSet = { lod: string, segments: Array<StaffEdgeRoute>, };
