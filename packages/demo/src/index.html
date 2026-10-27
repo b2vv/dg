@@ -10,22 +10,30 @@
 <body>
   <header class="toolbar">
     <h1>Org Hierarchy SDK</h1>
+    <!--
+      Parked (2026-10-27): the bar shows the one clean ШПС staff scene. The rest
+      are `hidden` rather than deleted, and `?e2e=1` unhides them — fourteen e2e
+      specs reach these scenes by clicking their button, so deleting the buttons
+      would have deleted those gates. Scenes are also reachable by `?tab=<id>`
+      (the `DemoTab` union in `app/tabs.ts`).
+    -->
     <nav class="tabs">
-      <button type="button" data-tab="variant-b" class="active">Variant B</button>
-      <button type="button" data-tab="staff-tree">Staff tree</button>
-      <button type="button" data-tab="staff-dept-legacy">Staff dept · legacy</button>
-      <button type="button" data-tab="staff-dept-v2">Staff dept · v2</button>
-      <button type="button" data-tab="mockup-orgs-figma">Orgs · Figma</button>
-      <button type="button" data-tab="mockup-orgs-gojs">Orgs · GoJS</button>
-      <button type="button" data-tab="mockup-staff-figma">Staff · Figma</button>
-      <button type="button" data-tab="mockup-staff-magnetic">Staff · Magnetic</button>
-      <button type="button" data-tab="staff-1m">Staff · 1M</button>
-      <button type="button" data-tab="staff-brigade">Staff · Brigade</button>
-      <button type="button" data-tab="mockup-staff-gojs">Staff · GoJS</button>
-      <button type="button" data-tab="flat-orgs">Flat orgs</button>
-      <button type="button" data-tab="scale-100k">100k orgs</button>
-      <button type="button" data-tab="mapper">Mapper</button>
-      <button type="button" data-tab="worker">Worker</button>
+      <button type="button" data-tab="staff-shps" class="active">Staff · ШПС</button>
+      <button type="button" data-tab="variant-b" data-parked hidden>Variant B</button>
+      <button type="button" data-tab="staff-tree" data-parked hidden>Staff tree</button>
+      <button type="button" data-tab="staff-dept-legacy" data-parked hidden>Staff dept · legacy</button>
+      <button type="button" data-tab="staff-dept-v2" data-parked hidden>Staff dept · v2</button>
+      <button type="button" data-tab="mockup-orgs-figma" data-parked hidden>Orgs · Figma</button>
+      <button type="button" data-tab="mockup-orgs-gojs" data-parked hidden>Orgs · GoJS</button>
+      <button type="button" data-tab="mockup-staff-figma" data-parked hidden>Staff · Figma</button>
+      <button type="button" data-tab="mockup-staff-magnetic" data-parked hidden>Staff · Magnetic</button>
+      <button type="button" data-tab="staff-1m" data-parked hidden>Staff · 1M</button>
+      <button type="button" data-tab="staff-brigade" data-parked hidden>Staff · Brigade</button>
+      <button type="button" data-tab="mockup-staff-gojs" data-parked hidden>Staff · GoJS</button>
+      <button type="button" data-tab="flat-orgs" data-parked hidden>Flat orgs</button>
+      <button type="button" data-tab="scale-100k" data-parked hidden>100k orgs</button>
+      <button type="button" data-tab="mapper" data-parked hidden>Mapper</button>
+      <button type="button" data-tab="worker" data-parked hidden>Worker</button>
     </nav>
     <div class="controls">
       <label class="control">

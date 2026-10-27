@@ -32,6 +32,10 @@ export interface DepartmentCardStyle {
   padding?: number;
   /** Reserve a row above the members for the label (Figma dept header). */
   labelRow?: boolean;
+  /** «N поз.» badge paint; falls back to {@link labelColor}. */
+  badgeColor?: number;
+  /** «N поз.» badge size; falls back to two points under the label. */
+  badgeFontSize?: number;
 }
 
 /** T64 / B8 — named staff-block zone chrome. */
@@ -48,6 +52,26 @@ export interface StaffZoneStyle {
   dashed?: boolean;
   /** Label inset from the zone frame (default 8). */
   labelPadding?: number;
+  /**
+   * Chrome for the band whose organization is `role:'current'` — the ШПС
+   * mockup's `.org.cur`, which turns the dashed zone solid over its own darker
+   * fill and names itself with a chip.
+   *
+   * Omitted → the current organization's band paints like any other, which is
+   * what every scene did before the role reached paint.
+   */
+  currentAccent?: {
+    stroke?: number;
+    fill?: number;
+    fillAlpha?: number;
+    /** Solid frame even where the default zone is dashed (mockup `.org.cur`). */
+    solid?: boolean;
+    /** Chip paint; omit {@link chipBorder} to leave the chip unpainted. */
+    chipBorder?: number;
+    chipTextColor?: number;
+    chipFill?: number;
+    chipFillAlpha?: number;
+  };
 }
 
 export interface PersonNodeStyle {
@@ -105,6 +129,19 @@ export interface PersonNodeStyle {
    * `gojs-portrait` = GoJS / Variant B card.
    */
   personLayout?: PersonCardLayout;
+  /**
+   * Where a staff edge docks on this seat (T125).
+   *
+   * `avatar` (default) keeps the historic chrome-less-seat behaviour: a
+   * `figma-row` port docks on the 40px avatar tile, which sits at the left of
+   * the row. That is correct when the tile *is* the visible node, but wrong for
+   * a full-width card (e.g. a React promote card drawn over the whole cell),
+   * where the tile is decorative-left and the connector must meet the card
+   * centre — the mockup `.plink`. `center` docks on the card centre instead.
+   *
+   * Only `figma-row` near reads it; `gojs-row`/mid/far already centre the port.
+   */
+  edgePort?: 'center' | 'avatar';
 }
 
 /** Position seat visual template (T70 / mockup parity). */

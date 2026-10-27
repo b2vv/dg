@@ -94,6 +94,43 @@ describe('visualPersonEdgeBox', () => {
   });
 });
 
+describe('figma-row edge port (chrome-less tile vs card center)', () => {
+  const position = {
+    id: 'h',
+    organizationId: 'org-1',
+    groupIds: [],
+    status: 'filled' as const,
+    isTemporary: false,
+    title: 'Head',
+  } satisfies DiagramPosition;
+  const box = { id: 'h', x: 100, y: 50, width: 300, height: 112 };
+
+  it('success: default figma-row docks the port on the avatar tile (chrome-less seat)', () => {
+    const style = { width: 300, height: 112, personLayout: 'figma-row' } as PersonNodeStyle;
+    const hinted = staffEdgeBoxForPosition(box, position, style);
+    expect(hinted.personEdgeHints?.layout).toBe('figma-row');
+    const near = visualPersonEdgeBox(hinted, 'near');
+    // 40px avatar tile at the left of the row — port lands left of card center.
+    expect(near.width).toBe(40);
+    expect(near.x + near.width / 2).toBeCloseTo(100 + 20);
+  });
+
+  it('success: edgePort:center docks the port on the card center, not the avatar', () => {
+    const style = {
+      width: 300,
+      height: 112,
+      personLayout: 'figma-row',
+      edgePort: 'center',
+    } as PersonNodeStyle;
+    const hinted = staffEdgeBoxForPosition(box, position, style);
+    // No avatar hint → the whole card is the port box; center is x + width/2.
+    expect(hinted.personEdgeHints).toBeUndefined();
+    const near = visualPersonEdgeBox(hinted, 'near');
+    expect(near.width).toBe(300);
+    expect(near.x + near.width / 2).toBeCloseTo(100 + 150);
+  });
+});
+
 describe('visualOrgEdgeBox / mapStaffEdgeBoxesForLod', () => {
   it('success: far org uses symbol chip', () => {
     const org = { id: 'o', x: 0, y: 0, width: 200, height: 64 };

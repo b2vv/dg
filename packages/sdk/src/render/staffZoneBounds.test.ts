@@ -67,6 +67,43 @@ describe('staffZoneBounds', () => {
     expect(next[0]?.width).toBeGreaterThan(0);
   });
 
+  it('success: enrich carries the org role onto the band', () => {
+    // The accent chrome for the current organization is a paint decision, but
+    // the band is all the painter gets — so the role has to travel with it.
+    // `types.ts` called this out as the follow-up: the band carried no role.
+    const tiers: StaffTierBand[] = [
+      { tier: 1, kind: 'staff-block', y: 0, height: 100, organizationId: 'holding' },
+      { tier: 2, kind: 'staff-block', y: 120, height: 100, organizationId: 'region' },
+    ];
+    const nodes = [box('a', 'holding', 0, 0), box('b', 'region', 0, 120)];
+    const next = enrichStaffTierBands(
+      tiers,
+      nodes,
+      [],
+      [
+        { id: 'holding', name: 'Head office', groupIds: [], role: 'leading' },
+        { id: 'region', name: 'ХПВНУ', groupIds: [], role: 'current' },
+      ],
+      { margin: 8, canvasWidth: 400 },
+    );
+    expect(next[0]?.role).toBe('leading');
+    expect(next[1]?.role).toBe('current');
+  });
+
+  it('success: enrich leaves role undefined when the org declares none', () => {
+    const tiers: StaffTierBand[] = [
+      { tier: 2, kind: 'staff-block', y: 0, height: 100, organizationId: 'org1' },
+    ];
+    const next = enrichStaffTierBands(
+      tiers,
+      [box('a', 'org1', 0, 0)],
+      [],
+      [{ id: 'org1', name: 'Ops', groupIds: [] }],
+      { margin: 8, canvasWidth: 400 },
+    );
+    expect(next[0]?.role).toBeUndefined();
+  });
+
   it('success: unionBoxes with padding', () => {
     const u = unionBoxes(
       [

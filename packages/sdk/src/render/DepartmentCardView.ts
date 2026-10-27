@@ -3,6 +3,10 @@ import type { DiagramDepartment } from '../data/types.js';
 import { defaultNodeTheme, type NodeTheme, type DepartmentCardStyle } from './types.js';
 import { unionBoxes } from './staffZoneBounds.js';
 import { paintDashedFrame } from './dashedStroke.js';
+import { formatDepartmentPositionsBadge } from './departmentPositionsBadge.js';
+
+/** Mockup's `.dn` row gap between the department name and its badge. */
+const BADGE_GAP = 8;
 
 export interface DeptMemberBox {
   x: number;
@@ -19,7 +23,19 @@ export class DepartmentCardView extends Container {
     dept: DiagramDepartment,
     members: readonly DeptMemberBox[],
     style: DepartmentCardStyle,
-    options?: { padding?: number; minMembers?: number; nodeTheme?: Pick<NodeTheme, 'fonts'> },
+    options?: {
+      padding?: number;
+      minMembers?: number;
+      nodeTheme?: Pick<NodeTheme, 'fonts'>;
+      /**
+       * Positions the department establishes — rendered as the «N поз.» badge.
+       *
+       * Passed in rather than read off `members`: the frame is fitted to the
+       * boxes the layout produced, which shrink when a head collapses, and the
+       * badge must not. See {@link countDepartmentPositions}.
+       */
+      positionsCount?: number;
+    },
   ): DepartmentCardView | null {
     const nodeTheme = options?.nodeTheme ?? defaultNodeTheme;
     const minMembers = options?.minMembers ?? 1;
@@ -63,11 +79,30 @@ export class DepartmentCardView extends Container {
       },
     });
     const labelPad = Math.min(16, padding);
-    label.position.set(
-      bounds.x + bounds.width - label.width - labelPad,
-      bounds.y + (labelRow ? 4 : 6),
-    );
+    const labelY = bounds.y + (labelRow ? 4 : 6);
+    const badgeText = formatDepartmentPositionsBadge(options?.positionsCount ?? 0);
+    const badge = badgeText
+      ? new Text({
+          text: badgeText,
+          style: {
+            fill: style.badgeColor ?? style.labelColor,
+            fontSize: style.badgeFontSize ?? style.labelFontSize - 2,
+            fontFamily: nodeTheme.fonts?.mono ?? 'ui-monospace, monospace',
+          },
+        })
+      : null;
+    // Name and badge read as one right-aligned group, as the mockup's header row
+    // does: shifting the name left by the badge keeps the pair against the edge.
+    const groupWidth = badge ? label.width + BADGE_GAP + badge.width : label.width;
+    label.position.set(bounds.x + bounds.width - groupWidth - labelPad, labelY);
     view.addChild(label);
+    if (badge) {
+      badge.position.set(
+        label.x + label.width + BADGE_GAP,
+        labelY + Math.max(0, (label.height - badge.height) / 2),
+      );
+      view.addChild(badge);
+    }
     return view;
   }
 }

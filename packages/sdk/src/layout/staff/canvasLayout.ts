@@ -58,6 +58,11 @@ export async function layoutStaffCanvas(
   const orgCards: StaffOrgCard[] = [];
 
   let cursorY = opts.margin;
+  // Managing head id, captured so tier 1 can be centered horizontally over the
+  // current-org head once tier 2 is laid out (the cross-tier connector must be
+  // vertical — mockup `plink`). Without this the managing block keeps its own
+  // left `margin` and a single card lands far left of a wide current tier.
+  let mgrHeadId: string | undefined;
 
   // Tier 1 — managing org leadership (head + its direct admin reports)
   const managingId = current.parentOrgId;
@@ -80,6 +85,7 @@ export async function layoutStaffCanvas(
       positionNodes.push(...nodes);
       edges.push(...block.edges);
       diagnostics.push(...block.diagnostics);
+      mgrHeadId = head.id;
       const height = Math.max(block.height, opts.orgCardHeight) + opts.zoneLabelBand;
       tiers.push({
         tier: 1,
@@ -123,6 +129,30 @@ export async function layoutStaffCanvas(
     organizationId: currentOrgId,
   });
   cursorY += t2height + opts.tierGap;
+
+  // Center the managing tier over the current-org head so the cross-tier
+  // connector is vertical (mockup `plink`). Shift right only: the common case
+  // is a narrow managing block (often a single card) over a wide current tier,
+  // and moving right never pushes a node past the left margin. When the
+  // managing head already sits right of the current head (dx ≤ 0) the previous
+  // left-anchored placement is kept, so no existing scene regresses.
+  const mgrHeadNode = mgrHeadId
+    ? positionNodes.find((n) => n.tier === 1 && n.id === mgrHeadId)
+    : undefined;
+  const curHeadPos = data.positions.find(
+    (p) => p.organizationId === currentOrgId && p.isHead === true,
+  );
+  const curHeadNode = curHeadPos
+    ? positionNodes.find((n) => n.tier === 2 && n.id === curHeadPos.id)
+    : undefined;
+  if (mgrHeadNode && curHeadNode) {
+    const dx = curHeadNode.x + curHeadNode.width / 2 - (mgrHeadNode.x + mgrHeadNode.width / 2);
+    if (dx > 0) {
+      for (const n of positionNodes) {
+        if (n.tier === 1) n.x += dx;
+      }
+    }
+  }
 
   // Tier 3 — subordinate org cards (+ optional expand-in-place staff)
   const children = data.organizations.filter((o) => o.parentOrgId === currentOrgId);

@@ -92,6 +92,18 @@ export const MOCKUP_FIGMA_STYLES = {
     labelAlign: 'right',
     labelPadding: 16,
     dashed: true,
+    // ШПС mockup `.org.cur` — the current org turns solid over its own darker
+    // fill; the orange there is the chip's, not the frame's (`.org.cur>.on i`).
+    currentAccent: {
+      stroke: 0x5a5a62,
+      fill: 0x0f0f11,
+      fillAlpha: 1,
+      solid: true,
+      chipBorder: 0xe5491d,
+      chipTextColor: 0xff8d68,
+      chipFill: 0xe5491d,
+      chipFillAlpha: 0.1,
+    },
   },
   departmentCard: {
     // Department block inside a tier: #242f3d fill, dashed #3d5067.
@@ -105,6 +117,9 @@ export const MOCKUP_FIGMA_STYLES = {
     padding: 16,
     labelRow: true,
     dashed: true,
+    // ШПС mockup `.dn em` — dim mono «N поз.» beside the department name.
+    badgeColor: 0x9a9aa0,
+    badgeFontSize: 12,
   },
 } satisfies Partial<NodeTheme>;
 

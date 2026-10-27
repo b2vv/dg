@@ -16,15 +16,19 @@ test.describe('demo audit (T33)', () => {
    *
    * The list is deliberately every tab rather than the one that was broken: a
    * gate aimed at the known defect stops being a gate the moment it is fixed.
+   *
+   * Reached by `?tab=` rather than by clicking the bar: the bar was parked down
+   * to the one ШПС scene, and a gate that went through it would have been
+   * deleted along with the buttons. Loading the scene directly is also the
+   * stricter test — it checks the scene, not the chrome that linked to it.
    */
   const TABS = ['flat-orgs', 'scale-100k', 'mockup-staff-magnetic'] as const;
 
   for (const tab of TABS) {
-    test(`switching to ${tab} raises no page errors`, async ({ page }) => {
+    test(`loading ${tab} raises no page errors`, async ({ page }) => {
       const errors: string[] = [];
       page.on('pageerror', (e) => { errors.push(e.message); });
-      await page.goto('/?e2e=1');
-      await page.locator(`[data-tab="${tab}"]`).click();
+      await page.goto(`/?e2e=1&tab=${tab}`);
       await page.getByTestId('diagram-ready').waitFor({ timeout: 30_000 });
       await page.waitForTimeout(1500);
       expect(errors, `page errors on ${tab}`).toEqual([]);

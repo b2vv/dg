@@ -63,6 +63,10 @@ export function staffEdgeBoxForPosition(
   };
   const layout = resolvePersonLayout(style);
   if (layout === 'figma-row') {
+    // A full-width card (e.g. a React promote card over the whole cell) docks
+    // the connector on its centre, not the decorative-left avatar tile (T125).
+    // Default keeps the chrome-less-seat tile dock, so no existing scene moves.
+    if (style.edgePort === 'center') return box;
     const avatar = figmaRowAvatar(style);
     const size = avatar.size ?? FIGMA_ROW_AVATAR_SIZE;
     return {

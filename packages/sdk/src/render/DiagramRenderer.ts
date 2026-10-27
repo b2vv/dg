@@ -34,6 +34,7 @@ import { DoubleTapTracker } from '../interaction/doubleTap.js';
 import type { SelectionPointerMods } from '../interaction/selection.js';
 import type { ContextMenuPointer } from '../interaction/contextMenuPayload.js';
 import { DepartmentCardView } from './DepartmentCardView.js';
+import { countDepartmentPositions } from './departmentPositionsBadge.js';
 import { paintDashedFrame } from './dashedStroke.js';
 import { StaffZonesView } from './StaffZonesView.js';
 import type { WorldRect } from './staffZoneBounds.js';
@@ -1175,6 +1176,7 @@ export class DiagramRenderer {
       const card = DepartmentCardView.fromMembers(dept, members, style, {
         minMembers,
         nodeTheme: theme,
+        positionsCount: countDepartmentPositions(data.positions, dept.id),
       });
       if (card) this.layers.departments.addChild(card);
     }

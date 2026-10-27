@@ -136,6 +136,15 @@ export interface StaffTierBand {
   width?: number;
   /** Resolved label for paint (usually org.name). */
   label?: string;
+  /**
+   * Host role of the band's organization, resolved for paint.
+   *
+   * The zone painter gets the band and nothing else, so the accent chrome for
+   * the current organization needs the role to travel with it rather than being
+   * looked up again downstream. Filled by
+   * {@link enrichStaffTierBands} from {@link DiagramOrganization.role}.
+   */
+  role?: 'leading' | 'current';
 }
 
 export interface StaffCanvasResult {

@@ -123,6 +123,7 @@ export function enrichStaffTierBands(
   },
 ): StaffTierBand[] {
   const orgName = new Map(organizations.map((o) => [o.id, o.name]));
+  const orgRole = new Map(organizations.map((o) => [o.id, o.role]));
   return tiers.map((tier) => {
     const bounds = worldBoundsForTier(tier, positionNodes, orgCards, {
       margin: options.margin,
@@ -144,6 +145,7 @@ export function enrichStaffTierBands(
       y: bounds.y,
       height: bounds.height,
       label,
+      role: tier.role ?? (tier.organizationId ? orgRole.get(tier.organizationId) : undefined),
     };
   });
 }

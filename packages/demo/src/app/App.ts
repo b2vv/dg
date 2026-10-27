@@ -22,6 +22,7 @@ import {
   type PromoteSlotProps,
 } from '@org-hierarchy/sdk/react';
 import { createElement } from 'react';
+import { ShpsStaffCard } from './ShpsStaffCard.js';
 import { buildFlatOrgsData } from '../scenarios/flatOrgs.js';
 import {
   SCALE_ORG_TOTAL,
@@ -74,6 +75,26 @@ const STAFF_WINDOW_MAX_SEATS = 4000;
 
 /** How many rebuilds the measurement log keeps before it starts forgetting. */
 const STAFF_REBUILD_LOG_MAX = 50;
+
+/** The scene the demo opens on when nothing is asked for. */
+const DEFAULT_TAB = 'staff-shps';
+
+/**
+ * Scene to open: `?tab=<id>`, else {@link DEFAULT_TAB}.
+ *
+ * The parked scenes still load — they just no longer own a button in the bar —
+ * and `e2e/demo-audit.spec.ts` reaches them through this parameter. Switching
+ * that gate off the bar also made it a better gate: it now tests the scene
+ * rather than the chrome that used to link to it.
+ *
+ * An unknown id falls back instead of throwing: a stale link should open the
+ * demo, not break it.
+ */
+function initialTab(): DemoTab {
+  if (typeof window === 'undefined') return DEFAULT_TAB;
+  const asked = new URLSearchParams(window.location.search).get('tab') ?? undefined;
+  return isDemoTab(asked) ? asked : DEFAULT_TAB;
+}
 import { SAMPLE_MAPPER_JSON } from '../scenarios/sampleMapper.js';
 import { parseJsonFile } from '../utils/json.js';
 import { requireElement, setThemeAttribute, showError } from '../utils/dom.js';
@@ -254,11 +275,21 @@ export class App {
       },
     });
     this.bindToolbar();
-    await this.loadTab('variant-b');
+    await this.loadTab(initialTab());
     this.setStatus('Ready');
   }
 
   private bindToolbar(): void {
+    // Parked scenes are hidden from the bar but not removed: fourteen e2e specs
+    // open them by clicking their button, and Playwright will not click what is
+    // hidden. Under `?e2e=1` the full bar comes back.
+    if (this.e2eMode) {
+      document
+        .querySelectorAll<HTMLButtonElement>('[data-tab][data-parked]')
+        .forEach((btn) => {
+          btn.hidden = false;
+        });
+    }
     document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const tab = btn.dataset.tab;
@@ -588,14 +619,21 @@ export class App {
 
   /** Promote overlay always; test anchors + the e2e bridge only in `?e2e=1`. */
   private mountOverlays(diagram: OrgHierarchyDiagram): void {
+    // The ШПС scene is the clean staff demo: its seats are React cards at near
+    // zoom (mockup face) and Pixi only at far zoom, so it always runs in
+    // `near-visible` with the mockup card, regardless of the `?promote=` flag.
+    const shps = this.tab === 'staff-shps';
     this.promote = createReactPromoteOverlay({
       diagram,
       mount: this.mountEl,
       // Opt-in, like `?renderer=`: the default stays the selection card so the
       // existing behaviour — and the e2e that pins it — keeps its meaning.
-      mode: this.promoteMode,
-      component:
-        this.promoteMode === 'near-visible' ? DemoContentModesCard : DemoPromoteCard,
+      mode: shps ? 'near-visible' : this.promoteMode,
+      component: shps
+        ? ShpsStaffCard
+        : this.promoteMode === 'near-visible'
+          ? DemoContentModesCard
+          : DemoPromoteCard,
     });
     if (!this.e2eMode) return;
     this.testAnchors = createTestAnchorOverlay({

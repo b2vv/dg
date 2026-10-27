@@ -1,6 +1,7 @@
 import { defaultLodThresholds, type LodThresholds } from '@org-hierarchy/sdk';
 
 export type DemoTab =
+  | 'staff-shps'
   | 'variant-b'
   | 'staff-tree'
   | 'staff-dept-legacy'
@@ -33,6 +34,7 @@ export interface DemoTabMeta {
 }
 
 export const TAB_META: Record<DemoTab, DemoTabMeta> = {
+  'staff-shps': { label: 'Staff · ШПС', family: 'figma' },
   'variant-b': { label: 'Variant B', contourControls: true, reloadsOnContourSlider: true },
   'staff-tree': { label: 'Staff tree' },
   'staff-dept-legacy': { label: 'Staff dept · legacy' },
@@ -82,8 +84,9 @@ export interface ContourControls {
 }
 
 /**
- * Tab ids reach us from `data-tab` in the markup, so they are only as good as
- * the HTML. Validate here and the switch in `tabConfigs` can stay exhaustive.
+ * Tab ids reach us from `data-tab` in the markup and from `?tab=` in the URL,
+ * so they are only as good as the HTML and whatever someone typed. Validate
+ * here and the switch in `tabConfigs` can stay exhaustive.
  */
 export function isDemoTab(value: string | undefined): value is DemoTab {
   return value !== undefined && Object.hasOwn(TAB_META, value);

@@ -9,6 +9,7 @@ import {
 } from '@org-hierarchy/sdk';
 import { buildVariantBData } from '../scenarios/variantB.js';
 import { buildStaffTreeData } from '../scenarios/staffTree.js';
+import { buildShpsStaffData, SHPS_STAFF_LAYOUT } from '../scenarios/shpsStaff.js';
 import { buildStaffDeptRoutingData } from '../scenarios/staffDeptRouting.js';
 import { buildStaffBrigadeData } from '../scenarios/staffBrigade.js';
 import {
@@ -84,6 +85,29 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
   };
 
   switch (tab) {
+    case 'staff-shps':
+      return {
+        ...base,
+        theme: 'dark',
+        data: buildShpsStaffData(),
+        // ШПС draws a full-width card (React promote near, card-wide Pixi far),
+        // so the cross-tier connector must meet the card centre, not the
+        // chrome-less avatar tile the shared figma style docks on by default (T125).
+        styles: {
+          ...MOCKUP_FIGMA_STYLES,
+          person: { ...MOCKUP_FIGMA_STYLES.person, edgePort: 'center' },
+        },
+        lodThresholds: MOCKUP_LOD_THRESHOLDS,
+        staffCurrentOrgId: 'hpvnu',
+        staffLayout: SHPS_STAFF_LAYOUT,
+        render: {
+          ...base.render,
+          staffZoneChrome: true,
+          departmentStyle: 'card',
+          cellWidth: SHPS_STAFF_LAYOUT.refCellWidth,
+          cellHeight: SHPS_STAFF_LAYOUT.refCellHeight,
+        },
+      };
     case 'variant-b':
       return {
         ...base,
