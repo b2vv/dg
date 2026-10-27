@@ -7,15 +7,17 @@
 
 use crate::types::{StaffDepartmentFrameGeo, StaffNodeGeo};
 
-/// Рамка одного (нерозрізаного) відділу з уже розкладених членів.
+/// Рамка для набору членів (цілий відділ або одна його частина) з уже розкладених членів.
 /// `None`, якщо членів немає (порожній відділ виключається — B1).
 /// Рамка **включає смугу шапки** (header, B3/I-A2): верхнє «хром» = header + padding,
 /// нижнє = padding. frame_top = cards_min_y − padding − header_height.
+/// `part_index`: `None` — цілий відділ; `Some(i)` — частина `i` (magnetic, B5).
 pub fn department_frame(
     department_id: &str,
     members: &[StaffNodeGeo],
     content_padding: f32,
     header_height: f32,
+    part_index: Option<u32>,
 ) -> Option<StaffDepartmentFrameGeo> {
     let first = members.first()?;
     let mut min_x = first.x;
@@ -31,7 +33,7 @@ pub fn department_frame(
     let pad = content_padding;
     Some(StaffDepartmentFrameGeo {
         department_id: department_id.to_string(),
-        part_index: None,
+        part_index,
         x: min_x - pad,
         y: min_y - pad - header_height,
         width: (max_x - min_x) + pad * 2.0,
@@ -47,6 +49,12 @@ pub struct DepartmentMembers {
     pub department_id: String,
     pub members: Vec<StaffNodeGeo>,
     pub wrapped: bool,
+    /// Частина розрізаного відділу (magnetic, B5): `None` — цілий відділ;
+    /// `Some(i)` — частина `i` групи зі спільним `department_id`. Кластеризацію
+    /// («які посади = частина») робить TS — єдине джерело мембершипу, поки драг
+    /// контуру синхронний (T77/T80, `ContourPainter.ts:65-68`). Pack лише
+    /// штампує цей тег на рамку й ноди (M4/Рішення 1, `_decision1-pack-contract.md`).
+    pub part_index: Option<u32>,
 }
 
 /// Результат пакування: вузли у світових координатах + рамка на кожен відділ.
@@ -92,6 +100,7 @@ pub fn pack_departments(
             .map(|member| StaffNodeGeo {
                 x: member.x + dx,
                 y: member.y + dy,
+                part_index: dept.part_index,
                 ..member.clone()
             })
             .collect();
@@ -101,6 +110,7 @@ pub fn pack_departments(
                 &placed,
                 content_padding,
                 dept_header_height,
+                dept.part_index,
             ) {
                 department_frames.push(frame);
             }
@@ -141,7 +151,8 @@ mod tests {
     #[test]
     fn single_member_frame_expands_bbox_by_padding() {
         let members = vec![node("p1", 100.0, 200.0, 136.0, 156.0)];
-        let frame = department_frame("d1", &members, 36.0, 0.0).expect("frame for non-empty dept");
+        let frame =
+            department_frame("d1", &members, 36.0, 0.0, None).expect("frame for non-empty dept");
         assert_eq!(frame.department_id, "d1");
         assert_eq!(frame.part_index, None);
         assert_eq!(frame.x, 64.0);
@@ -157,7 +168,7 @@ mod tests {
             node("p1", 100.0, 200.0, 136.0, 156.0),
             node("p2", 100.0, 264.0, 136.0, 156.0),
         ];
-        let frame = department_frame("d1", &members, 36.0, 0.0).expect("frame");
+        let frame = department_frame("d1", &members, 36.0, 0.0, None).expect("frame");
         // union: x 100..236, y 200..420 → bbox (100,200,136,220)
         assert_eq!(frame.x, 64.0);
         assert_eq!(frame.y, 164.0);
@@ -171,6 +182,7 @@ mod tests {
             department_id: id.to_string(),
             members: vec![node(member_id, 0.0, 0.0, 136.0, 156.0)],
             wrapped: true,
+            part_index: None,
         }
     }
 
@@ -216,6 +228,7 @@ mod tests {
                 department_id: "empty".to_string(),
                 members: vec![],
                 wrapped: true,
+                part_index: None,
             },
             dept("b", "b1"),
         ];
@@ -256,6 +269,7 @@ mod tests {
                 department_id: "loose".to_string(),
                 members: vec![node("r1", 0.0, 0.0, 136.0, 156.0)],
                 wrapped: false,
+                part_index: None,
             },
         ];
         let result = pack_departments(&departments, 20.0, 28.0, 36.0, 40.0, 34.0);
@@ -271,5 +285,42 @@ mod tests {
             .map(|f| f.department_id.as_str())
             .collect();
         assert_eq!(frame_ids, vec!["a"]); // вільна група рамки НЕ дає
+    }
+
+    // B5 / M4 (Рішення 1): розрізаний відділ. Кластеризацію («які посади = частина»)
+    // робить TS — pack лише ШТАМПУЄ part_index із поданих груп на рамку й ноди.
+    // Дві групи зі спільним department_id "a", part_index Some(0)/Some(1) →
+    // дві рамки "a" з part_index 0/1, ноди відповідно проштамповані.
+    // Цілий відділ (part_index=None) лишається валідним — перевірено іншими тестами
+    // (напр. single_member_frame_* тримає frame.part_index == None).
+    #[test]
+    fn split_department_stamps_part_index_on_frames_and_nodes() {
+        let departments = vec![
+            DepartmentMembers {
+                department_id: "a".to_string(),
+                members: vec![node("a1", 0.0, 0.0, 136.0, 156.0)],
+                wrapped: true,
+                part_index: Some(0),
+            },
+            DepartmentMembers {
+                department_id: "a".to_string(),
+                members: vec![node("a2", 0.0, 0.0, 136.0, 156.0)],
+                wrapped: true,
+                part_index: Some(1),
+            },
+        ];
+        let result = pack_departments(&departments, 20.0, 28.0, 36.0, 40.0, 0.0);
+
+        let parts: Vec<(&str, Option<u32>)> = result
+            .department_frames
+            .iter()
+            .map(|f| (f.department_id.as_str(), f.part_index))
+            .collect();
+        assert_eq!(parts, vec![("a", Some(0)), ("a", Some(1))]);
+
+        let a1 = result.nodes.iter().find(|n| n.id == "a1").expect("a1");
+        let a2 = result.nodes.iter().find(|n| n.id == "a2").expect("a2");
+        assert_eq!(a1.part_index, Some(0));
+        assert_eq!(a2.part_index, Some(1));
     }
 }
