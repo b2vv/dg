@@ -133,3 +133,40 @@ around-frame lane, §12-маркер frame-intrusion. `implementation-status.md`
   і нарізку (6 зрізів), братися послідовно з гейтами.
 - B. Джерело `.dn`-перешкоди (питання 2).
 - C. Чи читати design-v3 §6.5 перед R6-4 (K-loop).
+
+---
+
+## R6-2 ДИЗАЙН (Dg22) — per-LOD геометрія едж-боксів, перед критиком
+**Оракул:** `render/visualEdgeBox.ts` (visualPersonEdgeBox:25, visualOrgEdgeBox:116,
+mapStaffEdgeBoxesForLod:134) + `render/personVisualGeometry.ts` (personVisualLocalRect:25,
+personMidBandHeight:12, personFarDotRadius:17).
+
+**Межа R6-2:**
+- ЧИСТА геометрія → Rust: mid-band `min(h,max(56,h*0.48))`; far-dot `max(6,min(w,h)*0.18)` центр;
+  org-chip far `min(symbol,36,w,h)` центр по вертикалі; near = повний бокс.
+- THEME/DOM-похідні hints (gojs-row cardY/cardH/countBarH; figma-row tileX/tileY/tileSize) → ВХОДИ
+  Rust (принцип R5: theme-значення не запікати). TS рахує з style/position, передає.
+
+**Rust fn:** `visual_person_edge_box(x,y,w,h,lod,hints:Option<PersonEdgeHints>)->EdgeBox`;
+`visual_org_edge_box(x,y,w,h,lod,symbol_size)->EdgeBox`. Інтеграція: staff_routes рахує порти з
+per-LOD боксів (lod-параметр нарешті активний). EdgeBox — ВНУТРІШНІЙ Rust-тип (+obstacle для figma-row),
+не вихідний контракт.
+
+**ВІДКРИТІ ПИТАННЯ (критику/власнику):**
+- QA: hints як ПЛЕЙН Rust-вхід зараз (контракт-wiring на R7) vs розширити ts-rs input-контракт зараз
+  (тригерить regen rust-types.ts)? Прецедент R6-1/R5: продюсер+оракул, wiring R7 → схиляюсь до плейн.
+- QB: константи 56/0.48/6/0.18/36 — fixed layout-модель (не theme) → у Rust як константи, symbol_size
+  вхід (у TS має параметр). Критик: чи котрась насправді theme?
+- QC: obstacle (figma-row = повний бокс) — потрібен лише для R6-3 (перешкоди); у R6-2 нести, але не вживати.
+
+## КРИТИК R6-2 (_r6-2-critic-dg22.md) — ЖОВТИЙ, закрито в дизайні
+- Блокер-1: symbolSize=36 FIXED const у Rust (min(36,w,h)); НЕ theme-вхід (прод завжди 36, caller
+  mapStaffEdgeBoxesForLod:141 не передає; theme<36 зламав би паритет). «56» mid-band floor ≠ cardRowHeight56.
+- Блокер-2: оракул R6-2 = BOX-паритет (visual_person/org_edge_box проти mapStaffEdgeBoxesForLod ±1px),
+  НЕ route-паритет (той R6-6) — інакше figma-row obstacle/avoidance confound.
+- Діра-1/2 закрито СКОУПОМ: R6-2 = standalone box-шар (функції + мапінг [persons…,orgs…] у порядку),
+  box-паритет; threading hints у staff_routes + org-card routing → R6-3 (перешкодам боксі й так треба).
+- QA: ПЛЕЙН Rust-вхід, EdgeRect/PersonEdgeHints — внутрішні типи БЕЗ derive(TS); StaffRouteSet не
+  міняється → regen не тригериться.
+- edgePort==='center' резолвиться в TS upstream (повертає box без hints → Rust None → повний бокс) —
+  лишається в TS. mid/far ІГНОРУЮТЬ hints (усі лейаути → однакова band/dot). NaN/від'ємні — поза scope.

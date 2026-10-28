@@ -4,6 +4,7 @@ mod org_tree;
 mod ploeg_layout;
 mod staff_bounds;
 mod staff_compose;
+mod staff_edge_box;
 mod staff_packing;
 mod staff_routes;
 mod types;
@@ -18,6 +19,9 @@ pub use staff_bounds::{enrich_namespaces, namespace_bounds, BoundsOptions, World
 pub use staff_compose::{
     canvas_dimensions, compose_org_cards, compose_tiers, CanvasDimensions, ComposeResult,
     ExpandedBlock, OrgCardInput, OrgCardOptions, OrgCardsResult, TierBlock,
+};
+pub use staff_edge_box::{
+    visual_org_edge_box, visual_person_edge_box, EdgeRect, PersonEdgeHints, Rect,
 };
 pub use staff_packing::{pack_departments, DepartmentMembers, StaffPackResult};
 pub use staff_routes::staff_routes;
