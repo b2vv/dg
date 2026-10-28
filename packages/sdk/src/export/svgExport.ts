@@ -12,10 +12,8 @@ import {
   PERSON_CARD_HEIGHT,
   PERSON_CARD_WIDTH,
 } from '../render/types.js';
-import { buildStaffEdgeSegments } from '../layout/staffEdgeGeometry.js';
 import type { StaffEdgeSegment } from '../layout/staffEdgeGeometry.js';
 import { resolveStaffRouting } from '../render/staffRouterV2.js';
-import { mapStaffEdgeBoxesForLod, mapPositionNodesToStaffEdgeBoxes } from '../render/visualEdgeBox.js';
 import { paintMagneticGroups } from '../render/contour/paintMagneticGroups.js';
 import type { ContourMemberBox } from '../render/contour/contourClearance.js';
 import { resolveMagnetRadius } from '../contour/magnetRadius.js';
@@ -97,6 +95,12 @@ const DEPT_STROKE_W = defaultNodeTheme.department.strokeWidth;
 const EDGE_STROKE = '#334155';
 const EDGE_W = 2.25;
 const ARROW_SIZE = 7;
+/**
+ * The static SVG export has no zoom, so it always routes the near (full-detail)
+ * LOD. Named rather than a bare `'near'` so the one place that decides the
+ * export's detail level is explicit (T126 R6-6); live uses the renderer's own LOD.
+ */
+const STAFF_EXPORT_LOD = 'near' as const;
 
 export interface SvgExportInput {
   data: DiagramData;
@@ -277,30 +281,22 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
       width: c.width,
       height: c.height,
     }));
-    let segments: StaffEdgeSegment[];
-    let markedKeys: Set<string>;
-    if (config.staffEdgeRouter === 'v2') {
-      const routing = resolveStaffRouting({
-        positionNodes: canvas.positionNodes,
-        edges: canvas.edges,
-        positionById,
-        personTheme,
-        lod: 'near',
-        orgCards: orgCardBoxes,
-      });
-      segments = routing.routedSegments;
-      markedKeys = new Set(routing.markedCrossings.map((c) => `${c.fromId}\u0000${c.toId}`));
-    } else {
-      segments = buildStaffEdgeSegments(
-        canvas.edges,
-        mapStaffEdgeBoxesForLod(
-          mapPositionNodesToStaffEdgeBoxes(canvas.positionNodes, positionById, personTheme),
-          orgCardBoxes,
-          'near',
-        ),
-      );
-      markedKeys = new Set<string>();
-    }
+    // The static SVG prints the near (full-detail) routing regardless of zoom —
+    // the export has no LOD. Routed through the SAME seam as the live renderer
+    // (T126 R6-6), so the exported link points match the screen at near.
+    const routing = resolveStaffRouting({
+      router: config.staffEdgeRouter === 'v2' ? 'v2' : 'legacy',
+      positionNodes: canvas.positionNodes,
+      edges: canvas.edges,
+      positionById,
+      personTheme,
+      lod: STAFF_EXPORT_LOD,
+      orgCards: orgCardBoxes,
+    });
+    const segments: StaffEdgeSegment[] = routing.routedSegments;
+    const markedKeys = new Set(
+      routing.markedCrossings.map((c) => `${c.fromId}\u0000${c.toId}`),
+    );
     parts.push('<g id="edges">');
     for (const s of segments) {
       const withArrow = s.kind === 'admin' || s.kind === 'cross-tier';

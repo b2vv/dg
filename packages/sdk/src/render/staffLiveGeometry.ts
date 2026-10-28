@@ -10,7 +10,6 @@
 // LOD. The `RenderOptions` import is type-only, as in `staffLayoutInputs.ts`, so
 // the cycle with `DiagramRenderer` is erased at runtime.
 import type { DiagramData } from '../data/types.js';
-import { buildStaffEdgeSegments } from '../layout/staffEdgeGeometry.js';
 import type { StaffEdgeBox, StaffEdgeSegment } from '../layout/staffEdgeGeometry.js';
 import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
 import {
@@ -26,7 +25,6 @@ import { buildStaffLayoutOptions } from './staffLayoutInputs.js';
 import { enrichStaffTierBands } from './staffZoneBounds.js';
 import { resolveStaffRouting } from './staffRouterV2.js';
 import { defaultRenderConfig, type NodeTheme, type RenderConfig } from './types.js';
-import { mapPositionNodesToStaffEdgeBoxes, mapStaffEdgeBoxesForLod } from './visualEdgeBox.js';
 
 export interface StaffLiveGeometryInput {
   data: DiagramData;
@@ -116,27 +114,25 @@ export async function computeStaffLiveGeometry(
   }));
   const positionById = new Map(data.positions.map((p) => [p.id, p]));
 
-  let routes: StaffEdgeSegment[];
-  let markedCrossings: StaffLiveGeometry['markedCrossings'] = [];
-  if (config.staffEdgeRouter === 'v2') {
-    const routed = resolveStaffRouting({
-      positionNodes: canvas.positionNodes,
-      edges: canvas.edges,
-      positionById,
-      personTheme: theme.person,
-      lod,
-      orgCards: orgCardBoxes,
-    });
-    routes = routed.routedSegments;
-    markedCrossings = routed.markedCrossings;
-  } else {
-    const edgeBoxes = mapStaffEdgeBoxesForLod(
-      mapPositionNodesToStaffEdgeBoxes(canvas.positionNodes, positionById, theme.person),
-      orgCardBoxes,
-      lod,
-    );
-    routes = buildStaffEdgeSegments(canvas.edges, edgeBoxes);
-  }
+  // Single routing seam, shared with the SVG export (T126 R6-6): both call
+  // `resolveStaffRouting`, so their link points cannot drift.
+  const routed = resolveStaffRouting({
+    router: config.staffEdgeRouter === 'v2' ? 'v2' : 'legacy',
+    positionNodes: canvas.positionNodes,
+    edges: canvas.edges,
+    positionById,
+    personTheme: theme.person,
+    lod,
+    orgCards: orgCardBoxes,
+  });
 
-  return { canvas, staffOptions, zoneLabelBand, contentPadding, zones, routes, markedCrossings };
+  return {
+    canvas,
+    staffOptions,
+    zoneLabelBand,
+    contentPadding,
+    zones,
+    routes: routed.routedSegments,
+    markedCrossings: routed.markedCrossings,
+  };
 }

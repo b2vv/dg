@@ -17,6 +17,7 @@ function position(id: string, departmentId?: string): DiagramPosition {
 
 function scene(): StaffRoutingInput {
   return {
+    router: 'v2',
     positionNodes: [
       { id: 'b1', x: 0, y: 0, width: 40, height: 40 },
       { id: 'b2', x: 200, y: 0, width: 40, height: 40 },
@@ -112,6 +113,16 @@ describe('resolveStaffRouting', () => {
     ]);
     expect(result.markedCrossings).toEqual([{ fromId: 'b1', toId: 'b2' }]);
     expect(resolveStaffRouting(scene()).markedCrossings).toEqual([]);
+  });
+
+  it("router 'legacy' skips foreign-frame avoidance and never marks crossings", () => {
+    // Same scene whose v2 route goes *around* the foreign frame (see first test):
+    // legacy must take the frame-free direct route and report no marks.
+    const input: StaffRoutingInput = { ...scene(), router: 'legacy' };
+    const result = resolveStaffRouting(input);
+    expect(result.routedSegments).toEqual(buildStaffEdgeSegments(input.edges, edgeBoxes(input)));
+    expect(result.routedSegments[0]?.points).toEqual(direct);
+    expect(result.markedCrossings).toEqual([]);
   });
 
   it('is synchronous, repeatable and independent of node order without mutating input', () => {

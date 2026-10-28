@@ -13,7 +13,17 @@ import { unionBoxes } from './staffZoneBounds.js';
 import type { PersonNodeStyle } from './types.js';
 import { mapPositionNodesToStaffEdgeBoxes, mapStaffEdgeBoxesForLod } from './visualEdgeBox.js';
 
+/** Which routing engine a caller resolved from `config.staffEdgeRouter`. */
+export type StaffRouter = 'v2' | 'legacy';
+
 export interface StaffRoutingInput {
+  /**
+   * Resolved router, not the raw `RenderConfig`: the single seam below is the one
+   * site that both the live renderer and the SVG export route through (T126 R6-6),
+   * so neither re-implements routing and the two cannot drift. `'legacy'` skips
+   * foreign-frame avoidance and never marks crossings; `'v2'` does both.
+   */
+  router: StaffRouter;
   positionNodes: readonly { id: string; x: number; y: number; width: number; height: number }[];
   edges: StaffEdgeLink[];
   positionById: ReadonlyMap<string, DiagramPosition>;
@@ -29,8 +39,24 @@ export interface StaffRoutingResult {
   markedCrossings: Array<{ fromId: string; toId: string }>;
 }
 
-/** Route an already laid-out scene for render/export without moving its nodes. */
+/**
+ * Route an already laid-out scene for render/export without moving its nodes.
+ * The single routing seam: live geometry and SVG export both call this with the
+ * same inputs, so their link points are identical by construction (not two copies
+ * that can drift). Edge boxes are shared across both branches; only `'v2'` adds the
+ * department-frame avoidance pass and the residual-crossing marks.
+ */
 export function resolveStaffRouting(input: StaffRoutingInput): StaffRoutingResult {
+  const edgeBoxes = mapStaffEdgeBoxesForLod(
+    mapPositionNodesToStaffEdgeBoxes(input.positionNodes, input.positionById, input.personTheme),
+    input.orgCards,
+    input.lod,
+  );
+
+  if (input.router === 'legacy') {
+    return { routedSegments: buildStaffEdgeSegments(input.edges, edgeBoxes), markedCrossings: [] };
+  }
+
   const { memberBoxesByDept } = contourSceneInputs(input.positionNodes, input.positionById);
   const deptFrames: StaffEdgeFrame[] = [];
   for (const [deptId, members] of memberBoxesByDept) {
@@ -40,11 +66,6 @@ export function resolveStaffRouting(input: StaffRoutingInput): StaffRoutingResul
     deptFrames.push({ deptId, rect, memberIds: new Set(members.map((member) => member.positionId)) });
   }
 
-  const edgeBoxes = mapStaffEdgeBoxesForLod(
-    mapPositionNodesToStaffEdgeBoxes(input.positionNodes, input.positionById, input.personTheme),
-    input.orgCards,
-    input.lod,
-  );
   const routedSegments = buildStaffEdgeSegments(input.edges, edgeBoxes, deptFrames);
   const boxById = new Map(edgeBoxes.map((box) => [box.id, box]));
   const markedCrossings: StaffRoutingResult['markedCrossings'] = [];
