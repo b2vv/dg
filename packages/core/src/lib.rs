@@ -5,6 +5,7 @@ mod ploeg_layout;
 mod staff_bounds;
 mod staff_compose;
 mod staff_packing;
+mod staff_routes;
 mod types;
 
 use serde_wasm_bindgen::{from_value, to_value};
@@ -19,6 +20,7 @@ pub use staff_compose::{
     ExpandedBlock, OrgCardInput, OrgCardOptions, OrgCardsResult, TierBlock,
 };
 pub use staff_packing::{pack_departments, DepartmentMembers, StaffPackResult};
+pub use staff_routes::staff_routes;
 pub use types::*;
 
 /// Row-tree layout для org: validate → subtree → Ploeg layered tidy
