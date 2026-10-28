@@ -90,6 +90,43 @@ fn elbow_or_straight(ax: f32, ay: f32, bx: f32, by: f32, corr: f32) -> Vec<Staff
     ]
 }
 
+/// Бічний обхід (R6-4b): H-V-H навколо рамки — вихід униз, біг до вертикального коридору `lane_x`
+/// збоку рамки, спуск уздовж нього, повернення до верху цілі. Нульові сегменти (lane_x==ax чи ==bx)
+/// згортаються, тож маршрут лишається ортогональним без дублів-точок.
+fn side_detour(
+    ax: f32,
+    from_bottom: f32,
+    bx: f32,
+    to_top: f32,
+    lane_x: f32,
+) -> Vec<StaffRoutePoint> {
+    let raw = [
+        StaffRoutePoint {
+            x: ax,
+            y: from_bottom,
+        },
+        StaffRoutePoint {
+            x: lane_x,
+            y: from_bottom,
+        },
+        StaffRoutePoint {
+            x: lane_x,
+            y: to_top,
+        },
+        StaffRoutePoint { x: bx, y: to_top },
+    ];
+    let mut out: Vec<StaffRoutePoint> = Vec::with_capacity(4);
+    for p in raw {
+        if let Some(last) = out.last() {
+            if (last.x - p.x).abs() < STRAIGHT_EPS && (last.y - p.y).abs() < STRAIGHT_EPS {
+                continue;
+            }
+        }
+        out.push(p);
+    }
+    out
+}
+
 /// Резолв кінця ребра в per-LOD edge-бокс. Precedence person→org (P1); hints — лише до персон.
 fn resolve_box(
     id: &str,
@@ -148,6 +185,9 @@ fn build_card_set(
 
 /// Перешкоди одного ребра: картки (крім власних кінців за id) + ЧУЖІ рамки (крім рідної — per-part A,
 /// self-exempt коли ключ рамки == член джерела чи цілі). Детермінований порядок: картки, потім рамки.
+/// Повертає `(усі перешкоди, індекс першої рамки)`: картки йдуть першими, далі self-exempted
+/// чужі рамки. Хвіст `obs[frames_at..]` — лише рамки, джерело X-кандидатів бічного обходу (R6-4b,
+/// «високих **рамок**»); картки свій бічний обхід не отримують.
 fn obstacles_for_edge(
     cards: &[EdgeRect],
     frames: &[FrameRect],
@@ -155,13 +195,14 @@ fn obstacles_for_edge(
     to_id: &str,
     src: &Option<DeptPart>,
     dst: &Option<DeptPart>,
-) -> Vec<ObstacleRect> {
+) -> (Vec<ObstacleRect>, usize) {
     let mut obs: Vec<ObstacleRect> = Vec::new();
     for c in cards {
         if c.id != from_id && c.id != to_id {
             obs.push(obstacle_rect(c));
         }
     }
+    let frames_at = obs.len();
     for f in frames {
         let k = f.key();
         if Some(&k) == src.as_ref() || Some(&k) == dst.as_ref() {
@@ -169,7 +210,7 @@ fn obstacles_for_edge(
         }
         obs.push((f.x, f.y, f.width, f.height));
     }
-    obs
+    (obs, frames_at)
 }
 
 /// Чи полілінія тримає ≥pad від УСІХ перешкод.
@@ -190,6 +231,7 @@ fn detour_edge(
     from: &EdgeRect,
     to: &EdgeRect,
     obstacles: &[ObstacleRect],
+    frames: &[ObstacleRect],
     pad: f32,
 ) -> Vec<StaffRoutePoint> {
     let base = route_ortho(from, to);
@@ -200,7 +242,7 @@ fn detour_edge(
     let ax = from.x + from.width / 2.0;
     let bx = to.x + to.width / 2.0;
     if (ax - bx).abs() < STRAIGHT_EPS {
-        return base; // пряма вертикаль: corridorY-зсув не допоможе → залишок
+        return base; // пряма вертикаль: ні corridorY-зсув, ні бічний обхід не допоможе → залишок
     }
     let from_bottom = from.y + from.height;
     let to_top = to.y;
@@ -226,7 +268,30 @@ fn detour_edge(
             return cand;
         }
     }
-    base // чистої локальної доріжки нема → залишок
+
+    // R6-4b бічний обхід: жодна Y-доріжка не чиста (висока рамка перекриває колонки ax/bx).
+    // Пробуємо вертикальний коридор ЗБОКУ кожної РАМКИ (не картки — scope «високих рамок»).
+    // Кандидата валідуємо проти ВСІХ перешкод; детермінований порядок — ближчий до колони першим.
+    let mut xlanes: Vec<f32> = Vec::new();
+    for &(rx, _, rw, _) in frames {
+        xlanes.push(rx - pad);
+        xlanes.push(rx + rw + pad);
+    }
+    xlanes.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    xlanes.dedup_by(|a, b| (*a - *b).abs() < LANE_DEDUP_EPS);
+    xlanes.sort_by(|a, b| {
+        let da = (a - ax).abs().min((a - bx).abs());
+        let db = (b - ax).abs().min((b - bx).abs());
+        da.partial_cmp(&db).unwrap().then(a.partial_cmp(b).unwrap())
+    });
+    for lane_x in xlanes {
+        let cand = side_detour(ax, from_bottom, bx, to_top, lane_x);
+        if route_clear_of(&cand, obstacles, pad) {
+            return cand;
+        }
+    }
+
+    base // ні Y-доріжки, ні бічного обходу — залишок
 }
 
 /// Маршрути для одного LOD. При `card_pad>0` — з локальним обходом карток і чужих рамок; §12-маркер
@@ -274,7 +339,7 @@ pub fn staff_routes(input: &RouteInputs) -> StaffRouteSet {
 
         let points = if avoid {
             let (src, dst) = (mo(&edge.from_id), mo(&edge.to_id));
-            let obs = obstacles_for_edge(
+            let (obs, frames_at) = obstacles_for_edge(
                 &cards,
                 input.department_frames,
                 &edge.from_id,
@@ -282,7 +347,7 @@ pub fn staff_routes(input: &RouteInputs) -> StaffRouteSet {
                 &src,
                 &dst,
             );
-            detour_edge(&from, &to, &obs, input.card_pad)
+            detour_edge(&from, &to, &obs, &obs[frames_at..], input.card_pad)
         } else {
             route_ortho(&from, &to)
         };
@@ -704,21 +769,73 @@ mod tests {
         ));
     }
 
-    // Чужа рамка, НЕРОЗВ'ЯЗНА локально (широка): залишок → §12-маркер Some(true).
+    // Чужа рамка НА ВЕРТИКАЛІ між вирівняними колонками: ні Y-, ні X-детур не допоможе
+    // (прямий дроп, рання віддача до бічних кандидатів) → залишок → §12-маркер Some(true).
+    // R6-4b: бічний обхід свідомо НЕ огинає рамку, що сидить рівно на вирівняній колонці.
     #[test]
     fn foreign_frame_unresolvable_is_marked() {
         let nodes = [
             node_dept("P", 100.0, 0.0, 100.0, 50.0, "d1"),
-            node_dept("c1", 0.0, 200.0, 100.0, 50.0, "d1"),
+            node_dept("c1", 100.0, 200.0, 100.0, 50.0, "d1"), // ВИРІВНЯНА з P колонка (ax==bx)
         ];
-        let frames = [frame("dF", 55.0, 110.0, 90.0, 30.0)]; // широка, впритул до обох колонок
+        let frames = [frame("dF", 120.0, 110.0, 60.0, 30.0)]; // на вертикалі x=150 між колонками
         let edges = [edge("P", "c1")];
         let avoided = staff_routes(&frames_input(&nodes, &edges, &frames, "near", 16.0));
         assert_eq!(
             avoided.segments[0].marked,
             Some(true),
-            "нерозв'язна чужа рамка має дати §12-маркер"
+            "рамка на вирівняній колонці нерозв'язна бічним обходом → §12-маркер"
         );
+    }
+
+    // R6-4b: чужа рамка валить усі Y-доріжки (R6-4a лишала її §12-залишком), але розв'язна
+    // БІЧНИМ обходом — вертикальний коридор збоку рамки. marked зникає, коридор іде поза колонками.
+    #[test]
+    fn foreign_frame_resolvable_via_side_detour() {
+        let nodes = [
+            node_dept("P", 100.0, 0.0, 100.0, 50.0, "d1"), // ax=150, bottom=50
+            node_dept("c1", 0.0, 200.0, 100.0, 50.0, "d1"), // bx=50, top=200
+        ];
+        let frames = [frame("dF", 55.0, 110.0, 90.0, 30.0)]; // x∈[55,145] — валить Y-доріжки
+        let edges = [edge("P", "c1")];
+        let base = staff_routes(&avoid_input(&nodes, &edges, "near", 0.0));
+        let avoided = staff_routes(&frames_input(&nodes, &edges, &frames, "near", 16.0));
+        assert_eq!(
+            avoided.segments[0].marked, None,
+            "бічний обхід має зняти §12-маркер"
+        );
+        assert!(!points_eq(
+            &avoided.segments[0].points,
+            &base.segments[0].points
+        ));
+        assert!(
+            avoided.segments[0]
+                .points
+                .iter()
+                .any(|p| p.x > 151.0 || p.x < 49.0),
+            "бічний коридор має вийти за межі колонок [50,150]"
+        );
+    }
+
+    // R6-4b: бічний обхід детермінований — реордер входу рамок не змінює маршрут (H6).
+    #[test]
+    fn side_detour_is_deterministic_across_frame_reorder() {
+        let nodes = [
+            node_dept("P", 100.0, 0.0, 100.0, 50.0, "d1"),
+            node_dept("c1", 0.0, 200.0, 100.0, 50.0, "d1"),
+        ];
+        let edges = [edge("P", "c1")];
+        let f_ab = [
+            frame("dF", 55.0, 110.0, 90.0, 30.0),
+            frame("dG", 300.0, 110.0, 40.0, 30.0),
+        ];
+        let f_ba = [
+            frame("dG", 300.0, 110.0, 40.0, 30.0),
+            frame("dF", 55.0, 110.0, 90.0, 30.0),
+        ];
+        let a = staff_routes(&frames_input(&nodes, &edges, &f_ab, "near", 16.0));
+        let b = staff_routes(&frames_input(&nodes, &edges, &f_ba, "near", 16.0));
+        assert!(points_eq(&a.segments[0].points, &b.segments[0].points));
     }
 
     // РІДНА рамка (член) НЕ перешкода й НЕ маркер, навіть якщо маршрут крізь неї (per-part A).
@@ -745,14 +862,15 @@ mod tests {
         use crate::staff_clearance::foreign_frame_intrusions;
         let nodes = [
             node_dept("P", 100.0, 0.0, 100.0, 50.0, "d1"),
-            node_dept("c1", 0.0, 200.0, 100.0, 50.0, "d1"),
+            node_dept("c1", 100.0, 200.0, 100.0, 50.0, "d1"), // вирівняна колонка → нерозв'язно
         ];
-        let frames = [frame("dF", 55.0, 110.0, 90.0, 30.0)];
+        let frames = [frame("dF", 120.0, 110.0, 60.0, 30.0)];
         let edges = [edge("P", "c1")];
         let set = staff_routes(&frames_input(&nodes, &edges, &frames, "near", 16.0));
         let mo = |id: &str| member_of(id, &nodes);
         let detector = foreign_frame_intrusions(&set.segments, &frames, &mo);
         let marked = set.segments[0].marked == Some(true);
+        assert!(detector > 0, "фікстура має лишати залишок (не вакуумна)");
         assert_eq!(marked, detector > 0, "маркер має збігатись із детектором");
     }
 
