@@ -3,6 +3,8 @@ mod org_layout;
 mod org_tree;
 mod ploeg_layout;
 mod staff_bounds;
+#[cfg(test)]
+mod staff_clearance;
 mod staff_compose;
 mod staff_edge_box;
 mod staff_packing;
