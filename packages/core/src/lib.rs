@@ -2,6 +2,7 @@ mod hierarchy;
 mod org_layout;
 mod org_tree;
 mod ploeg_layout;
+mod staff_compose;
 mod staff_packing;
 mod types;
 
@@ -11,6 +12,10 @@ use wasm_bindgen::prelude::*;
 pub use hierarchy::build_from_flat;
 pub use org_layout::compute_org_row_tree_layout;
 pub use org_tree::{extract_subtree, validate_org_hierarchy, OrgTreeError};
+pub use staff_compose::{
+    canvas_dimensions, compose_org_cards, compose_tiers, CanvasDimensions, ComposeResult,
+    ExpandedBlock, OrgCardInput, OrgCardOptions, OrgCardsResult, TierBlock,
+};
 pub use staff_packing::{pack_departments, DepartmentMembers, StaffPackResult};
 pub use types::*;
 
