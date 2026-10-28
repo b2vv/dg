@@ -6,6 +6,7 @@ import {
 import {
   arrowHeadTriangle,
   drawEdgeEndDots,
+  ENTRY_DOT_RADIUS,
   shortenPolylineForArrow,
   traceRoundedPolyline,
 } from './staffEdgeArrows.js';
@@ -82,11 +83,13 @@ export class StaffEdgesView extends Container {
         ? { ...markedStyle, color: edge?.accentColor ?? 0xe5491d, width: edge?.accentWidth ?? 2 }
         : markedStyle;
       const alpha = dim && !accented ? (edge?.dimAlpha ?? 0.40) : 1;
-      const withArrow = !dotted && seg.kind === 'admin';
+      // deptTop head-target edges terminate in the entry circle, not an arrow.
+      const withArrow = !dotted && seg.kind === 'admin' && !seg.endsOnDeptTop;
       if (style.dash) {
         drawDashedPolyline(this.graphics, seg.points, style.dash);
         this.graphics.stroke({ color: style.color, width: style.width, alpha });
         if (dotted) drawEdgeEndDots(this.graphics, seg.points, style.color, dotRadius, alpha);
+        if (seg.endsOnDeptTop) drawEntryDot(this.graphics, seg.points, style.color, alpha);
         continue;
       }
       const pts = seg.points;
@@ -99,8 +102,17 @@ export class StaffEdgesView extends Container {
       } else if (dotted) {
         drawEdgeEndDots(this.graphics, pts, style.color, dotRadius, alpha);
       }
+      if (seg.endsOnDeptTop) drawEntryDot(this.graphics, pts, style.color, alpha);
     }
   }
+}
+
+/** The `deptTop` entry marker at the route's last point (lines mockup `.ent`). */
+function drawEntryDot(g: Graphics, points: StaffEdgePoint[], color: number, alpha: number): void {
+  const end = points[points.length - 1];
+  if (!end) return;
+  g.circle(end.x, end.y, ENTRY_DOT_RADIUS);
+  g.fill({ color, alpha });
 }
 
 function drawArrowHead(g: Graphics, points: StaffEdgePoint[], color: number, alpha: number): void {

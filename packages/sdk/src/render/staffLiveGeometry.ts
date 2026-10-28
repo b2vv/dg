@@ -12,6 +12,7 @@
 import type { DiagramData } from '../data/types.js';
 import type { StaffEdgeBox, StaffEdgeSegment } from '../layout/staffEdgeGeometry.js';
 import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
+import { resolveDeptHeads } from '../layout/staff/resolveDeptHeads.js';
 import {
   DEFAULT_STAFF_LAYOUT_OPTIONS,
   type StaffCanvasResult,
@@ -113,6 +114,7 @@ export async function computeStaffLiveGeometry(
     height: c.height,
   }));
   const positionById = new Map(data.positions.map((p) => [p.id, p]));
+  const deptHeadById = resolveDeptHeads(data.positions, data.reportLines);
 
   // Single routing seam, shared with the SVG export (T126 R6-6): both call
   // `resolveStaffRouting`, so their link points cannot drift.
@@ -124,6 +126,7 @@ export async function computeStaffLiveGeometry(
     personTheme: theme.person,
     lod,
     orgCards: orgCardBoxes,
+    deptHeadById,
   });
 
   return {

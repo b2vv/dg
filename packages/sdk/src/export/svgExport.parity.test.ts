@@ -152,6 +152,40 @@ describe('buildDiagramSvg — per-kind stroke in SVG (R6-7, H3 style)', () => {
     expect(svg).toContain('#94a3b8');
   });
 
+  it('admin edge into a department head draws a deptTop entry circle in SVG', async () => {
+    const mk = (id: string, departmentId?: string, isHead?: boolean) => ({
+      id,
+      title: id,
+      organizationId: 'org1',
+      departmentId,
+      groupIds: [],
+      personId: `person-${id}`,
+      status: 'filled' as const,
+      isTemporary: false,
+      isHead,
+      gridCell: { col: 0, row: 0 },
+    });
+    // Single admin edge, and it targets the department head: the only edge in
+    // the group docks on deptTop → an entry circle and NO arrow (the circle is
+    // the entry terminator, as in the mockup).
+    const data: DiagramData = {
+      organizations: [{ id: 'org1', name: 'Org', groupIds: [] }],
+      groups: [],
+      departments: [{ id: 'D1', name: 'D1', organizationId: 'org1' }],
+      persons: ['ceo', 'd1-head'].map((id) => ({ id: `person-${id}`, fullName: id })),
+      positions: [mk('ceo', undefined, true), mk('d1-head', 'D1')],
+      reportLines: [{ fromId: 'ceo', toId: 'd1-head', kind: 'admin' }],
+    };
+    const svg = await buildDiagramSvg({
+      data,
+      currentOrgId: 'org1',
+      config: { ...defaultRenderConfig, staffEdgeRouter: 'v2' },
+    });
+    const edgeGroup = svg.match(/<g id="edges">([\s\S]*?)<\/g>/)?.[1] ?? '';
+    expect(edgeGroup).toContain('<circle');
+    expect(edgeGroup).not.toContain('<polygon');
+  });
+
   it('lead-org plink renders dashed grey with no arrow in SVG', async () => {
     const svg = await buildDiagramSvg({
       data: tierScene(),

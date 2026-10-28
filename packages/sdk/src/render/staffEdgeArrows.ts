@@ -1,5 +1,10 @@
 import type { StaffEdgePoint } from '../layout/staffEdgeGeometry.js';
 
+/** Radius of the `deptTop` entry marker (lines mockup `.ent`, r=3.5). The one
+ *  source both the live painter and the SVG export read, so the marker is the
+ *  same size in each (H3). */
+export const ENTRY_DOT_RADIUS = 3.5;
+
 /** Tip + two base corners for a filled arrowhead at `to`, pointing along `from`→`to`. */
 export function arrowHeadTriangle(
   from: StaffEdgePoint,

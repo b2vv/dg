@@ -31,6 +31,10 @@ export interface StaffRoutingInput {
   lod: LodLevel;
   orgCards: readonly StaffEdgeBox[];
   framePadding?: number;
+  /** department id → head position id (lines spec §3.2): a cross-dept admin
+   *  edge into the head docks on the frame top. Computed by each caller from
+   *  reportLines so the seam stays purely geometric. */
+  deptHeadById?: ReadonlyMap<string, string>;
 }
 
 export interface StaffRoutingResult {
@@ -63,7 +67,14 @@ export function resolveStaffRouting(input: StaffRoutingInput): StaffRoutingResul
     if (deptId === NO_DEPARTMENT_ID) continue;
     const rect = unionBoxes(members, input.framePadding ?? 8);
     if (!rect) continue;
-    deptFrames.push({ deptId, rect, memberIds: new Set(members.map((member) => member.positionId)) });
+    const memberIds = new Set(members.map((member) => member.positionId));
+    const headId = input.deptHeadById?.get(deptId);
+    deptFrames.push({
+      deptId,
+      rect,
+      memberIds,
+      ...(headId !== undefined && memberIds.has(headId) ? { headId } : {}),
+    });
   }
 
   const routedSegments = buildStaffEdgeSegments(input.edges, edgeBoxes, deptFrames);

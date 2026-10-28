@@ -26,6 +26,9 @@ export interface StaffEdgeFrame {
   deptId: string;
   rect: StaffEdgeRect;
   memberIds: Set<string>;
+  /** The department head (first outside-rooted member), if any — the only
+   *  member a cross-dept admin edge docks on the frame top instead of its card. */
+  headId?: string;
 }
 
 export interface StaffEdgeBox {
@@ -69,6 +72,9 @@ export interface StaffEdgeSegment {
   y1: number;
   x2: number;
   y2: number;
+  /** The last point docks on a department frame top (deptTop): a painter draws
+   *  the entry marker there. Computed once here so neither painter re-derives it. */
+  endsOnDeptTop?: boolean;
 }
 
 /** First/last ports of the adaptive orthogonal route. */
@@ -441,7 +447,18 @@ export function buildStaffEdgeSegments(
     const from = byId.get(edge.fromId);
     const to = byId.get(edge.toId);
     if (!from || !to) continue;
-    const points = staffEdgePolyline(from, to, edge.kind, boxes, frames);
+    // A cross-dept admin edge into a department head docks on the frame top
+    // (deptTop), not the head's card: route to a synthetic port at the head
+    // card's centre-x on the frame top, keeping `to.id` so obstacle-skip and
+    // foreign-frame checks still key on the real head (lines spec §3.2/§8).
+    const headFrame =
+      edge.kind === 'admin'
+        ? frames.find((f) => f.headId === edge.toId && !f.memberIds.has(edge.fromId))
+        : undefined;
+    const routeTo: StaffEdgeBox = headFrame
+      ? { id: to.id, x: to.x + to.width / 2 - 1, y: headFrame.rect.y, width: 2, height: 2 }
+      : to;
+    const points = staffEdgePolyline(from, routeTo, edge.kind, boxes, frames);
     const first = points[0]!;
     const last = points[points.length - 1]!;
     out.push({
@@ -453,6 +470,7 @@ export function buildStaffEdgeSegments(
       y1: first.y,
       x2: last.x,
       y2: last.y,
+      ...(headFrame ? { endsOnDeptTop: true } : {}),
     });
   }
   return out;

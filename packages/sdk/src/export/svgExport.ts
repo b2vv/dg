@@ -14,11 +14,12 @@ import {
 } from '../render/types.js';
 import type { StaffEdgeSegment } from '../layout/staffEdgeGeometry.js';
 import { resolveStaffRouting } from '../render/staffRouterV2.js';
+import { resolveDeptHeads } from '../layout/staff/resolveDeptHeads.js';
 import { paintMagneticGroups } from '../render/contour/paintMagneticGroups.js';
 import type { ContourMemberBox } from '../render/contour/contourClearance.js';
 import { resolveMagnetRadius } from '../contour/magnetRadius.js';
 import { inferStaffCurrentOrgId } from '../render/inferStaffCurrentOrgId.js';
-import { arrowHeadTriangle, shortenPolylineForArrow } from '../render/staffEdgeArrows.js';
+import { arrowHeadTriangle, ENTRY_DOT_RADIUS, shortenPolylineForArrow } from '../render/staffEdgeArrows.js';
 import { staffEdgeStrokes } from '../render/staffEdgeStrokes.js';
 import { enrichStaffTierBands } from '../render/staffZoneBounds.js';
 import { contourButtonGroupMargin } from '../render/contour/contourButtonGroup.js';
@@ -298,6 +299,7 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
       personTheme,
       lod: STAFF_EXPORT_LOD,
       orgCards: orgCardBoxes,
+      deptHeadById: resolveDeptHeads(data.positions, data.reportLines),
     });
     const segments: StaffEdgeSegment[] = routing.routedSegments;
     const markedKeys = new Set(
@@ -310,7 +312,9 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
     parts.push('<g id="edges">');
     for (const s of segments) {
       const st = edgeStroke[s.kind] ?? edgeStroke.admin;
-      const withArrow = s.kind === 'admin';
+      // The deptTop entry circle is the terminator for a head-target edge, so it
+      // carries no arrowhead (mockup `.ent`).
+      const withArrow = s.kind === 'admin' && !s.endsOnDeptTop;
       const drawPts = withArrow ? shortenPolylineForArrow(s.points, ARROW_SIZE) : s.points;
       const d = drawPts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x} ${p.y}`).join(' ');
       const color = markedKeys.has(`${s.fromId}\u0000${s.toId}`) ? '#dc2626' : hexColor(st.color);
@@ -329,6 +333,10 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
             `<polygon points="${tri.map((p) => `${p.x},${p.y}`).join(' ')}" fill="${color}"/>`,
           );
         }
+      }
+      if (s.endsOnDeptTop) {
+        const end = s.points[s.points.length - 1]!;
+        parts.push(`<circle cx="${end.x}" cy="${end.y}" r="${ENTRY_DOT_RADIUS}" fill="${color}"/>`);
       }
     }
     parts.push('</g>');

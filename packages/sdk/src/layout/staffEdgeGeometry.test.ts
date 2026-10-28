@@ -141,6 +141,47 @@ describe('staffEdgeGeometry', () => {
     expect(segs[1]?.kind).toBe('matrix');
   });
 
+  it('admin edge to a department head docks on the frame top (deptTop), not the card top', () => {
+    // Manager outside the dept; head card lower than the frame top.
+    const boxes = [
+      { id: 'mgr', x: 100, y: 0, width: 120, height: 56 },
+      { id: 'head', x: 100, y: 200, width: 120, height: 56 },
+    ];
+    const frames = [
+      { deptId: 'D1', rect: { x: 90, y: 180, width: 140, height: 100 }, memberIds: new Set(['head']), headId: 'head' },
+    ];
+    const [seg] = buildStaffEdgeSegments([{ fromId: 'mgr', toId: 'head', kind: 'admin' }], boxes, frames);
+    // Ends at (head card center-x, frame top), with the head-target flag set.
+    expect(seg?.points[seg.points.length - 1]).toEqual({ x: 160, y: 180 });
+    expect(seg?.endsOnDeptTop).toBe(true);
+  });
+
+  it('non-head target and member source do NOT dock on deptTop (card top, no flag)', () => {
+    const boxes = [
+      { id: 'mgr', x: 100, y: 0, width: 120, height: 56 },
+      { id: 'head', x: 100, y: 200, width: 120, height: 56 },
+      { id: 'sub', x: 300, y: 200, width: 120, height: 56 },
+    ];
+    const frames = [
+      {
+        deptId: 'D1',
+        rect: { x: 90, y: 180, width: 360, height: 100 },
+        memberIds: new Set(['head', 'sub']),
+        headId: 'head',
+      },
+    ];
+    // Target is a non-head member → card top.
+    const toSub = buildStaffEdgeSegments([{ fromId: 'mgr', toId: 'sub', kind: 'admin' }], boxes, frames)[0];
+    expect(toSub?.endsOnDeptTop).toBeFalsy();
+    expect(toSub?.points[toSub.points.length - 1]?.y).toBe(200);
+    // Source is itself a member of the head's dept → not a cross-dept edge → card top.
+    const fromMember = buildStaffEdgeSegments([{ fromId: 'sub', toId: 'head', kind: 'admin' }], boxes, frames)[0];
+    expect(fromMember?.endsOnDeptTop).toBeFalsy();
+    // A non-admin edge to the head is never a deptTop dock.
+    const matrixToHead = buildStaffEdgeSegments([{ fromId: 'mgr', toId: 'head', kind: 'matrix' }], boxes, frames)[0];
+    expect(matrixToHead?.endsOnDeptTop).toBeFalsy();
+  });
+
   it('failure: missing endpoint skipped', () => {
     expect(
       buildStaffEdgeSegments([{ fromId: 'a', toId: 'missing', kind: 'admin' }], [
