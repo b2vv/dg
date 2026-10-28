@@ -170,3 +170,45 @@ per-LOD боксів (lod-параметр нарешті активний). Edg
   міняється → regen не тригериться.
 - edgePort==='center' резолвиться в TS upstream (повертає box без hints → Rust None → повний бокс) —
   лишається в TS. mid/far ІГНОРУЮТЬ hints (усі лейаути → однакова band/dot). NaN/від'ємні — поза scope.
+
+---
+
+## R6-3 ДИЗАЙН (Dg22) — перед критиком. ⚠️ Сесія вже за session-guard (4МБ).
+**Оракул обходу:** `_shps-routing-probe/clearance.ts` (segRectDistance точна, cardClearance ≥8px
+MIN_CLEARANCE_PX=8, throughThirdFrame §3.2) + `staffEdgeGeometry.ts::edgeIntrudesForeignFrame:244`.
+
+**Напруга R6-3/R6-4:** детектори = ВИМІР; власне ОБХІД (0 порушень) = важкий алгоритм (around-frame
+lane + §12 K-loop релаксація) — а §12 K-loop прямо заявлений як R6-4. Тобто «0 порушень» на R6-3 або
+тягне R6-4-алгоритм, або R6-3 лишає naive-маршрути, що порушують (детектор це покаже).
+
+**ПРОПОЗИЦІЯ суб-нарізки (критику/власнику):**
+- **R6-3a (безпечно зараз):** (1) інтеграція — staff_routes маршрутизує по per-LOD боксах
+  (persons через visual_person_edge_box+hints, org-cards через visual_org_edge_box), закрити HOLE-1
+  (threading hints плейн-параметром) + HOLE-2 (org-cards у lookup, не мовчазний skip); (2) побудова
+  набору перешкод у Rust (картки/obstacle, чужі рамки, `.dn`=R5 label-band); (3) ПОРТ детекторів
+  (segRectDistance/cardClearance/throughThirdFrame/foreignFrame) як Rust-оракул. Тести: детектор вірно
+  МІРЯЄ (фікстура з інтрузією → violations>0; чиста → 0); інтеграція дає per-LOD persons+orgs.
+  НЕ заявляє «0 порушень» (феча обходу ще нема) — чесно.
+- **R6-3b (обхід) + R6-4 (§12 K-loop): свіжою сесією** — власне around-routing з 0 порушень/маркером.
+
+**Питання критику:** чи R6-3a чесний самостійний зріз (детектор+інтеграція без обходу), чи це
+«assert true without feature»? Де точно різати R6-3a|R6-3b|R6-4? Пастки інтеграції (threading, org-cards,
+порядок боксів, паритет)? Чи порт детекторів дублює «дві правди» з TS?
+
+## КРИТИК R6-3a (_r6-3a-critic-dg22.md) — ЖОВТИЙ. Межа уточнена, 3 правки + семантичне рішення.
+**Межа (критик, остаточне — власнику):** R6-3a = інтеграція (per-LOD порти + org-cards lookup) +
+набір перешкод + ПОРТ детекторів як test-only ВИМІР (без обходу). R6-3b = обхід КАРТОК (8px).
+R6-4 = §12 around-frame lane + K-loop + маркер (frame+edge-edge). around-frame lane → R6-4, НЕ R6-3b.
+**3 правки дизайну перед кодом R6-3a:**
+1. Детектор-тести на РУЧНИХ полілініях (дискримінація: інтрузія→N, чиста→0), ОКРЕМО від інтеграц-тестів
+   (per-LOD порти). НЕ годувати вихід staff_routes у детектор з асертом ==0 (брехня/падіння) чи >0 (слабко).
+2. Уніфікований lookup {id, kind:Person|Org, geo} keyed by id (node.id vs org_card.org_id!); кожен несе
+   свою box-fn. Підтвердити ребро person→org цілить to_id==org_id. Вмикає наївну cross-tier геометрію — зафіксувати.
+3. label_band витягти ОКРЕМИМ входом (губиться в enrich, staff_bounds.rs:143-151); band-rect=
+   {ns.x,ns.y,ns.width,label_band}; band є перешкодою FOREIGN-ONLY (не band ярусу-джерела/цілі) — як рамки.
+**Пастки:** P-A членство рамок з department_id (нема memberIds); part_index → кілька рамок на відділ:
+  ребро part0 у рамці part1 того ж відділу — TS рахує ЧУЖОЮ (рішення власника/assumption). P-B три різні
+  self-exemption (картки id, рамки членство, band tier) — єдиний id-простір. P-C перешкоди ЗМІШАНІ за LOD
+  (persons/orgs shrink; рамки/band LOD-інваріантні). P-D corridorY тепер від visual-боксів. P-E детермінований
+  порядок перешкод. Детектори test-only (#[cfg(test)]), obstacle-rust розгортає figma-row obstacle, f32-eps
+  > 1e-9, асерти КАТЕГОРІАЛЬНІ, фікстури далеко від 8px-порога.
