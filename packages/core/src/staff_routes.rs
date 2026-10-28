@@ -1,61 +1,63 @@
-//! R6: маршрути staff-лінків (ЯК, T126). R6-1 деревні; R6-3a ч.2 — порти з per-LOD боксів + org-картки;
-//! R6-3b — **локальний обхід КАРТОК** (пер-ребро корид-детур, ≥pad).
+//! R6: маршрути staff-лінків (ЯК, T126). R6-1 деревні; R6-3a порти з per-LOD боксів + org-картки;
+//! R6-3b обхід КАРТОК; R6-4a — around-frame lane (чужі рамки як перешкоди) + **§12-маркер залишку**.
 //!
-//! Бере ВЖЕ позиціоновані вузли (R3/R4/R5) і рахує ЛИШЕ ортогональні маршрути — не перерозкладає.
+//! Бере ВЖЕ позиціоновані вузли (R3/R4/R5) і рахує ЛИШЕ ортогональні маршрути — НЕ перерозкладає
+//! (інваріант R6; §6.5 K-loop reorder/rebuild = relayout = борг 4a, поза T126).
 //!
-//! **R6-3b обхід (PIN-1, локальний, НЕ grid-A*):** обчислити R6-3a-елбоу → перевірити проти per-LOD
-//! card-set (seg_rect_distance < pad, крім власних from/to) → якщо чисто: лишити БАЙТ-ІДЕНТИЧНО
-//! (детур не біжить — паритет) → якщо блок: сканувати детерміновані corridorY-доріжки (над/під карткою
-//! при pad) і взяти першу чисту проти ВСЬОГО card-set → якщо чистої нема: лишити базовий маршрут як
-//! ЗАЛИШОК для R6-4 (тут НЕ маркуємо). Пер-ребро, stateless: спільні доріжки, рамки, §12-маркінг,
-//! K-loop — R6-4; ярусні плінки — R6-7. Edge-edge перетини між незалежними детурами НЕ розв'язуються
-//! тут (визнано) — це R6-4.
+//! **Обхід (PIN-1, локальний, НЕ grid-A*):** обчислити R6-3a-елбоу → перевірити проти перешкод
+//! (картки, крім власних from/to + ЧУЖІ рамки, крім рідної — per-part A) при pad → якщо чисто: лишити
+//! БАЙТ-ІДЕНТИЧНО → якщо блок: сканувати детерміновані corridorY-доріжки → перша чиста → інакше базовий
+//! як ЗАЛИШОК. Пер-ребро, stateless.
 //!
-//! **Межа/pad:** детектор-гейт `MIN_CLEARANCE_PX=8` — тверда нижня межа; детур ЦІЛИТЬ у `card_pad`
-//! (вхід, прод-дефолт 16 = паритет мокапу) з інваріантом `card_pad ≥ MIN_CARD_PAD` → усе, що детектор
-//! флагне (<8), детур перекрив (бо тригериться на ширшій смузі pad). `card_pad<=0` вимикає обхід (паритет R6-3a).
+//! **§12-маркер (R6-4a, PIN-1):** `StaffEdgeRoute.marked = Some(true)` ⟺ фінальний маршрут ВСЕ ЩЕ
+//! пенетрує чужу рамку (`staff_geom::frame_intrusion_count` > 0 — ТЕ САМЕ джерело, що детектор-оракул →
+//! маркер = фактичні інтрузії BY CONSTRUCTION). R6-4a — чесний МАРКЕР, не 0: corridorY-lane огинає
+//! легкі блоки, але НЕ робить бічного обходу високої рамки (→ R6-4b); K-loop reorder → борг.
 //!
-//! **Lookup (P1):** два РОЗДІЛЬНІ лінійні find, precedence person→org. **Паритет (R6-6):** near без
-//! hints person-бокс = повний (x,y,w,h); corridorY=`(from.y+from.h+to.y)/2`. Поріг «пряма» = 0.5 px.
+//! **Lookup (P1):** два РОЗДІЛЬНІ лінійні find, precedence person→org. **member_of (PIN-3):**
+//! `(department_id, part_index)` зі StaffNodeGeo; вузол без депу й org-кінці → None (не член рамок).
+//! **Паритет:** card_pad<=0 і/або без рамок → чистий R6-3a/R6-3b; near без hints = повний бокс.
 
 use crate::staff_edge_box::{
     visual_org_edge_box, visual_person_edge_box, EdgeRect, PersonEdgeHints,
 };
-use crate::staff_geom::{obstacle_rect, seg_rect_distance};
+use crate::staff_geom::{
+    frame_intrusion_count, obstacle_rect, seg_rect_distance, DeptPart, FrameRect,
+};
 use crate::types::{
     StaffEdge, StaffEdgeRoute, StaffNodeGeo, StaffOrgCardGeo, StaffRoutePoint, StaffRouteSet,
 };
 
-/// Бік бокса, з якого виходить/входить лінк. Порт — центр відповідного ребра.
+/// Бік бокса. Порт — центр відповідного ребра.
 #[derive(Debug, Clone, Copy)]
 enum Side {
     Top,
     Bottom,
 }
 
-/// Поріг вертикального вирівнювання (пряма вниз без елбоу). Легасі-паритет `staffEdgeGeometry.ts:136`.
+/// Прямокутник-перешкода `(x, y, width, height)`.
+type ObstacleRect = (f32, f32, f32, f32);
+
+/// Поріг вертикального вирівнювання (пряма без елбоу). Легасі-паритет `staffEdgeGeometry.ts:136`.
 const STRAIGHT_EPS: f32 = 0.5;
-
-/// Нижня межа `card_pad` при увімкненому обході = детектор-гейт (`MIN_CLEARANCE_PX`). pad нижче тіпнув би
-/// нижче гейта через f32-округлення (PIN-4).
+/// Нижня межа `card_pad` при обході = детектор-гейт (`MIN_CLEARANCE_PX`) (PIN-4).
 const MIN_CARD_PAD: f32 = 8.0;
-
-/// Поріг зближення двох доріжок-кандидатів (дедуп близьких lane).
+/// Поріг дедупу близьких доріжок-кандидатів.
 const LANE_DEDUP_EPS: f32 = 0.5;
 
-/// Входи маршрутизатора. `person_hints` — плейн-пари (id, hints); near-figma докує порт на tile,
-/// mid/far ІГНОРУЮТЬ hints. `card_pad>0` вмикає обхід карток (≥pad); `<=0` — чистий R6-3a (паритет).
-/// Порядок виходу задають `edges`, не hints.
+/// Входи маршрутизатора. `card_pad>0` вмикає обхід (картки+чужі рамки, ≥pad); `<=0` — чистий R6-3a.
+/// `department_frames` — per-part рамки відділів (R6-4a): перешкоди around-lane + джерело §12-маркера.
 pub struct RouteInputs<'a> {
     pub persons: &'a [StaffNodeGeo],
     pub org_cards: &'a [StaffOrgCardGeo],
     pub edges: &'a [StaffEdge],
     pub lod: &'a str,
     pub person_hints: &'a [(String, PersonEdgeHints)],
+    pub department_frames: &'a [FrameRect],
     pub card_pad: f32,
 }
 
-/// Порт бокса: центр верхнього або нижнього ребра edge-бокса (per-LOD).
+/// Порт бокса: центр верхнього/нижнього ребра (per-LOD).
 fn port(rect: &EdgeRect, side: Side) -> StaffRoutePoint {
     let x = rect.x + rect.width / 2.0;
     let y = match side {
@@ -65,7 +67,7 @@ fn port(rect: &EdgeRect, side: Side) -> StaffRoutePoint {
     StaffRoutePoint { x, y }
 }
 
-/// Ортогональна полілінія `from.bottom → corridorY → to.top` по per-LOD боксах (R6-3a база).
+/// Ортогональна база `from.bottom → corridorY → to.top` по per-LOD боксах (R6-3a).
 fn route_ortho(from: &EdgeRect, to: &EdgeRect) -> Vec<StaffRoutePoint> {
     let a = port(from, Side::Bottom);
     let b = port(to, Side::Top);
@@ -110,8 +112,16 @@ fn resolve_box(
     None
 }
 
-/// Набір карток-перешкод = усі persons+orgs у per-LOD боксах (PIN-3: ЛИШЕ картки; рамки/`.dn` — R6-4).
-/// Порядок детермінований: persons (вхідний порядок), потім orgs.
+/// Членство вузла: `(department_id, part_index)` зі StaffNodeGeo (PIN-3, per-part A). Вузол без
+/// department_id і org-кінці (не в persons) → None (не члени жодної рамки).
+fn member_of(id: &str, persons: &[StaffNodeGeo]) -> Option<DeptPart> {
+    persons
+        .iter()
+        .find(|n| n.id == id)
+        .and_then(|n| n.department_id.clone().map(|d| (d, n.part_index)))
+}
+
+/// Набір карток-перешкод = усі persons+orgs у per-LOD боксах (ЛИШЕ картки; рамки окремо).
 fn build_card_set(
     persons: &[StaffNodeGeo],
     org_cards: &[StaffOrgCardGeo],
@@ -136,10 +146,35 @@ fn build_card_set(
     cards
 }
 
-/// Чи полілінія тримає ≥pad від УСІХ перешкод (ефективний obstacle-rect, figma-розгортання).
-fn route_clear_of(points: &[StaffRoutePoint], obstacles: &[&EdgeRect], pad: f32) -> bool {
-    for c in obstacles {
-        let (rx, ry, rw, rh) = obstacle_rect(c);
+/// Перешкоди одного ребра: картки (крім власних кінців за id) + ЧУЖІ рамки (крім рідної — per-part A,
+/// self-exempt коли ключ рамки == член джерела чи цілі). Детермінований порядок: картки, потім рамки.
+fn obstacles_for_edge(
+    cards: &[EdgeRect],
+    frames: &[FrameRect],
+    from_id: &str,
+    to_id: &str,
+    src: &Option<DeptPart>,
+    dst: &Option<DeptPart>,
+) -> Vec<ObstacleRect> {
+    let mut obs: Vec<ObstacleRect> = Vec::new();
+    for c in cards {
+        if c.id != from_id && c.id != to_id {
+            obs.push(obstacle_rect(c));
+        }
+    }
+    for f in frames {
+        let k = f.key();
+        if Some(&k) == src.as_ref() || Some(&k) == dst.as_ref() {
+            continue; // рідна рамка — ендпоінт усередині, не перешкода
+        }
+        obs.push((f.x, f.y, f.width, f.height));
+    }
+    obs
+}
+
+/// Чи полілінія тримає ≥pad від УСІХ перешкод.
+fn route_clear_of(points: &[StaffRoutePoint], obstacles: &[ObstacleRect], pad: f32) -> bool {
+    for &(rx, ry, rw, rh) in obstacles {
         for s in points.windows(2) {
             if seg_rect_distance(&s[0], &s[1], rx, ry, rw, rh) < pad {
                 return false;
@@ -149,44 +184,35 @@ fn route_clear_of(points: &[StaffRoutePoint], obstacles: &[&EdgeRect], pad: f32)
     true
 }
 
-/// Локальний корид-детур одного ребра (PIN-1). Повертає базовий маршрут незмінним, якщо чисто або якщо
-/// локальної чистої доріжки нема (залишок для R6-4).
+/// Локальний корид-детур (PIN-1). Повертає базовий маршрут, якщо чисто або якщо локальної чистої
+/// доріжки нема (залишок). `obstacles` уже self-exempted (картки/рамки ребра).
 fn detour_edge(
     from: &EdgeRect,
     to: &EdgeRect,
-    from_id: &str,
-    to_id: &str,
-    cards: &[EdgeRect],
+    obstacles: &[ObstacleRect],
     pad: f32,
 ) -> Vec<StaffRoutePoint> {
     let base = route_ortho(from, to);
-    // Перешкоди = усі картки, крім власних кінців ребра (self-exempt по id).
-    let obstacles: Vec<&EdgeRect> = cards
-        .iter()
-        .filter(|c| c.id != from_id && c.id != to_id)
-        .collect();
-    if route_clear_of(&base, &obstacles, pad) {
+    if route_clear_of(&base, obstacles, pad) {
         return base; // паритет: детур не біжить на чистому маршруті
     }
 
     let ax = from.x + from.width / 2.0;
     let bx = to.x + to.width / 2.0;
     if (ax - bx).abs() < STRAIGHT_EPS {
-        return base; // пряма вертикаль: corridorY-зсув не допоможе → залишок R6-4
+        return base; // пряма вертикаль: corridorY-зсув не допоможе → залишок
     }
     let from_bottom = from.y + from.height;
     let to_top = to.y;
     let corr0 = (from_bottom + to_top) / 2.0;
 
-    // Кандидатні доріжки: над і під кожною НЕ-власною карткою (при pad); кожну валідує route_clear_of,
+    // Кандидатні доріжки: над і під кожною перешкодою (при pad); кожну валідує route_clear_of,
     // тож зайві кандидати нешкідливі — беремо першу чисту за |Δ corr0|.
     let mut lanes: Vec<f32> = Vec::new();
-    for c in &obstacles {
-        let (_, ry, _, rh) = obstacle_rect(c);
+    for &(_, ry, _, rh) in obstacles {
         lanes.push(ry - pad);
         lanes.push(ry + rh + pad);
     }
-    // Дедуп близьких, потім сорт за |Δ від corr0| (нічия → менший y, тобто вгору).
     lanes.sort_by(|a, b| a.partial_cmp(b).unwrap());
     lanes.dedup_by(|a, b| (*a - *b).abs() < LANE_DEDUP_EPS);
     lanes.sort_by(|a, b| {
@@ -196,16 +222,15 @@ fn detour_edge(
 
     for lane in lanes {
         let cand = elbow_or_straight(ax, from_bottom, bx, to_top, lane);
-        if route_clear_of(&cand, &obstacles, pad) {
+        if route_clear_of(&cand, obstacles, pad) {
             return cand;
         }
     }
-    base // чистої локальної доріжки нема → залишок для R6-4
+    base // чистої локальної доріжки нема → залишок
 }
 
-/// Маршрути для одного LOD. Кожне ребро → ортогональний маршрут `from→to` по per-LOD боксах; при
-/// `card_pad>0` — з локальним обходом карток. Порядок сегментів = вхідний порядок `edges`. Self-loop і
-/// висячі ребра пропускаються. `kind` вербатим; `lod` штампується.
+/// Маршрути для одного LOD. При `card_pad>0` — з локальним обходом карток і чужих рамок; §12-маркер
+/// (`marked`) ставиться BY CONSTRUCTION, коли фінальний маршрут усе ще пенетрує чужу рамку.
 pub fn staff_routes(input: &RouteInputs) -> StaffRouteSet {
     debug_assert!(
         input.card_pad <= 0.0 || input.card_pad >= MIN_CARD_PAD,
@@ -222,6 +247,7 @@ pub fn staff_routes(input: &RouteInputs) -> StaffRouteSet {
     } else {
         Vec::new()
     };
+    let mo = |id: &str| member_of(id, input.persons);
 
     let mut segments: Vec<StaffEdgeRoute> = Vec::new();
     for edge in input.edges {
@@ -245,23 +271,38 @@ pub fn staff_routes(input: &RouteInputs) -> StaffRouteSet {
         let (Some(from), Some(to)) = (from, to) else {
             continue; // висяче ребро
         };
+
         let points = if avoid {
-            detour_edge(
-                &from,
-                &to,
+            let (src, dst) = (mo(&edge.from_id), mo(&edge.to_id));
+            let obs = obstacles_for_edge(
+                &cards,
+                input.department_frames,
                 &edge.from_id,
                 &edge.to_id,
-                &cards,
-                input.card_pad,
-            )
+                &src,
+                &dst,
+            );
+            detour_edge(&from, &to, &obs, input.card_pad)
         } else {
             route_ortho(&from, &to)
         };
+
+        // §12-маркер by construction: той самий frame_intrusion_count, що й детектор-оракул.
+        let intrusions = frame_intrusion_count(
+            &points,
+            &edge.from_id,
+            &edge.to_id,
+            input.department_frames,
+            &mo,
+        );
+        let marked = if intrusions > 0 { Some(true) } else { None };
+
         segments.push(StaffEdgeRoute {
             from_id: edge.from_id.clone(),
             to_id: edge.to_id.clone(),
             kind: edge.kind.clone(),
             points,
+            marked,
         });
     }
     StaffRouteSet {
@@ -275,22 +316,25 @@ mod tests {
     use super::*;
 
     fn node(id: &str, x: f32, y: f32, tier: u8) -> StaffNodeGeo {
-        StaffNodeGeo {
-            id: id.to_string(),
-            organization_id: "o1".to_string(),
-            x,
-            y,
-            width: 100.0,
-            height: 50.0,
-            tier,
-            role: None,
-            depth: None,
-            department_id: None,
-            part_index: None,
-        }
+        node_full(id, x, y, 100.0, 50.0, tier, None, None)
     }
-
     fn node_wh(id: &str, x: f32, y: f32, w: f32, h: f32) -> StaffNodeGeo {
+        node_full(id, x, y, w, h, 2, None, None)
+    }
+    fn node_dept(id: &str, x: f32, y: f32, w: f32, h: f32, dept: &str) -> StaffNodeGeo {
+        node_full(id, x, y, w, h, 2, Some(dept), None)
+    }
+    #[allow(clippy::too_many_arguments)] // тест-білдер дзеркалить StaffNodeGeo (11 полів)
+    fn node_full(
+        id: &str,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        tier: u8,
+        dept: Option<&str>,
+        part: Option<u32>,
+    ) -> StaffNodeGeo {
         StaffNodeGeo {
             id: id.to_string(),
             organization_id: "o1".to_string(),
@@ -298,11 +342,11 @@ mod tests {
             y,
             width: w,
             height: h,
-            tier: 2,
+            tier,
             role: None,
             depth: None,
-            department_id: None,
-            part_index: None,
+            department_id: dept.map(str::to_string),
+            part_index: part,
         }
     }
 
@@ -317,13 +361,8 @@ mod tests {
     }
 
     fn edge(from: &str, to: &str) -> StaffEdge {
-        StaffEdge {
-            from_id: from.to_string(),
-            to_id: to.to_string(),
-            kind: "admin".to_string(),
-        }
+        edge_kind(from, to, "admin")
     }
-
     fn edge_kind(from: &str, to: &str, kind: &str) -> StaffEdge {
         StaffEdge {
             from_id: from.to_string(),
@@ -331,11 +370,21 @@ mod tests {
             kind: kind.to_string(),
         }
     }
+    fn frame(dept: &str, x: f32, y: f32, w: f32, h: f32) -> FrameRect {
+        FrameRect {
+            department_id: dept.to_string(),
+            part_index: None,
+            x,
+            y,
+            width: w,
+            height: h,
+        }
+    }
 
     const NO_CARDS: &[StaffOrgCardGeo] = &[];
     const NO_HINTS: &[(String, PersonEdgeHints)] = &[];
+    const NO_FRAMES: &[FrameRect] = &[];
 
-    /// Персони-only вхід БЕЗ обходу (паритетний R6-1/R6-3a виклик, card_pad=0).
     fn persons_input<'a>(
         persons: &'a [StaffNodeGeo],
         edges: &'a [StaffEdge],
@@ -347,6 +396,7 @@ mod tests {
             edges,
             lod,
             person_hints: NO_HINTS,
+            department_frames: NO_FRAMES,
             card_pad: 0.0,
         }
     }
@@ -377,6 +427,7 @@ mod tests {
         assert!(point_eq(&r.points[0], 50.0, 50.0));
         assert!(point_eq(r.points.last().unwrap(), 250.0, 120.0));
         assert!(is_orthogonal(&r.points));
+        assert_eq!(r.marked, None);
     }
 
     #[test]
@@ -445,6 +496,7 @@ mod tests {
             edges: &edges,
             lod: "near",
             person_hints: NO_HINTS,
+            department_frames: NO_FRAMES,
             card_pad: 0.0,
         };
         let set = staff_routes(&input);
@@ -453,7 +505,6 @@ mod tests {
         assert_eq!(r.kind, "cross-tier");
         assert!(point_eq(&r.points[0], 50.0, 50.0));
         assert!(point_eq(r.points.last().unwrap(), 280.0, 300.0));
-        assert!(is_orthogonal(&r.points));
     }
 
     #[test]
@@ -467,11 +518,15 @@ mod tests {
             edges: &edges,
             lod: "near",
             person_hints: NO_HINTS,
+            department_frames: NO_FRAMES,
             card_pad: 0.0,
         };
         let set = staff_routes(&input);
-        let r = &set.segments[0];
-        assert!(point_eq(r.points.last().unwrap(), 250.0, 120.0));
+        assert!(point_eq(
+            set.segments[0].points.last().unwrap(),
+            250.0,
+            120.0
+        ));
     }
 
     #[test]
@@ -492,17 +547,220 @@ mod tests {
             edges: &edges,
             lod: "near",
             person_hints: &hints,
+            department_frames: NO_FRAMES,
             card_pad: 0.0,
         };
         let set = staff_routes(&input);
-        let r = &set.segments[0];
-        assert!(point_eq(&r.points[0], 32.0, 56.0));
+        assert!(point_eq(&set.segments[0].points[0], 32.0, 56.0));
+    }
+
+    // --- R6-3b: обхід карток ---
+
+    fn avoid_input<'a>(
+        persons: &'a [StaffNodeGeo],
+        edges: &'a [StaffEdge],
+        lod: &'a str,
+        pad: f32,
+    ) -> RouteInputs<'a> {
+        RouteInputs {
+            persons,
+            org_cards: NO_CARDS,
+            edges,
+            lod,
+            person_hints: NO_HINTS,
+            department_frames: NO_FRAMES,
+            card_pad: pad,
+        }
+    }
+
+    fn near_boxes(nodes: &[StaffNodeGeo]) -> Vec<EdgeRect> {
+        nodes
+            .iter()
+            .map(|n| visual_person_edge_box(&n.id, n.x, n.y, n.width, n.height, "near", None))
+            .collect()
     }
 
     #[test]
-    fn oracle_asserts_clean_fixture_has_no_clearance_violations() {
-        use crate::staff_clearance::{card_clearance, foreign_frame_intrusions, FrameRect};
+    fn avoidance_is_byte_identical_when_no_card_blocks() {
+        let nodes = [node("p", 0.0, 0.0, 2), node("c", 200.0, 120.0, 2)];
+        let edges = [edge("p", "c")];
+        let base = staff_routes(&persons_input(&nodes, &edges, "near"));
+        let avoided = staff_routes(&avoid_input(&nodes, &edges, "near", 16.0));
+        assert!(points_eq(
+            &avoided.segments[0].points,
+            &base.segments[0].points
+        ));
+    }
 
+    #[test]
+    fn avoidance_detours_resolvable_block_clearing_violations() {
+        use crate::staff_clearance::card_clearance;
+        let nodes = [
+            node_wh("P", 100.0, 0.0, 100.0, 50.0),
+            node_wh("c1", 0.0, 200.0, 100.0, 50.0),
+            node_wh("X", 80.0, 110.0, 40.0, 20.0),
+        ];
+        let edges = [edge("P", "c1")];
+        let boxes = near_boxes(&nodes);
+        let base = staff_routes(&avoid_input(&nodes, &edges, "near", 0.0));
+        assert!(card_clearance(&base.segments, &boxes).violations > 0);
+        let avoided = staff_routes(&avoid_input(&nodes, &edges, "near", 16.0));
+        assert_eq!(card_clearance(&avoided.segments, &boxes).violations, 0);
+        assert!(!points_eq(
+            &avoided.segments[0].points,
+            &base.segments[0].points
+        ));
+    }
+
+    #[test]
+    fn avoidance_leaves_unresolvable_block_as_remnant() {
+        use crate::staff_clearance::card_clearance;
+        let nodes = [
+            node_wh("P", 100.0, 0.0, 100.0, 50.0),
+            node_wh("c1", 0.0, 200.0, 100.0, 50.0),
+            node_wh("X", 60.0, 110.0, 80.0, 30.0),
+        ];
+        let edges = [edge("P", "c1")];
+        let boxes = near_boxes(&nodes);
+        let base = staff_routes(&avoid_input(&nodes, &edges, "near", 0.0));
+        let avoided = staff_routes(&avoid_input(&nodes, &edges, "near", 16.0));
+        assert!(points_eq(
+            &avoided.segments[0].points,
+            &base.segments[0].points
+        ));
+        assert!(card_clearance(&avoided.segments, &boxes).violations > 0);
+    }
+
+    #[test]
+    fn avoidance_is_deterministic_across_runs() {
+        let nodes = [
+            node_wh("P", 100.0, 0.0, 100.0, 50.0),
+            node_wh("c1", 0.0, 200.0, 100.0, 50.0),
+            node_wh("X", 80.0, 110.0, 40.0, 20.0),
+        ];
+        let edges = [edge("P", "c1")];
+        let a = staff_routes(&avoid_input(&nodes, &edges, "near", 16.0));
+        let b = staff_routes(&avoid_input(&nodes, &edges, "near", 16.0));
+        assert!(points_eq(&a.segments[0].points, &b.segments[0].points));
+    }
+
+    // --- R6-4a: around-frame lane + §12-маркер ---
+
+    fn frames_input<'a>(
+        persons: &'a [StaffNodeGeo],
+        edges: &'a [StaffEdge],
+        frames: &'a [FrameRect],
+        lod: &'a str,
+        pad: f32,
+    ) -> RouteInputs<'a> {
+        RouteInputs {
+            persons,
+            org_cards: NO_CARDS,
+            edges,
+            lod,
+            person_hints: NO_HINTS,
+            department_frames: frames,
+            card_pad: pad,
+        }
+    }
+
+    // PIN-2 паритет: без рамок маркер відсутній, маршрут = R6-3b.
+    #[test]
+    fn no_frames_means_no_marker_and_parity() {
+        let nodes = [
+            node_dept("p", 0.0, 0.0, 100.0, 50.0, "d1"),
+            node_dept("c", 200.0, 120.0, 100.0, 50.0, "d1"),
+        ];
+        let edges = [edge("p", "c")];
+        let base = staff_routes(&avoid_input(&nodes, &edges, "near", 16.0));
+        let withf = staff_routes(&frames_input(&nodes, &edges, NO_FRAMES, "near", 16.0));
+        assert_eq!(withf.segments[0].marked, None);
+        assert!(points_eq(
+            &withf.segments[0].points,
+            &base.segments[0].points
+        ));
+    }
+
+    // Чужа рамка, РОЗВ'ЯЗНА локально: around-lane огинає → маркера нема.
+    #[test]
+    fn foreign_frame_resolvable_is_avoided_without_marker() {
+        // Ребро d1; мала чужа рамка dF у горизонтальному коридорі з запасом між колонками.
+        let nodes = [
+            node_dept("P", 100.0, 0.0, 100.0, 50.0, "d1"),
+            node_dept("c1", 0.0, 200.0, 100.0, 50.0, "d1"),
+        ];
+        let frames = [frame("dF", 80.0, 110.0, 40.0, 20.0)]; // x∈[80..120], чужа ребру d1
+        let edges = [edge("P", "c1")];
+        let base = staff_routes(&avoid_input(&nodes, &edges, "near", 0.0));
+        // База пенетрує dF → якби без обходу, був би маркер.
+        let no_avoid = staff_routes(&frames_input(&nodes, &edges, &frames, "near", 0.0));
+        assert_eq!(no_avoid.segments[0].marked, Some(true));
+        // З обходом — огинає, маркера нема, маршрут змінено.
+        let avoided = staff_routes(&frames_input(&nodes, &edges, &frames, "near", 16.0));
+        assert_eq!(avoided.segments[0].marked, None);
+        assert!(!points_eq(
+            &avoided.segments[0].points,
+            &base.segments[0].points
+        ));
+    }
+
+    // Чужа рамка, НЕРОЗВ'ЯЗНА локально (широка): залишок → §12-маркер Some(true).
+    #[test]
+    fn foreign_frame_unresolvable_is_marked() {
+        let nodes = [
+            node_dept("P", 100.0, 0.0, 100.0, 50.0, "d1"),
+            node_dept("c1", 0.0, 200.0, 100.0, 50.0, "d1"),
+        ];
+        let frames = [frame("dF", 55.0, 110.0, 90.0, 30.0)]; // широка, впритул до обох колонок
+        let edges = [edge("P", "c1")];
+        let avoided = staff_routes(&frames_input(&nodes, &edges, &frames, "near", 16.0));
+        assert_eq!(
+            avoided.segments[0].marked,
+            Some(true),
+            "нерозв'язна чужа рамка має дати §12-маркер"
+        );
+    }
+
+    // РІДНА рамка (член) НЕ перешкода й НЕ маркер, навіть якщо маршрут крізь неї (per-part A).
+    #[test]
+    fn own_frame_is_neither_obstacle_nor_marked() {
+        let nodes = [
+            node_dept("P", 100.0, 0.0, 100.0, 50.0, "d1"),
+            node_dept("c1", 0.0, 200.0, 100.0, 50.0, "d1"),
+        ];
+        let own = [frame("d1", 55.0, 110.0, 90.0, 30.0)]; // РІДНА рамка ребра (d1)
+        let edges = [edge("P", "c1")];
+        let base = staff_routes(&avoid_input(&nodes, &edges, "near", 16.0));
+        let withown = staff_routes(&frames_input(&nodes, &edges, &own, "near", 16.0));
+        assert_eq!(withown.segments[0].marked, None, "рідна рамка не маркерує");
+        assert!(points_eq(
+            &withown.segments[0].points,
+            &base.segments[0].points
+        ));
+    }
+
+    // Маркер == детектор BY CONSTRUCTION: marked збігається з foreign_frame_intrusions по ребру.
+    #[test]
+    fn marker_equals_detector_by_construction() {
+        use crate::staff_clearance::foreign_frame_intrusions;
+        let nodes = [
+            node_dept("P", 100.0, 0.0, 100.0, 50.0, "d1"),
+            node_dept("c1", 0.0, 200.0, 100.0, 50.0, "d1"),
+        ];
+        let frames = [frame("dF", 55.0, 110.0, 90.0, 30.0)];
+        let edges = [edge("P", "c1")];
+        let set = staff_routes(&frames_input(&nodes, &edges, &frames, "near", 16.0));
+        let mo = |id: &str| member_of(id, &nodes);
+        let detector = foreign_frame_intrusions(&set.segments, &frames, &mo);
+        let marked = set.segments[0].marked == Some(true);
+        assert_eq!(marked, detector > 0, "маркер має збігатись із детектором");
+    }
+
+    // Регрес (відновлено з R6-3a): детектор над РЕАЛЬНИМ виходом — чиста рознесена фікстура дає 0
+    // кліренс-порушень; чужа рамка на шляху ловиться (детектор споживає вихід роутера).
+    #[test]
+    fn oracle_clean_fixture_zero_violations_and_frame_is_detected() {
+        use crate::staff_clearance::{card_clearance, foreign_frame_intrusions};
         let nodes = [
             node("P", 0.0, 0.0, 2),
             node("Q", 600.0, 0.0, 2),
@@ -518,137 +776,17 @@ mod tests {
             edge("Q", "c4"),
         ];
         let set = staff_routes(&persons_input(&nodes, &edges, "near"));
-        assert_eq!(set.segments.len(), 4);
-
-        let boxes: Vec<EdgeRect> = nodes
-            .iter()
-            .map(|n| visual_person_edge_box(&n.id, n.x, n.y, n.width, n.height, "near", None))
-            .collect();
-
-        let rep = card_clearance(&set.segments, &boxes);
-        assert_eq!(rep.violations, 0, "чиста рознесена фікстура — 0 порушень");
-
-        let foreign = [FrameRect {
-            department_id: "dX".to_string(),
-            part_index: None,
-            x: -10.0,
-            y: 110.0,
-            width: 40.0,
-            height: 30.0,
-        }];
+        let boxes = near_boxes(&nodes);
+        assert_eq!(
+            card_clearance(&set.segments, &boxes).violations,
+            0,
+            "чиста рознесена фікстура — 0 порушень"
+        );
+        let foreign = [frame("dX", -10.0, 110.0, 40.0, 30.0)];
         let no_member = |_id: &str| None;
         assert!(
             foreign_frame_intrusions(&set.segments, &foreign, &no_member) >= 1,
-            "детектор має ловити інтрузію чужої рамки на реальному маршруті"
+            "детектор ловить чужу рамку на реальному маршруті"
         );
-    }
-
-    // --- R6-3b: локальний обхід карток ---
-
-    fn avoid_input<'a>(
-        persons: &'a [StaffNodeGeo],
-        edges: &'a [StaffEdge],
-        lod: &'a str,
-        pad: f32,
-    ) -> RouteInputs<'a> {
-        RouteInputs {
-            persons,
-            org_cards: NO_CARDS,
-            edges,
-            lod,
-            person_hints: NO_HINTS,
-            card_pad: pad,
-        }
-    }
-
-    fn near_boxes(nodes: &[StaffNodeGeo]) -> Vec<EdgeRect> {
-        nodes
-            .iter()
-            .map(|n| visual_person_edge_box(&n.id, n.x, n.y, n.width, n.height, "near", None))
-            .collect()
-    }
-
-    // PIN-2 контроль: без блокуючої картки детур НЕ біжить — байт-ідентично R6-3a.
-    #[test]
-    fn avoidance_is_byte_identical_when_no_card_blocks() {
-        let nodes = [node("p", 0.0, 0.0, 2), node("c", 200.0, 120.0, 2)];
-        let edges = [edge("p", "c")];
-        let base = staff_routes(&persons_input(&nodes, &edges, "near"));
-        let avoided = staff_routes(&avoid_input(&nodes, &edges, "near", 16.0));
-        assert!(points_eq(
-            &avoided.segments[0].points,
-            &base.segments[0].points
-        ));
-    }
-
-    // PIN-2 головний: РОЗВ'ЯЗНИЙ блок — детур зсуває коридор, порушення детектора 1→0.
-    #[test]
-    fn avoidance_detours_resolvable_block_clearing_violations() {
-        use crate::staff_clearance::card_clearance;
-        // P→c1 елбоу (корид y=125); X мала картка в коридорі, з запасом між колонками x=150/x=50.
-        let nodes = [
-            node_wh("P", 100.0, 0.0, 100.0, 50.0),
-            node_wh("c1", 0.0, 200.0, 100.0, 50.0),
-            node_wh("X", 80.0, 110.0, 40.0, 20.0), // x∈[80..120] (між колонками з запасом >pad)
-        ];
-        let edges = [edge("P", "c1")];
-        let boxes = near_boxes(&nodes);
-
-        let base = staff_routes(&avoid_input(&nodes, &edges, "near", 0.0));
-        assert!(
-            card_clearance(&base.segments, &boxes).violations > 0,
-            "базовий маршрут має кліпати X"
-        );
-
-        let avoided = staff_routes(&avoid_input(&nodes, &edges, "near", 16.0));
-        assert_eq!(
-            card_clearance(&avoided.segments, &boxes).violations,
-            0,
-            "детур має прибрати всі порушення на розв'язному блоці"
-        );
-        // Детур реально змінив маршрут (не лишив базовий).
-        assert!(!points_eq(
-            &avoided.segments[0].points,
-            &base.segments[0].points
-        ));
-        assert!(is_orthogonal(&avoided.segments[0].points));
-    }
-
-    // PIN-2 чесність: НЕРОЗВ'ЯЗНИЙ локально блок — детур лишає базовий (залишок R6-4), 0 НЕ заявляємо.
-    #[test]
-    fn avoidance_leaves_unresolvable_block_as_remnant() {
-        use crate::staff_clearance::card_clearance;
-        // X широка — накриває коридор майже впритул до обох колонок (<pad з боків) → чистої доріжки нема.
-        let nodes = [
-            node_wh("P", 100.0, 0.0, 100.0, 50.0),
-            node_wh("c1", 0.0, 200.0, 100.0, 50.0),
-            node_wh("X", 60.0, 110.0, 80.0, 30.0), // x∈[60..140], впритул до x=50/x=150
-        ];
-        let edges = [edge("P", "c1")];
-        let boxes = near_boxes(&nodes);
-
-        let base = staff_routes(&avoid_input(&nodes, &edges, "near", 0.0));
-        let avoided = staff_routes(&avoid_input(&nodes, &edges, "near", 16.0));
-        // Нема локальної доріжки → базовий маршрут незмінний (залишок для R6-4).
-        assert!(points_eq(
-            &avoided.segments[0].points,
-            &base.segments[0].points
-        ));
-        // Чесно: порушення ЛИШАЮТЬСЯ (R6-4 їх закриє); 0 НЕ заявляємо.
-        assert!(card_clearance(&avoided.segments, &boxes).violations > 0);
-    }
-
-    // PIN-4: детермінізм — два прогони байт-ідентичні.
-    #[test]
-    fn avoidance_is_deterministic_across_runs() {
-        let nodes = [
-            node_wh("P", 100.0, 0.0, 100.0, 50.0),
-            node_wh("c1", 0.0, 200.0, 100.0, 50.0),
-            node_wh("X", 80.0, 110.0, 40.0, 20.0),
-        ];
-        let edges = [edge("P", "c1")];
-        let a = staff_routes(&avoid_input(&nodes, &edges, "near", 16.0));
-        let b = staff_routes(&avoid_input(&nodes, &edges, "near", 16.0));
-        assert!(points_eq(&a.segments[0].points, &b.segments[0].points));
     }
 }

@@ -549,6 +549,12 @@ pub struct StaffEdgeRoute {
     pub to_id: String,
     pub kind: String,
     pub points: Vec<StaffRoutePoint>,
+    /// §12-маркер залишку (R6-4a): `Some(true)` — маршрут після обходу ВСЕ ЩЕ пенетрує чужу рамку
+    /// (обхід локально недосяжний; хост малює видимий маркер, не тихе прийняття). Відсутній, коли
+    /// чисто. Адитивне поле — не ламає наявних споживачів (перша зміна контракту після R6-1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts-export", ts(optional))]
+    pub marked: Option<bool>,
 }
 
 /// Маршрути для одного LOD (`lod`: "near"|"mid"|"far").

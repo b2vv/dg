@@ -55,7 +55,13 @@ export type StaffEdgePortInput = { id: string, port: string, };
 /**
  * Повний ортогональний маршрут лінка (O-48 п.3: повні маршрути, не лише порти).
  */
-export type StaffEdgeRoute = { fromId: string, toId: string, kind: string, points: Array<StaffRoutePoint>, };
+export type StaffEdgeRoute = { fromId: string, toId: string, kind: string, points: Array<StaffRoutePoint>, 
+/**
+ * §12-маркер залишку (R6-4a): `Some(true)` — маршрут після обходу ВСЕ ЩЕ пенетрує чужу рамку
+ * (обхід локально недосяжний; хост малює видимий маркер, не тихе прийняття). Відсутній, коли
+ * чисто. Адитивне поле — не ламає наявних споживачів (перша зміна контракту після R6-1).
+ */
+marked?: boolean, };
 
 /**
  * Єдиний вихід staff-геометрії (замінює `StaffCanvasResult`; `tiers`→`namespaces`).

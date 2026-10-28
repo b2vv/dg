@@ -116,6 +116,85 @@ pub fn obstacle_rect(b: &EdgeRect) -> (f32, f32, f32, f32) {
     }
 }
 
+/// Відступ interior-hit (прод-паритет `segmentHitsBoxInterior`, staffEdgeGeometry.ts:209).
+pub const INTERIOR_EPS: f32 = 0.75;
+
+/// SAMPLING interior-hit: сегмент `a→b` заходить усередину бокса, звуженого на `eps`.
+/// Порт `staffEdgeGeometry.ts::segmentHitsBoxInterior` (8 семплів t=1/8..7/8).
+fn segment_hits_box_interior(a: &Pt, b: &Pt, x: f32, y: f32, w: f32, h: f32, eps: f32) -> bool {
+    let left = x + eps;
+    let right = x + w - eps;
+    let top = y + eps;
+    let bottom = y + h - eps;
+    if right <= left || bottom <= top {
+        return false;
+    }
+    let samples = 8;
+    for i in 1..samples {
+        let t = i as f32 / samples as f32;
+        let px = a.x + (b.x - a.x) * t;
+        let py = a.y + (b.y - a.y) * t;
+        if px > left && px < right && py > top && py < bottom {
+            return true;
+        }
+    }
+    false
+}
+
+/// Полілінія заходить усередину бокса (`staffEdgeGeometry.ts::polylineHitsBoxInterior`).
+pub fn polyline_hits_box_interior(points: &[Pt], x: f32, y: f32, w: f32, h: f32, eps: f32) -> bool {
+    points
+        .windows(2)
+        .any(|s| segment_hits_box_interior(&s[0], &s[1], x, y, w, h, eps))
+}
+
+/// Ідентичність частини відділу: `(department_id, part_index)`. Рівність Option-aware (per-part A).
+pub type DeptPart = (String, Option<u32>);
+
+/// Рамка частини відділу як перешкода (per-part A). Спільна прод-структура для роутера (around-lane +
+/// §12-маркер) і детектора-оракула (`staff_clearance`) — без «двох правд».
+#[derive(Debug, Clone, PartialEq)]
+pub struct FrameRect {
+    pub department_id: String,
+    pub part_index: Option<u32>,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+impl FrameRect {
+    /// Ключ членства `(department_id, part_index)`.
+    pub fn key(&self) -> DeptPart {
+        (self.department_id.clone(), self.part_index)
+    }
+}
+
+/// Скільки ЧУЖИХ рамок (не джерела й не цілі ребра — §3.2) пенетрує полілінія. Членство кінця задає
+/// `member_of` (id → `(department_id, part_index)`; org-кінці → `None`). Інтрузія — interior-hit eps 0.75.
+/// Єдине джерело для §12-маркера роутера й агрегату детектора (per-part A).
+pub fn frame_intrusion_count(
+    points: &[Pt],
+    from_id: &str,
+    to_id: &str,
+    frames: &[FrameRect],
+    member_of: &dyn Fn(&str) -> Option<DeptPart>,
+) -> usize {
+    let src = member_of(from_id);
+    let dst = member_of(to_id);
+    let mut count = 0usize;
+    for f in frames {
+        let k = f.key();
+        if Some(&k) == src.as_ref() || Some(&k) == dst.as_ref() {
+            continue; // рамка джерела або цілі — дозволений перетин
+        }
+        if polyline_hits_box_interior(points, f.x, f.y, f.width, f.height, INTERIOR_EPS) {
+            count += 1;
+        }
+    }
+    count
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
