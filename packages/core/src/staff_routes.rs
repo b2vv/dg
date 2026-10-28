@@ -789,4 +789,117 @@ mod tests {
             "детектор ловить чужу рамку на реальному маршруті"
         );
     }
+
+    // --- R6-5: детермінізм (H6) ---
+    //
+    // `staff_routes` детермінована BY CONSTRUCTION (чиста fn, Vec+лінійний find, lanes sort/dedup
+    // нормалізують порядок перешкод) — 2-прогонний тест сам по собі мутаційно порожній (критик
+    // R6-5, `_r6-5-critic-dg24.md`). Тому H6 реалізовано ДВОМА тестами:
+    //   1. golden-снапшот усього StaffRouteSet на комбінованій фікстурі (кілька карток + 2 рамки +
+    //      3 ребра; detour/remnant/clean; 1 marked) — ловить corr0, ±pad lane-offset,
+    //      detour-селекцію, порти, §12-маркер, порядок ребер (мутаційна верифікація нижче).
+    //      НЕ ловить (чесно): видалення dedup@217 (дублі-доріжки не міняють обрану → вихід той самий)
+    //      і tie-break .then()@220 (редундантний: sort@216 уже дає asc, stable sort зберігає);
+    //   2. дешевий 2-run tripwire (дослівна форма H6 plan §8) — guard проти МАЙБУТНЬОГО
+    //      недетермінізму (заміна Vec/лінійного find на HashMap-ітерацію / rayon / час).
+    // Порівняння через `format!("{:?}", …)` (Debug) — exact («байт-у-байт»), без serde_json/PartialEq
+    // (контракт types.rs не чіпається).
+
+    /// Комбінована фікстура H6 (вручну вивірена, `_r6-5-critic-dg24.md` / session-нота).
+    fn h6_scene() -> (Vec<StaffNodeGeo>, Vec<StaffEdge>, Vec<FrameRect>) {
+        let persons = vec![
+            node_dept("P", 0.0, 0.0, 100.0, 50.0, "d1"),
+            node_dept("A", 200.0, 300.0, 100.0, 50.0, "d1"),
+            node_dept("S", 600.0, 0.0, 100.0, 50.0, "d1"),
+            node_dept("T", 600.0, 300.0, 100.0, 50.0, "d1"),
+            node_dept("M", -400.0, 0.0, 100.0, 50.0, "d1"),
+            node_dept("N", -200.0, 300.0, 100.0, 50.0, "d1"),
+            node_dept("X", 120.0, 160.0, 60.0, 30.0, "d2"), // чужа картка в коридорі P→A
+        ];
+        let frames = vec![
+            frame("df", 610.0, 120.0, 120.0, 60.0), // foreign, блокує aligned S→T → marked
+            frame("dh", 120.0, 200.0, 60.0, 30.0),  // foreign, додає lane-кандидати P→A
+        ];
+        let edges = vec![edge("P", "A"), edge("S", "T"), edge("M", "N")]; // НЕсортований порядок
+        (persons, edges, frames)
+    }
+
+    fn route_pt(x: f32, y: f32) -> StaffRoutePoint {
+        StaffRoutePoint { x, y }
+    }
+    fn seg(
+        from: &str,
+        to: &str,
+        points: Vec<StaffRoutePoint>,
+        marked: Option<bool>,
+    ) -> StaffEdgeRoute {
+        StaffEdgeRoute {
+            from_id: from.to_string(),
+            to_id: to.to_string(),
+            kind: "admin".to_string(),
+            points,
+            marked,
+        }
+    }
+
+    #[test]
+    fn h6_combined_scene_matches_golden() {
+        let (persons, edges, frames) = h6_scene();
+        let set = staff_routes(&frames_input(&persons, &edges, &frames, "near", 16.0));
+        let expected = StaffRouteSet {
+            lod: "near".to_string(),
+            segments: vec![
+                // P→A: база блокована X@corr175; detour бере першу чисту доріжку y=144 (gap=pad).
+                seg(
+                    "P",
+                    "A",
+                    vec![
+                        route_pt(50.0, 50.0),
+                        route_pt(50.0, 144.0),
+                        route_pt(250.0, 144.0),
+                        route_pt(250.0, 300.0),
+                    ],
+                    None,
+                ),
+                // S→T: aligned x=650 → пряма крізь foreign-рамку df → залишок + §12-маркер.
+                seg(
+                    "S",
+                    "T",
+                    vec![route_pt(650.0, 50.0), route_pt(650.0, 300.0)],
+                    Some(true),
+                ),
+                // M→N: чистий elbow, далеко від усіх перешкод.
+                seg(
+                    "M",
+                    "N",
+                    vec![
+                        route_pt(-350.0, 50.0),
+                        route_pt(-350.0, 175.0),
+                        route_pt(-150.0, 175.0),
+                        route_pt(-150.0, 300.0),
+                    ],
+                    None,
+                ),
+            ],
+        };
+        assert_eq!(
+            format!("{set:?}"),
+            format!("{expected:?}"),
+            "golden StaffRouteSet розійшовся — див. actual vs expected"
+        );
+    }
+
+    #[test]
+    fn h6_combined_scene_is_byte_identical_across_runs() {
+        let (persons, edges, frames) = h6_scene();
+        for lod in ["near", "mid", "far"] {
+            let a = staff_routes(&frames_input(&persons, &edges, &frames, lod, 16.0));
+            let b = staff_routes(&frames_input(&persons, &edges, &frames, lod, 16.0));
+            assert_eq!(
+                format!("{a:?}"),
+                format!("{b:?}"),
+                "маршрути мають бути байт-ідентичні між прогонами (lod={lod})"
+            );
+        }
+    }
 }
