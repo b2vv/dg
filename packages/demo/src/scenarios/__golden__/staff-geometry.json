@@ -104,7 +104,7 @@
         {
           "from": "pos-gd",
           "to": "pos-dyr",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-np",
@@ -244,7 +244,7 @@
         {
           "from": "pos-gd",
           "to": "pos-dyr",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-np",
@@ -346,7 +346,7 @@
           {
             "from": "pos-gd",
             "to": "pos-dyr",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 994,
@@ -547,7 +547,7 @@
           {
             "from": "pos-gd",
             "to": "pos-dyr",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 994,
@@ -748,7 +748,7 @@
           {
             "from": "pos-gd",
             "to": "pos-dyr",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 994,
@@ -1438,12 +1438,12 @@
         {
           "from": "pos-ceo",
           "to": "pos-coo",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-coo",
           "to": "eng",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-coo",
@@ -1453,7 +1453,7 @@
         {
           "from": "pos-coo",
           "to": "sales",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         }
       ],
       "width": 488,
@@ -1540,12 +1540,12 @@
         {
           "from": "pos-ceo",
           "to": "pos-coo",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-coo",
           "to": "eng",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-coo",
@@ -1555,7 +1555,7 @@
         {
           "from": "pos-coo",
           "to": "sales",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         }
       ],
       "width": 488,
@@ -1588,7 +1588,7 @@
           {
             "from": "pos-ceo",
             "to": "pos-coo",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 92,
@@ -1603,7 +1603,7 @@
           {
             "from": "pos-coo",
             "to": "eng",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 92,
@@ -1641,7 +1641,7 @@
           {
             "from": "pos-coo",
             "to": "sales",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 24,
@@ -1666,7 +1666,7 @@
           {
             "from": "pos-ceo",
             "to": "pos-coo",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 92,
@@ -1681,7 +1681,7 @@
           {
             "from": "pos-coo",
             "to": "eng",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 92,
@@ -1719,7 +1719,7 @@
           {
             "from": "pos-coo",
             "to": "sales",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 24,
@@ -1744,7 +1744,7 @@
           {
             "from": "pos-ceo",
             "to": "pos-coo",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 92,
@@ -1759,7 +1759,7 @@
           {
             "from": "pos-coo",
             "to": "eng",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 116.47999999999999,
@@ -1797,7 +1797,7 @@
           {
             "from": "pos-coo",
             "to": "sales",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 67.52,
@@ -3064,7 +3064,7 @@
         {
           "from": "pos-hq-head",
           "to": "pos-head",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-hq-head",
@@ -3221,7 +3221,7 @@
         {
           "from": "pos-hq-head",
           "to": "pos-head",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-hq-head",
@@ -3415,7 +3415,7 @@
           {
             "from": "pos-hq-head",
             "to": "pos-head",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 496,
@@ -3654,7 +3654,7 @@
           {
             "from": "pos-hq-head",
             "to": "pos-head",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 600,
@@ -3893,7 +3893,7 @@
           {
             "from": "pos-hq-head",
             "to": "pos-head",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 600,
@@ -4127,7 +4127,7 @@
         {
           "from": "pos-hq-head",
           "to": "pos-head",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-hq-head",
@@ -4296,7 +4296,7 @@
         {
           "from": "pos-hq-head",
           "to": "pos-head",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-hq-head",
@@ -4497,7 +4497,7 @@
           {
             "from": "pos-hq-head",
             "to": "pos-head",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 388,
@@ -4743,7 +4743,7 @@
           {
             "from": "pos-hq-head",
             "to": "pos-head",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 388,
@@ -4989,7 +4989,7 @@
           {
             "from": "pos-hq-head",
             "to": "pos-head",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 512,
@@ -5414,87 +5414,87 @@
         {
           "from": "pos-bde-comd",
           "to": "unit-ad",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-arty",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-eng",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-ew",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-log",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-maint",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-mech-1",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-mech-2",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-mech-3",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-med",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-mlrs",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-mp",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-recce",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-sig",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-tank",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-tf",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-uav",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-cos",
@@ -5554,7 +5554,7 @@
         {
           "from": "pos-jfc-comd",
           "to": "pos-bde-comd",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-jfc-comd",
@@ -5922,87 +5922,87 @@
         {
           "from": "pos-bde-comd",
           "to": "unit-ad",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-arty",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-eng",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-ew",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-log",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-maint",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-mech-1",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-mech-2",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-mech-3",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-med",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-mlrs",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-mp",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-recce",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-sig",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-tank",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-tf",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-comd",
           "to": "unit-uav",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-bde-cos",
@@ -6062,7 +6062,7 @@
         {
           "from": "pos-jfc-comd",
           "to": "pos-bde-comd",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-jfc-comd",
@@ -6271,7 +6271,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-ad",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1274,
@@ -6294,7 +6294,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-arty",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1274,
@@ -6317,7 +6317,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-eng",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -6340,7 +6340,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-ew",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -6363,7 +6363,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-log",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -6386,7 +6386,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-maint",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -6409,7 +6409,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-mech-1",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1274,
@@ -6432,7 +6432,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-mech-2",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1274,
@@ -6455,7 +6455,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-mech-3",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -6478,7 +6478,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-med",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -6501,7 +6501,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-mlrs",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1274,
@@ -6524,7 +6524,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-mp",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -6547,7 +6547,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-recce",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -6570,7 +6570,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-sig",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -6593,7 +6593,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-tank",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1274,
@@ -6616,7 +6616,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-tf",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -6639,7 +6639,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-uav",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1274,
@@ -6891,7 +6891,7 @@
           {
             "from": "pos-jfc-comd",
             "to": "pos-bde-comd",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1274,
@@ -7138,7 +7138,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-ad",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1274,
@@ -7161,7 +7161,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-arty",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1274,
@@ -7184,7 +7184,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-eng",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -7207,7 +7207,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-ew",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -7230,7 +7230,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-log",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -7253,7 +7253,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-maint",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -7276,7 +7276,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-mech-1",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1274,
@@ -7299,7 +7299,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-mech-2",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1274,
@@ -7322,7 +7322,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-mech-3",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -7345,7 +7345,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-med",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -7368,7 +7368,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-mlrs",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1274,
@@ -7391,7 +7391,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-mp",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -7414,7 +7414,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-recce",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -7437,7 +7437,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-sig",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -7460,7 +7460,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-tank",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1274,
@@ -7483,7 +7483,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-tf",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -7506,7 +7506,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-uav",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1274,
@@ -7758,7 +7758,7 @@
           {
             "from": "pos-jfc-comd",
             "to": "pos-bde-comd",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1274,
@@ -8005,7 +8005,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-ad",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -8028,7 +8028,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-arty",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -8051,7 +8051,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-eng",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -8074,7 +8074,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-ew",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -8097,7 +8097,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-log",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -8120,7 +8120,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-maint",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -8143,7 +8143,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-mech-1",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -8166,7 +8166,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-mech-2",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -8189,7 +8189,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-mech-3",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1340.72,
@@ -8212,7 +8212,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-med",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -8235,7 +8235,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-mlrs",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -8258,7 +8258,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-mp",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -8281,7 +8281,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-recce",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1375.28,
@@ -8304,7 +8304,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-sig",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -8327,7 +8327,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-tank",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -8350,7 +8350,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-tf",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -8373,7 +8373,7 @@
           {
             "from": "pos-bde-comd",
             "to": "unit-uav",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1358,
@@ -8625,7 +8625,7 @@
           {
             "from": "pos-jfc-comd",
             "to": "pos-bde-comd",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 1340.72,
@@ -13273,7 +13273,7 @@
         {
           "from": "pos-0",
           "to": "pos-4",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-262148",
@@ -16298,62 +16298,62 @@
         {
           "from": "pos-4",
           "to": "sub-0",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-1",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-10",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-11",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-2",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-3",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-4",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-5",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-6",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-7",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-8",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-9",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-700004",
@@ -21036,7 +21036,7 @@
         {
           "from": "pos-0",
           "to": "pos-4",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-262148",
@@ -24061,62 +24061,62 @@
         {
           "from": "pos-4",
           "to": "sub-0",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-1",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-10",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-11",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-2",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-3",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-4",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-5",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-6",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-7",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-8",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-4",
           "to": "sub-9",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-700004",
@@ -24325,7 +24325,7 @@
           {
             "from": "pos-0",
             "to": "pos-4",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 288,
@@ -37528,7 +37528,7 @@
           {
             "from": "pos-4",
             "to": "sub-0",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 0,
@@ -37551,7 +37551,7 @@
           {
             "from": "pos-4",
             "to": "sub-1",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 0,
@@ -37574,7 +37574,7 @@
           {
             "from": "pos-4",
             "to": "sub-10",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 0,
@@ -37597,7 +37597,7 @@
           {
             "from": "pos-4",
             "to": "sub-11",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 0,
@@ -37620,7 +37620,7 @@
           {
             "from": "pos-4",
             "to": "sub-2",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 0,
@@ -37643,7 +37643,7 @@
           {
             "from": "pos-4",
             "to": "sub-3",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 20,
@@ -37666,7 +37666,7 @@
           {
             "from": "pos-4",
             "to": "sub-4",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 20,
@@ -37689,7 +37689,7 @@
           {
             "from": "pos-4",
             "to": "sub-5",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 20,
@@ -37712,7 +37712,7 @@
           {
             "from": "pos-4",
             "to": "sub-6",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 0,
@@ -37735,7 +37735,7 @@
           {
             "from": "pos-4",
             "to": "sub-7",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 0,
@@ -37758,7 +37758,7 @@
           {
             "from": "pos-4",
             "to": "sub-8",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 0,
@@ -37781,7 +37781,7 @@
           {
             "from": "pos-4",
             "to": "sub-9",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 0,
@@ -38380,7 +38380,7 @@
           {
             "from": "pos-0",
             "to": "pos-4",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 288,
@@ -51583,7 +51583,7 @@
           {
             "from": "pos-4",
             "to": "sub-0",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 0,
@@ -51606,7 +51606,7 @@
           {
             "from": "pos-4",
             "to": "sub-1",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 0,
@@ -51629,7 +51629,7 @@
           {
             "from": "pos-4",
             "to": "sub-10",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 0,
@@ -51652,7 +51652,7 @@
           {
             "from": "pos-4",
             "to": "sub-11",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 0,
@@ -51675,7 +51675,7 @@
           {
             "from": "pos-4",
             "to": "sub-2",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 0,
@@ -51698,7 +51698,7 @@
           {
             "from": "pos-4",
             "to": "sub-3",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 124,
@@ -51721,7 +51721,7 @@
           {
             "from": "pos-4",
             "to": "sub-4",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 124,
@@ -51744,7 +51744,7 @@
           {
             "from": "pos-4",
             "to": "sub-5",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 124,
@@ -51767,7 +51767,7 @@
           {
             "from": "pos-4",
             "to": "sub-6",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 0,
@@ -51790,7 +51790,7 @@
           {
             "from": "pos-4",
             "to": "sub-7",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 0,
@@ -51813,7 +51813,7 @@
           {
             "from": "pos-4",
             "to": "sub-8",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 0,
@@ -51836,7 +51836,7 @@
           {
             "from": "pos-4",
             "to": "sub-9",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 0,
@@ -52435,7 +52435,7 @@
           {
             "from": "pos-0",
             "to": "pos-4",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 404.08,
@@ -64230,7 +64230,7 @@
           {
             "from": "pos-4",
             "to": "sub-0",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 124,
@@ -64253,7 +64253,7 @@
           {
             "from": "pos-4",
             "to": "sub-1",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 131.92,
@@ -64276,7 +64276,7 @@
           {
             "from": "pos-4",
             "to": "sub-10",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 124,
@@ -64299,7 +64299,7 @@
           {
             "from": "pos-4",
             "to": "sub-11",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 124,
@@ -64322,7 +64322,7 @@
           {
             "from": "pos-4",
             "to": "sub-2",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 124,
@@ -64345,7 +64345,7 @@
           {
             "from": "pos-4",
             "to": "sub-3",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 131.92,
@@ -64368,7 +64368,7 @@
           {
             "from": "pos-4",
             "to": "sub-4",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 124,
@@ -64391,7 +64391,7 @@
           {
             "from": "pos-4",
             "to": "sub-5",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 124,
@@ -64414,7 +64414,7 @@
           {
             "from": "pos-4",
             "to": "sub-6",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 124,
@@ -64437,7 +64437,7 @@
           {
             "from": "pos-4",
             "to": "sub-7",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 124,
@@ -64460,7 +64460,7 @@
           {
             "from": "pos-4",
             "to": "sub-8",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 124,
@@ -64483,7 +64483,7 @@
           {
             "from": "pos-4",
             "to": "sub-9",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 124,
@@ -65117,7 +65117,7 @@
         {
           "from": "pos-head",
           "to": "unit-current",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-sup",
@@ -65258,7 +65258,7 @@
         {
           "from": "pos-head",
           "to": "unit-current",
-          "kind": "cross-tier"
+          "kind": "lead-org"
         },
         {
           "from": "pos-sup",
@@ -65406,7 +65406,7 @@
           {
             "from": "pos-head",
             "to": "unit-current",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 264,
@@ -65599,7 +65599,7 @@
           {
             "from": "pos-head",
             "to": "unit-current",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 264,
@@ -65792,7 +65792,7 @@
           {
             "from": "pos-head",
             "to": "unit-current",
-            "kind": "cross-tier",
+            "kind": "lead-org",
             "points": [
               {
                 "x": 346.36,

@@ -4,7 +4,7 @@ import { buildMockupStaffFigmaData, FIGMA_STAFF_LAYOUT } from './mockups.js';
 
 /** Canonical staff mockup edge inventory — see MOCKUP-edge-map-discussion.md */
 describe('mockup staff edge inventory', () => {
-  it('Staff · Figma layout edges (admin + cross-tier + dotted)', async () => {
+  it('Staff · Figma layout edges (admin + lead-org + dotted)', async () => {
     const data = buildMockupStaffFigmaData();
     const canvas = await layoutStaffCanvas(
       {
@@ -37,8 +37,9 @@ describe('mockup staff edge inventory', () => {
       { kind: 'admin', fromId: 'pos-hq-head', toId: 'pos-hq-1z' },
       { kind: 'admin', fromId: 'pos-hq-head', toId: 'pos-hq-2z' },
       { kind: 'admin', fromId: 'pos-hq-head', toId: 'pos-hq-cos' },
-      { kind: 'cross-tier', fromId: 'pos-hq-head', toId: 'pos-head' },
       { kind: 'dotted', fromId: 'pos-hq-1z', toId: 'pos-head' },
+      // Org→org plink (managing head → current head), sorts after 'dotted'.
+      { kind: 'lead-org', fromId: 'pos-hq-head', toId: 'pos-head' },
     ]);
   });
 });

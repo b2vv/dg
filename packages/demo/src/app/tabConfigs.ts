@@ -91,7 +91,7 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
         theme: 'dark',
         data: buildShpsStaffData(),
         // ШПС draws a full-width card (React promote near, card-wide Pixi far),
-        // so the cross-tier connector must meet the card centre, not the
+        // so the lead-org plink connector must meet the card centre, not the
         // chrome-less avatar tile the shared figma style docks on by default (T125).
         styles: {
           ...MOCKUP_FIGMA_STYLES,

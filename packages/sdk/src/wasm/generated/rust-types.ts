@@ -38,12 +38,12 @@ export type StaffDepartmentFrameGeo = { departmentId: string, partIndex?: number
 export type StaffDepartmentInput = { id: string, };
 
 /**
- * Ребро у виході (без шляху — шлях у `StaffEdgeRoute`). `kind` як у вході + "cross-tier".
+ * Ребро у виході (без шляху — шлях у `StaffEdgeRoute`). `kind` як у вході + "lead-org".
  */
 export type StaffEdge = { fromId: string, toId: string, kind: string, };
 
 /**
- * Ребро підпорядкування. `kind`: "admin" | "matrix" | "dotted" | "cross-tier".
+ * Ребро підпорядкування. `kind`: "admin" | "matrix" | "dotted" | "lead-org".
  */
 export type StaffEdgeInput = { fromId: string, toId: string, kind: string, };
 

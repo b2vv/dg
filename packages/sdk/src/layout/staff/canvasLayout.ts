@@ -59,7 +59,7 @@ export async function layoutStaffCanvas(
 
   let cursorY = opts.margin;
   // Managing head id, captured so tier 1 can be centered horizontally over the
-  // current-org head once tier 2 is laid out (the cross-tier connector must be
+  // current-org head once tier 2 is laid out (the lead-org plink connector must be
   // vertical — mockup `plink`). Without this the managing block keeps its own
   // left `margin` and a single card lands far left of a wide current tier.
   let mgrHeadId: string | undefined;
@@ -130,7 +130,7 @@ export async function layoutStaffCanvas(
   });
   cursorY += t2height + opts.tierGap;
 
-  // Center the managing tier over the current-org head so the cross-tier
+  // Center the managing tier over the current-org head so the lead-org plink
   // connector is vertical (mockup `plink`). Shift right only: the common case
   // is a narrow managing block (often a single card) over a wide current tier,
   // and moving right never pushes a node past the left margin. When the
@@ -242,11 +242,11 @@ export async function layoutStaffCanvas(
   const mgrHead = managingId ? headIdOf(managingId) : undefined;
   const curHead = headIdOf(currentOrgId);
   if (mgrHead && curHead && positionNodes.some((n) => n.id === mgrHead) && positionNodes.some((n) => n.id === curHead)) {
-    edges.push({ fromId: mgrHead, toId: curHead, kind: 'cross-tier' });
+    edges.push({ fromId: mgrHead, toId: curHead, kind: 'lead-org' });
   }
   if (curHead && positionNodes.some((n) => n.id === curHead)) {
     for (const card of orgCards) {
-      edges.push({ fromId: curHead, toId: card.orgId, kind: 'cross-tier' });
+      edges.push({ fromId: curHead, toId: card.orgId, kind: 'lead-org' });
     }
   }
 

@@ -236,14 +236,14 @@ describe('staff edge fallback census (demo tabs)', () => {
                 "forced": 0,
                 "total": 9,
               },
-              "cross-tier": {
-                "dirty": 0,
-                "forced": 1,
-                "total": 1,
-              },
               "dotted": {
                 "dirty": 0,
                 "forced": 0,
+                "total": 1,
+              },
+              "lead-org": {
+                "dirty": 0,
+                "forced": 1,
                 "total": 1,
               },
             },
@@ -261,12 +261,12 @@ describe('staff edge fallback census (demo tabs)', () => {
                 "forced": 0,
                 "total": 10,
               },
-              "cross-tier": {
+              "dotted": {
                 "dirty": 0,
                 "forced": 0,
                 "total": 1,
               },
-              "dotted": {
+              "lead-org": {
                 "dirty": 0,
                 "forced": 0,
                 "total": 1,
@@ -286,14 +286,14 @@ describe('staff edge fallback census (demo tabs)', () => {
                 "forced": 0,
                 "total": 7,
               },
-              "cross-tier": {
-                "dirty": 0,
-                "forced": 0,
-                "total": 1,
-              },
               "dotted": {
                 "dirty": 0,
                 "forced": 1,
+                "total": 1,
+              },
+              "lead-org": {
+                "dirty": 0,
+                "forced": 0,
                 "total": 1,
               },
             },
@@ -311,7 +311,7 @@ describe('staff edge fallback census (demo tabs)', () => {
                 "forced": 0,
                 "total": 1,
               },
-              "cross-tier": {
+              "lead-org": {
                 "dirty": 0,
                 "forced": 1,
                 "total": 3,

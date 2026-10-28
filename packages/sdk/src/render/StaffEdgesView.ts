@@ -1,6 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
 import {
-  type StaffEdgeLink,
   type StaffEdgePoint,
   type StaffEdgeSegment,
 } from '../layout/staffEdgeGeometry.js';
@@ -11,49 +10,13 @@ import {
   traceRoundedPolyline,
 } from './staffEdgeArrows.js';
 import type { EdgeStyle } from './types.js';
+import { staffEdgeStrokes } from './staffEdgeStrokes.js';
+
+export { staffEdgeStrokes } from './staffEdgeStrokes.js';
 
 const ARROW_SIZE = 7;
 /** §12 placeholder for residual routing crossings. */
 const MARKED_COLOR = 0xdc2626;
-
-const STROKE_LIGHT: Record<StaffEdgeLink['kind'], { color: number; width: number; dash?: number[] }> = {
-  admin: { color: 0x334155, width: 2.25 },
-  'cross-tier': { color: 0x334155, width: 2.25 },
-  matrix: { color: 0x94a3b8, width: 1.5, dash: [6, 4] },
-  dotted: { color: 0xa8a29e, width: 1.5, dash: [2, 4] },
-};
-
-const STROKE_DARK: Record<StaffEdgeLink['kind'], { color: number; width: number; dash?: number[] }> = {
-  admin: { color: 0xe2e8f0, width: 2.25 },
-  'cross-tier': { color: 0xe2e8f0, width: 2.25 },
-  matrix: { color: 0x64748b, width: 1.5, dash: [6, 4] },
-  dotted: { color: 0xa8a29e, width: 1.5, dash: [2, 4] },
-};
-
-type StaffEdgeStrokeTable = Record<
-  StaffEdgeLink['kind'],
-  { color: number; width: number; dash?: number[] }
->;
-
-/** Per-kind stroke table; a host {@link EdgeStyle} repaints/resizes every kind. */
-export function staffEdgeStrokes(
-  theme: 'light' | 'dark',
-  edge?: EdgeStyle,
-): StaffEdgeStrokeTable {
-  const base = theme === 'dark' ? STROKE_DARK : STROKE_LIGHT;
-  if (edge?.color === undefined && edge?.width === undefined) return base;
-  const apply = (s: { color: number; width: number; dash?: number[] }) => ({
-    ...s,
-    color: edge.color ?? s.color,
-    width: edge.width ?? s.width,
-  });
-  return {
-    admin: apply(base.admin),
-    'cross-tier': apply(base['cross-tier']),
-    matrix: apply(base.matrix),
-    dotted: apply(base.dotted),
-  };
-}
 
 /** Theme + host edge overrides for one staff-edge repaint. */
 export interface StaffEdgePaint {
@@ -66,7 +29,7 @@ export interface EdgeHighlight {
   dim: boolean;
 }
 
-/** Report lines between staff position boxes (admin solid; matrix/dotted dashed). */
+/** Report lines between staff position boxes (admin solid; lead-org/matrix/dotted dashed). */
 export class StaffEdgesView extends Container {
   private readonly graphics = new Graphics();
   private lastSegments: StaffEdgeSegment[] = [];
@@ -114,12 +77,12 @@ export class StaffEdgesView extends Container {
       const markedStyle = this.markedKeys?.has(key)
         ? { ...baseStyle, color: MARKED_COLOR, width: baseStyle.width + 0.75 }
         : baseStyle;
-      const accented = (seg.kind === 'admin' || seg.kind === 'cross-tier') && accentKeys.has(key);
+      const accented = seg.kind === 'admin' && accentKeys.has(key);
       const style = accented
         ? { ...markedStyle, color: edge?.accentColor ?? 0xe5491d, width: edge?.accentWidth ?? 2 }
         : markedStyle;
       const alpha = dim && !accented ? (edge?.dimAlpha ?? 0.40) : 1;
-      const withArrow = !dotted && (seg.kind === 'admin' || seg.kind === 'cross-tier');
+      const withArrow = !dotted && seg.kind === 'admin';
       if (style.dash) {
         drawDashedPolyline(this.graphics, seg.points, style.dash);
         this.graphics.stroke({ color: style.color, width: style.width, alpha });

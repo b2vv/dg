@@ -52,7 +52,7 @@ export function routerObstacle(box: StaffEdgeBox): StaffEdgeRect {
 export interface StaffEdgeLink {
   fromId: string;
   toId: string;
-  kind: 'admin' | 'matrix' | 'dotted' | 'cross-tier';
+  kind: 'admin' | 'matrix' | 'dotted' | 'lead-org';
 }
 
 export interface StaffEdgePoint {
@@ -361,10 +361,10 @@ export function classifyStaffEdgeRoute(
   };
   const hasOthers = obstacles.some((b) => b.id !== from.id && b.id !== to.id);
 
-  // Cross-tier prefers the straight vertical drop, but only when it stays clear
-  // of foreign cards — otherwise it falls through to the shared candidate/around
-  // ladder (the drop used to clip whatever sat under the parent).
-  if (kind === 'cross-tier') {
+  // The org-level plink prefers the straight vertical drop, but only when it
+  // stays clear of foreign cards — otherwise it falls through to the shared
+  // candidate/around ladder (the drop used to clip whatever sat under the parent).
+  if (kind === 'lead-org') {
     const vert = verticalPolyline(from, to);
     if (
       vert &&

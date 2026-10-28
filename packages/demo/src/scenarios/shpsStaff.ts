@@ -34,7 +34,7 @@ export const SHPS_STAFF_LAYOUT = {
  *
  * Two organizations stack vertically: `golovnyi-ofis` (managing, `role:
  * 'leading'`) on top and `hpvnu` (current, `role: 'current'`) below; the SDK
- * draws the cross-tier connector between their heads.
+ * draws the lead-org plink connector between their heads.
  */
 function seat(
   partial: Omit<
@@ -193,7 +193,7 @@ export function buildShpsStaffData(): DiagramData {
       }),
     ],
     reportLines: [
-      // Current-org admin tree. The managing→current cross-tier edge
+      // Current-org admin tree. The managing→current lead-org plink edge
       // (pos-gd → pos-dyr) is derived by the canvas layout, not authored here.
       { fromId: 'pos-dyr', toId: 'pos-np', kind: 'admin' },
       { fromId: 'pos-dyr', toId: 'pos-nr', kind: 'admin' },

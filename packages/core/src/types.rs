@@ -333,7 +333,7 @@ pub struct StaffPositionInput {
     pub department_id: Option<String>,
 }
 
-/// Ребро підпорядкування. `kind`: "admin" | "matrix" | "dotted" | "cross-tier".
+/// Ребро підпорядкування. `kind`: "admin" | "matrix" | "dotted" | "lead-org".
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-export", derive(TS))]
 #[cfg_attr(
@@ -508,7 +508,7 @@ pub struct StaffNamespace {
     pub height: f32,
 }
 
-/// Ребро у виході (без шляху — шлях у `StaffEdgeRoute`). `kind` як у вході + "cross-tier".
+/// Ребро у виході (без шляху — шлях у `StaffEdgeRoute`). `kind` як у вході + "lead-org".
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-export", derive(TS))]
 #[cfg_attr(

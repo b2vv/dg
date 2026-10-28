@@ -151,7 +151,7 @@ export interface StaffCanvasResult {
   currentOrgId: string;
   tiers: StaffTierBand[];
   positionNodes: StaffNodeBox[];
-  edges: Array<{ fromId: string; toId: string; kind: 'admin' | 'matrix' | 'dotted' | 'cross-tier' }>;
+  edges: Array<{ fromId: string; toId: string; kind: 'admin' | 'matrix' | 'dotted' | 'lead-org' }>;
   orgCards: StaffOrgCard[];
   width: number;
   height: number;

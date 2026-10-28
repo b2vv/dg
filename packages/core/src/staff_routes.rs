@@ -486,10 +486,10 @@ mod tests {
     }
 
     #[test]
-    fn cross_tier_person_to_org_card_resolves() {
+    fn lead_org_person_to_org_card_resolves() {
         let persons = [node("head", 0.0, 0.0, 2)];
         let cards = [org_card("org9", 200.0, 300.0)];
-        let edges = [edge_kind("head", "org9", "cross-tier")];
+        let edges = [edge_kind("head", "org9", "lead-org")];
         let input = RouteInputs {
             persons: &persons,
             org_cards: &cards,
@@ -502,7 +502,7 @@ mod tests {
         let set = staff_routes(&input);
         assert_eq!(set.segments.len(), 1);
         let r = &set.segments[0];
-        assert_eq!(r.kind, "cross-tier");
+        assert_eq!(r.kind, "lead-org");
         assert!(point_eq(&r.points[0], 50.0, 50.0));
         assert!(point_eq(r.points.last().unwrap(), 280.0, 300.0));
     }

@@ -401,7 +401,7 @@ export function buildMockupStaffFigmaData(): DiagramData {
       { fromId: 'pos-2z', toId: 'pos-p1', kind: 'admin' },
       { fromId: 'pos-2z', toId: 'pos-p2', kind: 'admin' },
       // Frame 1264:7906 draws the zone-to-zone line from the managing deputy;
-      // the SDK adds its own cross-tier edge (managing head → current head).
+      // the SDK adds its own lead-org plink edge (managing head → current head).
       { fromId: 'pos-hq-1z', toId: 'pos-head', kind: 'dotted' },
     ],
     orgLinks: [],

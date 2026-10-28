@@ -94,9 +94,76 @@ describe('buildDiagramSvg — live/SVG link-point parity (R6-6, H3)', () => {
       // Guard against a vacuous fixture and against the arrow-shortening path:
       // the comparison below is only valid for non-arrow edges.
       expect(routes.length).toBeGreaterThan(0);
-      expect(routes.every((r) => r.kind !== 'admin' && r.kind !== 'cross-tier')).toBe(true);
+      expect(routes.every((r) => r.kind !== 'admin')).toBe(true);
       expect(svgPolylines.length).toBe(routes.length);
       expect(svgPolylines).toEqual(routes.map((r) => r.points));
     });
   }
+});
+
+/** Raw `<path .../>` tags inside `<g id="edges">`. */
+function svgEdgePaths(svg: string): string[] {
+  const group = svg.match(/<g id="edges">([\s\S]*?)<\/g>/);
+  if (!group) return [];
+  return [...group[1]!.matchAll(/<path [^>]*\/>/g)].map((m) => m[0]);
+}
+
+/** Managing + current org: the cross-org connector is a `lead-org` plink. */
+function tierScene(): DiagramData {
+  const mk = (id: string, orgId: string) => ({
+    id,
+    title: id,
+    organizationId: orgId,
+    groupIds: [],
+    personId: `person-${id}`,
+    status: 'filled' as const,
+    isTemporary: false,
+    isHead: true,
+    gridCell: { col: 0, row: 0 },
+  });
+  return {
+    organizations: [
+      { id: 'mgr', name: 'Managing', groupIds: [] },
+      { id: 'current', name: 'Current', groupIds: [], parentOrgId: 'mgr' },
+    ],
+    groups: [],
+    departments: [],
+    persons: [
+      { id: 'person-M1', fullName: 'M1' },
+      { id: 'person-C1', fullName: 'C1' },
+    ],
+    positions: [mk('M1', 'mgr'), mk('C1', 'current')],
+    reportLines: [],
+  };
+}
+
+describe('buildDiagramSvg — per-kind stroke in SVG (R6-7, H3 style)', () => {
+  it('matrix and dotted edges render dashed in SVG, not one solid admin line', async () => {
+    const svg = await buildDiagramSvg({
+      data: staffScene(),
+      currentOrgId: 'org1',
+      config: { ...defaultRenderConfig, staffEdgeRouter: 'v2' },
+    });
+    const paths = svgEdgePaths(svg);
+    expect(paths.length).toBeGreaterThan(0);
+    // The fixture has only matrix/dotted edges → every edge path must be dashed.
+    expect(paths.every((p) => p.includes('stroke-dasharray'))).toBe(true);
+    // matrix light colour, not the admin solid #334155.
+    expect(svg).toContain('#94a3b8');
+  });
+
+  it('lead-org plink renders dashed grey with no arrow in SVG', async () => {
+    const svg = await buildDiagramSvg({
+      data: tierScene(),
+      currentOrgId: 'current',
+      config: { ...defaultRenderConfig, staffEdgeRouter: 'v2' },
+    });
+    const edgeGroup = svg.match(/<g id="edges">([\s\S]*?)<\/g>/)?.[1] ?? '';
+    const paths = svgEdgePaths(svg);
+    expect(paths.length).toBeGreaterThan(0);
+    expect(paths.every((p) => p.includes('stroke-dasharray'))).toBe(true);
+    expect(edgeGroup).toContain('#6b6b73');
+    // lead-org carries no arrow head; only admin edges do.
+    expect(edgeGroup).not.toContain('<polygon');
+  });
 });

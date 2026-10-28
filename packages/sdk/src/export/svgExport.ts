@@ -19,6 +19,7 @@ import type { ContourMemberBox } from '../render/contour/contourClearance.js';
 import { resolveMagnetRadius } from '../contour/magnetRadius.js';
 import { inferStaffCurrentOrgId } from '../render/inferStaffCurrentOrgId.js';
 import { arrowHeadTriangle, shortenPolylineForArrow } from '../render/staffEdgeArrows.js';
+import { staffEdgeStrokes } from '../render/staffEdgeStrokes.js';
 import { enrichStaffTierBands } from '../render/staffZoneBounds.js';
 import { contourButtonGroupMargin } from '../render/contour/contourButtonGroup.js';
 import { contourSceneInputs, matrixNodeBoxes } from '../render/contour/contourInputs.js';
@@ -95,6 +96,11 @@ const DEPT_STROKE_W = defaultNodeTheme.department.strokeWidth;
 const EDGE_STROKE = '#334155';
 const EDGE_W = 2.25;
 const ARROW_SIZE = 7;
+
+/** Pixi numeric colour → SVG hex, e.g. 0x6b6b73 → "#6b6b73". */
+function hexColor(c: number): string {
+  return `#${c.toString(16).padStart(6, '0')}`;
+}
 /**
  * The static SVG export has no zoom, so it always routes the near (full-detail)
  * LOD. Named rather than a bare `'near'` so the one place that decides the
@@ -297,13 +303,20 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
     const markedKeys = new Set(
       routing.markedCrossings.map((c) => `${c.fromId}\u0000${c.toId}`),
     );
+    // Same per-kind stroke table as the live painter (T126 R6-7, H3 style): the
+    // export is the light theme. Only `admin` carries an arrow; the dashed kinds
+    // (lead-org/matrix/dotted) are drawn with their dash and colour.
+    const edgeStroke = staffEdgeStrokes('light');
     parts.push('<g id="edges">');
     for (const s of segments) {
-      const withArrow = s.kind === 'admin' || s.kind === 'cross-tier';
+      const st = edgeStroke[s.kind] ?? edgeStroke.admin;
+      const withArrow = s.kind === 'admin';
       const drawPts = withArrow ? shortenPolylineForArrow(s.points, ARROW_SIZE) : s.points;
       const d = drawPts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x} ${p.y}`).join(' ');
+      const color = markedKeys.has(`${s.fromId}\u0000${s.toId}`) ? '#dc2626' : hexColor(st.color);
+      const dash = st.dash ? ` stroke-dasharray="${st.dash.join(' ')}"` : '';
       parts.push(
-        `<path d="${d}" fill="none" stroke="${markedKeys.has(`${s.fromId}\u0000${s.toId}`) ? '#dc2626' : EDGE_STROKE}" stroke-width="${EDGE_W}" stroke-linecap="round" stroke-linejoin="round"/>`,
+        `<path d="${d}" fill="none" stroke="${color}" stroke-width="${st.width}"${dash} stroke-linecap="round" stroke-linejoin="round"/>`,
       );
       if (withArrow && s.points.length >= 2) {
         const tri = arrowHeadTriangle(
@@ -313,7 +326,7 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
         );
         if (tri) {
           parts.push(
-            `<polygon points="${tri.map((p) => `${p.x},${p.y}`).join(' ')}" fill="${EDGE_STROKE}"/>`,
+            `<polygon points="${tri.map((p) => `${p.x},${p.y}`).join(' ')}" fill="${color}"/>`,
           );
         }
       }
