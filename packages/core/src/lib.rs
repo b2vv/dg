@@ -26,7 +26,7 @@ pub use staff_edge_box::{
     visual_org_edge_box, visual_person_edge_box, EdgeRect, PersonEdgeHints, Rect,
 };
 pub use staff_packing::{pack_departments, DepartmentMembers, StaffPackResult};
-pub use staff_routes::staff_routes;
+pub use staff_routes::{staff_routes, RouteInputs};
 pub use types::*;
 
 /// Row-tree layout для org: validate → subtree → Ploeg layered tidy
