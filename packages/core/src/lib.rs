@@ -7,6 +7,7 @@ mod staff_bounds;
 mod staff_clearance;
 mod staff_compose;
 mod staff_edge_box;
+mod staff_geom;
 mod staff_packing;
 mod staff_routes;
 mod types;
