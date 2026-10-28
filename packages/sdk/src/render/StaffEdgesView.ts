@@ -1,7 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
 import {
-  buildStaffEdgeSegments,
-  type StaffEdgeBox,
   type StaffEdgeLink,
   type StaffEdgePoint,
   type StaffEdgeSegment,
@@ -81,25 +79,25 @@ export class StaffEdgesView extends Container {
   }
 
   static fromLayout(
-    edges: StaffEdgeLink[],
-    boxes: StaffEdgeBox[],
+    segments: StaffEdgeSegment[],
     paint: StaffEdgePaint = {},
-    routed?: { segments?: StaffEdgeSegment[]; markedKeys?: ReadonlySet<string> },
+    markedKeys?: ReadonlySet<string>,
   ): StaffEdgesView {
     const view = new StaffEdgesView();
-    view.redraw(edges, boxes, paint, routed);
+    view.redraw(segments, paint, markedKeys);
     return view;
   }
 
+  // Pure painter: the routed segments are computed once by the single seam
+  // (`resolveStaffRouting`, T126 R6-6) and handed in; the view never re-routes.
   redraw(
-    edges: StaffEdgeLink[],
-    boxes: StaffEdgeBox[],
+    segments: StaffEdgeSegment[],
     paint: StaffEdgePaint = {},
-    routed?: { segments?: StaffEdgeSegment[]; markedKeys?: ReadonlySet<string> },
+    markedKeys?: ReadonlySet<string>,
   ): void {
-    this.lastSegments = routed?.segments ?? buildStaffEdgeSegments(edges, boxes);
+    this.lastSegments = segments;
     this.paint = paint;
-    this.markedKeys = routed?.markedKeys;
+    this.markedKeys = markedKeys;
     this.applyHighlight({ accentKeys: new Set(), dim: false });
   }
 

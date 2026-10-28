@@ -11,11 +11,11 @@ const segment = { x1: 0, y1: 0, x2: 0, y2: 100, fromId: 'a', toId: 'b', kind: 'a
 describe('edge highlight paint', () => {
   for (const router of ['legacy', 'v2'] as const) {
     it(`success: ${router} cache accents and restores without layout`, () => {
+      // Both routers hand the pure-painter view the same ready-made segments
+      // (routing happens once in the seam, not here) — paint is router-agnostic.
       const view = StaffEdgesView.fromLayout(
-        [{ fromId: 'a', toId: 'b', kind: 'admin' }],
-        [{ id: 'a', x: 0, y: 0, width: 100, height: 50 }, { id: 'b', x: 0, y: 150, width: 100, height: 50 }],
+        [segment],
         { edge: { accentColor: 0x00ff00, accentWidth: 3, dimAlpha: 0.2 } },
-        router === 'v2' ? { segments: [segment] } : undefined,
       );
       const stroke = rstest.spyOn(Graphics.prototype, 'stroke');
       view.applyHighlight({ accentKeys: new Set(['a\u0000b']), dim: true });
@@ -62,7 +62,7 @@ describe('highlight facade', () => {
     const found = new Container();
     renderer['scene'].registerView('position', 'a', found);
     renderer['scene'].registerView('person', 'b', external);
-    const edges = StaffEdgesView.fromLayout([], [], {}, { segments: [segment] });
+    const edges = StaffEdgesView.fromLayout([segment], {});
     renderer.layers.edges.addChild(edges);
     const paint = rstest.spyOn(edges, 'applyHighlight');
     renderer.repaintHighlight('b', null, data.reportLines, defaultNodeTheme);

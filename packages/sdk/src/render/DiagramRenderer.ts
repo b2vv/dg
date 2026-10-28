@@ -786,18 +786,13 @@ export class DiagramRenderer {
       }
     }
 
-    // Both routers hand the view ready-made segments (the view would otherwise
-    // recompute them from boxes — see StaffEdgesView.redraw), so the picture the
-    // golden captures is exactly the one painted here. markedKeys is empty for
-    // the legacy router, which marks no foreign-frame crossings.
+    // Routing happens once, in the single seam; the view is a pure painter that
+    // takes the ready-made segments (T126 R6-6), so the picture the golden
+    // captures is exactly the one painted here. markedKeys is empty for the
+    // legacy router, which marks no foreign-frame crossings.
     const markedKeys = new Set(markedCrossings.map((c) => `${c.fromId}\u0000${c.toId}`));
     this.layers.edges.addChild(
-      StaffEdgesView.fromLayout(
-        canvas.edges,
-        [],
-        { theme: resolvedTheme, edge: theme.edge },
-        { segments: routes, markedKeys },
-      ),
+      StaffEdgesView.fromLayout(routes, { theme: resolvedTheme, edge: theme.edge }, markedKeys),
     );
   }
 
