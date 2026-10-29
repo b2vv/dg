@@ -43,7 +43,11 @@ const byLink = (a: ReturnType<typeof link>, b: ReturnType<typeof link>) =>
 
 function normalizeLayout(canvas: StaffCanvasResult, margin: number) {
   return {
-    nodes: canvas.positionNodes.map((node) => ({ id: node.id, ...rect(node) })).sort(byId),
+    // `role` drives paint (external → alpha, seat drag mode) but is invisible to a
+    // bare rect; captured so the A4.2b Rust-adapter cannot regress it unseen (B1).
+    nodes: canvas.positionNodes
+      .map((node) => ({ id: node.id, ...rect(node), role: node.role ?? null }))
+      .sort(byId),
     // Raw bands only have y/height today. Their horizontal span is the canvas
     // inside its margins; painted content bounds are captured separately below.
     bands: canvas.tiers.map((band) => ({
@@ -51,7 +55,16 @@ function normalizeLayout(canvas: StaffCanvasResult, margin: number) {
       x: band.x ?? margin, y: band.y,
       w: band.width ?? canvas.width - margin * 2, h: band.height,
     })).sort((a, b) => a.y - b.y || a.x - b.x || byId(a, b)),
-    orgCards: canvas.orgCards.map((card) => ({ id: card.orgId, ...rect(card) })).sort(byId),
+    // `expanded`/`positionCount` are TS-enriched (not Rust geometry) and drive paint
+    // (skip gojs-vertical, badge count) — also rect-invisible, so captured (B1).
+    orgCards: canvas.orgCards
+      .map((card) => ({
+        id: card.orgId,
+        ...rect(card),
+        expanded: card.expanded ?? false,
+        positionCount: card.positionCount,
+      }))
+      .sort(byId),
     edges: canvas.edges.map(link).sort(byLink),
     width: canvas.width, height: canvas.height,
   };
@@ -97,12 +110,23 @@ async function capture(tab: DemoTab) {
     if (band.x === undefined || band.width === undefined) throw new Error(`${tab}: missing zone bounds`);
     return { id: band.organizationId ?? 'org-cards', ...rect({ ...band, x: band.x, width: band.width }) };
   }).sort((a, b) => a.y - b.y || a.x - b.x || byId(a, b));
-  const routes = Object.fromEntries(LODS.map((lod) => [
-    lod,
-    geoms[lod].routes.map((segment) => ({
-      ...link(segment), points: segment.points.map(({ x, y }) => ({ x, y })),
-    })).sort(byLink),
-  ]));
+  // `endsOnDeptTop` (entry-dot vs arrow) and `marked` (foreign-frame highlight) steer
+  // paint but are dropped by a bare {from,to,kind,points} row — captured so the Rust
+  // route adapter cannot regress them unseen (B1). `marked` lives on live.markedCrossings
+  // (the renderer folds it into markedKeys the same way, DiagramRenderer.ts:793).
+  const routes = Object.fromEntries(LODS.map((lod) => {
+    const g = geoms[lod];
+    const markedKeys = new Set(g.markedCrossings.map((c) => `${c.fromId}\u0000${c.toId}`));
+    return [
+      lod,
+      g.routes.map((segment) => ({
+        ...link(segment),
+        points: segment.points.map(({ x, y }) => ({ x, y })),
+        endsOnDeptTop: segment.endsOnDeptTop ?? false,
+        marked: markedKeys.has(`${segment.fromId}\u0000${segment.toId}`),
+      })).sort(byLink),
+    ];
+  }));
 
   return {
     layout: normalizeLayout(layout, staffLayout.margin ?? DEFAULT_STAFF_LAYOUT_OPTIONS.margin),
