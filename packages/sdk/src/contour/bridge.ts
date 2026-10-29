@@ -22,6 +22,12 @@ export interface WasmContourModule {
     vGap?: number | null,
     margin?: number | null,
   ) => unknown;
+  /**
+   * T126 R7 staff geometry. Single structured input → `StaffGeometryResult`.
+   * Metric validation lives in Rust (`StaffLayoutMetrics::validate`), so unlike
+   * the row-tree entry this takes one object and the TS bridge forwards it as-is.
+   */
+  computeStaffGeometry: (input: unknown) => unknown;
 }
 
 /** Thrown when the WASM module cannot be loaded or initialized. */

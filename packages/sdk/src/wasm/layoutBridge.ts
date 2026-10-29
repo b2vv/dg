@@ -1,7 +1,37 @@
 import { initContourWasm } from '../contour/bridge.js';
-import type { OrgFlatInput, OrgRowTreeLayoutResult } from './generated/rust-types.js';
+import type {
+  OrgFlatInput,
+  OrgRowTreeLayoutResult,
+  StaffGeometryResult,
+  StaffLayoutInput,
+} from './generated/rust-types.js';
 
 export type { OrgFlatInput, OrgRowTreeLayoutResult, LayoutNode, LayoutEdge } from './generated/rust-types.js';
+
+// T126 R7 A3 — full staff type closure, so A4 consumers import the Rust
+// geometry contract from this bridge rather than reaching into generated/.
+export type {
+  // Input closure.
+  StaffLayoutInput,
+  StaffPositionInput,
+  StaffEdgeInput,
+  StaffOrgInput,
+  StaffDepartmentInput,
+  StaffNodeSize,
+  StaffLayoutMetrics,
+  StaffDockHintInput,
+  StaffDockHint,
+  // Output closure.
+  StaffGeometryResult,
+  StaffNodeGeo,
+  StaffOrgCardGeo,
+  StaffNamespace,
+  StaffDepartmentFrameGeo,
+  StaffEdge,
+  StaffRouteSet,
+  StaffEdgeRoute,
+  StaffRoutePoint,
+} from './generated/rust-types.js';
 
 export interface WasmRowTreeOptions {
   direction?: string;
@@ -38,4 +68,19 @@ export async function computeOrgRowTreeLayoutWasm(
     requireLayoutMetric('verticalGap', options.verticalGap ?? 60, true),
     requireLayoutMetric('margin', options.margin ?? 24, true),
   ) as OrgRowTreeLayoutResult;
+}
+
+/**
+ * T126 R7 A3 — staff geometry over the WASM boundary. Unlike the row-tree entry
+ * this is a typed pass-through: the whole `StaffLayoutInput` crosses as one
+ * object and metric validation happens in Rust (`StaffLayoutMetrics::validate`),
+ * so there is nothing to validate or reshape here. Errors mirror the row-tree
+ * style — a failed `compute` throws the Rust `JsValue` as-is; only the loader
+ * path wraps into `WasmLoadError`.
+ */
+export async function computeStaffGeometryWasm(
+  input: StaffLayoutInput,
+): Promise<StaffGeometryResult> {
+  const wasm = await initContourWasm();
+  return wasm.computeStaffGeometry(input) as StaffGeometryResult;
 }
