@@ -8,6 +8,7 @@ mod staff_clearance;
 mod staff_compose;
 mod staff_edge_box;
 mod staff_geom;
+mod staff_layout;
 mod staff_packing;
 mod staff_routes;
 mod types;
@@ -26,6 +27,7 @@ pub use staff_compose::{
 pub use staff_edge_box::{
     visual_org_edge_box, visual_person_edge_box, EdgeRect, PersonEdgeHints, Rect,
 };
+pub use staff_layout::{compute_staff_geometry, layout_staff_org_block, Geom, StaffBlock};
 pub use staff_packing::{pack_departments, DepartmentMembers, StaffPackResult};
 pub use staff_routes::{staff_routes, RouteInputs};
 pub use types::*;
@@ -65,6 +67,20 @@ pub fn wasm_compute_org_row_tree_layout(
 
     let result = compute_org_row_tree_layout(orgs, &expanded_root_id, &opts)
         .map_err(|e| JsValue::from_str(&e.message()))?;
+    to_value(&result).map_err(|e| JsValue::from_str(&format!("serialize error: {e}")))
+}
+
+/// T126 R7: повна staff-геометрія (tree-шлях) у Rust. Єдиний staff-експорт:
+/// приймає `StaffLayoutInput`, повертає `StaffGeometryResult`.
+#[wasm_bindgen(js_name = computeStaffGeometry)]
+pub fn wasm_compute_staff_geometry(input: JsValue) -> Result<JsValue, JsValue> {
+    let parsed: StaffLayoutInput =
+        from_value(input).map_err(|e| JsValue::from_str(&format!("parse error: {e}")))?;
+    parsed
+        .options
+        .validate()
+        .map_err(|e| JsValue::from_str(&e))?;
+    let result = compute_staff_geometry(&parsed).map_err(|e| JsValue::from_str(&e))?;
     to_value(&result).map_err(|e| JsValue::from_str(&format!("serialize error: {e}")))
 }
 

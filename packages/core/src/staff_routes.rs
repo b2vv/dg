@@ -368,6 +368,7 @@ pub fn staff_routes(input: &RouteInputs) -> StaffRouteSet {
             kind: edge.kind.clone(),
             points,
             marked,
+            ends_on_dept_top: None, // A2 (rust-routing) заповнить для deptTop head-цілей
         });
     }
     StaffRouteSet {
@@ -957,6 +958,7 @@ mod tests {
             kind: "admin".to_string(),
             points,
             marked,
+            ends_on_dept_top: None,
         }
     }
 

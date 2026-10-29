@@ -87,6 +87,7 @@ mod tests {
             kind: "admin".to_string(),
             points,
             marked: None,
+            ends_on_dept_top: None,
         }
     }
     fn ebox(id: &str, x: f32, y: f32, w: f32, h: f32) -> EdgeRect {

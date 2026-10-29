@@ -331,6 +331,12 @@ pub struct StaffPositionInput {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "ts-export", ts(optional))]
     pub department_id: Option<String>,
+    /// Sibling-порядок посади (TS `comparePositions`: `parentId`, далі `order ?? 0`, далі `id`).
+    /// Адитивне optional; `None` ⟺ 0. Без нього member sibling-канал row-tree у dept-grouped
+    /// шляху розходився б з TS, коли посади несуть `order` (аудит контракту R7, gap #2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts-export", ts(optional))]
+    pub order: Option<f64>,
 }
 
 /// Ребро підпорядкування. `kind`: "admin" | "matrix" | "dotted" | "lead-org".
@@ -373,6 +379,12 @@ pub struct StaffOrgInput {
 )]
 pub struct StaffDepartmentInput {
     pub id: String,
+    /// Порядок відділів зліва направо (TS `compareDepartments`: `order ?? 0`, далі `id`).
+    /// Адитивне optional-поле; `None` ⟺ 0. Без нього Rust сортував би лише за id і розкладка
+    /// відділів розходилась би з TS, щойно `order ≠ алфавіт` (аудит контракту R7, gap #1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts-export", ts(optional))]
+    pub order: Option<f64>,
 }
 
 /// Оголошений нодою порт докування лінка (ADR-0002). `port`: "center" | "avatar".
@@ -555,6 +567,13 @@ pub struct StaffEdgeRoute {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "ts-export", ts(optional))]
     pub marked: Option<bool>,
+    /// Кінець докається на верх рамки департаменту (deptTop), а не на картку: ціль — голова свого
+    /// депу (R6-7b). TS-фарба малює тут entry-кружечок `.ent`. Геометрію порту рахує Rust; TS лише
+    /// читає прапор. Адитивне optional-поле (не ламає споживачів; `None` ⟺ звичайний кінець).
+    #[serde(rename = "endsOnDeptTop")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts-export", ts(optional, rename = "endsOnDeptTop"))]
+    pub ends_on_dept_top: Option<bool>,
 }
 
 /// Маршрути для одного LOD (`lod`: "near"|"mid"|"far").

@@ -35,7 +35,13 @@ export type StaffDepartmentFrameGeo = { departmentId: string, partIndex?: number
 /**
  * Відділ — вхід для пакування й magnetic-розрізу (O-38, O-48 п.5).
  */
-export type StaffDepartmentInput = { id: string, };
+export type StaffDepartmentInput = { id: string, 
+/**
+ * Порядок відділів зліва направо (TS `compareDepartments`: `order ?? 0`, далі `id`).
+ * Адитивне optional-поле; `None` ⟺ 0. Без нього Rust сортував би лише за id і розкладка
+ * відділів розходилась би з TS, щойно `order ≠ алфавіт` (аудит контракту R7, gap #1).
+ */
+order?: number, };
 
 /**
  * Ребро у виході (без шляху — шлях у `StaffEdgeRoute`). `kind` як у вході + "lead-org".
@@ -61,7 +67,13 @@ export type StaffEdgeRoute = { fromId: string, toId: string, kind: string, point
  * (обхід локально недосяжний; хост малює видимий маркер, не тихе прийняття). Відсутній, коли
  * чисто. Адитивне поле — не ламає наявних споживачів (перша зміна контракту після R6-1).
  */
-marked?: boolean, };
+marked?: boolean, 
+/**
+ * Кінець докається на верх рамки департаменту (deptTop), а не на картку: ціль — голова свого
+ * депу (R6-7b). TS-фарба малює тут entry-кружечок `.ent`. Геометрію порту рахує Rust; TS лише
+ * читає прапор. Адитивне optional-поле (не ламає споживачів; `None` ⟺ звичайний кінець).
+ */
+endsOnDeptTop?: boolean, };
 
 /**
  * Єдиний вихід staff-геометрії (замінює `StaffCanvasResult`; `tiers`→`namespaces`).
@@ -122,7 +134,13 @@ export type StaffOrgInput = { id: string, parentOrgId?: string, };
 /**
  * Посада — вхід у staff-лейаут (членство в орг-блоці/відділі/ярусі).
  */
-export type StaffPositionInput = { id: string, organizationId: string, isHead: boolean, departmentId?: string, };
+export type StaffPositionInput = { id: string, organizationId: string, isHead: boolean, departmentId?: string, 
+/**
+ * Sibling-порядок посади (TS `comparePositions`: `parentId`, далі `order ?? 0`, далі `id`).
+ * Адитивне optional; `None` ⟺ 0. Без нього member sibling-канал row-tree у dept-grouped
+ * шляху розходився б з TS, коли посади несуть `order` (аудит контракту R7, gap #2).
+ */
+order?: number, };
 
 /**
  * Точка ортогонального маршруту.
