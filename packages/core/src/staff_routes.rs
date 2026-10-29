@@ -90,6 +90,50 @@ fn elbow_or_straight(ax: f32, ay: f32, bx: f32, by: f32, corr: f32) -> Vec<Staff
     ]
 }
 
+/// Горизонтальний кандидат (A2.2, порт `staffEdgeGeometry.ts::horizontalPolyline` :181-209): бічні
+/// порти (центр left/right ребра) + midX-елбоу. `None`, коли нема ЧИСТОГО горизонтального зазору між
+/// AABB — ця умова несуча: Rust clean-check не перевіряє перетин ВЛАСНИХ from/to боксів (idx скіпає їх
+/// по id), тож `None` при !clear_gap — єдиний запобіжник проти H, що ріже власний бокс (A2.2 критик B2).
+fn route_horizontal(from: &EdgeRect, to: &EdgeRect) -> Option<Vec<StaffRoutePoint>> {
+    let from_cx = from.x + from.width / 2.0;
+    let to_cx = to.x + to.width / 2.0;
+    let from_cy = from.y + from.height / 2.0;
+    let to_cy = to.y + to.height / 2.0;
+    let from_right = from.x + from.width;
+    let to_right = to.x + to.width;
+    let go_right = to_cx >= from_cx; // tie→right (оракул :188, не строгий)
+    let clear_gap = if go_right {
+        from_right <= to.x + STRAIGHT_EPS
+    } else {
+        to_right <= from.x + STRAIGHT_EPS
+    };
+    if !clear_gap {
+        return None;
+    }
+    let x1 = if go_right { from_right } else { from.x };
+    let x2 = if go_right { to.x } else { to_right };
+    if (from_cy - to_cy).abs() < STRAIGHT_EPS {
+        return Some(vec![
+            StaffRoutePoint { x: x1, y: from_cy },
+            StaffRoutePoint { x: x2, y: to_cy },
+        ]);
+    }
+    let mid_x = if go_right {
+        (from_right + to.x) / 2.0
+    } else {
+        (to_right + from.x) / 2.0
+    };
+    Some(vec![
+        StaffRoutePoint { x: x1, y: from_cy },
+        StaffRoutePoint {
+            x: mid_x,
+            y: from_cy,
+        },
+        StaffRoutePoint { x: mid_x, y: to_cy },
+        StaffRoutePoint { x: x2, y: to_cy },
+    ])
+}
+
 /// Бічний обхід (R6-4b): H-V-H навколо рамки — вихід униз, біг до вертикального коридору `lane_x`
 /// збоку рамки, спуск уздовж нього, повернення до верху цілі. Нульові сегменти (lane_x==ax чи ==bx)
 /// згортаються, тож маршрут лишається ортогональним без дублів-точок.
@@ -460,26 +504,55 @@ pub fn staff_routes(input: &RouteInputs) -> StaffRouteSet {
         let points = if avoid {
             let (src, dst) = (mo(&edge.from_id), mo(&edge.to_id));
             let base = route_ortho(&from, &to);
-            // Швидкий clean-check: картки по глобальному індексу (skip from/to by id) + чужі рамки
-            // лінійно. Булево тотожне route_clear_of(base, obstacles_for_edge). Чисте ребро (більшість
-            // і головний n²) → 0 per-edge алокацій, старий detour не викликається (A2.1 критик B2).
+            // A2.2 candidate-ladder (порт classifyStaffEdgeRoute :384-401): matrix/dotted/sameBand
+            // віддають перевагу БІЧНИМ портам. sameBand — на per-LOD edge-box height (A2.2 критик N4).
+            let from_cy = from.y + from.height / 2.0;
+            let to_cy = to.y + to.height / 2.0;
+            let same_band = (to_cy - from_cy).abs() < from.height.min(to.height) * 0.35;
+            let prefer_horizontal = edge.kind == "matrix" || edge.kind == "dotted" || same_band;
             let idx = card_index.as_ref().expect("card_index будується при avoid");
-            if idx.clear_of(&base, input.card_pad, &edge.from_id, &edge.to_id)
-                && !foreign_frame_blocks(&base, input.department_frames, &src, &dst, input.card_pad)
-            {
-                base
+            // Clean-check — ТОЙ САМИЙ предикат для H і V (idx skip from/to by id + чужі рамки);
+            // лише idx+foreign, без per-edge obs → lazy-obs A2.1 збережено (A2.2 критик N7).
+            let is_clean = |cand: &[StaffRoutePoint]| -> bool {
+                idx.clear_of(cand, input.card_pad, &edge.from_id, &edge.to_id)
+                    && !foreign_frame_blocks(
+                        cand,
+                        input.department_frames,
+                        &src,
+                        &dst,
+                        input.card_pad,
+                    )
+            };
+            // Порядок кандидатів: prefer→[H,V], інакше→[V,H]. Перший чистий виграє (= TS direct-гілка).
+            // V (route_ortho) завжди присутній; H — лише коли є чистий горизонтальний зазор. H рахуємо
+            // ЛІНИВО (non-prefer з чистою V взагалі не алокує H-Vec — зберігає «0 алокацій» A2.1).
+            let clean_horizontal = || route_horizontal(&from, &to).filter(|h| is_clean(h));
+            let chosen = if prefer_horizontal {
+                match clean_horizontal() {
+                    Some(h) => Some(h),
+                    None if is_clean(&base) => Some(base.clone()),
+                    None => None,
+                }
+            } else if is_clean(&base) {
+                Some(base.clone())
             } else {
-                // Блоковано → per-edge obs будуємо ЛІНИВО й віддаємо старому detour (lane-gen Y/X
-                // байт-незмінний, A2.1 критик B3). detour перевіряє base знову (→ блок) і йде в lane.
-                let (obs, frames_at) = obstacles_for_edge(
-                    &cards,
-                    input.department_frames,
-                    &edge.from_id,
-                    &edge.to_id,
-                    &src,
-                    &dst,
-                );
-                detour_edge(&from, &to, &obs, &obs[frames_at..], input.card_pad)
+                clean_horizontal()
+            };
+            match chosen {
+                Some(pts) => pts,
+                None => {
+                    // Жоден кандидат не чистий → per-edge obs ЛІНИВО + наявний вертикальний detour
+                    // (lane-gen Y/X байт-незмінний, A2.1 критик B3; = TS around/forced-еквівалент).
+                    let (obs, frames_at) = obstacles_for_edge(
+                        &cards,
+                        input.department_frames,
+                        &edge.from_id,
+                        &edge.to_id,
+                        &src,
+                        &dst,
+                    );
+                    detour_edge(&from, &to, &obs, &obs[frames_at..], input.card_pad)
+                }
             }
         } else {
             route_ortho(&from, &to)
@@ -948,6 +1021,99 @@ mod tests {
             !idx.clear_of(&points, pad, "P", "c1"),
             "перешкода на 1<d<pad поза bbox має блокувати (інакше 1px-інфляція б загубила)"
         );
+    }
+
+    // --- A2.2: side-порти + preferHorizontal (candidate-ladder) ---
+
+    // matrix-ребро з чистим горизонтальним зазором → бічні порти (пряма H), не вертикаль.
+    #[test]
+    fn matrix_edge_prefers_horizontal_side_ports() {
+        let nodes = [
+            node_wh("F", 0.0, 0.0, 100.0, 50.0),
+            node_wh("T", 200.0, 0.0, 100.0, 50.0),
+        ];
+        let edges = [edge_kind("F", "T", "matrix")];
+        let set = staff_routes(&avoid_input(&nodes, &edges, "near", 16.0));
+        // go_right, cy рівні → пряма H [(from.right,cy),(to.x,cy)] = [(100,25),(200,25)].
+        assert!(
+            points_eq(
+                &set.segments[0].points,
+                &[route_pt(100.0, 25.0), route_pt(200.0, 25.0)]
+            ),
+            "matrix з чистим зазором → бічні порти, got {:?}",
+            set.segments[0].points
+        );
+    }
+
+    // B1: admin (НЕ sameBand) з БЛОКОВАНОЮ вертикаллю, але ЧИСТОЮ горизонталлю → H, НЕ detour.
+    // Саме цю зміну поведінки A2.2 вводить проти A2.1 (там V blocked → detour).
+    #[test]
+    fn admin_vertical_blocked_horizontal_clean_takes_horizontal() {
+        let nodes = [
+            node_wh("F", 0.0, 0.0, 100.0, 50.0),     // cy=25
+            node_wh("T", 200.0, 200.0, 100.0, 50.0), // cy=225 → не sameBand (Δ200≫17.5)
+            node_wh("X", 40.0, 115.0, 30.0, 20.0),   // блокує V-corr (y=125, x50..250) на x50..70
+        ];
+        let edges = [edge("F", "T")]; // admin
+        let set = staff_routes(&avoid_input(&nodes, &edges, "near", 16.0));
+        // H-елбоу: [(100,25),(150,25),(150,225),(200,225)], midX=(100+200)/2=150.
+        assert!(
+            points_eq(
+                &set.segments[0].points,
+                &[
+                    route_pt(100.0, 25.0),
+                    route_pt(150.0, 25.0),
+                    route_pt(150.0, 225.0),
+                    route_pt(200.0, 225.0)
+                ]
+            ),
+            "V blocked, H clean → H, got {:?}",
+            set.segments[0].points
+        );
+    }
+
+    // sameBand admin → prefer_horizontal (sameBand kind-незалежний, оракул) → бічні порти.
+    #[test]
+    fn same_band_admin_flips_to_horizontal() {
+        let nodes = [
+            node_wh("F", 0.0, 0.0, 100.0, 100.0),    // cy=50
+            node_wh("T", 200.0, 10.0, 100.0, 100.0), // cy=60, Δ=10 < min(100)*0.35=35 → sameBand
+        ];
+        let edges = [edge("F", "T")]; // admin, але sameBand
+        let set = staff_routes(&avoid_input(&nodes, &edges, "near", 16.0));
+        let first = &set.segments[0].points[0];
+        assert!(
+            (first.x - 100.0).abs() < 1e-6 && (first.y - 50.0).abs() < 1e-6,
+            "sameBand admin → бічний порт (from.right, cy), got {first:?}"
+        );
+    }
+
+    // admin V-clean лишається V (істинний інваріант A2.2; той самий предикат, V перший).
+    #[test]
+    fn admin_vertical_clean_stays_vertical() {
+        let nodes = [
+            node_wh("F", 0.0, 0.0, 100.0, 50.0),
+            node_wh("T", 0.0, 300.0, 100.0, 50.0),
+        ];
+        let edges = [edge("F", "T")];
+        let avoided = staff_routes(&avoid_input(&nodes, &edges, "near", 16.0));
+        let base = staff_routes(&avoid_input(&nodes, &edges, "near", 0.0));
+        assert!(
+            points_eq(&avoided.segments[0].points, &base.segments[0].points),
+            "V-clean admin має лишитись route_ortho"
+        );
+    }
+
+    // B2: route_horizontal → None, коли нема чистого горизонтального зазору (overlap / стек).
+    #[test]
+    fn route_horizontal_none_without_clear_gap() {
+        let f = edge_rect("f", 0.0, 0.0, 100.0, 50.0);
+        let overlap = edge_rect("o", 50.0, 0.0, 100.0, 50.0); // from_right100 > to.x50 → нема зазору
+        assert!(route_horizontal(&f, &overlap).is_none());
+        let stacked = edge_rect("s", 0.0, 300.0, 100.0, 50.0); // та сама колонка
+        assert!(route_horizontal(&f, &stacked).is_none());
+        let clear = edge_rect("c", 200.0, 0.0, 100.0, 50.0); // чистий зазор
+        assert!(route_horizontal(&f, &clear).is_some());
     }
 
     // --- R6-4a: around-frame lane + §12-маркер ---
