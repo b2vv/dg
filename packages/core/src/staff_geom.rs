@@ -161,6 +161,10 @@ pub struct FrameRect {
     pub y: f32,
     pub width: f32,
     pub height: f32,
+    /// ВНУТРІШНІЙ (A2.4 deptTop): id голови відділу, якщо вона серед laid-out членів ЦІЄЇ рамки.
+    /// Крос-dept admin-ребро в голову докується на верх рамки (`deptTop`), не на картку голови.
+    /// НЕ серіалізується (FrameRect без Serialize/TS) → у golden `StaffDepartmentFrameGeo` не тече.
+    pub head_id: Option<String>,
 }
 
 impl FrameRect {

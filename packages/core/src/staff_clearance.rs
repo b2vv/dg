@@ -108,6 +108,7 @@ mod tests {
             y,
             width: w,
             height: h,
+            head_id: None,
         }
     }
 

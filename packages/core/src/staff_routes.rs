@@ -530,13 +530,42 @@ pub fn staff_routes(input: &RouteInputs) -> StaffRouteSet {
             continue; // висяче ребро
         };
 
+        let (src, dst) = (mo(&edge.from_id), mo(&edge.to_id));
+
+        // A2.4 deptTop: крос-dept admin-ребро в голову відділу докується на ВЕРХ рамки (не на
+        // картку голови). Синт-порт {head.cx-1, frame.y, 2×2}, to_id ЗБЕРЕЖЕНО (obstacle-skip і
+        // foreign-frame keyять на реальну голову). from-виключення — на рівні DEPT, не part
+        // (= TS `!memberIds.has(from)`, staffEdgeGeometry.ts:454-460). Гейт строго kind=="admin"
+        // (:455). `dst` лишається реальною головою → власна рамка голови exempt у is_clean/detour.
+        let dept_top_y = if edge.kind == "admin" {
+            let from_dept = src.as_ref().map(|(d, _)| d.as_str());
+            input.department_frames.iter().find_map(|f| {
+                (f.head_id.as_deref() == Some(edge.to_id.as_str())
+                    && from_dept != Some(f.department_id.as_str()))
+                .then_some(f.y)
+            })
+        } else {
+            None
+        };
+        let routed_to = match dept_top_y {
+            Some(y) => EdgeRect {
+                id: to.id.clone(),
+                x: to.x + to.width / 2.0 - 1.0,
+                y,
+                width: 2.0,
+                height: 2.0,
+                obstacle: None,
+            },
+            None => to,
+        };
+
         let points = if avoid {
-            let (src, dst) = (mo(&edge.from_id), mo(&edge.to_id));
             // A2.2 candidate-ladder (порт classifyStaffEdgeRoute :384-401): matrix/dotted/sameBand
             // віддають перевагу БІЧНИМ портам. sameBand — на per-LOD edge-box height (A2.2 критик N4).
+            // Для deptTop routed_to — 2×2-бокс (h=2) → sameBand≈0.7px → майже завжди [V,H] (A2.4 T5).
             let from_cy = from.y + from.height / 2.0;
-            let to_cy = to.y + to.height / 2.0;
-            let same_band = (to_cy - from_cy).abs() < from.height.min(to.height) * 0.35;
+            let to_cy = routed_to.y + routed_to.height / 2.0;
+            let same_band = (to_cy - from_cy).abs() < from.height.min(routed_to.height) * 0.35;
             let prefer_horizontal = edge.kind == "matrix" || edge.kind == "dotted" || same_band;
             let idx = card_index.as_ref().expect("card_index будується при avoid");
             // Clean-check — ТОЙ САМИЙ предикат для H і V (idx skip from/to by id + чужі рамки);
@@ -555,8 +584,8 @@ pub fn staff_routes(input: &RouteInputs) -> StaffRouteSet {
             // Обидва nullable (route_vertical — None при no-gap, A2.3; route_horizontal — None без
             // зазору). Рахуємо ЛІНИВО через or_else: невикористаний кандидат не алокує Vec («0
             // алокацій» A2.1 для чистого першого кандидата).
-            let clean_vertical = || route_vertical(&from, &to).filter(|v| is_clean(v));
-            let clean_horizontal = || route_horizontal(&from, &to).filter(|h| is_clean(h));
+            let clean_vertical = || route_vertical(&from, &routed_to).filter(|v| is_clean(v));
+            let clean_horizontal = || route_horizontal(&from, &routed_to).filter(|h| is_clean(h));
             let chosen = if prefer_horizontal {
                 clean_horizontal().or_else(clean_vertical)
             } else {
@@ -575,11 +604,11 @@ pub fn staff_routes(input: &RouteInputs) -> StaffRouteSet {
                         &src,
                         &dst,
                     );
-                    detour_edge(&from, &to, &obs, &obs[frames_at..], input.card_pad)
+                    detour_edge(&from, &routed_to, &obs, &obs[frames_at..], input.card_pad)
                 }
             }
         } else {
-            route_ortho(&from, &to)
+            route_ortho(&from, &routed_to)
         };
 
         // §12-маркер by construction: той самий frame_intrusion_count, що й детектор-оракул.
@@ -598,7 +627,9 @@ pub fn staff_routes(input: &RouteInputs) -> StaffRouteSet {
             kind: edge.kind.clone(),
             points,
             marked,
-            ends_on_dept_top: None, // A2 (rust-routing) заповнить для deptTop head-цілей
+            // A2.4: Some(true) ЛИШЕ коли routed_to був синт-портом deptTop (headFrame-hit);
+            // ніколи Some(false) — None↔TS omit, паритет skip_serializing_if (types.rs:573).
+            ends_on_dept_top: dept_top_y.map(|_| true),
         });
     }
     StaffRouteSet {
@@ -674,6 +705,13 @@ mod tests {
             y,
             width: w,
             height: h,
+            head_id: None,
+        }
+    }
+    fn frame_head(dept: &str, x: f32, y: f32, w: f32, h: f32, head: &str) -> FrameRect {
+        FrameRect {
+            head_id: Some(head.to_string()),
+            ..frame(dept, x, y, w, h)
         }
     }
 
@@ -1183,6 +1221,94 @@ mod tests {
         // no-gap (перекриті по Y) → None.
         let overlap = edge_rect("o", 0.0, 30.0, 100.0, 50.0); // y30..80 перекриває from y0..50
         assert!(route_vertical(&from, &overlap).is_none(), "no-gap → None");
+    }
+
+    // --- A2.4: deptTop (крос-dept admin у голову докується на верх рамки) ---
+
+    // Крос-dept admin: org-голова (без dept) → голова відділу D1. Докується на верх рамки
+    // (routeTo = {head.cx-1, frame.y, 2×2}, to_id збережено), ends_on_dept_top=Some(true).
+    #[test]
+    fn cross_dept_admin_into_head_docks_on_frame_top() {
+        let nodes = [
+            node_wh("H", 0.0, 0.0, 100.0, 50.0), // org-голова, без dept
+            node_dept("T", 0.0, 300.0, 100.0, 50.0, "D1"), // голова D1
+        ];
+        let edges = [edge("H", "T")]; // admin
+        let frames = [frame_head("D1", 0.0, 280.0, 100.0, 70.0, "T")];
+        let set = staff_routes(&frames_input(&nodes, &edges, &frames, "near", 16.0));
+        let r = &set.segments[0];
+        assert_eq!(
+            r.ends_on_dept_top,
+            Some(true),
+            "крос-dept admin у голову → deptTop"
+        );
+        assert!(
+            point_eq(&r.points[0], 50.0, 50.0),
+            "старт — нижній порт H, got {:?}",
+            r.points[0]
+        );
+        // Синт-бокс {x:to.cx-1, w:2} центрований на to.cx → ПОРТ (центр верх-ребра) = to.cx = 50
+        // (= TS: box.x+box.w/2 = to.cx-1+1). y — верх рамки (frame.y=280). from.cx==to.cx → пряма.
+        assert!(
+            point_eq(r.points.last().unwrap(), 50.0, 280.0),
+            "кінець — синт-порт deptTop на to.cx, frame.y, got {:?}",
+            r.points.last().unwrap()
+        );
+    }
+
+    // Дискримінація порту (ревʼю-нит): from.cx≠to.cx → ендпойнт мусить сісти на to.cx (голова),
+    // НЕ на from.cx. H зсунуто (cx=250), T.cx=50 → синт-порт на 50 доводить port=to.cx, не from.cx.
+    #[test]
+    fn dept_top_port_tracks_head_cx_not_source_cx() {
+        let nodes = [
+            node_wh("H", 200.0, 0.0, 100.0, 50.0),         // from.cx=250
+            node_dept("T", 0.0, 300.0, 100.0, 50.0, "D1"), // to.cx=50
+        ];
+        let edges = [edge("H", "T")];
+        let frames = [frame_head("D1", 0.0, 280.0, 100.0, 70.0, "T")];
+        let set = staff_routes(&frames_input(&nodes, &edges, &frames, "near", 16.0));
+        let r = &set.segments[0];
+        assert_eq!(r.ends_on_dept_top, Some(true));
+        let last = r.points.last().unwrap();
+        assert!(
+            point_eq(last, 50.0, 280.0),
+            "deptTop-порт на to.cx (50), не from.cx (250), got {last:?}"
+        );
+    }
+
+    // Intra-dept admin (from — член того ж відділу) НЕ отримує deptTop → card-top голови.
+    #[test]
+    fn intra_dept_admin_stays_on_card_top() {
+        let nodes = [
+            node_dept("F", 0.0, 0.0, 100.0, 50.0, "D1"),   // член D1
+            node_dept("T", 0.0, 300.0, 100.0, 50.0, "D1"), // голова D1
+        ];
+        let edges = [edge("F", "T")]; // admin, але intra-dept
+        let frames = [frame_head("D1", 0.0, 280.0, 100.0, 70.0, "T")];
+        let set = staff_routes(&frames_input(&nodes, &edges, &frames, "near", 16.0));
+        let r = &set.segments[0];
+        assert_eq!(r.ends_on_dept_top, None, "intra-dept → без deptTop");
+        assert!(
+            point_eq(r.points.last().unwrap(), 50.0, 300.0),
+            "кінець — верх картки голови (to.cx, to.y), got {:?}",
+            r.points.last().unwrap()
+        );
+    }
+
+    // Non-admin (matrix) у голову: гейт kind=="admin" → без deptTop, навіть із match-рамкою.
+    #[test]
+    fn non_admin_into_head_does_not_dock_on_frame_top() {
+        let nodes = [
+            node_wh("H", 0.0, 0.0, 100.0, 50.0),
+            node_dept("T", 0.0, 300.0, 100.0, 50.0, "D1"),
+        ];
+        let edges = [edge_kind("H", "T", "matrix")];
+        let frames = [frame_head("D1", 0.0, 280.0, 100.0, 70.0, "T")];
+        let set = staff_routes(&frames_input(&nodes, &edges, &frames, "near", 16.0));
+        assert_eq!(
+            set.segments[0].ends_on_dept_top, None,
+            "non-admin у голову → без deptTop (гейт kind)"
+        );
     }
 
     // --- R6-4a: around-frame lane + §12-маркер ---

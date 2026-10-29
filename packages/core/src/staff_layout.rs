@@ -183,6 +183,64 @@ fn detached_root_ids(
         .collect()
 }
 
+/// Голова відділу = перший «відчеплений корінь» відділу — член, чий admin-батько ЗА МЕЖАМИ
+/// відділу (або відсутній). Саме цей кінець org→dept-конектора докується на верх рамки
+/// (`deptTop`, lines spec §3.2/§8); решта членів досягаються на верху своєї картки. Порт
+/// `resolveDeptHeads.ts`.
+///
+/// ВАЖЛИВО — НЕ переюз `admin_parent_map`/`detached_root_ids`:
+/// - adminParent тут **ГЛОБАЛЬНИЙ** (усі reports, без org-фільтра й без відкидання крос-орг ребер,
+///   на відміну від `admin_parent_map` :80, що скоупить за org_id);
+/// - корінь тут скоупиться за **departmentId** (батько в іншому відділі → корінь), а не за org;
+/// - порядок — лексичний `positionId` (`roots.sort()`), а не вхідний (на відміну від
+///   `detached_root_ids` :171). Застереження: Rust `String` sort = байти UTF-8 (= JS UTF-16 лише
+///   для ASCII-id; усі layout-id ASCII).
+///
+/// Відділ без відчепленого кореня (замкнений admin-цикл усередині) просто відсутній у мапі —
+/// викличний код падає назад на card-top-порт, не крешить.
+fn resolve_dept_heads(
+    positions: &[StaffPositionInput],
+    reports: &[StaffEdgeInput],
+) -> HashMap<String, String> {
+    // id → departmentId (Option) усіх позицій.
+    let mut dept_of: HashMap<&str, Option<&str>> = HashMap::with_capacity(positions.len());
+    for p in positions {
+        dept_of.insert(p.id.as_str(), p.department_id.as_deref());
+    }
+
+    // ГЛОБАЛЬНИЙ admin-батько: усі reports (fromId=менеджер, toId=підлеглий), без org-фільтра;
+    // self-link ігнорується; дубль → last-write-wins (= TS Map.set).
+    let mut admin_parent: HashMap<&str, &str> = HashMap::new();
+    for r in reports {
+        if r.kind != "admin" || r.from_id == r.to_id {
+            continue;
+        }
+        admin_parent.insert(r.to_id.as_str(), r.from_id.as_str());
+    }
+
+    // Відчеплені корені кожного відділу: позиція з dept, чий батько НЕ в тому ж dept (або відсутній).
+    let mut roots_by_dept: HashMap<&str, Vec<&str>> = HashMap::new();
+    for p in positions {
+        let Some(dept) = p.department_id.as_deref() else {
+            continue; // позиції без відділу ігноруються
+        };
+        if let Some(parent) = admin_parent.get(p.id.as_str()) {
+            if dept_of.get(parent).copied().flatten() == Some(dept) {
+                continue; // батько всередині того ж відділу → не корінь
+            }
+        }
+        roots_by_dept.entry(dept).or_default().push(p.id.as_str());
+    }
+
+    // Голова = перший корінь за лексичним positionId (детермінізм H6).
+    let mut heads = HashMap::with_capacity(roots_by_dept.len());
+    for (dept, mut roots) in roots_by_dept {
+        roots.sort_unstable();
+        heads.insert(dept.to_string(), roots[0].to_string());
+    }
+    heads
+}
+
 /// Сам + усі admin-нащадки в межах своєї орг (positionExpand.ts:143). Лише членство.
 fn admin_descendant_ids(
     position_id: &str,
@@ -1128,15 +1186,27 @@ pub fn compute_staff_geometry(input: &StaffLayoutInput) -> Result<StaffGeometryR
 
     // ── Рамки відділів + маршрути ────────────────────────────────────────────
     let department_frames = department_frames_from_nodes(&nodes, input.options.content_padding);
+    // A2.4 deptTop: голова кожного відділу (ГЛОБАЛЬНО з reports) → head_id рамки, АЛЕ лише коли
+    // голова серед laid-out членів тієї рамки (T9: LOD/collapse могли її виключити; гейт-паритет
+    // staffRouterV2.ts:76 `memberIds.has(headId)`). Поле ВНУТРІШНЄ — у golden department_frames не тече.
+    let dept_heads = resolve_dept_heads(&input.positions, &input.reports);
     let frames_rect: Vec<FrameRect> = department_frames
         .iter()
-        .map(|f| FrameRect {
-            department_id: f.department_id.clone(),
-            part_index: f.part_index,
-            x: f.x,
-            y: f.y,
-            width: f.width,
-            height: f.height,
+        .map(|f| {
+            let head_id = dept_heads.get(&f.department_id).filter(|h| {
+                nodes.iter().any(|n| {
+                    &n.id == *h && n.department_id.as_deref() == Some(f.department_id.as_str())
+                })
+            });
+            FrameRect {
+                department_id: f.department_id.clone(),
+                part_index: f.part_index,
+                x: f.x,
+                y: f.y,
+                width: f.width,
+                height: f.height,
+                head_id: head_id.cloned(),
+            }
         })
         .collect();
     let card_pad = if input.options.content_padding >= MIN_CARD_PAD {
@@ -1236,6 +1306,78 @@ mod tests {
     fn resolve_head_errors_on_ambiguity() {
         let ps = vec![pos("a", "o", false, None), pos("b", "o", false, None)];
         assert!(resolve_staff_head(&ps, "o", &[]).is_err());
+    }
+
+    // ── resolve_dept_heads (A2.4 deptTop; дзеркало resolveDeptHeads.test.ts) ──────────────
+
+    #[test]
+    fn dept_head_is_member_whose_admin_parent_is_outside_dept() {
+        // org-голова `ceo` (без dept) керує `d1-head` (dept D1); `d1-head` керує `d1-sub`.
+        let ps = vec![
+            pos("ceo", "o", true, None),
+            pos("d1-head", "o", false, Some("D1")),
+            pos("d1-sub", "o", false, Some("D1")),
+        ];
+        let reports = vec![admin("ceo", "d1-head"), admin("d1-head", "d1-sub")];
+        let heads = resolve_dept_heads(&ps, &reports);
+        assert_eq!(heads.get("D1"), Some(&"d1-head".to_string()));
+    }
+
+    #[test]
+    fn dept_head_excludes_member_with_parent_inside_same_dept() {
+        let ps = vec![
+            pos("ceo", "o", true, None),
+            pos("d1-head", "o", false, Some("D1")),
+            pos("d1-sub", "o", false, Some("D1")),
+        ];
+        let reports = vec![admin("ceo", "d1-head"), admin("d1-head", "d1-sub")];
+        let heads = resolve_dept_heads(&ps, &reports);
+        assert_ne!(heads.get("D1"), Some(&"d1-sub".to_string()));
+    }
+
+    #[test]
+    fn dept_head_multi_root_is_deterministic_by_position_id_not_input_order() {
+        // Два відчеплені корені в D1, обидва з-поза відділу. Порядок входу перевернуто (H6).
+        let reports = vec![admin("ceo", "d1-a"), admin("ceo", "d1-b")];
+        let forward = vec![
+            pos("ceo", "o", true, None),
+            pos("d1-a", "o", false, Some("D1")),
+            pos("d1-b", "o", false, Some("D1")),
+        ];
+        let flipped = vec![
+            pos("ceo", "o", true, None),
+            pos("d1-b", "o", false, Some("D1")),
+            pos("d1-a", "o", false, Some("D1")),
+        ];
+        assert_eq!(
+            resolve_dept_heads(&forward, &reports).get("D1"),
+            Some(&"d1-a".to_string())
+        );
+        assert_eq!(
+            resolve_dept_heads(&flipped, &reports).get("D1"),
+            Some(&"d1-a".to_string())
+        );
+    }
+
+    #[test]
+    fn dept_head_ignores_positions_without_department() {
+        let heads = resolve_dept_heads(
+            &[pos("ceo", "o", true, None), pos("solo", "o", false, None)],
+            &[],
+        );
+        assert!(heads.is_empty());
+    }
+
+    #[test]
+    fn dept_head_absent_for_dept_with_no_outside_rooted_member() {
+        // Замкнений цикл усередині відділу: кожен член має батька всередині D1.
+        let ps = vec![
+            pos("a", "o", false, Some("D1")),
+            pos("b", "o", false, Some("D1")),
+        ];
+        let reports = vec![admin("a", "b"), admin("b", "a")];
+        let heads = resolve_dept_heads(&ps, &reports);
+        assert!(!heads.contains_key("D1"));
     }
 
     #[test]
