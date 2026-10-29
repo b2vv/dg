@@ -28,10 +28,12 @@ use crate::staff_geom::FrameRect;
 use crate::staff_packing::department_frame;
 use crate::staff_routes::{staff_routes, RouteInputs};
 use crate::types::{
-    LayoutOptions, OrgFlatInput, StaffDepartmentFrameGeo, StaffEdge, StaffEdgeInput,
-    StaffGeometryResult, StaffLayoutInput, StaffNamespace, StaffNodeGeo, StaffOrgCardGeo,
-    StaffOrgInput, StaffPositionInput,
+    LayoutOptions, OrgFlatInput, StaffDepartmentFrameGeo, StaffDockHint, StaffDockHintInput,
+    StaffEdge, StaffEdgeInput, StaffGeometryResult, StaffLayoutInput, StaffNamespace, StaffNodeGeo,
+    StaffOrgCardGeo, StaffOrgInput, StaffPositionInput,
 };
+
+use crate::staff_edge_box::PersonEdgeHints;
 
 /// Сентинел «без відділу» (TS `NO_DEPARTMENT_ID`, data/types.ts:244).
 const NO_DEPARTMENT_ID: &str = "\u{0000}no-department";
@@ -239,6 +241,38 @@ fn resolve_dept_heads(
         heads.insert(dept.to_string(), roots[0].to_string());
     }
     heads
+}
+
+/// Контрактні dock-hints (TS-обчислені з DOM/стилю) → внутрішній `person_hints` роутера. Поля 1:1
+/// (`StaffDockHint` дзеркалить `PersonEdgeHints`). Rust hints НЕ рахує — лише переносить вхід (A2.5,
+/// G1 межа §6). Порядок входу збережено; дублі id не дедупляться (роутер бере перший match за id).
+fn resolve_person_hints(dock_hints: &[StaffDockHintInput]) -> Vec<(String, PersonEdgeHints)> {
+    dock_hints
+        .iter()
+        .map(|d| {
+            let hint = match &d.hint {
+                StaffDockHint::GojsRow {
+                    card_y,
+                    card_h,
+                    count_bar_h,
+                } => PersonEdgeHints::GojsRow {
+                    card_y: *card_y,
+                    card_h: *card_h,
+                    count_bar_h: *count_bar_h,
+                },
+                StaffDockHint::FigmaRow {
+                    tile_x,
+                    tile_y,
+                    tile_size,
+                } => PersonEdgeHints::FigmaRow {
+                    tile_x: *tile_x,
+                    tile_y: *tile_y,
+                    tile_size: *tile_size,
+                },
+            };
+            (d.id.clone(), hint)
+        })
+        .collect()
 }
 
 /// Сам + усі admin-нащадки в межах своєї орг (positionExpand.ts:143). Лише членство.
@@ -1214,12 +1248,14 @@ pub fn compute_staff_geometry(input: &StaffLayoutInput) -> Result<StaffGeometryR
     } else {
         0.0
     };
+    // A2.5: контрактні dockHints → person_hints роутера (TS-обчислена геометрія докування).
+    let person_hints = resolve_person_hints(&input.dock_hints);
     let routes = staff_routes(&RouteInputs {
         persons: &nodes,
         org_cards: &org_cards,
         edges: &edges,
         lod: &input.lod,
-        person_hints: &[],
+        person_hints: &person_hints,
         department_frames: &frames_rect,
         card_pad,
     });
@@ -1378,6 +1414,54 @@ mod tests {
         let reports = vec![admin("a", "b"), admin("b", "a")];
         let heads = resolve_dept_heads(&ps, &reports);
         assert!(!heads.contains_key("D1"));
+    }
+
+    // ── A2.5: resolve_person_hints (контрактні dockHints → внутрішній person_hints) ──────
+
+    #[test]
+    fn resolve_person_hints_maps_both_variants_one_to_one() {
+        let input = vec![
+            StaffDockHintInput {
+                id: "a".into(),
+                hint: StaffDockHint::FigmaRow {
+                    tile_x: 12.0,
+                    tile_y: 16.0,
+                    tile_size: 40.0,
+                },
+            },
+            StaffDockHintInput {
+                id: "b".into(),
+                hint: StaffDockHint::GojsRow {
+                    card_y: 1.0,
+                    card_h: 2.0,
+                    count_bar_h: 3.0,
+                },
+            },
+        ];
+        let out = resolve_person_hints(&input);
+        assert_eq!(
+            out.len(),
+            2,
+            "обидва hints перенесено, порядок входу збережено"
+        );
+        assert_eq!(out[0].0, "a");
+        match &out[0].1 {
+            PersonEdgeHints::FigmaRow {
+                tile_x,
+                tile_y,
+                tile_size,
+            } => assert_eq!((*tile_x, *tile_y, *tile_size), (12.0, 16.0, 40.0)),
+            _ => panic!("очікувано FigmaRow"),
+        }
+        assert_eq!(out[1].0, "b");
+        match &out[1].1 {
+            PersonEdgeHints::GojsRow {
+                card_y,
+                card_h,
+                count_bar_h,
+            } => assert_eq!((*card_y, *card_h, *count_bar_h), (1.0, 2.0, 3.0)),
+            _ => panic!("очікувано GojsRow"),
+        }
     }
 
     #[test]
@@ -1865,7 +1949,7 @@ mod tests {
             departments,
             node_sizes: Vec::new(),
             options: metrics(),
-            edge_ports: Vec::new(),
+            dock_hints: Vec::new(),
             expanded_org_ids: Vec::new(),
             lod: "near".to_string(),
         }

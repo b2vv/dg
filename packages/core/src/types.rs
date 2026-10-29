@@ -387,16 +387,51 @@ pub struct StaffDepartmentInput {
     pub order: Option<f64>,
 }
 
-/// Оголошений нодою порт докування лінка (ADR-0002). `port`: "center" | "avatar".
+/// Геометрія докування лінка, виведена TS з DOM/стилю (_r1-boundary.md §2e / G1): ОКРЕМИЙ вхід,
+/// бо Rust не рахує figma/gojs-хром (межа §6 тримає резолв теми в TS). Дзеркало TS
+/// `PersonEdgeVisualHints` (`staffEdgeGeometry.ts:2-15`): internally-tagged по `layout`.
+/// (R1-плейсхолдер `StaffEdgePortInput` (правило 'center'|'avatar') видалено як YAGNI — правило
+/// КОЛАПСУЄ в геометрію TS-side ще до Rust: `visualEdgeBox.ts:69` center ⟹ box без hints,
+/// а Rust `visual_person_edge_box(Option<&PersonEdgeHints>)` кодує center-vs-tile наявністю hint.)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-export", derive(TS))]
 #[cfg_attr(
     feature = "ts-export",
     ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
 )]
-pub struct StaffEdgePortInput {
+#[serde(tag = "layout")]
+pub enum StaffDockHint {
+    #[serde(rename = "gojs-row")]
+    GojsRow {
+        #[serde(rename = "cardY")]
+        card_y: f32,
+        #[serde(rename = "cardH")]
+        card_h: f32,
+        #[serde(rename = "countBarH")]
+        count_bar_h: f32,
+    },
+    #[serde(rename = "figma-row")]
+    FigmaRow {
+        #[serde(rename = "tileX")]
+        tile_x: f32,
+        #[serde(rename = "tileY")]
+        tile_y: f32,
+        #[serde(rename = "tileSize")]
+        tile_size: f32,
+    },
+}
+
+/// Dock-hint, прив'язаний до id посади (внутрішній `person_hints` = `Vec<(String, PersonEdgeHints)>`).
+/// Nested (не flatten): ts-rs/serde round-trip доведено, named reusable тип-дзеркало.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts-export", derive(TS))]
+#[cfg_attr(
+    feature = "ts-export",
+    ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
+)]
+pub struct StaffDockHintInput {
     pub id: String,
-    pub port: String,
+    pub hint: StaffDockHint,
 }
 
 /// Повний вхід staff-геометрії. `lod`: "near" | "mid" | "far" (вхід; Rust віддає
@@ -417,8 +452,9 @@ pub struct StaffLayoutInput {
     #[serde(rename = "nodeSizes", default)]
     pub node_sizes: Vec<StaffNodeSize>,
     pub options: StaffLayoutMetrics,
-    #[serde(rename = "edgePorts", default)]
-    pub edge_ports: Vec<StaffEdgePortInput>,
+    /// Геометрія докування per-id (TS-обчислена). Default порожній → порти на повний бокс.
+    #[serde(rename = "dockHints", default)]
+    pub dock_hints: Vec<StaffDockHintInput>,
     #[serde(rename = "expandedOrgIds", default)]
     pub expanded_org_ids: Vec<String>,
     pub lod: String,
@@ -631,7 +667,8 @@ mod ts_export {
         StaffEdgeInput::export().expect("StaffEdgeInput");
         StaffOrgInput::export().expect("StaffOrgInput");
         StaffDepartmentInput::export().expect("StaffDepartmentInput");
-        StaffEdgePortInput::export().expect("StaffEdgePortInput");
+        StaffDockHint::export().expect("StaffDockHint");
+        StaffDockHintInput::export().expect("StaffDockHintInput");
         StaffLayoutInput::export().expect("StaffLayoutInput");
         StaffNodeGeo::export().expect("StaffNodeGeo");
         StaffOrgCardGeo::export().expect("StaffOrgCardGeo");
@@ -684,6 +721,70 @@ mod staff_contract_tests {
         let mut m = valid_metrics();
         m.node_height = 0.0;
         assert!(m.validate().is_err());
+    }
+
+    // A2.5: StaffDockHint — контрактна форма дзеркалить TS PersonEdgeVisualHints
+    // (internally-tagged `layout` + camelCase). Гейт проти дрейфу serde-rename.
+    #[test]
+    fn staff_dock_hint_deserializes_camelcase_variants() {
+        let figma: StaffDockHint = serde_json::from_str(
+            r#"{"layout":"figma-row","tileX":12.0,"tileY":16.0,"tileSize":40.0}"#,
+        )
+        .expect("figma-row deser");
+        match figma {
+            StaffDockHint::FigmaRow {
+                tile_x,
+                tile_y,
+                tile_size,
+            } => assert_eq!((tile_x, tile_y, tile_size), (12.0, 16.0, 40.0)),
+            _ => panic!("очікувано FigmaRow"),
+        }
+
+        let gojs: StaffDockHint = serde_json::from_str(
+            r#"{"layout":"gojs-row","cardY":1.0,"cardH":2.0,"countBarH":3.0}"#,
+        )
+        .expect("gojs-row deser");
+        match gojs {
+            StaffDockHint::GojsRow {
+                card_y,
+                card_h,
+                count_bar_h,
+            } => assert_eq!((card_y, card_h, count_bar_h), (1.0, 2.0, 3.0)),
+            _ => panic!("очікувано GojsRow"),
+        }
+    }
+
+    // dockHints — опційний вхід (default порожній, коли ключ відсутній); key = camelCase.
+    #[test]
+    fn staff_dock_hint_input_nested_roundtrip_camelcase() {
+        let one: StaffDockHintInput = serde_json::from_str(
+            r#"{"id":"p1","hint":{"layout":"figma-row","tileX":1.0,"tileY":2.0,"tileSize":3.0}}"#,
+        )
+        .expect("nested StaffDockHintInput deser");
+        assert_eq!(one.id, "p1");
+        // серіалізація назад тримає nested-форму + camelCase
+        let s = serde_json::to_string(&one).expect("serialize");
+        assert!(
+            s.contains(r#""hint":{"layout":"figma-row""#),
+            "nested+tag, got {s}"
+        );
+        assert!(s.contains("tileSize"), "camelCase збережено, got {s}");
+    }
+
+    // Контракт #[serde(default)] на StaffLayoutInput.dockHints: вхід БЕЗ ключа → порожній вектор
+    // (паритет зі старою поведінкою; приберуть default → цей deser зламається).
+    #[test]
+    fn staff_layout_input_dock_hints_defaults_empty_when_key_omitted() {
+        let opts = serde_json::to_string(&valid_metrics()).expect("metrics json");
+        let json = format!(
+            r#"{{"currentOrgId":"o","positions":[],"reports":[],"organizations":[],"departments":[],"options":{opts},"lod":"near"}}"#
+        );
+        let parsed: StaffLayoutInput =
+            serde_json::from_str(&json).expect("deser StaffLayoutInput без dockHints");
+        assert!(
+            parsed.dock_hints.is_empty(),
+            "відсутній dockHints → порожній (#[serde(default)])"
+        );
     }
 }
 

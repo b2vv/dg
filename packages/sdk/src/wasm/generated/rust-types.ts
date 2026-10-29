@@ -44,6 +44,22 @@ export type StaffDepartmentInput = { id: string,
 order?: number, };
 
 /**
+ * Геометрія докування лінка, виведена TS з DOM/стилю (_r1-boundary.md §2e / G1): ОКРЕМИЙ вхід,
+ * бо Rust не рахує figma/gojs-хром (межа §6 тримає резолв теми в TS). Дзеркало TS
+ * `PersonEdgeVisualHints` (`staffEdgeGeometry.ts:2-15`): internally-tagged по `layout`.
+ * (R1-плейсхолдер `StaffEdgePortInput` (правило 'center'|'avatar') видалено як YAGNI — правило
+ * КОЛАПСУЄ в геометрію TS-side ще до Rust: `visualEdgeBox.ts:69` center ⟹ box без hints,
+ * а Rust `visual_person_edge_box(Option<&PersonEdgeHints>)` кодує center-vs-tile наявністю hint.)
+ */
+export type StaffDockHint = { "layout": "gojs-row", cardY: number, cardH: number, countBarH: number, } | { "layout": "figma-row", tileX: number, tileY: number, tileSize: number, };
+
+/**
+ * Dock-hint, прив'язаний до id посади (внутрішній `person_hints` = `Vec<(String, PersonEdgeHints)>`).
+ * Nested (не flatten): ts-rs/serde round-trip доведено, named reusable тип-дзеркало.
+ */
+export type StaffDockHintInput = { id: string, hint: StaffDockHint, };
+
+/**
  * Ребро у виході (без шляху — шлях у `StaffEdgeRoute`). `kind` як у вході + "lead-org".
  */
 export type StaffEdge = { fromId: string, toId: string, kind: string, };
@@ -52,11 +68,6 @@ export type StaffEdge = { fromId: string, toId: string, kind: string, };
  * Ребро підпорядкування. `kind`: "admin" | "matrix" | "dotted" | "lead-org".
  */
 export type StaffEdgeInput = { fromId: string, toId: string, kind: string, };
-
-/**
- * Оголошений нодою порт докування лінка (ADR-0002). `port`: "center" | "avatar".
- */
-export type StaffEdgePortInput = { id: string, port: string, };
 
 /**
  * Повний ортогональний маршрут лінка (O-48 п.3: повні маршрути, не лише порти).
@@ -84,7 +95,11 @@ export type StaffGeometryResult = { currentOrgId: string, nodes: Array<StaffNode
  * Повний вхід staff-геометрії. `lod`: "near" | "mid" | "far" (вхід; Rust віддає
  * маршрути для переданого lod — _r1-boundary.md §2e).
  */
-export type StaffLayoutInput = { currentOrgId: string, positions: Array<StaffPositionInput>, reports: Array<StaffEdgeInput>, organizations: Array<StaffOrgInput>, departments: Array<StaffDepartmentInput>, nodeSizes: Array<StaffNodeSize>, options: StaffLayoutMetrics, edgePorts: Array<StaffEdgePortInput>, expandedOrgIds: Array<string>, lod: string, };
+export type StaffLayoutInput = { currentOrgId: string, positions: Array<StaffPositionInput>, reports: Array<StaffEdgeInput>, organizations: Array<StaffOrgInput>, departments: Array<StaffDepartmentInput>, nodeSizes: Array<StaffNodeSize>, options: StaffLayoutMetrics, 
+/**
+ * Геометрія докування per-id (TS-обчислена). Default порожній → порти на повний бокс.
+ */
+dockHints: Array<StaffDockHintInput>, expandedOrgIds: Array<string>, lod: string, };
 
 /**
  * Числові метрики лейауту (підмножина `StaffLayoutOptions`, що є суто геометрією).
