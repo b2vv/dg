@@ -90,6 +90,35 @@ fn elbow_or_straight(ax: f32, ay: f32, bx: f32, by: f32, corr: f32) -> Vec<Staff
     ]
 }
 
+/// Вертикальний кандидат (A2.3, порт `staffEdgeGeometry.ts::verticalPolyline` :129-175): НАПРЯМ-
+/// залежний (ціль нижче → порти bottom→top; ціль вище → top→bottom) і `None`, коли нема чистого
+/// вертикального зазору. Замінює `route_ortho` як V-кандидат ладдера — route_ortho завжди йшов униз
+/// (хибний напрям для childAbove; matrix/dotted з `input.reports` роблять childAbove prod-досяжним).
+/// Для childBelow+gap тотожний `route_ortho` байт-у-байт (corr==midY, ті самі порти).
+fn route_vertical(from: &EdgeRect, to: &EdgeRect) -> Option<Vec<StaffRoutePoint>> {
+    let from_cx = from.x + from.width / 2.0;
+    let to_cx = to.x + to.width / 2.0;
+    let from_cy = from.y + from.height / 2.0;
+    let to_cy = to.y + to.height / 2.0;
+    let child_below = to_cy >= from_cy; // tie→below (оракул :134, не строгий)
+    let (y1, y2) = if child_below {
+        (from.y + from.height, to.y) // from.bottom → to.top
+    } else {
+        (from.y, to.y + to.height) // from.top → to.bottom
+    };
+    // Чистий зазор у напрямку руху (інакше None → ладдер пробує H / падає в detour).
+    let clear_gap = if child_below {
+        y1 <= y2 - STRAIGHT_EPS
+    } else {
+        y2 <= y1 - STRAIGHT_EPS
+    };
+    if !clear_gap {
+        return None;
+    }
+    let corr = (y1 + y2) / 2.0;
+    Some(elbow_or_straight(from_cx, y1, to_cx, y2, corr))
+}
+
 /// Горизонтальний кандидат (A2.2, порт `staffEdgeGeometry.ts::horizontalPolyline` :181-209): бічні
 /// порти (центр left/right ребра) + midX-елбоу. `None`, коли нема ЧИСТОГО горизонтального зазору між
 /// AABB — ця умова несуча: Rust clean-check не перевіряє перетин ВЛАСНИХ from/to боксів (idx скіпає їх
@@ -503,7 +532,6 @@ pub fn staff_routes(input: &RouteInputs) -> StaffRouteSet {
 
         let points = if avoid {
             let (src, dst) = (mo(&edge.from_id), mo(&edge.to_id));
-            let base = route_ortho(&from, &to);
             // A2.2 candidate-ladder (порт classifyStaffEdgeRoute :384-401): matrix/dotted/sameBand
             // віддають перевагу БІЧНИМ портам. sameBand — на per-LOD edge-box height (A2.2 критик N4).
             let from_cy = from.y + from.height / 2.0;
@@ -523,20 +551,16 @@ pub fn staff_routes(input: &RouteInputs) -> StaffRouteSet {
                         input.card_pad,
                     )
             };
-            // Порядок кандидатів: prefer→[H,V], інакше→[V,H]. Перший чистий виграє (= TS direct-гілка).
-            // V (route_ortho) завжди присутній; H — лише коли є чистий горизонтальний зазор. H рахуємо
-            // ЛІНИВО (non-prefer з чистою V взагалі не алокує H-Vec — зберігає «0 алокацій» A2.1).
+            // Порядок кандидатів: prefer→[H,V], інакше→[V,H]. Перший ЧИСТИЙ виграє (= TS direct-гілка).
+            // Обидва nullable (route_vertical — None при no-gap, A2.3; route_horizontal — None без
+            // зазору). Рахуємо ЛІНИВО через or_else: невикористаний кандидат не алокує Vec («0
+            // алокацій» A2.1 для чистого першого кандидата).
+            let clean_vertical = || route_vertical(&from, &to).filter(|v| is_clean(v));
             let clean_horizontal = || route_horizontal(&from, &to).filter(|h| is_clean(h));
             let chosen = if prefer_horizontal {
-                match clean_horizontal() {
-                    Some(h) => Some(h),
-                    None if is_clean(&base) => Some(base.clone()),
-                    None => None,
-                }
-            } else if is_clean(&base) {
-                Some(base.clone())
+                clean_horizontal().or_else(clean_vertical)
             } else {
-                clean_horizontal()
+                clean_vertical().or_else(clean_horizontal)
             };
             match chosen {
                 Some(pts) => pts,
@@ -1114,6 +1138,51 @@ mod tests {
         assert!(route_horizontal(&f, &stacked).is_none());
         let clear = edge_rect("c", 200.0, 0.0, 100.0, 50.0); // чистий зазор
         assert!(route_horizontal(&f, &clear).is_some());
+    }
+
+    // --- A2.3: route_vertical як V-кандидат ладдера (напрям + nullable) ---
+
+    // B1/RED: matrix childAbove (ціль ВИЩЕ) з недоступним H (та сама колонка) → route_vertical ВГОРУ
+    // (from.top→to.bottom), НЕ route_ortho вниз. На коді до A2.3 дало б [(50,350),(50,0)] → червоний.
+    #[test]
+    fn matrix_child_above_routes_vertical_upward() {
+        let nodes = [
+            node_wh("F", 0.0, 300.0, 100.0, 50.0), // from_cy=325, top=300
+            node_wh("T", 0.0, 0.0, 100.0, 50.0),   // to_cy=25 (вище), bottom=50, та сама колонка
+        ];
+        let edges = [edge_kind("F", "T", "matrix")];
+        let set = staff_routes(&avoid_input(&nodes, &edges, "near", 16.0));
+        assert!(
+            points_eq(
+                &set.segments[0].points,
+                &[route_pt(50.0, 300.0), route_pt(50.0, 50.0)]
+            ),
+            "childAbove → V вгору from.top→to.bottom, got {:?}",
+            set.segments[0].points
+        );
+    }
+
+    #[test]
+    fn route_vertical_direction_and_nullable() {
+        let from = edge_rect("f", 0.0, 0.0, 100.0, 50.0); // cy=25, bottom=50, top=0
+                                                          // childBelow із зазором → from.bottom(50)→to.top(300), тотожно route_ortho.
+        let below = edge_rect("b", 0.0, 300.0, 100.0, 50.0);
+        let v_below = route_vertical(&from, &below).expect("childBelow+gap → Some");
+        assert!(
+            points_eq(&v_below, &route_ortho(&from, &below)),
+            "childBelow+gap має дорівнювати route_ortho, got {v_below:?}"
+        );
+        // childAbove із зазором → from.top(300)→to.bottom(50) вгору.
+        let above_from = edge_rect("af", 0.0, 300.0, 100.0, 50.0); // top=300
+        let above_to = edge_rect("at", 0.0, 0.0, 100.0, 50.0); // bottom=50 (вище)
+        let v_above = route_vertical(&above_from, &above_to).expect("childAbove+gap → Some");
+        assert!(
+            points_eq(&v_above, &[route_pt(50.0, 300.0), route_pt(50.0, 50.0)]),
+            "childAbove → from.top→to.bottom вгору, got {v_above:?}"
+        );
+        // no-gap (перекриті по Y) → None.
+        let overlap = edge_rect("o", 0.0, 30.0, 100.0, 50.0); // y30..80 перекриває from y0..50
+        assert!(route_vertical(&from, &overlap).is_none(), "no-gap → None");
     }
 
     // --- R6-4a: around-frame lane + §12-маркер ---
