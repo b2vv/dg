@@ -225,6 +225,120 @@ fn route_clear_of(points: &[StaffRoutePoint], obstacles: &[ObstacleRect], pad: f
     true
 }
 
+/// Просторовий індекс карток-перешкод (A2.1). Збудований РАЗ на весь виклик `staff_routes` →
+/// прибирає ДОМІНАНТНИЙ n² clean-check (кожне чисте ребро більше не сканує всі картки). Порт
+/// `staffEdgeGeometry.ts::ObstacleIndex`, але критерій тут — `seg_rect_distance < pad` (не
+/// interior-hit), тож інфляція bbox = **`pad`**, не TS-ні 1px (A2.1 критик B1).
+///
+/// EXACT: полілінія ⊆ своєї bbox ⇒ `dist(polyline, rect) ≥ dist(bbox, rect)`. Per-axis reject по
+/// `pad` (box-Minkowski) відкидає ЛИШЕ коли gapX>pad АБО gapY>pad ⇒ dist>pad — ніколи не губить
+/// реальний блокер; кутові кандидати (до pad·√2) лишаються й перевіряються точним
+/// `seg_rect_distance` ⇒ булеве значення тотожне наївному скану (байт-ідентичність виходу).
+///
+/// Несе `ids` паралельно (skip from/to **по id**, не по індексу): card-set може містити person+org
+/// з однаковим id — обидва мусять скіпатися (паритет `person_wins_over_org_card_on_id_collision`).
+/// Межі/сорт — по `obstacle_rect` (figma-row розгортає весь рядок).
+struct CardIndex {
+    /// `obstacle_rect` карток, у порядку зростання top (`.1`).
+    rects: Vec<ObstacleRect>,
+    /// Паралельний id картки (для skip-by-id).
+    ids: Vec<String>,
+    /// `rects[i].1` окремим пласким масивом — щоб `partition_point` читав один зріз.
+    tops: Vec<f32>,
+    /// Найвища картка: наскільки вище смуги може початися перекриття.
+    max_height: f32,
+}
+
+impl CardIndex {
+    fn build(cards: &[EdgeRect]) -> Self {
+        let mut items: Vec<(ObstacleRect, String)> = cards
+            .iter()
+            .map(|c| (obstacle_rect(c), c.id.clone()))
+            .collect();
+        // partial_cmp (дзеркало TS `a.y - b.y`), не total_cmp — зберегти tie-порядок; координати
+        // layout скінченні (A2.1 критик NB5). Для булевого clear-of порядок рівних-top не важить.
+        items.sort_by(|a, b| a.0 .1.partial_cmp(&b.0 .1).unwrap());
+        let mut rects = Vec::with_capacity(items.len());
+        let mut ids = Vec::with_capacity(items.len());
+        let mut tops = Vec::with_capacity(items.len());
+        let mut max_height = 0.0f32;
+        for (r, id) in items {
+            if r.3 > max_height {
+                max_height = r.3;
+            }
+            tops.push(r.1);
+            rects.push(r);
+            ids.push(id);
+        }
+        CardIndex {
+            rects,
+            ids,
+            tops,
+            max_height,
+        }
+    }
+
+    /// Чи `points` тримає ≥`pad` від УСІХ карток, крім `from_id`/`to_id` (skip by id). Булево
+    /// тотожне `route_clear_of(points, <картки ∖ {from,to}>, pad)`.
+    fn clear_of(&self, points: &[StaffRoutePoint], pad: f32, from_id: &str, to_id: &str) -> bool {
+        let mut min_x = f32::INFINITY;
+        let mut min_y = f32::INFINITY;
+        let mut max_x = f32::NEG_INFINITY;
+        let mut max_y = f32::NEG_INFINITY;
+        for p in points {
+            min_x = min_x.min(p.x);
+            max_x = max_x.max(p.x);
+            min_y = min_y.min(p.y);
+            max_y = max_y.max(p.y);
+        }
+        // Старт смуги: картка з top аж до `min_y - pad - max_height` ще може дотягтися знизу в смугу.
+        let start = self
+            .tops
+            .partition_point(|&t| t < min_y - pad - self.max_height);
+        for i in start..self.rects.len() {
+            let (rx, ry, rw, rh) = self.rects[i];
+            if ry > max_y + pad {
+                break; // tops відсортовані зростанням → далі всі ще нижче, gapY>pad
+            }
+            if self.ids[i] == from_id || self.ids[i] == to_id {
+                continue; // власний кінець ребра
+            }
+            if rx > max_x + pad || rx + rw < min_x - pad || ry + rh < min_y - pad {
+                continue; // bbox-reject по pad: gap>pad ⇒ dist>pad (EXACT)
+            }
+            for s in points.windows(2) {
+                if seg_rect_distance(&s[0], &s[1], rx, ry, rw, rh) < pad {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+}
+
+/// Чи `points` пенетрує (ближче за `pad`) якусь ЧУЖУ рамку (own-рамки `src`/`dst` exempt) — та сама
+/// множина рамок-перешкод, що й хвіст `obstacles_for_edge`. Рамок мало → лінійно, per-edge.
+fn foreign_frame_blocks(
+    points: &[StaffRoutePoint],
+    frames: &[FrameRect],
+    src: &Option<DeptPart>,
+    dst: &Option<DeptPart>,
+    pad: f32,
+) -> bool {
+    for f in frames {
+        let k = f.key();
+        if Some(&k) == src.as_ref() || Some(&k) == dst.as_ref() {
+            continue; // рідна рамка — ендпоінт усередині
+        }
+        for s in points.windows(2) {
+            if seg_rect_distance(&s[0], &s[1], f.x, f.y, f.width, f.height) < pad {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// Локальний корид-детур (PIN-1). Повертає базовий маршрут, якщо чисто або якщо локальної чистої
 /// доріжки нема (залишок). `obstacles` уже self-exempted (картки/рамки ребра).
 fn detour_edge(
@@ -312,6 +426,12 @@ pub fn staff_routes(input: &RouteInputs) -> StaffRouteSet {
     } else {
         Vec::new()
     };
+    // Глобальний індекс карток — РАЗ на виклик (A2.1): clean-check per-edge без n²-скану всіх карток.
+    let card_index = if avoid {
+        Some(CardIndex::build(&cards))
+    } else {
+        None
+    };
     let mo = |id: &str| member_of(id, input.persons);
 
     let mut segments: Vec<StaffEdgeRoute> = Vec::new();
@@ -339,15 +459,28 @@ pub fn staff_routes(input: &RouteInputs) -> StaffRouteSet {
 
         let points = if avoid {
             let (src, dst) = (mo(&edge.from_id), mo(&edge.to_id));
-            let (obs, frames_at) = obstacles_for_edge(
-                &cards,
-                input.department_frames,
-                &edge.from_id,
-                &edge.to_id,
-                &src,
-                &dst,
-            );
-            detour_edge(&from, &to, &obs, &obs[frames_at..], input.card_pad)
+            let base = route_ortho(&from, &to);
+            // Швидкий clean-check: картки по глобальному індексу (skip from/to by id) + чужі рамки
+            // лінійно. Булево тотожне route_clear_of(base, obstacles_for_edge). Чисте ребро (більшість
+            // і головний n²) → 0 per-edge алокацій, старий detour не викликається (A2.1 критик B2).
+            let idx = card_index.as_ref().expect("card_index будується при avoid");
+            if idx.clear_of(&base, input.card_pad, &edge.from_id, &edge.to_id)
+                && !foreign_frame_blocks(&base, input.department_frames, &src, &dst, input.card_pad)
+            {
+                base
+            } else {
+                // Блоковано → per-edge obs будуємо ЛІНИВО й віддаємо старому detour (lane-gen Y/X
+                // байт-незмінний, A2.1 критик B3). detour перевіряє base знову (→ блок) і йде в lane.
+                let (obs, frames_at) = obstacles_for_edge(
+                    &cards,
+                    input.department_frames,
+                    &edge.from_id,
+                    &edge.to_id,
+                    &src,
+                    &dst,
+                );
+                detour_edge(&from, &to, &obs, &obs[frames_at..], input.card_pad)
+            }
         } else {
             route_ortho(&from, &to)
         };
@@ -708,6 +841,113 @@ mod tests {
         let a = staff_routes(&avoid_input(&nodes, &edges, "near", 16.0));
         let b = staff_routes(&avoid_input(&nodes, &edges, "near", 16.0));
         assert!(points_eq(&a.segments[0].points, &b.segments[0].points));
+    }
+
+    // --- A2.1: просторовий індекс карток ⇔ наївний скан (байт-ідентичність clean-check) ---
+
+    fn edge_rect(id: &str, x: f32, y: f32, w: f32, h: f32) -> EdgeRect {
+        EdgeRect {
+            id: id.into(),
+            x,
+            y,
+            width: w,
+            height: h,
+            obstacle: None,
+        }
+    }
+
+    /// Наївний еталон clean-check (той самий критерій, що route_clear_of), skip from/to by id.
+    fn cards_clear_naive(
+        points: &[StaffRoutePoint],
+        cards: &[EdgeRect],
+        pad: f32,
+        from_id: &str,
+        to_id: &str,
+    ) -> bool {
+        for c in cards {
+            if c.id == from_id || c.id == to_id {
+                continue;
+            }
+            let (rx, ry, rw, rh) = obstacle_rect(c);
+            for s in points.windows(2) {
+                if seg_rect_distance(&s[0], &s[1], rx, ry, rw, rh) < pad {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    #[test]
+    fn card_index_matches_naive_including_near_miss_outside_bbox() {
+        let pad = 16.0;
+        // Елбоу-маршрут: (150,50)↓(150,125)→(50,125)↓(50,200). bbox x∈[50,150], y∈[50,200].
+        let points = vec![
+            route_pt(150.0, 50.0),
+            route_pt(150.0, 125.0),
+            route_pt(50.0, 125.0),
+            route_pt(50.0, 200.0),
+        ];
+        let cases: Vec<(&str, Vec<EdgeRect>)> = vec![
+            // near-miss ПОЗА bbox: правий край 47 = minX(50)-3, біля вертикалі x=50 → dist 3 < pad.
+            // Саме цей кейс 1px-інфляція (rx+rw < minX-1 → 47<49) хибно відкинула б (критик B1).
+            (
+                "near_miss_outside_bbox",
+                vec![edge_rect("blk", 7.0, 118.0, 40.0, 20.0)],
+            ),
+            (
+                "far_clear",
+                vec![edge_rect("far", 500.0, 500.0, 40.0, 20.0)],
+            ),
+            (
+                "directly_on_route",
+                vec![edge_rect("on", 40.0, 118.0, 40.0, 20.0)],
+            ),
+            // skip-by-id: блокер має id кінця ребра → скіпається → чисто.
+            (
+                "skip_from_id",
+                vec![edge_rect("P", 40.0, 118.0, 40.0, 20.0)],
+            ),
+            // колізія id (person+org): обидва з id кінця → обидва скіпаються.
+            (
+                "id_collision_both_skipped",
+                vec![
+                    edge_rect("c1", 40.0, 118.0, 40.0, 20.0),
+                    edge_rect("c1", 40.0, 118.0, 40.0, 20.0),
+                ],
+            ),
+            // just-outside pad band у Y (bottom вище minY на >pad) → reject коректний.
+            (
+                "above_band_rejected",
+                vec![edge_rect("hi", 100.0, 0.0, 40.0, 20.0)],
+            ),
+        ];
+        for (name, cards) in &cases {
+            let idx = CardIndex::build(cards);
+            assert_eq!(
+                idx.clear_of(&points, pad, "P", "c1"),
+                cards_clear_naive(&points, cards, pad, "P", "c1"),
+                "index≠naive для кейсу {name}"
+            );
+        }
+    }
+
+    #[test]
+    fn card_index_near_miss_is_detected_as_blocker() {
+        // Прямий guard на B1: блокер на 3px ПОЗА bbox мусить лічитися як блокер (clear=false).
+        let pad = 16.0;
+        let points = vec![
+            route_pt(150.0, 50.0),
+            route_pt(150.0, 125.0),
+            route_pt(50.0, 125.0),
+            route_pt(50.0, 200.0),
+        ];
+        let cards = [edge_rect("blk", 7.0, 118.0, 40.0, 20.0)];
+        let idx = CardIndex::build(&cards);
+        assert!(
+            !idx.clear_of(&points, pad, "P", "c1"),
+            "перешкода на 1<d<pad поза bbox має блокувати (інакше 1px-інфляція б загубила)"
+        );
     }
 
     // --- R6-4a: around-frame lane + §12-маркер ---
