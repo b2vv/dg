@@ -427,7 +427,6 @@ export class DiagramRenderer {
     config: RenderConfig = defaultRenderConfig,
     options: RenderOptions = {},
     orgLayoutResult?: OrgLayoutResult,
-    staffCanvasResult?: StaffCanvasResult,
   ): Promise<void> {
     if (this.destroyed) return;
     this.highlightReady = false;
@@ -455,7 +454,7 @@ export class DiagramRenderer {
     this.lastLod = lod;
     const hasStaff = data.positions.length > 0;
     if (hasStaff) {
-      await this.renderStaff(data, theme, resolvedTheme, config, { ...options, lod }, epoch, staffCanvasResult);
+      await this.renderStaff(data, theme, resolvedTheme, config, { ...options, lod }, epoch);
     } else if (data.organizations.length > 0) {
       await this.renderOrganizations(data, theme, resolvedTheme, config, { ...options, lod }, epoch, orgLayoutResult);
     }
@@ -619,12 +618,11 @@ export class DiagramRenderer {
     config: RenderConfig,
     options: RenderOptions,
     epoch: number,
-    staffCanvasResult?: StaffCanvasResult,
   ): Promise<void> {
     const ctx: StaffSceneContext = { data, theme, resolvedTheme, config, options, epoch };
     const currentOrgId = resolveStaffCurrentOrgId(data, options.staff?.currentOrgId);
     if (currentOrgId) {
-      await this.renderStaffCanvas(ctx, currentOrgId, staffCanvasResult);
+      await this.renderStaffCanvas(ctx, currentOrgId);
       return;
     }
     // No focus org: seats fall back to the bare cell grid (mockups, tests).
@@ -635,13 +633,12 @@ export class DiagramRenderer {
   private async renderStaffCanvas(
     ctx: StaffSceneContext,
     currentOrgId: string,
-    staffCanvasResult?: StaffCanvasResult,
   ): Promise<void> {
     const { data, theme, config, options, epoch } = ctx;
     // Layout, zone bands and routed edges come from one shared computation so the
     // renderer and the golden regression test run the same geometry, not two
-    // copies that can drift (see staffLiveGeometry.ts). The orchestrator may hand
-    // in a pre-computed canvas (split T2b); when it does, it is reused as-is.
+    // copies that can drift (see staffLiveGeometry.ts). The geometry is computed
+    // per-LOD from the Rust bridge (A4.2b); there is no pre-computed canvas.
     const live = await computeStaffLiveGeometry({
       data,
       currentOrgId,
@@ -650,7 +647,6 @@ export class DiagramRenderer {
       config,
       staff: options.staff,
       lod: options.lod ?? 'near',
-      canvas: staffCanvasResult,
     });
     if (!this.isRenderCurrent(epoch)) return;
     const { canvas } = live;

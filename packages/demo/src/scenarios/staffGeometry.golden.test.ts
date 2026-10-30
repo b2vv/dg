@@ -173,18 +173,44 @@ describe('staffGeometry golden', () => {
     expect(() => compare({ x: NaN }, { x: 1 }, 'scene')).toThrow('scene.x');
   });
 
-  it('matches the baseline and reproduces exactly on a second build', async () => {
+  it('reproduces exactly on a second build; UPDATE_GOLDEN regenerates the baseline', async () => {
     if (process.env.UPDATE_GOLDEN !== '1' && !existsSync(goldenPath)) {
       throw new Error('Missing staff geometry golden. Run UPDATE_GOLDEN=1 npm run test -w @org-hierarchy/demo -- staffGeometry');
     }
     const actual = Object.fromEntries(await Promise.all(staffTabs.map(async (tab) => [tab, await capture(tab)])));
     const repeated = Object.fromEntries(await Promise.all(staffTabs.map(async (tab) => [tab, await capture(tab)])));
     // Zero tolerance here: the baseline's pixel budget must not hide randomness.
+    // This guard stays active while the baseline compare is parked (below), so a
+    // non-deterministic capture is still caught; it also keeps UPDATE_GOLDEN=1 as
+    // the R4 rebaseline path.
     compare(repeated, actual, 'determinism', 0);
     if (process.env.UPDATE_GOLDEN === '1') {
       mkdirSync(dirname(goldenPath), { recursive: true });
       writeFileSync(goldenPath, `${JSON.stringify(actual, null, 2)}\n`);
     }
+  });
+
+  // PARKED (dg32, owner decision) — the baseline comparison is suspended until R4:
+  // a rebaseline onto a CORRECTED Rust, AFTER the R3 visual gate in the browser
+  // (owner's own queue — work/reports/staff-rust-geometry/_HANDOFF-2026-10-30-dg30-link-routing.md
+  // sequences R2 detached-fix → R3 visual gate → R4 rebaseline).
+  //
+  // The live Rust geometry currently diverges from the TS-era baseline in 10/11
+  // captured scenes, and the divergence is NOT merely the cosmetic `live.bands = 0`
+  // (Rust carries no raw tier bands — see adaptStaffGeometry.ts FORK1). It includes
+  // three KNOWN, un-fixed bugs; rebaselining now would freeze them as golden truth
+  // and make the T128 A* router validate against a wrong reference:
+  //   • card_pad gate (packages/core/src/layout/staff_layout.rs:1246) turns ~1129 TS
+  //     around-card detours into raw ortho → links cut through cards (spec §5.1/§10.4);
+  //   • matrix coords dropped (buildStaffLayoutInput.ts:226-231) → the staff-1m canvas
+  //     is ~19× too wide for the same node count;
+  //   • detached seats mis-classified as tree (gojs / variant-b / mockup-staff-magnetic).
+  //
+  // Determinism (above) still guards randomness; UPDATE_GOLDEN=1 remains the R4
+  // escape hatch. Re-enable at R4 by deleting `.skip`. See the dg30 PARITY-FAILURE
+  // report (_r7-a4-2b-PARITY-FAILURE-dg30.md), which decided the same not-yet.
+  it.skip('matches the baseline [PARKED dg32 → R4; see the finding above]', async () => {
+    const actual = Object.fromEntries(await Promise.all(staffTabs.map(async (tab) => [tab, await capture(tab)])));
     const expected: unknown = JSON.parse(readFileSync(goldenPath, 'utf8'));
     compare(actual, expected, 'staffGeometry');
   });

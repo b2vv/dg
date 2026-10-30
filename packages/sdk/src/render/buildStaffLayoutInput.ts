@@ -48,7 +48,7 @@ export interface BuildStaffLayoutInputArgs {
   dockHints?: StaffDockHintInput[];
 }
 
-function resolveMetrics(options: StaffLayoutOptions, contentPadding: number): StaffLayoutMetrics {
+export function resolveMetrics(options: StaffLayoutOptions, contentPadding: number): StaffLayoutMetrics {
   const d = DEFAULT_STAFF_LAYOUT_OPTIONS;
   return {
     nodeWidth: options.nodeWidth ?? d.nodeWidth,
@@ -116,7 +116,7 @@ interface ExpandCap {
 }
 
 /** Partition `expandedOrgIds` against the child set and the expand cap (mirrors `canvasLayout`). */
-function capExpandedChildren(
+export function capExpandedChildren(
   data: StaffData,
   currentOrgId: string,
   options: StaffLayoutOptions,
