@@ -88,9 +88,17 @@ secondary промоут, marked=failed‖intrusion (N2 закрито), ends_on
 рев'ю-після ПРИЙНЯЛО (0 блокерів). Тест t8a (far-LOD admin on-grid + org + kinds). 184 passed, clippy/fmt чисті.
 **N1 латентно (C-рішення):** matrix/dotted/lead-org через A* не доведені (lead-org best_effort — вхід у рамку ззовні).
 
-**ТЕКУЧЕ: R3-prep** (запит власника «скажи коли готове, перевірю з мокапом») = demo-таб на mock3 через A* для
-візуальної звірки. Потім C (flip дефолту на A* + T10 rebaseline golden після R3-ОК власника).
-Лишилось: C/T10 (flip+golden), T9 (контракт-шов x/y), T11 (перф-бенч), T12 (видалити detour), T13 (USAGE).
+### R3-prep ✅ (коміт 0d791a9) — demo-таб ШПС на даних mock3 через A*, готовий до візуальної звірки
+Рантайм dev-перемикач `useAstar` (optional на StaffLayoutInput, serde default; читається замість compile-const;
+build:wasm регенерував pkg+rust-types.ts). Проброс: `RenderConfig.staffUseAstar`→buildStaffLayoutInput→WASM (дефолт false).
+Сценарій `mock3Shps.ts` (дані mock3 shps-links.js: 10 DEPTS+50 POS, da.p2→secondary; лише ДАНІ). Таб `staff-mock3`
+(«ШПС · A* (mock3 R3)», useAstar:true). Golden: виключено з coverage + R3-smoke (WASM-A*: >40 ліній, best-effort <25%).
+rust 184 / SDK 1231 / demo 108 (golden БАЙТ-незмінний) / typecheck чистий. **R3: власник робить візуальну звірку
+з мокапом.** ⚠️ matrix/dotted/lead-org через A* не доведені (N1) — можуть виглядати не так, це C-рішення.
+
+**ЗАПУСК R3:** `npm run dev` → таб «ШПС · A* (mock3)» (або `?tab=staff-mock3`); порівняти з mock3-мокапом/скрінами.
+⚠️ **check:docs push-гейт:** CTO-RESEARCH.md відстав 28>25 комітів (наслідок 9 комітів сесії) — рефреш брифінгу перед БУДЬ-ЯКИМ push.
+Лишилось: **C** (flip дефолту A* + T10 rebaseline golden після R3-ОК), T9 (контракт-шов x/y), T11 (перф-бенч), T12 (видалити detour), T13 (USAGE).
 
 ## 🆕 Відкладена задача (рішення власника dg32): демо на даних mock3 як ЕТАЛОН — ПІСЛЯ A* (T4-T6)
 Зробити demo-таб на даних мокапу `/Users/strelia/Downloads/mock3/ШПС лінії зв'язку.html` (`shps-links.js`:
