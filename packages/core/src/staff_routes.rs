@@ -1623,4 +1623,212 @@ mod tests {
             );
         }
     }
+
+    // --- T128 T1: §10.1 acceptance schemas (S0–S9), measured against the current detour ---
+    //
+    // These are the AC10 fixtures: every schema must read `0/0/0/0/0` once the A* router lands.
+    // Hand-positioned (the external §10.1 shapes; no raw-spec coords in-repo — acceptance table
+    // `plan.md §7` + `_r6-lines-spec-analysis-dg23.md:57-61` are the proxy). Built on the SAME
+    // `staff_routes` the renderer drives, with `card_pad = MIN_CARD_PAD` (8) — the tightest valid
+    // gate; the renderer passes `content_padding` (≥ 8, `staff_layout.rs:1246`), so this is a lower
+    // bound on the clearance the real scene has. Avoidance on, so the detector sees real routes.
+    //
+    // RED-first (measured dg32, blocker B3): on the per-edge detour, two schemas carry a real §10.4
+    // violation the stateless router cannot remove — S4 (two managers sharing a corridor → their
+    // buses coincide: `overlaps=1`, which §5.4 lanes / T5 separate) and S5 (a target two levels down
+    // past a sibling → `crossings=1`, which T4 A* + T6 rip-up remove). The other eight are already
+    // clean on the detour and stay clean under A* (live guards below). The `ac10_*` gate asserts all
+    // ten at zero and is therefore RED now (run with `--ignored` to see it); un-ignore it at T6.
+
+    type DeptPart = crate::staff_geom::DeptPart;
+
+    fn schema_member(nodes: &[StaffNodeGeo], id: &str) -> Option<DeptPart> {
+        nodes
+            .iter()
+            .find(|n| n.id == id)
+            .and_then(|n| n.department_id.clone().map(|d| (d, n.part_index)))
+    }
+
+    fn schema_stats(
+        nodes: &[StaffNodeGeo],
+        edges: &[StaffEdge],
+        frames: &[FrameRect],
+    ) -> crate::RouteStats {
+        let set = staff_routes(&frames_input(nodes, edges, frames, "near", 8.0));
+        let boxes = near_boxes(nodes);
+        let mo = |id: &str| schema_member(nodes, id);
+        crate::route_stats(&set.segments, &boxes, frames, &mo)
+    }
+
+    /// One acceptance scene: `(name, nodes, edges, frames)`.
+    type SchemaScene = (
+        &'static str,
+        Vec<StaffNodeGeo>,
+        Vec<StaffEdge>,
+        Vec<FrameRect>,
+    );
+
+    /// The ten acceptance scenes.
+    fn schema_scenes() -> Vec<SchemaScene> {
+        let s7_nodes = {
+            let mut v = vec![node("w", 450.0, 0.0, 2)];
+            for k in 0..10 {
+                v.push(node(&format!("w{k}"), (k as f32) * 110.0, 260.0, 2));
+            }
+            v
+        };
+        let s7_edges: Vec<StaffEdge> = (0..10).map(|k| edge("w", &format!("w{k}"))).collect();
+        vec![
+            // S0 — zero: empty canvas, no lines, no crash (§ boundary).
+            ("S0", vec![], vec![], vec![]),
+            // S1 — §10.1.1 internal tree: one manager, two children, same dept.
+            (
+                "S1",
+                vec![
+                    node("m", 0.0, 0.0, 2),
+                    node("a", -150.0, 200.0, 2),
+                    node("b", 150.0, 200.0, 2),
+                ],
+                vec![edge("m", "a"), edge("m", "b")],
+                vec![],
+            ),
+            // S2 — §10.1.2 three reports under one head (straight-through middle trunk).
+            (
+                "S2",
+                vec![
+                    node("h", 0.0, 0.0, 2),
+                    node("a", -200.0, 250.0, 2),
+                    node("b", 0.0, 250.0, 2),
+                    node("c", 200.0, 250.0, 2),
+                ],
+                vec![edge("h", "a"), edge("h", "b"), edge("h", "c")],
+                vec![],
+            ),
+            // S3 — §10.1.3 manager in dept A with subordinates in A and B.
+            (
+                "S3",
+                vec![
+                    node_dept("m", 0.0, 0.0, 100.0, 50.0, "A"),
+                    node_dept("ca", -150.0, 260.0, 100.0, 50.0, "A"),
+                    node_dept("cb", 250.0, 260.0, 100.0, 50.0, "B"),
+                ],
+                vec![edge("m", "ca"), edge("m", "cb")],
+                vec![
+                    frame("A", -170.0, -20.0, 290.0, 340.0),
+                    frame("B", 230.0, 240.0, 140.0, 90.0),
+                ],
+            ),
+            // S4 — §10.1.4 two managers of different depts share a corridor (→ lanes §5.4).
+            (
+                "S4",
+                vec![
+                    node("m1", 0.0, 0.0, 2),
+                    node("m2", 400.0, 0.0, 2),
+                    node("c1", 400.0, 400.0, 2),
+                    node("c2", 0.0, 400.0, 2),
+                ],
+                vec![edge("m1", "c1"), edge("m2", "c2")],
+                vec![],
+            ),
+            // S5 — §10.1.5 target two levels down, past a sibling at the middle level (bypass).
+            (
+                "S5",
+                vec![
+                    node("m", 0.0, 0.0, 2),
+                    node("sib", 300.0, 220.0, 2),
+                    node("gc", 300.0, 440.0, 2),
+                ],
+                vec![edge("m", "gc"), edge("m", "sib"), edge("sib", "gc")],
+                vec![],
+            ),
+            // S6 — §10.1.6 external (dept-less) head over two department heads.
+            (
+                "S6",
+                vec![
+                    node("ceo", 0.0, 0.0, 2),
+                    node_dept("ha", -200.0, 260.0, 100.0, 50.0, "A"),
+                    node_dept("hb", 200.0, 260.0, 100.0, 50.0, "B"),
+                ],
+                vec![edge("ceo", "ha"), edge("ceo", "hb")],
+                vec![
+                    frame("A", -220.0, 240.0, 140.0, 90.0),
+                    frame("B", 180.0, 240.0, 140.0, 90.0),
+                ],
+            ),
+            // S7 — §10.1.7 wide department: one manager, ten children in a row.
+            ("S7", s7_nodes, s7_edges, vec![]),
+            // S8 — §10.1.8 collapsed branch: only the visible cross-dept target remains.
+            (
+                "S8",
+                vec![
+                    node_dept("m", 0.0, 0.0, 100.0, 50.0, "A"),
+                    node_dept("cb", 250.0, 260.0, 100.0, 50.0, "B"),
+                ],
+                vec![edge("m", "cb")],
+                vec![
+                    frame("A", -20.0, -20.0, 140.0, 90.0),
+                    frame("B", 230.0, 240.0, 140.0, 90.0),
+                ],
+            ),
+            // S9 — §10.1.9 max card: one very tall/wide card beside a normal one.
+            (
+                "S9",
+                vec![
+                    node("m", 0.0, 0.0, 2),
+                    node_wh("big", -200.0, 280.0, 260.0, 160.0),
+                    node("n", 250.0, 280.0, 2),
+                ],
+                vec![edge("m", "big"), edge("m", "n")],
+                vec![],
+            ),
+        ]
+    }
+
+    /// The eight schemas the detour already routes cleanly — live regression guards (they stay
+    /// `0/0/0/0/0` under the A* router too, so they never go red).
+    #[test]
+    fn clean_schemas_have_no_violations() {
+        let clean = ["S0", "S1", "S2", "S3", "S6", "S7", "S8", "S9"];
+        for (name, nodes, edges, frames) in schema_scenes() {
+            if !clean.contains(&name) {
+                continue;
+            }
+            let s = schema_stats(&nodes, &edges, &frames);
+            assert_eq!(s, crate::RouteStats::default(), "schema {name}: {s:?}");
+        }
+    }
+
+    /// The two schemas where the stateless detour leaves a real §10.4 violation — this pins that the
+    /// detector actually SEES the defect the A* router must remove (not a vacuous gate).
+    #[test]
+    fn detour_leaves_a_violation_on_the_hard_schemas() {
+        let by = |want: &str| {
+            schema_scenes()
+                .into_iter()
+                .find(|(n, ..)| *n == want)
+                .map(|(_, nodes, edges, frames)| schema_stats(&nodes, &edges, &frames))
+                .unwrap()
+        };
+        assert!(
+            by("S4").overlaps >= 1,
+            "S4 shared corridor should overlap on the detour"
+        );
+        assert!(
+            by("S5").crossings >= 1,
+            "S5 bypass should cross on the detour"
+        );
+    }
+
+    /// AC10 — every §10.1 schema reads `0/0/0/0/0`. RED-first: FAILS now (S4 overlap, S5 crossing);
+    /// un-ignore when the A* router (T6) lands so it becomes the permanent acceptance gate.
+    /// At T6, also assert `diagonal_segments(..) == 0` per scene — the five-metric panel does not
+    /// cover a non-orthogonal segment (T1 review remark 2; the ortho probe is deliberately separate).
+    #[test]
+    #[ignore = "AC10 red-first gate: un-ignore at T6 when A* lands (detour leaves S4 overlap + S5 crossing)"]
+    fn ac10_all_schemas_zero_violations() {
+        for (name, nodes, edges, frames) in schema_scenes() {
+            let s = schema_stats(&nodes, &edges, &frames);
+            assert_eq!(s, crate::RouteStats::default(), "schema {name}: {s:?}");
+        }
+    }
 }
