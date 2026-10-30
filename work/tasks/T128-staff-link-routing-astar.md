@@ -24,6 +24,13 @@ A* як **ФУНДАМЕНТ на Бар-1** (обчислена tree-розкл
 ## Наступний крок
 implement за `tasks.md` T0→T13, red-first, R6 кожен крок. Жива нота: `1 - Notes/Sessions/2026-10-30 T128 staff link-routing A* spec-flow.md`.
 Прогрес dg32: T0 ✅, T1 ✅ (детектор route_stats + 9 фікстур S0-S9 + RED-first; незалежне рев'ю в процесі → коміт).
+Прогрес dg33: T2 ✅ (card_pad безумовний, AC11), T3 ✅ (`build_corridor_grid` — статична розріджена сітка `wall()`
++ `mH`/`mV` по картках, рамки→координати; deptOK→T4). R6 повний: критик завернув хибний дизайн → виправлено
+проти мокапу → рев'ю ПРИЙНЯЛО. Коміт `088ee7f` (T2+T3 батч). plan.md:62-63 узгоджено з кодом.
+Прогрес dg33 (T4): ✅ `astar_route` + `dept_ok` + best-effort. R6 повний: критик 2 блокери (role per-(dept,part);
+f64-вартість+heap-Ord+carry-g) → верифіковано проти мокапу/детектора → виправлено → рев'ю ПРИЙНЯЛО (0 блокерів).
+5 тестів astar_*. **Відоме обмеження (non-blocking):** `astar_is_deterministic` слабкий (AC8 by-construction
+через seq-tiebreak); cap-hit 250k без прямого тесту. Далі: **T5 occupancy/доріжки** → T6 rip-up → un-ignore AC10.
 
 ## 🆕 Відкладена задача (рішення власника dg32): демо на даних mock3 як ЕТАЛОН — ПІСЛЯ A* (T4-T6)
 Зробити demo-таб на даних мокапу `/Users/strelia/Downloads/mock3/ШПС лінії зв'язку.html` (`shps-links.js`:

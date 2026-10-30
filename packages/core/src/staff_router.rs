@@ -27,7 +27,8 @@ use crate::staff_geom::{
     FrameRect, INTERIOR_EPS,
 };
 use crate::types::{StaffEdgeRoute, StaffRoutePoint};
-use std::collections::HashMap;
+use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap};
 
 /// Minimum allowed clearance of a line to a foreign card (req §10.4.2).
 pub const MIN_CLEARANCE_PX: f32 = 8.0;
@@ -444,6 +445,378 @@ pub fn build_corridor_grid(
     }
 }
 
+// ============================================================================================
+// T4 — the A* router for one cross/ext edge over the T3 grid.
+//
+// Paraphrase of the acceptance mockup `shps-links.js:92-100` (deptOK) and `:130-155` (astar); the
+// T128 mandate names that mockup as the reference. Two deliberate Rust-side adaptations, each from
+// the dg33 critic and verified against the code that must agree with the router:
+//
+//   * ROLE IS PER-(dept, part), not per-dept. The mockup has one frame per department, so it keys a
+//     frame's role on the bare department id. Here frames are per-part (`FrameRect.part_index`), and
+//     the acceptance detector `frame_intrusion_count` exempts a frame only when its `(dept, part)`
+//     key equals `member_of(from)`/`member_of(to)`. Keying the router's deptOK role on the bare dept
+//     would let a line cross a SIBLING part-frame of its own department while the detector still
+//     counts that as an intrusion — router and gate would disagree and AC10 could never close. So
+//     role mirrors the detector: full-key match → Source/Target, else foreign.
+//   * COST IS f64 WITH A TOTAL-ORDER HEAP, and the frontier carries its own `g`. Rust's `BinaryHeap`
+//     needs `Ord`, which `f32` lacks; and reconstructing `g = f - h` in f32 (as the mockup does in a
+//     Float64Array) loses the 1e-6 staleness epsilon once costs reach the ~6000 range. Carrying `g`
+//     on each heap entry removes the subtraction, and `(f, seq)` with a monotonic push counter gives
+//     the stable FIFO tie-break AC8 (determinism) needs.
+//
+// Occupancy / lane weights (the 6000 / 4000 / 0.15 terms) are T5: here the cost is length + turn
+// penalty only, so unrelated edges may still share a corridor (expected — the 0/0/0/0/0 gate stays
+// `#[ignore]` until T6). Internal-tree edges use a direct elbow (T7), not this router.
+// ============================================================================================
+
+/// Turn penalty (§5.1.2): discourages corners so routes keep near-minimal bends (mockup `:150`).
+const TURN_PENALTY: f64 = 30.0;
+/// A* iteration ceiling: beyond it the search gives up to a best-effort line (mockup `:144`).
+const ITER_CAP: u64 = 250_000;
+
+/// Which end of the edge a frame belongs to, for `dept_ok`. Source = the edge exits it downward;
+/// Target = the edge enters it from the top. A frame that is neither is foreign (`None`).
+#[derive(Clone, Copy, PartialEq)]
+enum Role {
+    Source,
+    Target,
+}
+
+/// The outcome of routing one edge: the orthogonal polyline, and whether the router had to fall back
+/// to a best-effort line (no corridor / iteration cap). `failed` is the hook a caller turns into the
+/// §12 `marked` residual (T8) — a visible leftover, never a silent drop or a panic.
+pub struct AStarRoute {
+    pub points: Vec<StaffRoutePoint>,
+    pub failed: bool,
+}
+
+/// Does the axis-aligned segment `seg` cut the interior of rect `r`? (mockup `hit`, :89 — reuses
+/// `edge_hits` so the border-graze rule is identical to the grid's.)
+fn seg_hits_rect(seg: Rect4, vert: bool, r: Rect4) -> bool {
+    let (sx1, sy1, sx2, sy2) = seg;
+    if vert {
+        edge_hits(true, sx1, sy1, sy2, &r)
+    } else {
+        edge_hits(false, sy1, sx1, sx2, &r)
+    }
+}
+
+/// Is `seg` an allowed move with respect to one department frame `d`, given the edge's `role` for it?
+/// Faithful port of the mockup `deptOK` (:92-100); the six branches are order-sensitive (early
+/// returns), so they are kept in sequence. `d` is `(x1,y1,x2,y2)` = frame top-left/bottom-right.
+fn dept_ok(seg: Rect4, d: Rect4, role: Option<Role>) -> bool {
+    let (sx1, sy1, sx2, sy2) = seg;
+    let (dx1, dy1, dx2, dy2) = d;
+    let vert = (sx1 - sx2).abs() <= COINCIDE_EPS;
+    let in_x = vert && sx1 > dx1 + FRAME_MARGIN && sx1 < dx2 - FRAME_MARGIN;
+    let hb = dy1 + HEADER_BAND;
+
+    // 1. Target entry: a vertical line in the inner x-band coming down through the header into the body.
+    if role == Some(Role::Target) && in_x && sy1 < hb && sy2 <= dy2 - FRAME_INSET {
+        return true;
+    }
+    // 2. Entirely outside the frame + margin — always fine.
+    let expanded = (
+        dx1 - FRAME_MARGIN,
+        dy1 - FRAME_MARGIN,
+        dx2 + FRAME_MARGIN,
+        dy2 + FRAME_MARGIN,
+    );
+    if !seg_hits_rect(seg, vert, expanded) {
+        return true;
+    }
+    // 3. Foreign frame that the segment touches — forbidden (§10.2: no third department).
+    let role = match role {
+        Some(r) => r,
+        None => return false,
+    };
+    // 4. Through the header band — forbidden (the title strip), except the branch-1 entry above.
+    if seg_hits_rect(seg, vert, (dx1, dy1, dx2, hb)) {
+        return false;
+    }
+    // 5. Fully inside the inner inset — legitimately within its own frame.
+    let (ix1, iy1, ix2, iy2) = (
+        dx1 + FRAME_INSET,
+        dy1 + FRAME_INSET,
+        dx2 - FRAME_INSET,
+        dy2 - FRAME_INSET,
+    );
+    if sx1 >= ix1 && sx2 <= ix2 && sy1 >= iy1 && sy2 <= iy2 {
+        return true;
+    }
+    // 6. Source exit: a vertical line in the inner x-band leaving downward past the bottom inset.
+    role == Role::Source && in_x && sy1 >= hb && sy2 > dy2 - FRAME_INSET
+}
+
+/// Drop repeated points and collinear midpoints so the polyline is minimal (mockup `simp`, :101).
+fn simplify_points(pts: &[(f32, f32)]) -> Vec<(f32, f32)> {
+    let mut o: Vec<(f32, f32)> = Vec::with_capacity(pts.len());
+    for &q in pts {
+        if let Some(&l) = o.last() {
+            if (l.0 - q.0).abs() <= COINCIDE_EPS && (l.1 - q.1).abs() <= COINCIDE_EPS {
+                continue;
+            }
+        }
+        if o.len() > 1 {
+            let a = o[o.len() - 2];
+            let l = o[o.len() - 1];
+            let collinear = ((a.0 - l.0).abs() <= COINCIDE_EPS
+                && (l.0 - q.0).abs() <= COINCIDE_EPS)
+                || ((a.1 - l.1).abs() <= COINCIDE_EPS && (l.1 - q.1).abs() <= COINCIDE_EPS);
+            if collinear {
+                *o.last_mut().unwrap() = q;
+                continue;
+            }
+        }
+        o.push(q);
+    }
+    o
+}
+
+/// A frontier entry. Ordered for a MIN-heap over `std::collections::BinaryHeap` (a max-heap): the
+/// entry with the smallest `f`, then smallest `seq`, compares GREATEST so it pops first. `g` and
+/// `state` ride along and take no part in the ordering.
+struct QEntry {
+    f: f64,
+    seq: u64,
+    g: f64,
+    state: usize,
+}
+impl PartialEq for QEntry {
+    fn eq(&self, o: &Self) -> bool {
+        self.cmp(o) == Ordering::Equal
+    }
+}
+impl Eq for QEntry {}
+impl PartialOrd for QEntry {
+    fn partial_cmp(&self, o: &Self) -> Option<Ordering> {
+        Some(self.cmp(o))
+    }
+}
+impl Ord for QEntry {
+    fn cmp(&self, o: &Self) -> Ordering {
+        // Reverse `f` (and `seq`) so smaller is "greater" → the max-heap yields the min-f entry.
+        o.f.total_cmp(&self.f).then(o.seq.cmp(&self.seq))
+    }
+}
+
+fn point(x: f32, y: f32) -> StaffRoutePoint {
+    StaffRoutePoint { x, y }
+}
+
+/// Best-effort Z fallback (mockup `:152`): a four-point orthogonal line at the mid-Y. Never a panic.
+fn best_effort(start: (f32, f32), target: (f32, f32)) -> AStarRoute {
+    let my = (start.1 + target.1) / 2.0;
+    AStarRoute {
+        points: vec![
+            point(start.0, start.1),
+            point(start.0, my),
+            point(target.0, my),
+            point(target.0, target.1),
+        ],
+        failed: true,
+    }
+}
+
+/// Route one cross/ext edge from `start` (manager card bottom-centre) to `target` (child card
+/// top-centre, or a department-top dock) with A* over the corridor grid (T4). See the module note
+/// above for the two Rust-side adaptations (per-part role; f64 total-order heap).
+#[allow(clippy::too_many_arguments)]
+pub fn astar_route(
+    grid: &CorridorGrid,
+    start: (f32, f32),
+    target: (f32, f32),
+    from_id: &str,
+    to_id: &str,
+    cards: &[EdgeRect],
+    frames: &[FrameRect],
+    member_of: &dyn Fn(&str) -> Option<DeptPart>,
+) -> AStarRoute {
+    let (nx, ny) = (grid.nx(), grid.ny());
+    // Ports must land on grid nodes (T3 seeds card centres / tops / bottoms / dept tops). If one does
+    // not — a malformed or off-grid port — degrade rather than index past the edge.
+    let (si, sj, ti, tj) = match (
+        grid.xi(start.0),
+        grid.yi(start.1),
+        grid.xi(target.0),
+        grid.yi(target.1),
+    ) {
+        (Some(si), Some(sj), Some(ti), Some(tj)) => (si, sj, ti, tj),
+        _ => return best_effort(start, target),
+    };
+
+    // Per-card obstacle data: own-endpoint cards relax to their raw rect on their own port column.
+    struct Pc {
+        endpoint: bool,
+        cx: f32,
+        raw: Rect4,
+        padded: Rect4,
+    }
+    let pad = MIN_CLEARANCE_PX;
+    let pc: Vec<Pc> = cards
+        .iter()
+        .map(|c| {
+            let (x, y, w, h) = obstacle_rect(c);
+            Pc {
+                endpoint: c.id == from_id || c.id == to_id,
+                cx: x + w / 2.0,
+                raw: (x, y, x + w, y + h),
+                padded: (x - pad, y - pad, x + w + pad, y + h + pad),
+            }
+        })
+        .collect();
+
+    // Per-frame role, mirroring the acceptance detector's `(dept, part)` exemption (critic B1).
+    let from_key = member_of(from_id);
+    let to_key = member_of(to_id);
+    let frame_roles: Vec<(Rect4, Option<Role>)> = frames
+        .iter()
+        .map(|f| {
+            let key = (f.department_id.clone(), f.part_index);
+            let role = if from_key.as_ref() == Some(&key) {
+                Some(Role::Source)
+            } else if to_key.as_ref() == Some(&key) {
+                Some(Role::Target)
+            } else {
+                None
+            };
+            ((f.x, f.y, f.x + f.width, f.y + f.height), role)
+        })
+        .collect();
+
+    let xs = &grid.xs;
+    let ys = &grid.ys;
+    // Passability of a grid edge for THIS edge: matrix block relaxed on own ports, then every frame.
+    let ok = |ei: usize, ej: usize, h: bool| -> bool {
+        let seg: Rect4 = if h {
+            (xs[ei], ys[ej], xs[ei + 1], ys[ej])
+        } else {
+            (xs[ei], ys[ej], xs[ei], ys[ej + 1])
+        };
+        let vert = !h;
+        let matrix_blocked = if h {
+            grid.mh[ej * (nx - 1) + ei] != 0
+        } else {
+            grid.mv[ej * nx + ei] != 0
+        };
+        if matrix_blocked {
+            let hits_card = pc.iter().any(|c| {
+                let exempt = c.endpoint && vert && (seg.0 - c.cx).abs() <= COINCIDE_EPS;
+                let rect = if exempt { c.raw } else { c.padded };
+                seg_hits_rect(seg, vert, rect)
+            });
+            if hits_card {
+                return false;
+            }
+        }
+        frame_roles.iter().all(|&(d, role)| dept_ok(seg, d, role))
+    };
+
+    // A*: state = node * 3 + dir, dir 0 = start, 1 = horizontal, 2 = vertical.
+    let n = nx * ny;
+    let mut g = vec![f64::INFINITY; n * 3];
+    let mut pv = vec![-1i64; n * 3];
+    let hz = |i: usize, j: usize| -> f64 {
+        ((xs[i] - target.0).abs() + (ys[j] - target.1).abs()) as f64
+    };
+
+    let mut heap: BinaryHeap<QEntry> = BinaryHeap::new();
+    let start_state = (sj * nx + si) * 3;
+    g[start_state] = 0.0;
+    let mut seq: u64 = 0;
+    heap.push(QEntry {
+        f: hz(si, sj),
+        seq,
+        g: 0.0,
+        state: start_state,
+    });
+
+    let mut goal: Option<usize> = None;
+    let mut it: u64 = 0;
+    while let Some(e) = heap.pop() {
+        if it >= ITER_CAP {
+            break;
+        }
+        it += 1;
+        if e.g > g[e.state] {
+            continue; // stale: a cheaper path to this state was queued later
+        }
+        let dir = e.state % 3;
+        let node = e.state / 3;
+        let (i, j) = (node % nx, node / nx);
+        if i == ti && j == tj && dir == 2 {
+            goal = Some(e.state);
+            break;
+        }
+        for &(di, dj) in &[(1i64, 0i64), (-1, 0), (0, 1), (0, -1)] {
+            let (ni, nj) = (i as i64 + di, j as i64 + dj);
+            if ni < 0 || nj < 0 || ni >= nx as i64 || nj >= ny as i64 {
+                continue;
+            }
+            let (ni, nj) = (ni as usize, nj as usize);
+            if dir == 0 && dj != 1 {
+                continue; // first step leaves the manager card going straight down
+            }
+            if ni == ti && nj == tj && dj != 1 {
+                continue; // the target is entered from above, going down (§10.2 / AC5)
+            }
+            let h = dj == 0;
+            let (ei, ej) = if h { (i.min(ni), j) } else { (i, j.min(nj)) };
+            if !ok(ei, ej, h) {
+                continue;
+            }
+            let nd = if h { 1 } else { 2 };
+            let len = if h {
+                (xs[ni] - xs[i]).abs() as f64
+            } else {
+                (ys[nj] - ys[j]).abs() as f64
+            };
+            let turn = if dir != 0 && nd != dir {
+                TURN_PENALTY
+            } else {
+                0.0
+            };
+            let ng = e.g + len + turn;
+            let nstate = (nj * nx + ni) * 3 + nd;
+            if ng < g[nstate] {
+                g[nstate] = ng;
+                pv[nstate] = e.state as i64;
+                seq += 1;
+                heap.push(QEntry {
+                    f: ng + hz(ni, nj),
+                    seq,
+                    g: ng,
+                    state: nstate,
+                });
+            }
+        }
+    }
+
+    let goal = match goal {
+        Some(k) => k,
+        None => return best_effort(start, target),
+    };
+    // Reconstruct back to the start, then collapse collinear runs.
+    let mut raw: Vec<(f32, f32)> = Vec::new();
+    let mut k = goal as i64;
+    while k >= 0 {
+        let node = (k as usize) / 3;
+        let (i, j) = (node % nx, node / nx);
+        raw.push((xs[i], ys[j]));
+        k = pv[k as usize];
+    }
+    raw.reverse();
+    let points = simplify_points(&raw)
+        .into_iter()
+        .map(|(x, y)| point(x, y))
+        .collect();
+    AStarRoute {
+        points,
+        failed: false,
+    }
+}
+
 /// Count of non-orthogonal segments across the scene — a line must be ortho-only (§5.1). A separate
 /// probe (not part of the `0/0/0/0/0` panel) so a test can assert the router never emits a diagonal.
 pub fn diagonal_segments(routes: &[StaffEdgeRoute]) -> usize {
@@ -793,5 +1166,191 @@ mod tests {
             g.mh.iter().all(|&b| b == 0) && g.mv.iter().all(|&b| b == 0),
             "frames never block the grid"
         );
+    }
+
+    // --- T4: astar_route (single cross/ext edge over the T3 grid) ---
+
+    fn frame(dept: &str, x: f32, y: f32, w: f32, h: f32) -> FrameRect {
+        FrameRect {
+            department_id: dept.to_string(),
+            part_index: None,
+            x,
+            y,
+            width: w,
+            height: h,
+            head_id: None,
+        }
+    }
+
+    /// Consecutive points share exactly one axis (ortho-only, §5.1); no diagonal, no zero step.
+    fn all_ortho(pts: &[StaffRoutePoint]) -> bool {
+        pts.windows(2).all(|w| {
+            let same_x = (w[0].x - w[1].x).abs() <= COINCIDE_EPS;
+            let same_y = (w[0].y - w[1].y).abs() <= COINCIDE_EPS;
+            same_x != same_y // exactly one axis fixed
+        })
+    }
+
+    #[test]
+    fn astar_routes_orthogonally_and_enters_target_from_above() {
+        // Manager m (dept d1) above-left, child c (dept d2) below-right — a cross edge, no frames.
+        let m = ebox("m", 100.0, 50.0, 100.0, 60.0);
+        let c = ebox("c", 300.0, 300.0, 100.0, 60.0);
+        let g = build_corridor_grid(600.0, 500.0, &[m.clone(), c.clone()], &[], &[]);
+        let r = astar_route(
+            &g,
+            (150.0, 110.0),
+            (350.0, 300.0),
+            "m",
+            "c",
+            &[m, c],
+            &[],
+            &no_member,
+        );
+
+        assert!(!r.failed, "a clear cross edge must route");
+        assert!(r.points.len() >= 2);
+        let (first, last) = (r.points.first().unwrap(), r.points.last().unwrap());
+        assert!(
+            (first.x - 150.0).abs() < 1.0 && (first.y - 110.0).abs() < 1.0,
+            "starts at the port"
+        );
+        assert!(
+            (last.x - 350.0).abs() < 1.0 && (last.y - 300.0).abs() < 1.0,
+            "ends at the target"
+        );
+        assert!(all_ortho(&r.points), "ortho-only: {:?}", r.points);
+        assert_eq!(diagonal_segments(&[route("m", "c", r.points.clone())]), 0);
+        // The last segment enters the target vertically, going DOWN (§10.2 / AC5: enter from above).
+        let n = r.points.len();
+        let (p, q) = (&r.points[n - 2], &r.points[n - 1]);
+        assert!(
+            (p.x - q.x).abs() < 1.0 && p.y < q.y,
+            "enters target from above: {p:?}->{q:?}"
+        );
+    }
+
+    #[test]
+    fn astar_is_deterministic() {
+        let m = ebox("m", 100.0, 50.0, 100.0, 60.0);
+        let c = ebox("c", 300.0, 300.0, 100.0, 60.0);
+        let g = build_corridor_grid(600.0, 500.0, &[m.clone(), c.clone()], &[], &[]);
+        let a = astar_route(
+            &g,
+            (150.0, 110.0),
+            (350.0, 300.0),
+            "m",
+            "c",
+            &[m.clone(), c.clone()],
+            &[],
+            &no_member,
+        );
+        let b = astar_route(
+            &g,
+            (150.0, 110.0),
+            (350.0, 300.0),
+            "m",
+            "c",
+            &[m, c],
+            &[],
+            &no_member,
+        );
+        let tuples = |r: &AStarRoute| r.points.iter().map(|p| (p.x, p.y)).collect::<Vec<_>>();
+        assert_eq!(
+            tuples(&a),
+            tuples(&b),
+            "same input -> identical route (AC8)"
+        );
+    }
+
+    #[test]
+    fn astar_detours_around_a_foreign_card() {
+        // A foreign card f sits on the straight line between m and c → the route must go around it.
+        let m = ebox("m", 100.0, 50.0, 100.0, 60.0);
+        let c = ebox("c", 100.0, 400.0, 100.0, 60.0);
+        let f = ebox("f", 100.0, 200.0, 100.0, 60.0);
+        let g = build_corridor_grid(600.0, 520.0, &[m.clone(), c.clone(), f.clone()], &[], &[]);
+        let r = astar_route(
+            &g,
+            (150.0, 110.0),
+            (150.0, 400.0),
+            "m",
+            "c",
+            &[m, c, f.clone()],
+            &[],
+            &no_member,
+        );
+
+        assert!(!r.failed, "there is room to go around");
+        assert!(all_ortho(&r.points));
+        // The polyline never enters the foreign card's raw interior.
+        let (fx, fy, fw, fh) = obstacle_rect(&f);
+        assert!(
+            !polyline_hits_box_interior(&r.points, fx, fy, fw, fh, INTERIOR_EPS),
+            "route cuts the foreign card: {:?}",
+            r.points
+        );
+    }
+
+    #[test]
+    fn astar_detours_around_a_foreign_frame() {
+        // A foreign department frame (d3) straddles the straight path from m (d1) to c (d2).
+        let m = ebox("m", 150.0, 50.0, 100.0, 60.0);
+        let c = ebox("c", 150.0, 400.0, 100.0, 60.0);
+        let frames = [frame("d3", 130.0, 200.0, 140.0, 120.0)];
+        let member = |id: &str| match id {
+            "m" => Some(("d1".to_string(), None)),
+            "c" => Some(("d2".to_string(), None)),
+            _ => None,
+        };
+        let g = build_corridor_grid(500.0, 520.0, &[m.clone(), c.clone()], &frames, &[]);
+        let r = astar_route(
+            &g,
+            (200.0, 110.0),
+            (200.0, 400.0),
+            "m",
+            "c",
+            &[m, c],
+            &frames,
+            &member,
+        );
+
+        assert!(!r.failed, "there is room around the frame");
+        assert!(all_ortho(&r.points));
+        // The detector's own foreign-frame measure must read zero (router agrees with the gate).
+        let route = [route("m", "c", r.points.clone())];
+        assert_eq!(
+            route_stats(&route, &[], &frames, &member).through_foreign,
+            0,
+            "route pierces the foreign frame: {:?}",
+            r.points
+        );
+    }
+
+    #[test]
+    fn astar_degrades_to_best_effort_on_an_off_grid_port() {
+        // A malformed/off-grid port (not a grid node) must degrade to a best-effort line — never an
+        // out-of-bounds index or a panic (defense row #2: a visible leftover, not a silent drop).
+        let m = ebox("m", 100.0, 50.0, 100.0, 60.0);
+        let c = ebox("c", 300.0, 300.0, 100.0, 60.0);
+        let g = build_corridor_grid(600.0, 500.0, &[m.clone(), c.clone()], &[], &[]);
+        assert!(
+            g.xi(355.0).is_none() && g.yi(305.0).is_none(),
+            "target is deliberately off-grid"
+        );
+        let r = astar_route(
+            &g,
+            (150.0, 110.0),
+            (355.0, 305.0),
+            "m",
+            "c",
+            &[m, c],
+            &[],
+            &no_member,
+        );
+
+        assert!(r.failed, "an off-grid port cannot be routed on the lattice");
+        assert_eq!(r.points.len(), 4, "best-effort Z fallback is four points");
+        assert!(all_ortho(&r.points), "fallback is still orthogonal");
     }
 }
