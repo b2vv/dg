@@ -64,7 +64,15 @@ single_pass + ≤4 проходи (детектор→bad→re-route release/ast
 AC10 лишився зелений) + noop-тест на 2 ребрах. Тести: ripup_clears_a_crossing (weave single-pass cross=1→ripup 0),
 det+noop, route_stats_detailed_flags_both. 181 passed, 0 ignored, clippy/fmt чисті.
 **T6 ЗАКРИТО ПОВНІСТЮ:** D2 (secondary) + D5 (rip-up) + D6 (bad) + AC10 un-ignored через повний A*-пайплайн.
-Лишилось у T128: T7 (класифікація int-елбоу, перф), T8 (wiring у adaptStaffGeometry + deptTop), T9-T13.
+
+### T7 ✅ (класифікація int-елбоу / cross-ext→A*, D1/D4) — R6 повний
+`route_ortho`→pub(crate) (REUSE, не порт — критик B1); `is_internal`=повний (dept,part) ключ (B2); `route_scene`
+(staff_router, прод-вхід для T8): int-елбоу route_ortho+occupy FIXED (corridor-Y у грід bus_ys) → cross/ext A* →
+rip-up ≤4 лише cross/ext ∩ bad. Харнес жене route_scene. Критик-перед 2 блокери+переобрамлення (у 9 схемах лише
+1 int-ребро S3 m→ca → ДОДАНО int-tree тест `t7_internal_tree_edges_are_ortho_elbows`, доводить елбоу==route_ortho).
+Рев'ю ПРИЙНЯЛО (числовий збіг occupy↔route_ortho; AC10 лишився 0; тест зубатий). 182 passed, 0 ignored.
+Дивергенції (зафіксовано): org→root ext лишається A* (не елбоу як мокап :110); int=(dept,part) не department.
+Лишилось у T128: **T8** (wiring у adaptStaffGeometry — єдиний прод-вхід route_scene + deptTop D3), T9-T13 + демо mock3.
 
 ## 🆕 Відкладена задача (рішення власника dg32): демо на даних mock3 як ЕТАЛОН — ПІСЛЯ A* (T4-T6)
 Зробити demo-таб на даних мокапу `/Users/strelia/Downloads/mock3/ШПС лінії зв'язку.html` (`shps-links.js`:

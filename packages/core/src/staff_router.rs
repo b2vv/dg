@@ -26,6 +26,7 @@ use crate::staff_geom::{
     frame_intrusion_count, obstacle_rect, polyline_hits_box_interior, seg_rect_distance, DeptPart,
     FrameRect, INTERIOR_EPS,
 };
+use crate::staff_routes::route_ortho;
 use crate::types::{StaffEdgeRoute, StaffRoutePoint};
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
@@ -877,6 +878,116 @@ pub fn route_edges_ripup(
         }
     }
     routes
+}
+
+/// Is this an INTERNAL-tree edge — both endpoints in the SAME `(department, part)`? Keyed on the full
+/// part key (not bare department), because the acceptance detector exempts a frame only per-part
+/// (`frame_intrusion_count`): a "same dept, other part" edge drawn as a straight elbow could cut the
+/// sibling part's frame, so it must stay a cross-edge for A* (dg33 T7 critic B2). A bypass (secondary)
+/// edge is never internal (mockup :112) — it always routes with A*.
+fn is_internal(from_id: &str, to_id: &str, member_of: &dyn Fn(&str) -> Option<DeptPart>) -> bool {
+    match (member_of(from_id), member_of(to_id)) {
+        (Some(a), Some(b)) => a == b,
+        _ => false,
+    }
+}
+
+/// The full routing pipeline (T7): the one entry a host (T8) and the acceptance gate both call.
+///
+/// Internal-tree edges draw as a direct orthogonal elbow (`route_ortho`, shared with the detour so
+/// there is one int-elbow truth) and are placed FIRST, occupying their lanes; cross/ext edges then
+/// route with A* against that occupancy, and rip-up (≤4 passes) re-routes only the CROSS/EXT edges
+/// still in a violation — internal elbows are clean by construction and never re-routed (mockup
+/// `:158` re-routes only `ast`). The grid is built here, seeded with the internal elbows' corridor Ys
+/// (mockup `:118`) so A* can see and avoid those buses. Internal-tree edges routed through A* instead
+/// would still be correct (dg33 measured), but wigglier and slower — this is the §2/Q2 perf split.
+pub fn route_scene(
+    canvas_w: f32,
+    canvas_h: f32,
+    cards: &[EdgeRect],
+    frames: &[FrameRect],
+    edges: &[EdgeSpec],
+    member_of: &dyn Fn(&str) -> Option<DeptPart>,
+) -> Vec<AStarRoute> {
+    let is_int: Vec<bool> = edges
+        .iter()
+        .map(|e| !e.secondary && is_internal(&e.from_id, &e.to_id, member_of))
+        .collect();
+    let find = |id: &str| cards.iter().find(|c| c.id == id);
+
+    // Internal elbows' corridor Ys must be grid lines so their buses can be occupied / avoided.
+    let mut bus_ys = Vec::new();
+    for (i, e) in edges.iter().enumerate() {
+        if is_int[i] {
+            if let (Some(fc), Some(tc)) = (find(&e.from_id), find(&e.to_id)) {
+                bus_ys.push((fc.y + fc.height + tc.y) / 2.0);
+            }
+        }
+    }
+    let grid = build_corridor_grid(canvas_w, canvas_h, cards, frames, &bus_ys);
+
+    let mut occ = Occupancy::default();
+    let mut routes: Vec<Option<AStarRoute>> = (0..edges.len()).map(|_| None).collect();
+
+    // 1. Internal elbows — fixed, occupied first (mockup :129).
+    for (i, e) in edges.iter().enumerate() {
+        if is_int[i] {
+            if let (Some(fc), Some(tc)) = (find(&e.from_id), find(&e.to_id)) {
+                let points = route_ortho(fc, tc);
+                occupy(&mut occ, &grid, &points, &e.from_id);
+                routes[i] = Some(AStarRoute {
+                    points,
+                    failed: false,
+                });
+            }
+        }
+    }
+
+    // 2. Cross/ext via A* in routing order, against the internal occupancy.
+    let ce_order: Vec<usize> = routing_order(edges)
+        .into_iter()
+        .filter(|&i| routes[i].is_none())
+        .collect();
+    for idx in ce_order {
+        let e = &edges[idx];
+        let r = astar_route(
+            &grid, e.start, e.target, &e.from_id, &e.to_id, cards, frames, member_of, &occ,
+        );
+        occupy(&mut occ, &grid, &r.points, &e.from_id);
+        routes[idx] = Some(r);
+    }
+
+    // 3. Rip-up — re-route only cross/ext edges that remain in a violation (internals stay fixed).
+    for pass in 0..4 {
+        let srs: Vec<StaffEdgeRoute> = edges
+            .iter()
+            .zip(&routes)
+            .map(|(e, r)| to_staff_route(e, r.as_ref().expect("routed in phases 1-2")))
+            .collect();
+        let (_, bad) = route_stats_detailed(&srs, cards, frames, member_of);
+        let mut bad_ce: Vec<usize> = bad.into_iter().filter(|&i| !is_int[i]).collect();
+        if bad_ce.is_empty() {
+            break;
+        }
+        if pass % 2 == 1 {
+            bad_ce.reverse();
+        }
+        for idx in bad_ce {
+            let e = &edges[idx];
+            let old = routes[idx].as_ref().unwrap().points.clone();
+            release(&mut occ, &grid, &old, &e.from_id);
+            let r = astar_route(
+                &grid, e.start, e.target, &e.from_id, &e.to_id, cards, frames, member_of, &occ,
+            );
+            occupy(&mut occ, &grid, &r.points, &e.from_id);
+            routes[idx] = Some(r);
+        }
+    }
+
+    routes
+        .into_iter()
+        .map(|o| o.expect("every edge routed"))
+        .collect()
 }
 
 /// Route one cross/ext edge from `start` (manager card bottom-centre) to `target` (child card

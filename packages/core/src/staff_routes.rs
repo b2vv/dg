@@ -67,8 +67,9 @@ fn port(rect: &EdgeRect, side: Side) -> StaffRoutePoint {
     StaffRoutePoint { x, y }
 }
 
-/// Ортогональна база `from.bottom → corridorY → to.top` по per-LOD боксах (R6-3a).
-fn route_ortho(from: &EdgeRect, to: &EdgeRect) -> Vec<StaffRoutePoint> {
+/// Ортогональна база `from.bottom → corridorY → to.top` по per-LOD боксах (R6-3a). Спільний елбоу-
+/// білдер internal-tree ребер: detour-шлях і A*-пайплайн (T7 `route_scene`) малюють int однаково.
+pub(crate) fn route_ortho(from: &EdgeRect, to: &EdgeRect) -> Vec<StaffRoutePoint> {
     let a = port(from, Side::Bottom);
     let b = port(to, Side::Top);
     let corridor = (from.y + from.height + to.y) / 2.0;
@@ -1863,11 +1864,10 @@ mod tests {
         edges: &[StaffEdge],
         frames: &[FrameRect],
     ) -> (crate::RouteStats, usize, bool) {
-        use crate::{build_corridor_grid, route_edges_ripup, EdgeSpec, SECONDARY_PORT_DX};
+        use crate::{route_scene, EdgeSpec, SECONDARY_PORT_DX};
         let boxes = near_boxes(nodes);
         let w = nodes.iter().map(|n| n.x + n.width).fold(0.0f32, f32::max) + 100.0;
         let h = nodes.iter().map(|n| n.y + n.height).fold(0.0f32, f32::max) + 100.0;
-        let grid = build_corridor_grid(w, h, &boxes, frames, &[]);
         let specs: Vec<EdgeSpec> = edges
             .iter()
             .enumerate()
@@ -1891,7 +1891,7 @@ mod tests {
             })
             .collect();
         let member = |id: &str| schema_member(nodes, id);
-        let routes = route_edges_ripup(&grid, &specs, &boxes, frames, &member);
+        let routes = route_scene(w, h, &boxes, frames, &specs, &member);
         let srs: Vec<StaffEdgeRoute> = specs
             .iter()
             .zip(&routes)
@@ -1920,5 +1920,70 @@ mod tests {
             assert_eq!(s, crate::RouteStats::default(), "schema {name}: {s:?}");
             assert_eq!(diag, 0, "schema {name} has a non-orthogonal segment");
         }
+    }
+
+    /// T7 — an internal-tree scene the AC10 fixtures barely exercise (only S3 carries one int edge).
+    /// A manager and two children in the SAME `(dept, part)` must draw as direct `route_ortho` elbows
+    /// (NOT A* wiggles), occupied first, and read a clean detector panel (dg33 T7 critic coverage gap).
+    #[test]
+    fn t7_internal_tree_edges_are_ortho_elbows() {
+        let nodes = vec![
+            node_dept("m", 0.0, 0.0, 100.0, 50.0, "A"),
+            node_dept("a", -150.0, 260.0, 100.0, 50.0, "A"),
+            node_dept("b", 150.0, 260.0, 100.0, 50.0, "A"),
+        ];
+        let edges = [edge("m", "a"), edge("m", "b")];
+        let frames = [frame("A", -170.0, -20.0, 440.0, 350.0)];
+        let boxes = near_boxes(&nodes);
+        let find = |id: &str| boxes.iter().find(|c| c.id == id).unwrap();
+
+        let w = nodes.iter().map(|n| n.x + n.width).fold(0.0f32, f32::max) + 100.0;
+        let h = nodes.iter().map(|n| n.y + n.height).fold(0.0f32, f32::max) + 100.0;
+        let specs: Vec<crate::EdgeSpec> = edges
+            .iter()
+            .map(|e| {
+                let m = nodes.iter().find(|n| n.id == e.from_id).unwrap();
+                let c = nodes.iter().find(|n| n.id == e.to_id).unwrap();
+                crate::EdgeSpec {
+                    from_id: e.from_id.clone(),
+                    to_id: e.to_id.clone(),
+                    start: (m.x + m.width / 2.0, m.y + m.height),
+                    target: (c.x + c.width / 2.0, c.y),
+                    secondary: false,
+                }
+            })
+            .collect();
+        let member = |id: &str| schema_member(&nodes, id);
+        let routes = crate::route_scene(w, h, &boxes, &frames, &specs, &member);
+
+        // Each internal edge is EXACTLY the shared ortho-elbow builder's output — proof it did not go
+        // through A* (which would place points off the `route_ortho` corridor).
+        for (spec, r) in specs.iter().zip(&routes) {
+            let expect = route_ortho(find(&spec.from_id), find(&spec.to_id));
+            let got: Vec<(f32, f32)> = r.points.iter().map(|p| (p.x, p.y)).collect();
+            let want: Vec<(f32, f32)> = expect.iter().map(|p| (p.x, p.y)).collect();
+            assert_eq!(
+                got, want,
+                "{}->{} is not the ortho elbow",
+                spec.from_id, spec.to_id
+            );
+        }
+        // …and the scene is clean.
+        let srs: Vec<StaffEdgeRoute> = specs
+            .iter()
+            .zip(&routes)
+            .map(|(s, r)| StaffEdgeRoute {
+                from_id: s.from_id.clone(),
+                to_id: s.to_id.clone(),
+                kind: "admin".into(),
+                points: r.points.clone(),
+                marked: None,
+                ends_on_dept_top: None,
+            })
+            .collect();
+        assert_eq!(
+            crate::route_stats(&srs, &boxes, &frames, &member),
+            crate::RouteStats::default()
+        );
     }
 }
