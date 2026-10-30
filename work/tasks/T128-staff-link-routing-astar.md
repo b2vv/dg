@@ -1,7 +1,7 @@
 # T128 — staff link-routing: повний A*-орто-роутер ліній ШПС із §10-гарантіями в Rust
 
-**Пріоритет:** P2 · **Статус:** 🟡 spec-flow пройдено (GATE 1 ✅, GATE 2 ✅ PASS) · **код НЕ почато** ·
-**ЗАБЛОКОВАНО:** «го» власника на implement + рішення Q2 (доля WIP dg30) · **Під парасолькою:** [T126](T126-staff-layout-anchors-spacing-into-rust.md)
+**Пріоритет:** P2 · **Статус:** 🟢 implement РОЗПОЧАТО (dg32: «го» власника + Q2 закрито Комітом B `a60e79f`) ·
+**Під парасолькою:** [T126](T126-staff-layout-anchors-spacing-into-rust.md)
 **Гілка:** `feat/t126-staff-rust-geometry` (та сама, рішення власника dg31).
 
 ## Мандат
@@ -22,4 +22,13 @@ A* як **ФУНДАМЕНТ на Бар-1** (обчислена tree-розкл
 - `_plan-prior-art-search-dg31.md` — вже-обговорене (design-v3 variant C, dept-grouping вже в Rust).
 
 ## Наступний крок
-Перепитати Q2 (WIP dg30: Коміт B / падаючий svgExport.parity) → «го» на implement → T1 (stats()+фікстури RED).
+implement за `tasks.md` T0→T13, red-first, R6 кожен крок. Жива нота: `1 - Notes/Sessions/2026-10-30 T128 staff link-routing A* spec-flow.md`.
+Прогрес dg32: T0 ✅, T1 ✅ (детектор route_stats + 9 фікстур S0-S9 + RED-first; незалежне рев'ю в процесі → коміт).
+
+## 🆕 Відкладена задача (рішення власника dg32): демо на даних mock3 як ЕТАЛОН — ПІСЛЯ A* (T4-T6)
+Зробити demo-таб на даних мокапу `/Users/strelia/Downloads/mock3/ШПС лінії зв'язку.html` (`shps-links.js`:
+`DEPTS` + `POS{id,p=parentId,d=deptId,t=title,w=worker}`) → мапити в `DiagramData`, рендерити через
+Rust-пайплайн, звіряти координати+лінії з мокапом як еталоном. Візуальний еталон: `mock3/screenshots/` +
+`mock3/export/`. Операціоналізує R3-візуальний гейт (той, що golden-park/T10 відклали). ⚠️ `shps-links.js` =
+third-party код → брати ДАНІ, НЕ цитувати A*-алгоритм буквально (пам'ять no-verbatim). Будувати ПІСЛЯ A*
+(detour-вихід звіряти з еталоном сенсу мало — реальна парність на A*-виході).
