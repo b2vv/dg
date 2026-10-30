@@ -1819,16 +1819,106 @@ mod tests {
         );
     }
 
-    /// AC10 — every §10.1 schema reads `0/0/0/0/0`. RED-first: FAILS now (S4 overlap, S5 crossing);
-    /// un-ignore when the A* router (T6) lands so it becomes the permanent acceptance gate.
-    /// At T6, also assert `diagonal_segments(..) == 0` per scene — the five-metric panel does not
-    /// cover a non-orthogonal segment (T1 review remark 2; the ortho probe is deliberately separate).
+    // --- T6: route a schema through the A* pipeline (not the detour) for the AC10 gate ---
+
+    /// Can `from` reach `target` following admin edges (from → to)? Used to tell a bypass edge
+    /// (ancestor → node) from the node's nearest/primary parent.
+    fn admin_reaches(edges: &[StaffEdge], from: &str, target: &str) -> bool {
+        let mut stack = vec![from.to_string()];
+        let mut seen = std::collections::HashSet::new();
+        while let Some(n) = stack.pop() {
+            if n == target {
+                return true;
+            }
+            if !seen.insert(n.clone()) {
+                continue;
+            }
+            for e in edges.iter().filter(|e| e.kind == "admin" && e.from_id == n) {
+                stack.push(e.to_id.clone());
+            }
+        }
+        false
+    }
+
+    /// A bypass (secondary) edge: its target has another admin parent that this edge's source is an
+    /// ANCESTOR of — i.e. this line skips a level. The nearer parent stays primary (centre port); the
+    /// bypass takes the offset port so the two never coincide (§10.1.5). Narrow by design: two truly
+    /// independent parents (neither an ancestor of the other) are general dual-subordination, out of
+    /// this slice's scope.
+    fn edge_is_secondary(edges: &[StaffEdge], i: usize) -> bool {
+        let e = &edges[i];
+        if e.kind != "admin" {
+            return false;
+        }
+        edges
+            .iter()
+            .filter(|o| o.kind == "admin" && o.to_id == e.to_id && o.from_id != e.from_id)
+            .any(|o| admin_reaches(edges, &e.from_id, &o.from_id))
+    }
+
+    /// Route a schema through the A* pipeline (grid → secondary-classify → route_edges) and measure
+    /// it with the SAME detector as the gate. Returns the five-metric panel plus the diagonal count.
+    fn astar_schema_stats(
+        nodes: &[StaffNodeGeo],
+        edges: &[StaffEdge],
+        frames: &[FrameRect],
+    ) -> (crate::RouteStats, usize, bool) {
+        use crate::{build_corridor_grid, route_edges, EdgeSpec, SECONDARY_PORT_DX};
+        let boxes = near_boxes(nodes);
+        let w = nodes.iter().map(|n| n.x + n.width).fold(0.0f32, f32::max) + 100.0;
+        let h = nodes.iter().map(|n| n.y + n.height).fold(0.0f32, f32::max) + 100.0;
+        let grid = build_corridor_grid(w, h, &boxes, frames, &[]);
+        let specs: Vec<EdgeSpec> = edges
+            .iter()
+            .enumerate()
+            .map(|(i, e)| {
+                let m = nodes.iter().find(|n| n.id == e.from_id).unwrap();
+                let c = nodes.iter().find(|n| n.id == e.to_id).unwrap();
+                let secondary = edge_is_secondary(edges, i);
+                let cx = c.x + c.width / 2.0;
+                let tx = if secondary {
+                    cx + SECONDARY_PORT_DX
+                } else {
+                    cx
+                };
+                EdgeSpec {
+                    from_id: e.from_id.clone(),
+                    to_id: e.to_id.clone(),
+                    start: (m.x + m.width / 2.0, m.y + m.height),
+                    target: (tx, c.y),
+                    secondary,
+                }
+            })
+            .collect();
+        let member = |id: &str| schema_member(nodes, id);
+        let routes = route_edges(&grid, &specs, &boxes, frames, &member);
+        let srs: Vec<StaffEdgeRoute> = specs
+            .iter()
+            .zip(&routes)
+            .map(|(s, r)| StaffEdgeRoute {
+                from_id: s.from_id.clone(),
+                to_id: s.to_id.clone(),
+                kind: "admin".into(),
+                points: r.points.clone(),
+                marked: None,
+                ends_on_dept_top: None,
+            })
+            .collect();
+        let stats = crate::route_stats(&srs, &boxes, frames, &member);
+        let failed = routes.iter().any(|r| r.failed);
+        (stats, crate::diagonal_segments(&srs), failed)
+    }
+
+    /// AC10 — every §10.1 schema reads `0/0/0/0/0` AND carries no diagonal segment, routed through the
+    /// A* pipeline (T6). The permanent acceptance gate; S5's bypass is separated by the secondary port.
     #[test]
-    #[ignore = "AC10 red-first gate: un-ignore at T6 when A* lands (detour leaves S4 overlap + S5 crossing)"]
     fn ac10_all_schemas_zero_violations() {
         for (name, nodes, edges, frames) in schema_scenes() {
-            let s = schema_stats(&nodes, &edges, &frames);
+            let (s, diag, failed) = astar_schema_stats(&nodes, &edges, &frames);
+            // A clean panel on a best-effort (failed) route would be a false pass — forbid it (M1).
+            assert!(!failed, "schema {name}: an edge degraded to best-effort");
             assert_eq!(s, crate::RouteStats::default(), "schema {name}: {s:?}");
+            assert_eq!(diag, 0, "schema {name} has a non-orthogonal segment");
         }
     }
 }

@@ -38,6 +38,24 @@ R6 повний: критик 3 блокери (off-grid-паніка; відс�
 скоупом (N2), детермінізм тримається, але порядок може розійтись з мокапом при cross+ext у реальній сцені.
 Далі: **T6 rip-up** (4 проходи, rows 5/7/8 → 0) → un-ignore AC10.
 
+## dg33 — РІШЕННЯ ВЛАСНИКА по S5 (варіант b): ввести «вторинне ребро»
+Порівняння алгоритмів (`work/reports/staff-link-routing-astar/_algo-comparison-dg33.md`): 8/9 канон-схем
+чисті через A* single-pass, лише **S5 over=1** — відсутня стадія еталону (secondary `c.p2` → порт `cx+SX`).
+Критик+вимір підтвердили: rip-up і T7 цього НЕ закривають. **Власник обрав (b): secondary-ребро + `cx+SX`-порт
++ `tgt(sec)`** (паритет мокапу, детектор лишається строгим). T6 тепер = D2 (secondary) + D5/D6 (rip-up+bad) +
+un-ignore AC10. Розбіжності: D1/D4=T7 (перф int-елбоу), D3=T8 (deptTop).
+
+### T6 крок1 ✅ (secondary + AC10 un-ignore) — R6 повний
+`SECONDARY_PORT_DX`=28, grid `cx+SX`-лінія, exempt `cx||cx+SX`, `EdgeSpec.secondary`+sort, харнес
+`astar_schema_stats` (граф-предок `edge_is_secondary`+`admin_reaches`). **AC10-гейт un-ignored → A*-пайплайн,
+усі 9 схем 0/0/0/0/0 + diagonal 0 + no-fail.** S5 закрито secondary-портом. Критик 2 блокери (B1 харнес-A*,
+B2 exempt cx+SX) + M1 (no-fail асерт) → закрито; рев'ю ПРИЙНЯЛО. 178 passed, 0 ignored.
+**ВУЗЬКІСТЬ (явно):** secondary-детекція = ЛИШЕ bypass (ціль із батьком-предком іншого батька). Загальне
+подвійне підпорядкування (два НЕЗАЛЕЖНІ батьки, жоден не предок) лишається ПОЗА СКОУПОМ — `edge_is_secondary`
+дасть false для обох, overlap повернеться (коли дані це збудять). §11.1 у спеці НЕ існує (фантом) — не чіпано.
+**ВИМІР:** AC10 зелений БЕЗ rip_up → для 9 канон-схем rip_up не потрібен. rip_up+bad (D5/D6) — рішення власника
+(будувати для non-canon робустності чи відкласти YAGNI; залишок покриває `marked` best-effort).
+
 ## 🆕 Відкладена задача (рішення власника dg32): демо на даних mock3 як ЕТАЛОН — ПІСЛЯ A* (T4-T6)
 Зробити demo-таб на даних мокапу `/Users/strelia/Downloads/mock3/ШПС лінії зв'язку.html` (`shps-links.js`:
 `DEPTS` + `POS{id,p=parentId,d=deptId,t=title,w=worker}`) → мапити в `DiagramData`, рендерити через

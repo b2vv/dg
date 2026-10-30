@@ -237,6 +237,9 @@ pub fn route_stats(
 
 /// Corridor lane offset (mockup `S.lane`): spacing of the extra routing lines seeded in a wide gap.
 const LANE: f32 = 8.0;
+/// Secondary-parent entry offset (mockup `SX`): a bypass edge enters its target at `centre + this`,
+/// a column clear of the primary edge's `centre`, so two lines into one card never coincide (§10.1.5).
+pub const SECONDARY_PORT_DX: f32 = 28.0;
 /// Department-frame margin: coordinate offset outside a frame border (mockup `E(D,14)`).
 const FRAME_MARGIN: f32 = 14.0;
 /// Department header band: the title strip below a frame top that lines avoid (mockup `D.y1+38`).
@@ -387,7 +390,9 @@ pub fn build_corridor_grid(
     // internal-tree bus Ys. These must be grid lines so docking ports land exactly on a node.
     for c in cards {
         let (x, y, w, h) = obstacle_rect(c);
-        xs.push(quant(x + w / 2.0));
+        let cx = x + w / 2.0;
+        xs.push(quant(cx));
+        xs.push(quant(cx + SECONDARY_PORT_DX)); // secondary-parent entry column (mockup :118)
         ys.push(quant(y));
         ys.push(quant(y + h));
     }
@@ -731,11 +736,14 @@ pub fn release(occ: &mut Occupancy, grid: &CorridorGrid, points: &[StaffRoutePoi
 }
 
 /// One edge to route: endpoint ids (ownership + own-card exemption) and the port coordinates.
+/// `secondary` marks a bypass edge (its target has a nearer primary parent) — it is routed LAST and
+/// enters the target at the offset column, so it never coincides with the primary line (§10.1.5).
 pub struct EdgeSpec {
     pub from_id: String,
     pub to_id: String,
     pub start: (f32, f32),
     pub target: (f32, f32),
+    pub secondary: bool,
 }
 
 /// Single-pass driver (mockup `:156-157`): route each edge in a stable order, occupying it before the
@@ -750,11 +758,13 @@ pub fn route_edges(
     member_of: &dyn Fn(&str) -> Option<DeptPart>,
 ) -> Vec<AStarRoute> {
     let mut order: Vec<usize> = (0..edges.len()).collect();
+    // Primary edges first, then bypass (secondary) — a secondary line routes against the primary's
+    // occupancy, not the reverse (mockup :156). Within a group: manager Y, X, then input index.
     order.sort_by(|&a, &b| {
         edges[a]
-            .start
-            .1
-            .total_cmp(&edges[b].start.1)
+            .secondary
+            .cmp(&edges[b].secondary)
+            .then(edges[a].start.1.total_cmp(&edges[b].start.1))
             .then(edges[a].start.0.total_cmp(&edges[b].start.0))
             .then(a.cmp(&b))
     });
@@ -857,7 +867,10 @@ pub fn astar_route(
         };
         if matrix_blocked {
             let hits_card = pc.iter().any(|c| {
-                let exempt = c.endpoint && vert && (seg.0 - c.cx).abs() <= COINCIDE_EPS;
+                // Own-endpoint port column — the primary centre OR the secondary offset (mockup :136).
+                let on_port = (seg.0 - c.cx).abs() <= COINCIDE_EPS
+                    || (seg.0 - (c.cx + SECONDARY_PORT_DX)).abs() <= COINCIDE_EPS;
+                let exempt = c.endpoint && vert && on_port;
                 let rect = if exempt { c.raw } else { c.padded };
                 seg_hits_rect(seg, vert, rect)
             });
@@ -1677,12 +1690,14 @@ mod tests {
                 to_id: "c1".to_string(),
                 start: (150.0, 110.0),
                 target: (350.0, 600.0),
+                secondary: false,
             },
             EdgeSpec {
                 from_id: "m2".to_string(),
                 to_id: "c2".to_string(),
                 start: (650.0, 110.0),
                 target: (100.0, 600.0),
+                secondary: false,
             },
         ];
 
@@ -1751,6 +1766,7 @@ mod tests {
             to_id: "c".to_string(),
             start: (150.0, 110.0),
             target: (355.0, 305.0), // off-grid → best-effort
+            secondary: false,
         }];
         let routes = route_edges(&g, &edges, &cards, &[], &no_member);
         assert_eq!(routes.len(), 1);
