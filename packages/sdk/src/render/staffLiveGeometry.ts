@@ -182,7 +182,15 @@ async function computeViaRust(input: BranchInput): Promise<StaffLiveGeometry> {
   const dockHints = buildStaffDockHints(data, metrics, theme.person);
 
   const result = await computeStaffGeometryWasm(
-    buildStaffLayoutInput({ data, currentOrgId, options: staffOptions, lod, contentPadding, dockHints }),
+    buildStaffLayoutInput({
+      data,
+      currentOrgId,
+      options: staffOptions,
+      lod,
+      contentPadding,
+      dockHints,
+      useAstar: config.staffUseAstar === true,
+    }),
   );
 
   // The cap is the adapter's to enforce and diagnose (Rust applies `expandedOrgIds`

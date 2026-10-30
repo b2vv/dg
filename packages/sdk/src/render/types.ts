@@ -278,6 +278,12 @@ export interface RenderConfig {
   minContourMembers: number;
   /** T64: paint StaffTierBand chrome (default false — opt-in). */
   staffZoneChrome?: boolean;
+  /**
+   * DEV (T128 T8, not a product feature): route staff links through the Rust A* pipeline instead of
+   * the detour. Default false → detour (golden-safe). Used by the mock3 R3 comparison tab. Flipping
+   * the production default is T8 step C (gated on R3 + golden rebaseline).
+   */
+  staffUseAstar?: boolean;
   /** T64: department paint mode (default blob). */
   departmentStyle?: DepartmentPaintStyle;
   /** Enables dept-grouping layout + v2 routing; default legacy. */
@@ -467,6 +473,7 @@ export const defaultRenderConfig: RenderConfig = {
   corridorCells: DEFAULT_CORRIDOR_CELLS,
   minContourMembers: 1,
   staffZoneChrome: false,
+  staffUseAstar: false,
   departmentStyle: 'blob',
   staffEdgeRouter: 'legacy',
   dashedGridFrame: false,

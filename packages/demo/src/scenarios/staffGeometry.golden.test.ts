@@ -158,9 +158,25 @@ function compare(actual: unknown, expected: unknown, path: string, tolerance = 1
 
 describe('staffGeometry golden', () => {
   it('covers every real tab declaring staffLayout', () => {
+    // `staff-mock3` is the A* R3 comparison tab (T128 T8, `render.staffUseAstar`): its routed output
+    // is deliberately NOT golden-baselined until the flip (step C) + rebaseline (T10) land after the
+    // owner's R3 visual gate, so it is excluded here like the scale tab.
     const actual = Object.keys(TAB_META).filter((tab) => isDemoTab(tab)).filter((tab) =>
-      tab !== 'scale-100k' && buildTabConfig(tab, deps).staffLayout !== undefined);
+      tab !== 'scale-100k' && tab !== 'staff-mock3' && buildTabConfig(tab, deps).staffLayout !== undefined);
     expect(actual.sort()).toEqual([...staffTabs].sort());
+  });
+
+  // R3 smoke (T128 T8): the mock3 ШПС tab really routes through the Rust A* pipeline (useAstar) and
+  // produces a line per report edge, the large majority clean (best-effort/marked is the Q1 minority).
+  // Not a baseline — the visual mockup comparison (R3) is the owner's. Documents the clean/marked
+  // split so the owner knows what to expect before opening the tab.
+  it('staff-mock3 routes through A* (R3 smoke)', async () => {
+    const near = (await capture('staff-mock3')).live.routes.near;
+    expect(near.length).toBeGreaterThan(40);
+    const marked = near.filter((r) => r.marked).length;
+    expect(marked, `${marked}/${near.length} lines best-effort (expected a small minority)`).toBeLessThan(
+      near.length / 4,
+    );
   });
 
   it('compares numbers within ±1px, but rejects structural changes and non-finite values', () => {

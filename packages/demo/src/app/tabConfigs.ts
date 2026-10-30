@@ -10,6 +10,7 @@ import {
 import { buildVariantBData } from '../scenarios/variantB.js';
 import { buildStaffTreeData } from '../scenarios/staffTree.js';
 import { buildShpsStaffData, SHPS_STAFF_LAYOUT } from '../scenarios/shpsStaff.js';
+import { buildMock3ShpsData } from '../scenarios/mock3Shps.js';
 import { buildStaffDeptRoutingData } from '../scenarios/staffDeptRouting.js';
 import { buildStaffBrigadeData } from '../scenarios/staffBrigade.js';
 import {
@@ -104,6 +105,29 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
           ...base.render,
           staffZoneChrome: true,
           departmentStyle: 'card',
+          cellWidth: SHPS_STAFF_LAYOUT.refCellWidth,
+          cellHeight: SHPS_STAFF_LAYOUT.refCellHeight,
+        },
+      };
+    case 'staff-mock3':
+      // R3 (T128 T8): the mock3 ШПС org routed through the Rust A* pipeline (`staffUseAstar`), to
+      // compare our lines with the reference mockup screens. Same chrome as `staff-shps`.
+      return {
+        ...base,
+        theme: 'dark',
+        data: buildMock3ShpsData(),
+        styles: {
+          ...MOCKUP_FIGMA_STYLES,
+          person: { ...MOCKUP_FIGMA_STYLES.person, edgePort: 'center' },
+        },
+        lodThresholds: MOCKUP_LOD_THRESHOLDS,
+        staffCurrentOrgId: 'mock3-org',
+        staffLayout: SHPS_STAFF_LAYOUT,
+        render: {
+          ...base.render,
+          staffZoneChrome: true,
+          departmentStyle: 'card',
+          staffUseAstar: true,
           cellWidth: SHPS_STAFF_LAYOUT.refCellWidth,
           cellHeight: SHPS_STAFF_LAYOUT.refCellHeight,
         },

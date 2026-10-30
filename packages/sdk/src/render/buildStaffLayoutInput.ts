@@ -46,6 +46,8 @@ export interface BuildStaffLayoutInputArgs {
   nodeSizes?: StaffNodeSize[];
   /** Figma/GoJS dock geometry per position, resolved in the render layer. */
   dockHints?: StaffDockHintInput[];
+  /** DEV (T128 T8): route via the Rust A* pipeline instead of the detour. Default false. */
+  useAstar?: boolean;
 }
 
 export function resolveMetrics(options: StaffLayoutOptions, contentPadding: number): StaffLayoutMetrics {
@@ -237,5 +239,6 @@ export function buildStaffLayoutInput(args: BuildStaffLayoutInputArgs): StaffLay
     dockHints: args.dockHints ?? [],
     expandedOrgIds: [...forwardedExpandedOrgIds],
     lod,
+    ...(args.useAstar ? { useAstar: true } : {}),
   };
 }

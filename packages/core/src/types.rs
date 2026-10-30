@@ -458,6 +458,17 @@ pub struct StaffLayoutInput {
     #[serde(rename = "expandedOrgIds", default)]
     pub expanded_org_ids: Vec<String>,
     pub lod: String,
+    /// Internal DEV switch (T128 T8, NOT a public feature flag): route staff links through the A*
+    /// pipeline instead of the detour. Absent/false → detour (production default, golden-safe). Set
+    /// true only for bring-up / the mock3 R3 comparison tab. Flipping the production default to A* is
+    /// T8 step C (gated on the R3 visual gate + golden rebaseline T10).
+    // No `skip_serializing_if`: combined with `rename` it confuses ts-rs into dropping the rename
+    // (emitting `use_astar` while serde still expects `useAstar`). This is an input-only type (never
+    // serialized back), so skipping None on serialize buys nothing. `rename + default` alone exports
+    // the camelCase `useAstar?` and matches serde's runtime key.
+    #[serde(rename = "useAstar", default)]
+    #[cfg_attr(feature = "ts-export", ts(optional))]
+    pub use_astar: Option<bool>,
 }
 
 /// Координати посади у світовій системі. `tier`: 1|2|3. `role`:

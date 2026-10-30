@@ -99,7 +99,14 @@ export type StaffLayoutInput = { currentOrgId: string, positions: Array<StaffPos
 /**
  * Геометрія докування per-id (TS-обчислена). Default порожній → порти на повний бокс.
  */
-dockHints: Array<StaffDockHintInput>, expandedOrgIds: Array<string>, lod: string, };
+dockHints: Array<StaffDockHintInput>, expandedOrgIds: Array<string>, lod: string, 
+/**
+ * Internal DEV switch (T128 T8, NOT a public feature flag): route staff links through the A*
+ * pipeline instead of the detour. Absent/false → detour (production default, golden-safe). Set
+ * true only for bring-up / the mock3 R3 comparison tab. Flipping the production default to A* is
+ * T8 step C (gated on the R3 visual gate + golden rebaseline T10).
+ */
+useAstar?: boolean, };
 
 /**
  * Числові метрики лейауту (підмножина `StaffLayoutOptions`, що є суто геометрією).

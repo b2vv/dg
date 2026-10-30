@@ -1267,7 +1267,10 @@ pub fn compute_staff_geometry(input: &StaffLayoutInput) -> Result<StaffGeometryR
         card_pad,
     };
     // Internal dev switch (default detour; A* path = T8 step C, gated on R3 + golden rebaseline).
-    let routes = resolve_staff_routes(&route_inputs, dims.width, dims.height, DEFAULT_STAFF_ASTAR);
+    // The dev `useAstar` input field overrides the compile default (for bring-up / the R3 mock3 tab);
+    // absent → detour, so production and golden are unaffected.
+    let use_astar = input.use_astar.unwrap_or(DEFAULT_STAFF_ASTAR);
+    let routes = resolve_staff_routes(&route_inputs, dims.width, dims.height, use_astar);
 
     Ok(StaffGeometryResult {
         current_org_id: input.current_org_id.clone(),
@@ -1977,6 +1980,7 @@ mod tests {
             dock_hints: Vec::new(),
             expanded_org_ids: Vec::new(),
             lod: "near".to_string(),
+            use_astar: None,
         }
     }
 
