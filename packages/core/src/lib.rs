@@ -30,7 +30,9 @@ pub use staff_edge_box::{
 };
 pub use staff_layout::{compute_staff_geometry, layout_staff_org_block, Geom, StaffBlock};
 pub use staff_packing::{pack_departments, DepartmentMembers, StaffPackResult};
-pub use staff_router::{diagonal_segments, route_stats, RouteStats};
+pub use staff_router::{
+    build_corridor_grid, diagonal_segments, route_stats, CorridorGrid, RouteStats,
+};
 pub use staff_routes::{staff_routes, RouteInputs};
 pub use types::*;
 

@@ -37,8 +37,19 @@ use crate::staff_edge_box::PersonEdgeHints;
 
 /// Сентинел «без відділу» (TS `NO_DEPARTMENT_ID`, data/types.ts:244).
 const NO_DEPARTMENT_ID: &str = "\u{0000}no-department";
-/// Нижня межа card_pad роутера (staff_routes `MIN_CARD_PAD`): нижче → вимкнути обхід.
+/// Мінімальний кліренс обходу карток (staff_routes `MIN_CARD_PAD`, req §10.4.2).
 const MIN_CARD_PAD: f32 = 8.0;
+
+/// Кліренс обходу карток для роутера з layout-паддінгу депу.
+///
+/// `content_padding` — layout-параметр (наскільки рамка депу виступає за картки); роутер (ab)used
+/// його як clearance обходу. Обхід карток БЕЗУМОВНИЙ (спека §5.1.3 / §10.4.2): лінія ніколи не йде
+/// під карткою, незалежно від layout-паддінгу. Тому clearance = `max(content_padding, MIN_CARD_PAD)`
+/// — не менше 8px завжди (T128 T2 / AC11). Колишній гейт вимикав обхід (card_pad=0) при
+/// `content_padding<8` → лінії різали картки (баг проти §5.1.3, dg30 PARITY).
+fn resolve_card_pad(content_padding: f32) -> f32 {
+    content_padding.max(MIN_CARD_PAD)
+}
 
 /// Геометричні метрики (підмножина, що керує позиціонуванням). Порт `StaffGeom` (coords.ts:5).
 #[derive(Debug, Clone, Copy)]
@@ -1243,11 +1254,7 @@ pub fn compute_staff_geometry(input: &StaffLayoutInput) -> Result<StaffGeometryR
             }
         })
         .collect();
-    let card_pad = if input.options.content_padding >= MIN_CARD_PAD {
-        input.options.content_padding
-    } else {
-        0.0
-    };
+    let card_pad = resolve_card_pad(input.options.content_padding);
     // A2.5: контрактні dockHints → person_hints роутера (TS-обчислена геометрія докування).
     let person_hints = resolve_person_hints(&input.dock_hints);
     let routes = staff_routes(&RouteInputs {
@@ -1277,6 +1284,22 @@ pub fn compute_staff_geometry(input: &StaffLayoutInput) -> Result<StaffGeometryR
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // T128 T2 / AC11 — card avoidance is UNCONDITIONAL: the router clearance never drops to 0, so a
+    // line never runs under a card, whatever the layout `content_padding` is (§5.1.3 / §10.4.2).
+    #[test]
+    fn card_pad_is_never_below_the_min_clearance() {
+        // The bug: `content_padding < 8` zeroed the clearance → avoidance off → lines cut cards.
+        assert_eq!(
+            resolve_card_pad(0.0),
+            MIN_CARD_PAD,
+            "small padding must still clear 8px"
+        );
+        assert_eq!(resolve_card_pad(4.0), MIN_CARD_PAD);
+        // At or above the minimum the layout padding is used as-is (behaviour preserved).
+        assert_eq!(resolve_card_pad(8.0), 8.0);
+        assert_eq!(resolve_card_pad(12.0), 12.0);
+    }
 
     fn geom() -> Geom {
         Geom {
