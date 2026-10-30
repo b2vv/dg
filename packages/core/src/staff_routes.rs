@@ -484,6 +484,180 @@ fn detour_edge(
 
 /// Маршрути для одного LOD. При `card_pad>0` — з локальним обходом карток і чужих рамок; §12-маркер
 /// (`marked`) ставиться BY CONSTRUCTION, коли фінальний маршрут усе ще пенетрує чужу рамку.
+/// Internal dev switch (NOT a public flag): default keeps the stateless detour so `golden` is
+/// unchanged; the A* pipeline (`route_scene`, T4–T7) is reachable for bring-up and tests. Flipping
+/// the default to A* is T8 step C — it changes routed coordinates, so it waits on the manual R3
+/// visual gate + golden rebaseline (T10). Removed with the detour at T12.
+pub(crate) const DEFAULT_STAFF_ASTAR: bool = false;
+
+/// Route the staff scene — the single seam the production path and the acceptance harness share.
+/// `use_astar=false` → the detour (byte-identical to the pre-T8 path). `true` → the A* pipeline.
+pub(crate) fn resolve_staff_routes(
+    input: &RouteInputs,
+    canvas_w: f32,
+    canvas_h: f32,
+    use_astar: bool,
+) -> StaffRouteSet {
+    if use_astar {
+        route_via_astar(input, canvas_w, canvas_h)
+    } else {
+        staff_routes(input)
+    }
+}
+
+/// Can `from` reach `target` following admin edges (from → to)? Tells a bypass edge (ancestor → node)
+/// from the node's nearer/primary parent (T6 secondary classification).
+fn admin_reaches(edges: &[StaffEdge], from: &str, target: &str) -> bool {
+    let mut stack = vec![from.to_string()];
+    let mut seen = std::collections::HashSet::new();
+    while let Some(n) = stack.pop() {
+        if n == target {
+            return true;
+        }
+        if !seen.insert(n.clone()) {
+            continue;
+        }
+        for e in edges.iter().filter(|e| e.kind == "admin" && e.from_id == n) {
+            stack.push(e.to_id.clone());
+        }
+    }
+    false
+}
+
+/// A bypass (secondary) edge: its target has another admin parent that this edge's source is an
+/// ANCESTOR of — the line skips a level, so it takes the offset entry port (§10.1.5). Narrow by
+/// design: two independent parents (neither an ancestor of the other) are general dual-subordination,
+/// out of this slice's scope.
+fn edge_is_secondary(edges: &[StaffEdge], i: usize) -> bool {
+    let e = &edges[i];
+    if e.kind != "admin" {
+        return false;
+    }
+    edges
+        .iter()
+        .filter(|o| o.kind == "admin" && o.to_id == e.to_id && o.from_id != e.from_id)
+        .any(|o| admin_reaches(edges, &e.from_id, &o.from_id))
+}
+
+/// Route every edge through the A* pipeline (`route_scene`), mapped back into the SAME `StaffRouteSet`
+/// contract the detour produces. Ports are taken from the per-LOD `obstacle_rect` box (NOT the raw
+/// node) so they land on the grid the pipeline seeds (critic B1); `cards` includes org cards (B2);
+/// edges map to routes by INDEX and the detour skips (self-loop, dangling box) are replicated so the
+/// index stays aligned (B3). `marked` mirrors the detour's §12 rule (foreign-frame intrusion) and
+/// additionally flags a best-effort (`failed`) line.
+///
+/// Known C-time (flip) gaps, latent while this branch is off by default (dg33 T8 critic N1/N2):
+/// matrix/dotted/lead-org edges are routed here as if admin (A* enters the target from above), which
+/// may not match their side-port intent — the owner decides at the R3/flip whether to keep those on
+/// the detour. Both are harmless now because this branch never runs under `DEFAULT_STAFF_ASTAR`.
+fn route_via_astar(input: &RouteInputs, canvas_w: f32, canvas_h: f32) -> StaffRouteSet {
+    use crate::{route_scene, EdgeSpec, SECONDARY_PORT_DX};
+    let cards = build_card_set(
+        input.persons,
+        input.org_cards,
+        input.lod,
+        input.person_hints,
+    );
+    let mo = |id: &str| member_of(id, input.persons);
+
+    let mut specs: Vec<EdgeSpec> = Vec::new();
+    let mut meta: Vec<(String, bool)> = Vec::new(); // (kind, ends_on_dept_top) parallel to specs
+    for (i, edge) in input.edges.iter().enumerate() {
+        if edge.from_id == edge.to_id {
+            continue; // self-loop (detour skip)
+        }
+        let (Some(from), Some(to)) = (
+            resolve_box(
+                &edge.from_id,
+                input.persons,
+                input.org_cards,
+                input.lod,
+                input.person_hints,
+            ),
+            resolve_box(
+                &edge.to_id,
+                input.persons,
+                input.org_cards,
+                input.lod,
+                input.person_hints,
+            ),
+        ) else {
+            continue; // dangling edge (detour skip)
+        };
+        let from_dept = mo(&edge.from_id).map(|(d, _)| d);
+        let dept_top_y = if edge.kind == "admin" {
+            input.department_frames.iter().find_map(|f| {
+                (f.head_id.as_deref() == Some(edge.to_id.as_str())
+                    && from_dept.as_deref() != Some(f.department_id.as_str()))
+                .then_some(f.y)
+            })
+        } else {
+            None
+        };
+        let (fx, fy, fw, fh) = obstacle_rect(&from);
+        let start = (fx + fw / 2.0, fy + fh);
+        let secondary = edge_is_secondary(input.edges, i);
+        let (tx, ty, tw, _) = obstacle_rect(&to);
+        let target = match dept_top_y {
+            Some(y) => (tx + tw / 2.0, y),
+            None => {
+                let cx = tx + tw / 2.0;
+                (
+                    if secondary {
+                        cx + SECONDARY_PORT_DX
+                    } else {
+                        cx
+                    },
+                    ty,
+                )
+            }
+        };
+        specs.push(EdgeSpec {
+            from_id: edge.from_id.clone(),
+            to_id: edge.to_id.clone(),
+            start,
+            target,
+            secondary,
+        });
+        meta.push((edge.kind.clone(), dept_top_y.is_some()));
+    }
+
+    let routes = route_scene(
+        canvas_w,
+        canvas_h,
+        &cards,
+        input.department_frames,
+        &specs,
+        &mo,
+    );
+    let segments = specs
+        .iter()
+        .zip(&routes)
+        .zip(&meta)
+        .map(|((s, r), (kind, dept_top))| {
+            let intrusions = frame_intrusion_count(
+                &r.points,
+                &s.from_id,
+                &s.to_id,
+                input.department_frames,
+                &mo,
+            );
+            StaffEdgeRoute {
+                from_id: s.from_id.clone(),
+                to_id: s.to_id.clone(),
+                kind: kind.clone(),
+                points: r.points.clone(),
+                marked: (r.failed || intrusions > 0).then_some(true),
+                ends_on_dept_top: dept_top.then_some(true),
+            }
+        })
+        .collect();
+    StaffRouteSet {
+        lod: input.lod.to_string(),
+        segments,
+    }
+}
+
 pub fn staff_routes(input: &RouteInputs) -> StaffRouteSet {
     debug_assert!(
         input.card_pad <= 0.0 || input.card_pad >= MIN_CARD_PAD,
@@ -1822,41 +1996,6 @@ mod tests {
 
     // --- T6: route a schema through the A* pipeline (not the detour) for the AC10 gate ---
 
-    /// Can `from` reach `target` following admin edges (from → to)? Used to tell a bypass edge
-    /// (ancestor → node) from the node's nearest/primary parent.
-    fn admin_reaches(edges: &[StaffEdge], from: &str, target: &str) -> bool {
-        let mut stack = vec![from.to_string()];
-        let mut seen = std::collections::HashSet::new();
-        while let Some(n) = stack.pop() {
-            if n == target {
-                return true;
-            }
-            if !seen.insert(n.clone()) {
-                continue;
-            }
-            for e in edges.iter().filter(|e| e.kind == "admin" && e.from_id == n) {
-                stack.push(e.to_id.clone());
-            }
-        }
-        false
-    }
-
-    /// A bypass (secondary) edge: its target has another admin parent that this edge's source is an
-    /// ANCESTOR of — i.e. this line skips a level. The nearer parent stays primary (centre port); the
-    /// bypass takes the offset port so the two never coincide (§10.1.5). Narrow by design: two truly
-    /// independent parents (neither an ancestor of the other) are general dual-subordination, out of
-    /// this slice's scope.
-    fn edge_is_secondary(edges: &[StaffEdge], i: usize) -> bool {
-        let e = &edges[i];
-        if e.kind != "admin" {
-            return false;
-        }
-        edges
-            .iter()
-            .filter(|o| o.kind == "admin" && o.to_id == e.to_id && o.from_id != e.from_id)
-            .any(|o| admin_reaches(edges, &e.from_id, &o.from_id))
-    }
-
     /// Route a schema through the A* pipeline (grid → secondary-classify → route_edges) and measure
     /// it with the SAME detector as the gate. Returns the five-metric panel plus the diagonal count.
     fn astar_schema_stats(
@@ -1907,6 +2046,72 @@ mod tests {
         let stats = crate::route_stats(&srs, &boxes, frames, &member);
         let failed = routes.iter().any(|r| r.failed);
         (stats, crate::diagonal_segments(&srs), failed)
+    }
+
+    /// T8(A) — the A* wiring (`resolve_staff_routes(.., use_astar=true)` → `route_via_astar`) routes a
+    /// FAR-LOD scene with an org card on-grid. FAR shrinks each card to a chip, so `obstacle_rect(box)`
+    /// ≠ raw node: ports taken from the raw node (critic B1) would be off-grid → every line best-effort
+    /// (`marked`). An org card feeds a lead-org edge (B2 — org cards must seed the grid). A clean panel
+    /// of `marked.is_none()` across all three edges proves ports came from the per-LOD obstacle box.
+    #[test]
+    fn t8a_astar_branch_routes_far_lod_scene_with_org_on_grid() {
+        let nodes = vec![
+            node_dept("m", 0.0, 200.0, 160.0, 120.0, "A"),
+            node_dept("a", -250.0, 620.0, 160.0, 120.0, "A"),
+            node_dept("b", 260.0, 620.0, 160.0, 120.0, "A"),
+        ];
+        let orgs = [org_card("o1", 0.0, 0.0)];
+        let edges = [
+            edge("m", "a"),
+            edge("m", "b"),
+            edge_kind("o1", "m", "lead-org"),
+        ];
+        let frames = [frame("A", -300.0, 160.0, 760.0, 620.0)];
+        let inputs = RouteInputs {
+            persons: &nodes,
+            org_cards: &orgs,
+            edges: &edges,
+            lod: "far",
+            person_hints: NO_HINTS,
+            department_frames: &frames,
+            card_pad: 8.0,
+        };
+        let w = 600.0;
+        let h = 900.0;
+        let detour = resolve_staff_routes(&inputs, w, h, false);
+        let astar = resolve_staff_routes(&inputs, w, h, true);
+
+        // Same contract shape, same edge set (skips replicated), kinds preserved by index (B3).
+        assert_eq!(astar.segments.len(), 3, "three edges routed, none skipped");
+        assert_eq!(detour.segments.len(), astar.segments.len());
+        assert_eq!(
+            astar
+                .segments
+                .iter()
+                .map(|s| s.kind.as_str())
+                .collect::<Vec<_>>(),
+            vec!["admin", "admin", "lead-org"],
+            "kind stitched from input edges by index"
+        );
+        // B1: at FAR LOD the admin lines route on the grid (real A* paths, not best-effort) — proof
+        // the ports came from the per-LOD obstacle box, not the raw node (raw would be off-grid here).
+        for s in astar.segments.iter().filter(|s| s.kind == "admin") {
+            assert!(
+                s.marked.is_none(),
+                "{}->{} went best-effort/intruded — off-grid port (B1 regression)",
+                s.from_id,
+                s.to_id
+            );
+        }
+        // B2: the org card is in the routing card set (so its ports seed the grid).
+        let cards = build_card_set(&nodes, &orgs, "far", NO_HINTS);
+        assert!(
+            cards.iter().any(|c| c.id == "o1"),
+            "org card must be in the grid card set"
+        );
+        // NOTE (N1, latent while A* is off by default): a lead-org edge enters its target's frame from
+        // OUTSIDE — routing it through A* is not yet proven (it may go best-effort here). Whether
+        // matrix/dotted/lead-org route through A* or stay on the detour is the owner's call at flip (C).
     }
 
     /// AC10 — every §10.1 schema reads `0/0/0/0/0` AND carries no diagonal segment, routed through the

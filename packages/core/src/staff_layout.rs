@@ -26,7 +26,7 @@ use crate::staff_compose::{
 };
 use crate::staff_geom::FrameRect;
 use crate::staff_packing::department_frame;
-use crate::staff_routes::{staff_routes, RouteInputs};
+use crate::staff_routes::{resolve_staff_routes, RouteInputs, DEFAULT_STAFF_ASTAR};
 use crate::types::{
     LayoutOptions, OrgFlatInput, StaffDepartmentFrameGeo, StaffDockHint, StaffDockHintInput,
     StaffEdge, StaffEdgeInput, StaffGeometryResult, StaffLayoutInput, StaffNamespace, StaffNodeGeo,
@@ -1257,7 +1257,7 @@ pub fn compute_staff_geometry(input: &StaffLayoutInput) -> Result<StaffGeometryR
     let card_pad = resolve_card_pad(input.options.content_padding);
     // A2.5: контрактні dockHints → person_hints роутера (TS-обчислена геометрія докування).
     let person_hints = resolve_person_hints(&input.dock_hints);
-    let routes = staff_routes(&RouteInputs {
+    let route_inputs = RouteInputs {
         persons: &nodes,
         org_cards: &org_cards,
         edges: &edges,
@@ -1265,7 +1265,9 @@ pub fn compute_staff_geometry(input: &StaffLayoutInput) -> Result<StaffGeometryR
         person_hints: &person_hints,
         department_frames: &frames_rect,
         card_pad,
-    });
+    };
+    // Internal dev switch (default detour; A* path = T8 step C, gated on R3 + golden rebaseline).
+    let routes = resolve_staff_routes(&route_inputs, dims.width, dims.height, DEFAULT_STAFF_ASTAR);
 
     Ok(StaffGeometryResult {
         current_org_id: input.current_org_id.clone(),

@@ -80,8 +80,17 @@ rip-up ≤4 лише cross/ext ∩ bad. Харнес жене route_scene. Кр�
 Тест `ripup_bends_a_dirty_internal_elbow` (щільна рамка, канон цього не вправляв). Критик-порівняння + рев'ю ПРИЙНЯЛО.
 **Межа:** надщільні колізії — архітектурно layout (§6/Бар-2); ВАР.1 = router-side safety net. 183 passed.
 
-Лишилось у T128: **T8** (wiring route_scene у прод — розвідка `_t8-recon-dg33.md`; РОЗВИЛКА дефолт detour/R3 відкрита),
-T9-T13 + демо mock3. T8 чіпає лише tree-шлях; golden зламається → T10 rebaseline гейтиться ручним R3.
+### T8(A) ✅ — прод-wiring route_scene за внутр-перемикачем, дефолт DETOUR (golden-safe), R6
+Рішення власника: (A) зараз (safe), (C) flip+rebaseline коли за ПК для R3. `resolve_staff_routes(inputs,w,h,use_astar)`
++ const `DEFAULT_STAFF_ASTAR=false` на staff_layout.rs call-site. Detour-гілка байт-незмінна (183 rust-тестів).
+`route_via_astar`: build_card_set (persons+org B2), порти з obstacle_rect (B1), index-zip+скіпи (B3), deptTop reuse,
+secondary промоут, marked=failed‖intrusion (N2 закрито), ends_on_dept_top. Критик-перед (B1/B2/B3+golden-proof) +
+рев'ю-після ПРИЙНЯЛО (0 блокерів). Тест t8a (far-LOD admin on-grid + org + kinds). 184 passed, clippy/fmt чисті.
+**N1 латентно (C-рішення):** matrix/dotted/lead-org через A* не доведені (lead-org best_effort — вхід у рамку ззовні).
+
+**ТЕКУЧЕ: R3-prep** (запит власника «скажи коли готове, перевірю з мокапом») = demo-таб на mock3 через A* для
+візуальної звірки. Потім C (flip дефолту на A* + T10 rebaseline golden після R3-ОК власника).
+Лишилось: C/T10 (flip+golden), T9 (контракт-шов x/y), T11 (перф-бенч), T12 (видалити detour), T13 (USAGE).
 
 ## 🆕 Відкладена задача (рішення власника dg32): демо на даних mock3 як ЕТАЛОН — ПІСЛЯ A* (T4-T6)
 Зробити demo-таб на даних мокапу `/Users/strelia/Downloads/mock3/ШПС лінії зв'язку.html` (`shps-links.js`:
