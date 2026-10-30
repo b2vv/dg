@@ -31,8 +31,9 @@ pub use staff_edge_box::{
 pub use staff_layout::{compute_staff_geometry, layout_staff_org_block, Geom, StaffBlock};
 pub use staff_packing::{pack_departments, DepartmentMembers, StaffPackResult};
 pub use staff_router::{
-    astar_route, build_corridor_grid, diagonal_segments, occupy, release, route_edges, route_stats,
-    AStarRoute, CorridorGrid, EdgeSpec, Occupancy, RouteStats, SECONDARY_PORT_DX,
+    astar_route, build_corridor_grid, diagonal_segments, occupy, release, route_edges,
+    route_edges_ripup, route_stats, route_stats_detailed, AStarRoute, CorridorGrid, EdgeSpec,
+    Occupancy, RouteStats, SECONDARY_PORT_DX,
 };
 pub use staff_routes::{staff_routes, RouteInputs};
 pub use types::*;

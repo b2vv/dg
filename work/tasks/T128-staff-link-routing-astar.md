@@ -56,6 +56,16 @@ B2 exempt cx+SX) + M1 (no-fail асерт) → закрито; рев'ю ПРИ�
 **ВИМІР:** AC10 зелений БЕЗ rip_up → для 9 канон-схем rip_up не потрібен. rip_up+bad (D5/D6) — рішення власника
 (будувати для non-canon робустності чи відкласти YAGNI; залишок покриває `marked` best-effort).
 
+### T6 крок2 ✅ (rip_up + bad-детектор) — рішення власника «будувати зараз», R6
+`route_stats_detailed` → (RouteStats, Vec<usize> bad; одна істина, route_stats=.0). `route_edges_ripup` =
+single_pass + ≤4 проходи (детектор→bad→re-route release/astar/occupy, reverse непарні; best-effort, не гарантія 0).
+Рефактор route_edges → routing_order/single_pass (без регресу). **Рев'ю ПОВЕРНУЛО** (блокер: ripup не під'єднаний
+до гейта — astar_schema_stats жене single-pass) → ФІКС: гейт тепер кличе `route_edges_ripup` (на чистих = no-op,
+AC10 лишився зелений) + noop-тест на 2 ребрах. Тести: ripup_clears_a_crossing (weave single-pass cross=1→ripup 0),
+det+noop, route_stats_detailed_flags_both. 181 passed, 0 ignored, clippy/fmt чисті.
+**T6 ЗАКРИТО ПОВНІСТЮ:** D2 (secondary) + D5 (rip-up) + D6 (bad) + AC10 un-ignored через повний A*-пайплайн.
+Лишилось у T128: T7 (класифікація int-елбоу, перф), T8 (wiring у adaptStaffGeometry + deptTop), T9-T13.
+
 ## 🆕 Відкладена задача (рішення власника dg32): демо на даних mock3 як ЕТАЛОН — ПІСЛЯ A* (T4-T6)
 Зробити demo-таб на даних мокапу `/Users/strelia/Downloads/mock3/ШПС лінії зв'язку.html` (`shps-links.js`:
 `DEPTS` + `POS{id,p=parentId,d=deptId,t=title,w=worker}`) → мапити в `DiagramData`, рендерити через

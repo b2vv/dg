@@ -1863,7 +1863,7 @@ mod tests {
         edges: &[StaffEdge],
         frames: &[FrameRect],
     ) -> (crate::RouteStats, usize, bool) {
-        use crate::{build_corridor_grid, route_edges, EdgeSpec, SECONDARY_PORT_DX};
+        use crate::{build_corridor_grid, route_edges_ripup, EdgeSpec, SECONDARY_PORT_DX};
         let boxes = near_boxes(nodes);
         let w = nodes.iter().map(|n| n.x + n.width).fold(0.0f32, f32::max) + 100.0;
         let h = nodes.iter().map(|n| n.y + n.height).fold(0.0f32, f32::max) + 100.0;
@@ -1891,7 +1891,7 @@ mod tests {
             })
             .collect();
         let member = |id: &str| schema_member(nodes, id);
-        let routes = route_edges(&grid, &specs, &boxes, frames, &member);
+        let routes = route_edges_ripup(&grid, &specs, &boxes, frames, &member);
         let srs: Vec<StaffEdgeRoute> = specs
             .iter()
             .zip(&routes)

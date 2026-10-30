@@ -160,7 +160,20 @@ pub fn route_stats(
     frames: &[FrameRect],
     member_of: &dyn Fn(&str) -> Option<DeptPart>,
 ) -> RouteStats {
+    route_stats_detailed(routes, boxes, frames, member_of).0
+}
+
+/// Same detector as `route_stats`, but also returns the SORTED set of edge indices that take part in
+/// any violation — the targets rip-up (T6) re-routes. One truth: `route_stats` is this with the set
+/// dropped, so the gate and rip-up never disagree about what counts.
+pub fn route_stats_detailed(
+    routes: &[StaffEdgeRoute],
+    boxes: &[EdgeRect],
+    frames: &[FrameRect],
+    member_of: &dyn Fn(&str) -> Option<DeptPart>,
+) -> (RouteStats, Vec<usize>) {
     let mut stats = RouteStats::default();
+    let mut bad = vec![false; routes.len()];
     let seg_sets: Vec<Vec<Seg>> = routes.iter().map(segs).collect();
 
     // --- line-vs-line: crossings & overlaps over unordered edge pairs ---
@@ -173,11 +186,15 @@ pub fn route_stats(
                     // one segment meets the other at a vertex, is not interior and is exempt).
                     if proper_cross(si, sj) || proper_cross(sj, si) {
                         stats.crossings += 1;
+                        bad[i] = true;
+                        bad[j] = true;
                     }
                     // overlaps: collinear coincidence of positive length. One manager's shared
                     // trunk/bus is one drawn structure, so same-`from_id` pairs are exempt.
                     if !same_manager && collinear_overlap(si, sj) {
                         stats.overlaps += 1;
+                        bad[i] = true;
+                        bad[j] = true;
                     }
                 }
             }
@@ -185,7 +202,7 @@ pub fn route_stats(
     }
 
     // --- line-vs-card: through_card (interior) and near_card (<8px, not interior) ---
-    for edge in routes {
+    for (idx, edge) in routes.iter().enumerate() {
         for b in boxes {
             if b.id == edge.from_id || b.id == edge.to_id {
                 continue; // own endpoint — a line is allowed to touch its own card
@@ -193,6 +210,7 @@ pub fn route_stats(
             let (rx, ry, rw, rh) = obstacle_rect(b);
             if polyline_hits_box_interior(&edge.points, rx, ry, rw, rh, INTERIOR_EPS) {
                 stats.through_card += 1;
+                bad[idx] = true;
                 continue; // one (edge, card) pair counts once; interior dominates near
             }
             let mut min_d = f32::INFINITY;
@@ -201,17 +219,26 @@ pub fn route_stats(
             }
             if min_d < MIN_CLEARANCE_PX {
                 stats.near_card += 1;
+                bad[idx] = true;
             }
         }
     }
 
     // --- line-vs-frame: foreign department-frame intrusion (prod primitive, one source) ---
-    for edge in routes {
-        stats.through_foreign +=
-            frame_intrusion_count(&edge.points, &edge.from_id, &edge.to_id, frames, member_of);
+    for (idx, edge) in routes.iter().enumerate() {
+        let n = frame_intrusion_count(&edge.points, &edge.from_id, &edge.to_id, frames, member_of);
+        stats.through_foreign += n;
+        if n > 0 {
+            bad[idx] = true;
+        }
     }
 
-    stats
+    let bad_idx = bad
+        .iter()
+        .enumerate()
+        .filter_map(|(i, &b)| b.then_some(i))
+        .collect();
+    (stats, bad_idx)
 }
 
 // ============================================================================================
@@ -757,9 +784,14 @@ pub fn route_edges(
     frames: &[FrameRect],
     member_of: &dyn Fn(&str) -> Option<DeptPart>,
 ) -> Vec<AStarRoute> {
+    let mut occ = Occupancy::default();
+    single_pass(grid, edges, cards, frames, member_of, &mut occ)
+}
+
+/// The stable routing order: primary edges first, then bypass (secondary) — a secondary line routes
+/// against the primary's occupancy, not the reverse (mockup :156); within a group manager Y, X, index.
+fn routing_order(edges: &[EdgeSpec]) -> Vec<usize> {
     let mut order: Vec<usize> = (0..edges.len()).collect();
-    // Primary edges first, then bypass (secondary) — a secondary line routes against the primary's
-    // occupancy, not the reverse (mockup :156). Within a group: manager Y, X, then input index.
     order.sort_by(|&a, &b| {
         edges[a]
             .secondary
@@ -768,19 +800,83 @@ pub fn route_edges(
             .then(edges[a].start.0.total_cmp(&edges[b].start.0))
             .then(a.cmp(&b))
     });
-    let mut occ = Occupancy::default();
+    order
+}
+
+/// Route every edge once in `routing_order`, occupying each before the next; results in INPUT order.
+fn single_pass(
+    grid: &CorridorGrid,
+    edges: &[EdgeSpec],
+    cards: &[EdgeRect],
+    frames: &[FrameRect],
+    member_of: &dyn Fn(&str) -> Option<DeptPart>,
+    occ: &mut Occupancy,
+) -> Vec<AStarRoute> {
     let mut out: Vec<Option<AStarRoute>> = (0..edges.len()).map(|_| None).collect();
-    for idx in order {
+    for idx in routing_order(edges) {
         let e = &edges[idx];
         let r = astar_route(
-            grid, e.start, e.target, &e.from_id, &e.to_id, cards, frames, member_of, &occ,
+            grid, e.start, e.target, &e.from_id, &e.to_id, cards, frames, member_of, occ,
         );
-        occupy(&mut occ, grid, &r.points, &e.from_id);
+        occupy(occ, grid, &r.points, &e.from_id);
         out[idx] = Some(r);
     }
     out.into_iter()
         .map(|o| o.expect("every slot filled"))
         .collect()
+}
+
+/// A routed edge as the detector sees it (polyline + endpoint ids).
+fn to_staff_route(e: &EdgeSpec, r: &AStarRoute) -> StaffEdgeRoute {
+    StaffEdgeRoute {
+        from_id: e.from_id.clone(),
+        to_id: e.to_id.clone(),
+        kind: "admin".to_string(),
+        points: r.points.clone(),
+        marked: None,
+        ends_on_dept_top: None,
+    }
+}
+
+/// Single pass, then up to four RIP-UP passes (mockup :158): each pass re-measures with the §10.4
+/// detector, and re-routes every edge that takes part in a violation against the others' current
+/// occupancy (release → A* → occupy), alternating direction to break ties. Best-effort — it reduces
+/// violations but does not guarantee zero (a residual stays `marked`). Deterministic (fixed order and
+/// pass count; `astar_route`'s seq tie-break). Returns routes in INPUT order.
+#[allow(clippy::too_many_arguments)]
+pub fn route_edges_ripup(
+    grid: &CorridorGrid,
+    edges: &[EdgeSpec],
+    cards: &[EdgeRect],
+    frames: &[FrameRect],
+    member_of: &dyn Fn(&str) -> Option<DeptPart>,
+) -> Vec<AStarRoute> {
+    let mut occ = Occupancy::default();
+    let mut routes = single_pass(grid, edges, cards, frames, member_of, &mut occ);
+    for pass in 0..4 {
+        let srs: Vec<StaffEdgeRoute> = edges
+            .iter()
+            .zip(&routes)
+            .map(|(e, r)| to_staff_route(e, r))
+            .collect();
+        let (_, mut bad) = route_stats_detailed(&srs, cards, frames, member_of);
+        if bad.is_empty() {
+            break;
+        }
+        if pass % 2 == 1 {
+            bad.reverse();
+        }
+        for idx in bad {
+            let e = &edges[idx];
+            release(&mut occ, grid, &routes[idx].points, &e.from_id);
+            let r = astar_route(
+                grid, e.start, e.target, &e.from_id, &e.to_id, cards, frames, member_of, &occ,
+            );
+            occupy(&mut occ, grid, &r.points, &e.from_id);
+            routes[idx] = r;
+        }
+    }
+    routes
 }
 
 /// Route one cross/ext edge from `start` (manager card bottom-centre) to `target` (child card
@@ -1774,5 +1870,104 @@ mod tests {
             routes[0].failed,
             "the off-grid edge degrades to best-effort"
         );
+    }
+
+    // --- T6: rip-up + bad-edge detector ---
+
+    fn spec(from: &str, to: &str, start: (f32, f32), target: (f32, f32)) -> EdgeSpec {
+        EdgeSpec {
+            from_id: from.to_string(),
+            to_id: to.to_string(),
+            start,
+            target,
+            secondary: false,
+        }
+    }
+
+    /// Three managers whose descents weave to crossed children — single-pass leaves one crossing
+    /// (the last-routed line has to cross an earlier one); rip-up re-routes and clears it.
+    fn weave_scene() -> (CorridorGrid, [EdgeRect; 6], Vec<EdgeSpec>) {
+        let cards = [
+            ebox("m1", 0.0, 0.0, 100.0, 60.0),
+            ebox("m2", 200.0, 0.0, 100.0, 60.0),
+            ebox("m3", 400.0, 0.0, 100.0, 60.0),
+            ebox("c1", 400.0, 400.0, 100.0, 60.0),
+            ebox("c2", 0.0, 400.0, 100.0, 60.0),
+            ebox("c3", 200.0, 400.0, 100.0, 60.0),
+        ];
+        let g = build_corridor_grid(600.0, 520.0, &cards, &[], &[]);
+        let specs = vec![
+            spec("m1", "c1", (50.0, 60.0), (450.0, 400.0)),
+            spec("m2", "c2", (250.0, 60.0), (50.0, 400.0)),
+            spec("m3", "c3", (450.0, 60.0), (250.0, 400.0)),
+        ];
+        (g, cards, specs)
+    }
+
+    fn stats_of(specs: &[EdgeSpec], routes: &[AStarRoute]) -> RouteStats {
+        let srs: Vec<StaffEdgeRoute> = specs
+            .iter()
+            .zip(routes)
+            .map(|(s, r)| route(&s.from_id, &s.to_id, r.points.clone()))
+            .collect();
+        route_stats(&srs, &[], &[], &no_member)
+    }
+
+    #[test]
+    fn ripup_clears_a_crossing_that_single_pass_leaves() {
+        let (g, cards, specs) = weave_scene();
+        // Control: a single pass leaves a crossing (last line crosses an earlier one).
+        let single = route_edges(&g, &specs, &cards, &[], &no_member);
+        assert!(
+            stats_of(&specs, &single).crossings >= 1,
+            "the weave must cross on a single pass"
+        );
+        // Rip-up re-routes the involved edges and drives the crossing to zero.
+        let fixed = route_edges_ripup(&g, &specs, &cards, &[], &no_member);
+        assert_eq!(
+            stats_of(&specs, &fixed).crossings,
+            0,
+            "rip-up clears the crossing"
+        );
+        assert!(!fixed.iter().any(|r| r.failed));
+    }
+
+    #[test]
+    fn ripup_is_deterministic_and_a_noop_when_already_clean() {
+        // A clean scene with TWO non-crossing edges (so `bad` is genuinely evaluated over a pair, not
+        // trivially empty): rip-up changes nothing and is reproducible.
+        let cards = [
+            ebox("m1", 100.0, 50.0, 100.0, 60.0),
+            ebox("c1", 100.0, 400.0, 100.0, 60.0),
+            ebox("m2", 500.0, 50.0, 100.0, 60.0),
+            ebox("c2", 500.0, 400.0, 100.0, 60.0),
+        ];
+        let g = build_corridor_grid(800.0, 520.0, &cards, &[], &[]);
+        let specs = vec![
+            spec("m1", "c1", (150.0, 110.0), (150.0, 400.0)),
+            spec("m2", "c2", (550.0, 110.0), (550.0, 400.0)),
+        ];
+        let flat = |rs: &[AStarRoute]| {
+            rs.iter()
+                .flat_map(|r| r.points.iter().map(|p| (p.x, p.y)).collect::<Vec<_>>())
+                .collect::<Vec<_>>()
+        };
+        let single = route_edges(&g, &specs, &cards, &[], &no_member);
+        let a = route_edges_ripup(&g, &specs, &cards, &[], &no_member);
+        let b = route_edges_ripup(&g, &specs, &cards, &[], &no_member);
+        assert_eq!(flat(&a), flat(&single), "no-op on an already-clean scene");
+        assert_eq!(flat(&a), flat(&b), "rip-up is deterministic (AC8)");
+    }
+
+    #[test]
+    fn route_stats_detailed_flags_both_edges_of_a_crossing() {
+        // A vertical and a horizontal line of different managers cross mid-segment → both are bad.
+        let routes = [
+            route("m1", "a", vec![pt(100.0, 0.0), pt(100.0, 200.0)]),
+            route("m2", "b", vec![pt(0.0, 100.0), pt(200.0, 100.0)]),
+        ];
+        let (s, bad) = route_stats_detailed(&routes, &[], &[], &no_member);
+        assert_eq!(s.crossings, 1);
+        assert_eq!(bad, vec![0, 1], "both crossing edges are flagged, sorted");
     }
 }
