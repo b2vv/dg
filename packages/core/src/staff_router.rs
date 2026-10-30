@@ -842,8 +842,9 @@ fn to_staff_route(e: &EdgeSpec, r: &AStarRoute) -> StaffEdgeRoute {
 /// Single pass, then up to four RIP-UP passes (mockup :158): each pass re-measures with the §10.4
 /// detector, and re-routes every edge that takes part in a violation against the others' current
 /// occupancy (release → A* → occupy), alternating direction to break ties. Best-effort — it reduces
-/// violations but does not guarantee zero (a residual stays `marked`). Deterministic (fixed order and
-/// pass count; `astar_route`'s seq tie-break). Returns routes in INPUT order.
+/// violations but does not guarantee zero (a residual surfaces as the route's `failed` flag, which a
+/// caller turns into `marked`). Deterministic (fixed order and pass count; `astar_route`'s seq
+/// tie-break). Returns routes in INPUT order.
 #[allow(clippy::too_many_arguments)]
 pub fn route_edges_ripup(
     grid: &CorridorGrid,
@@ -896,11 +897,15 @@ fn is_internal(from_id: &str, to_id: &str, member_of: &dyn Fn(&str) -> Option<De
 ///
 /// Internal-tree edges draw as a direct orthogonal elbow (`route_ortho`, shared with the detour so
 /// there is one int-elbow truth) and are placed FIRST, occupying their lanes; cross/ext edges then
-/// route with A* against that occupancy, and rip-up (≤4 passes) re-routes only the CROSS/EXT edges
-/// still in a violation — internal elbows are clean by construction and never re-routed (mockup
-/// `:158` re-routes only `ast`). The grid is built here, seeded with the internal elbows' corridor Ys
-/// (mockup `:118`) so A* can see and avoid those buses. Internal-tree edges routed through A* instead
-/// would still be correct (dg33 measured), but wigglier and slower — this is the §2/Q2 perf split.
+/// route with A* against that occupancy. Rip-up (≤4 passes) then re-routes EVERY edge still in a
+/// violation — a HYBRID (dg33 owner decision): in a crowded department a straight internal elbow can
+/// cut a sibling card, and such a dirty elbow BENDS through A*. A clean internal elbow is never
+/// flagged, so it keeps its tidy shape and its O(1) cost; only the colliding few pay for A*. (This
+/// diverges from the mockup, which never bends `det` and relies on layout spacing — §6, Bar-2 — to
+/// keep internals clean; we add the router-side safety net.) The grid is built here, seeded with the
+/// internal elbows' corridor Ys (mockup `:118`) so A* can see and avoid those buses. Routing every
+/// internal edge through A* instead would also be correct (dg33 measured), but wigglier and slower —
+/// elbow-first is the §2/Q2 perf split.
 pub fn route_scene(
     canvas_w: f32,
     canvas_h: f32,
@@ -957,22 +962,25 @@ pub fn route_scene(
         routes[idx] = Some(r);
     }
 
-    // 3. Rip-up — re-route only cross/ext edges that remain in a violation (internals stay fixed).
+    // 3. Rip-up — re-route EVERY edge still in a violation, internal ones included: a dirty internal
+    //    elbow (a crowded department where the straight bus cuts a sibling) BENDS through A* (dg33
+    //    owner decision). A clean internal elbow is never flagged, so it keeps its tidy shape; only
+    //    the colliding ones pay for A*. Best-effort (≤4 passes); a residual surfaces as the route's
+    //    `failed` flag, which the wiring (T8) turns into the §12 `marked` — route_scene sets no mark.
     for pass in 0..4 {
         let srs: Vec<StaffEdgeRoute> = edges
             .iter()
             .zip(&routes)
             .map(|(e, r)| to_staff_route(e, r.as_ref().expect("routed in phases 1-2")))
             .collect();
-        let (_, bad) = route_stats_detailed(&srs, cards, frames, member_of);
-        let mut bad_ce: Vec<usize> = bad.into_iter().filter(|&i| !is_int[i]).collect();
-        if bad_ce.is_empty() {
+        let (_, mut bad) = route_stats_detailed(&srs, cards, frames, member_of);
+        if bad.is_empty() {
             break;
         }
         if pass % 2 == 1 {
-            bad_ce.reverse();
+            bad.reverse();
         }
-        for idx in bad_ce {
+        for idx in bad {
             let e = &edges[idx];
             let old = routes[idx].as_ref().unwrap().points.clone();
             release(&mut occ, &grid, &old, &e.from_id);
@@ -2080,5 +2088,45 @@ mod tests {
         let (s, bad) = route_stats_detailed(&routes, &[], &[], &no_member);
         assert_eq!(s.crossings, 1);
         assert_eq!(bad, vec![0, 1], "both crossing edges are flagged, sorted");
+    }
+
+    #[test]
+    fn ripup_bends_a_dirty_internal_elbow() {
+        // A dense department: m, a, b all internal (dept A). `b` sits deep, so the straight internal
+        // elbow for m→b runs its bus at y≈225 and cuts sibling `a`'s card — a collision the plain
+        // elbow cannot avoid and the canon fixtures never exercise. The hybrid must detect the dirty
+        // int elbow and BEND it through A* (route_scene rip-up no longer holds internals fixed).
+        let m = ebox("m", 0.0, 0.0, 100.0, 50.0);
+        let a = ebox("a", 150.0, 200.0, 100.0, 50.0);
+        let b = ebox("b", 400.0, 400.0, 100.0, 50.0);
+        let cards = [m, a, b];
+        let member = |id: &str| match id {
+            "m" | "a" | "b" => Some(("A".to_string(), None)),
+            _ => None,
+        };
+        // Control: the plain internal elbow for m→b really does cut sibling `a` (not a vacuous test).
+        let elbow = route_ortho(&cards[0], &cards[2]);
+        let (ax, ay, aw, ah) = obstacle_rect(&cards[1]);
+        assert!(
+            polyline_hits_box_interior(&elbow, ax, ay, aw, ah, INTERIOR_EPS),
+            "the plain elbow must collide, else the test proves nothing"
+        );
+        // Hybrid: the dirty int elbow bends via A* → the scene reads clean.
+        let specs = vec![
+            spec("m", "a", (50.0, 50.0), (200.0, 200.0)),
+            spec("m", "b", (50.0, 50.0), (450.0, 400.0)),
+        ];
+        let routes = route_scene(600.0, 500.0, &cards, &[], &specs, &member);
+        let srs: Vec<StaffEdgeRoute> = specs
+            .iter()
+            .zip(&routes)
+            .map(|(s, r)| route(&s.from_id, &s.to_id, r.points.clone()))
+            .collect();
+        assert_eq!(
+            route_stats(&srs, &cards, &[], &member),
+            RouteStats::default(),
+            "hybrid bends the colliding internal elbow: {:?}",
+            routes[1].points
+        );
     }
 }
