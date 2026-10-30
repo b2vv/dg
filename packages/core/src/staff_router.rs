@@ -619,9 +619,163 @@ fn best_effort(start: (f32, f32), target: (f32, f32)) -> AStarRoute {
     }
 }
 
+// ============================================================================================
+// T5 — lane occupancy (§5.4): keep different managers' lines on separate lanes.
+//
+// The weight terms (mockup `:149-150`): a grid edge already carrying THIS manager's line is cheap to
+// reuse (`OWN_LANE_FACTOR`), so a manager's siblings share one bus; a grid edge or node carrying a
+// DIFFERENT manager's line is dear (`FOREIGN_EDGE_COST` / `FOREIGN_NODE_COST`), so two managers in
+// one corridor peel apart onto separate lanes. The owner is the edge's manager (`from_id`).
+//
+// The driver `route_edges` is the single pass that makes this bite: it routes edges in a stable
+// order and occupies each before the next (mockup `:156-157`). Rip-up (mockup `:158`) is T6.
+//
+// Note (critic N1): `OWN_LANE_FACTOR < 1` makes an edge cheaper than its length, so the Manhattan
+// heuristic is no longer admissible and A* is no longer provably optimal — route quality is judged
+// by the §10.4 detector, not by optimality. This matches the mockup; the search still terminates and
+// stays deterministic.
+// ============================================================================================
+
+/// Cost of sharing a grid EDGE with another manager's line (mockup `:150`): high enough to prefer a
+/// detour of hundreds of px over a shared lane.
+const FOREIGN_EDGE_COST: f64 = 6000.0;
+/// Cost of landing on a grid NODE another manager's line occupies (mockup `:150`).
+const FOREIGN_NODE_COST: f64 = 4000.0;
+/// Reuse factor for a manager's own lane (mockup `:150`): siblings share a bus almost for free.
+const OWN_LANE_FACTOR: f64 = 0.15;
+
+/// Which managers' lines run along each grid node / edge. Keyed by owner (manager) id. Four maps, as
+/// the mockup's `occ.{nH,nV,eH,eV}` (:124): node keys are the full index `j*nx+i`; edge-H keys are
+/// `j*(nx-1)+i`, edge-V keys `j*nx+i` (critic B3 — a node map keyed like an edge map silently kills
+/// the foreign-node term).
+#[derive(Default)]
+pub struct Occupancy {
+    node_h: HashMap<usize, Vec<String>>,
+    node_v: HashMap<usize, Vec<String>>,
+    edge_h: HashMap<usize, Vec<String>>,
+    edge_v: HashMap<usize, Vec<String>>,
+}
+
+/// Does some manager OTHER than `me` occupy this slot? (mockup `fo`, :128.)
+fn has_foreign(v: Option<&Vec<String>>, me: &str) -> bool {
+    v.is_some_and(|a| a.iter().any(|x| x != me))
+}
+/// Does `me` itself already occupy this slot? (mockup `ow`, :128.)
+fn has_own(v: Option<&Vec<String>>, me: &str) -> bool {
+    v.is_some_and(|a| a.iter().any(|x| x == me))
+}
+
+fn apply_owner(map: &mut HashMap<usize, Vec<String>>, key: usize, owner: &str, add: bool) {
+    if add {
+        map.entry(key).or_default().push(owner.to_string());
+    } else if let Some(v) = map.get_mut(&key) {
+        if let Some(pos) = v.iter().position(|x| x == owner) {
+            v.swap_remove(pos); // remove ONE occurrence; order is irrelevant (existence predicates)
+        }
+    }
+}
+
+/// Add (`add`) or remove the `owner` along every node and edge a routed polyline covers. A segment
+/// whose endpoints are not both grid nodes is SKIPPED — the best-effort fallback is off-grid, and
+/// occupying it would index past the lattice (critic B1; the mockup's `.get(undefined)` is a no-op).
+fn edit_occupancy(
+    occ: &mut Occupancy,
+    grid: &CorridorGrid,
+    points: &[StaffRoutePoint],
+    owner: &str,
+    add: bool,
+) {
+    let nx = grid.nx();
+    for w in points.windows(2) {
+        let (a, b) = (&w[0], &w[1]);
+        let vertical = (a.x - b.x).abs() <= COINCIDE_EPS;
+        let horizontal = (a.y - b.y).abs() <= COINCIDE_EPS;
+        if vertical == horizontal {
+            continue; // diagonal or zero-length — not an orthogonal grid move
+        }
+        if vertical {
+            let (lo, hi) = (a.y.min(b.y), a.y.max(b.y));
+            let (i, j1, j2) = match (grid.xi(a.x), grid.yi(lo), grid.yi(hi)) {
+                (Some(i), Some(j1), Some(j2)) => (i, j1, j2),
+                _ => continue,
+            };
+            for j in j1..=j2 {
+                apply_owner(&mut occ.node_v, j * nx + i, owner, add);
+                if j < j2 {
+                    apply_owner(&mut occ.edge_v, j * nx + i, owner, add);
+                }
+            }
+        } else {
+            let (lo, hi) = (a.x.min(b.x), a.x.max(b.x));
+            let (j, i1, i2) = match (grid.yi(a.y), grid.xi(lo), grid.xi(hi)) {
+                (Some(j), Some(i1), Some(i2)) => (j, i1, i2),
+                _ => continue,
+            };
+            for i in i1..=i2 {
+                apply_owner(&mut occ.node_h, j * nx + i, owner, add);
+                if i < i2 {
+                    apply_owner(&mut occ.edge_h, j * (nx - 1) + i, owner, add);
+                }
+            }
+        }
+    }
+}
+
+/// Mark every node/edge a routed line covers as occupied by `owner` (its manager).
+pub fn occupy(occ: &mut Occupancy, grid: &CorridorGrid, points: &[StaffRoutePoint], owner: &str) {
+    edit_occupancy(occ, grid, points, owner, true);
+}
+/// Undo a prior `occupy` of the same polyline and owner (for rip-up, T6).
+pub fn release(occ: &mut Occupancy, grid: &CorridorGrid, points: &[StaffRoutePoint], owner: &str) {
+    edit_occupancy(occ, grid, points, owner, false);
+}
+
+/// One edge to route: endpoint ids (ownership + own-card exemption) and the port coordinates.
+pub struct EdgeSpec {
+    pub from_id: String,
+    pub to_id: String,
+    pub start: (f32, f32),
+    pub target: (f32, f32),
+}
+
+/// Single-pass driver (mockup `:156-157`): route each edge in a stable order, occupying it before the
+/// next so later lines take separate lanes (§5.4). Returns routes in INPUT order. Rip-up (T6) wraps
+/// this. The order — manager Y, then X, then input index — is fixed, so the result is deterministic
+/// (AC8).
+pub fn route_edges(
+    grid: &CorridorGrid,
+    edges: &[EdgeSpec],
+    cards: &[EdgeRect],
+    frames: &[FrameRect],
+    member_of: &dyn Fn(&str) -> Option<DeptPart>,
+) -> Vec<AStarRoute> {
+    let mut order: Vec<usize> = (0..edges.len()).collect();
+    order.sort_by(|&a, &b| {
+        edges[a]
+            .start
+            .1
+            .total_cmp(&edges[b].start.1)
+            .then(edges[a].start.0.total_cmp(&edges[b].start.0))
+            .then(a.cmp(&b))
+    });
+    let mut occ = Occupancy::default();
+    let mut out: Vec<Option<AStarRoute>> = (0..edges.len()).map(|_| None).collect();
+    for idx in order {
+        let e = &edges[idx];
+        let r = astar_route(
+            grid, e.start, e.target, &e.from_id, &e.to_id, cards, frames, member_of, &occ,
+        );
+        occupy(&mut occ, grid, &r.points, &e.from_id);
+        out[idx] = Some(r);
+    }
+    out.into_iter()
+        .map(|o| o.expect("every slot filled"))
+        .collect()
+}
+
 /// Route one cross/ext edge from `start` (manager card bottom-centre) to `target` (child card
-/// top-centre, or a department-top dock) with A* over the corridor grid (T4). See the module note
-/// above for the two Rust-side adaptations (per-part role; f64 total-order heap).
+/// top-centre, or a department-top dock) with A* over the corridor grid (T4), lane-weighted by the
+/// occupancy of earlier edges (T5, `occ`). See the module notes above for the Rust-side adaptations.
 #[allow(clippy::too_many_arguments)]
 pub fn astar_route(
     grid: &CorridorGrid,
@@ -632,6 +786,7 @@ pub fn astar_route(
     cards: &[EdgeRect],
     frames: &[FrameRect],
     member_of: &dyn Fn(&str) -> Option<DeptPart>,
+    occ: &Occupancy,
 ) -> AStarRoute {
     let (nx, ny) = (grid.nx(), grid.ny());
     // Ports must land on grid nodes (T3 seeds card centres / tops / bottoms / dept tops). If one does
@@ -777,7 +932,26 @@ pub fn astar_route(
             } else {
                 0.0
             };
-            let ng = e.g + len + turn;
+            // §5.4 lane weighting: own lane is cheap, a foreign lane/node is dear (T5).
+            let ea = if h {
+                occ.edge_h.get(&(ej * (nx - 1) + ei))
+            } else {
+                occ.edge_v.get(&(ej * nx + ei))
+            };
+            let lane = if has_own(ea, from_id) {
+                len * OWN_LANE_FACTOR
+            } else {
+                len
+            };
+            let nn = nj * nx + ni;
+            let foreign_node = has_foreign(occ.node_v.get(&nn), from_id)
+                || has_foreign(occ.node_h.get(&nn), from_id);
+            let penalty = if has_foreign(ea, from_id) {
+                FOREIGN_EDGE_COST
+            } else {
+                0.0
+            } + if foreign_node { FOREIGN_NODE_COST } else { 0.0 };
+            let ng = e.g + lane + penalty + turn;
             let nstate = (nj * nx + ni) * 3 + nd;
             if ng < g[nstate] {
                 g[nstate] = ng;
@@ -1206,6 +1380,7 @@ mod tests {
             &[m, c],
             &[],
             &no_member,
+            &Occupancy::default(),
         );
 
         assert!(!r.failed, "a clear cross edge must route");
@@ -1244,6 +1419,7 @@ mod tests {
             &[m.clone(), c.clone()],
             &[],
             &no_member,
+            &Occupancy::default(),
         );
         let b = astar_route(
             &g,
@@ -1254,6 +1430,7 @@ mod tests {
             &[m, c],
             &[],
             &no_member,
+            &Occupancy::default(),
         );
         let tuples = |r: &AStarRoute| r.points.iter().map(|p| (p.x, p.y)).collect::<Vec<_>>();
         assert_eq!(
@@ -1279,6 +1456,7 @@ mod tests {
             &[m, c, f.clone()],
             &[],
             &no_member,
+            &Occupancy::default(),
         );
 
         assert!(!r.failed, "there is room to go around");
@@ -1313,6 +1491,7 @@ mod tests {
             &[m, c],
             &frames,
             &member,
+            &Occupancy::default(),
         );
 
         assert!(!r.failed, "there is room around the frame");
@@ -1347,10 +1526,237 @@ mod tests {
             &[m, c],
             &[],
             &no_member,
+            &Occupancy::default(),
         );
 
         assert!(r.failed, "an off-grid port cannot be routed on the lattice");
         assert_eq!(r.points.len(), 4, "best-effort Z fallback is four points");
         assert!(all_ortho(&r.points), "fallback is still orthogonal");
+    }
+
+    // --- T5: occupancy / lanes (§5.4) ---
+
+    /// A straight-down manager→child corridor, for occupancy tests (centres share x = 350).
+    fn straight_corridor_grid() -> (CorridorGrid, EdgeRect, EdgeRect) {
+        let m = ebox("m", 300.0, 50.0, 100.0, 60.0);
+        let c = ebox("c", 300.0, 600.0, 100.0, 60.0);
+        let g = build_corridor_grid(700.0, 720.0, &[m.clone(), c.clone()], &[], &[]);
+        (g, m, c)
+    }
+
+    /// Two grid-aligned points spanning the MIDDLE of the x = 350 corridor (so the port stubs stay
+    /// free) — an occupant a later line must route a lane away from.
+    fn midline_occupant(g: &CorridorGrid) -> Vec<StaffRoutePoint> {
+        let mids: Vec<f32> =
+            g.ys.iter()
+                .copied()
+                .filter(|&y| y > 250.0 && y < 450.0)
+                .collect();
+        assert!(mids.len() >= 2, "need a middle span on the lattice");
+        vec![pt(350.0, mids[0]), pt(350.0, *mids.last().unwrap())]
+    }
+
+    #[test]
+    fn occupancy_pushes_a_foreign_line_onto_its_own_lane() {
+        let (g, m, c) = straight_corridor_grid();
+        let cards = [m, c];
+        // Baseline: with an empty occupancy the route is the straight corridor.
+        let r0 = astar_route(
+            &g,
+            (350.0, 110.0),
+            (350.0, 600.0),
+            "m",
+            "c",
+            &cards,
+            &[],
+            &no_member,
+            &Occupancy::default(),
+        );
+        assert!(
+            r0.points.iter().all(|p| (p.x - 350.0).abs() < 1.0),
+            "baseline is straight: {:?}",
+            r0.points
+        );
+
+        // A FOREIGN occupant on the middle of that corridor must push the route to a separate lane.
+        let ghost_pts = midline_occupant(&g);
+        let mut occ = Occupancy::default();
+        occupy(&mut occ, &g, &ghost_pts, "ghost");
+        let r1 = astar_route(
+            &g,
+            (350.0, 110.0),
+            (350.0, 600.0),
+            "m",
+            "c",
+            &cards,
+            &[],
+            &no_member,
+            &occ,
+        );
+
+        let ghost = route("ghost", "gz", ghost_pts.clone());
+        let routed1 = route("m", "c", r1.points.clone());
+        assert_eq!(
+            route_stats(&[ghost.clone(), routed1], &[], &[], &no_member).overlaps,
+            0,
+            "a foreign occupant must not be overlapped: {:?}",
+            r1.points
+        );
+        // Control: the straight baseline really would have overlapped that occupant.
+        let routed0 = route("m", "c", r0.points.clone());
+        assert!(
+            route_stats(&[ghost, routed0], &[], &[], &no_member).overlaps >= 1,
+            "baseline shares the occupant's lane"
+        );
+    }
+
+    #[test]
+    fn releasing_occupancy_restores_the_straight_route() {
+        let (g, m, c) = straight_corridor_grid();
+        let cards = [m, c];
+        let ghost_pts = midline_occupant(&g);
+        let mut occ = Occupancy::default();
+
+        occupy(&mut occ, &g, &ghost_pts, "ghost");
+        let diverted = astar_route(
+            &g,
+            (350.0, 110.0),
+            (350.0, 600.0),
+            "m",
+            "c",
+            &cards,
+            &[],
+            &no_member,
+            &occ,
+        );
+        // The divert is one lane (§5.4 step = 8px), so it shifts well clear of the eps but not far.
+        assert!(
+            diverted.points.iter().any(|p| (p.x - 350.0).abs() >= 4.0),
+            "occupied: diverted"
+        );
+
+        release(&mut occ, &g, &ghost_pts, "ghost");
+        let restored = astar_route(
+            &g,
+            (350.0, 110.0),
+            (350.0, 600.0),
+            "m",
+            "c",
+            &cards,
+            &[],
+            &no_member,
+            &occ,
+        );
+        assert!(
+            restored.points.iter().all(|p| (p.x - 350.0).abs() < 1.0),
+            "after release the corridor is free again: {:?}",
+            restored.points
+        );
+    }
+
+    #[test]
+    fn route_edges_single_pass_separates_two_managers() {
+        // Two managers of different departments whose lines share one horizontal corridor (y≈592,
+        // the lane just above the child row): m1→c1 runs left→right, m2→c2 right→left across it.
+        let m1 = ebox("m1", 100.0, 50.0, 100.0, 60.0);
+        let c1 = ebox("c1", 300.0, 600.0, 100.0, 60.0);
+        let m2 = ebox("m2", 600.0, 50.0, 100.0, 60.0);
+        let c2 = ebox("c2", 50.0, 600.0, 100.0, 60.0);
+        let cards = [m1, c1, m2, c2];
+        let member = |id: &str| match id {
+            "m1" => Some(("d1".to_string(), None)),
+            "c1" => Some(("d3".to_string(), None)),
+            "m2" => Some(("d2".to_string(), None)),
+            "c2" => Some(("d4".to_string(), None)),
+            _ => None,
+        };
+        let g = build_corridor_grid(800.0, 720.0, &cards, &[], &[]);
+        let edges = vec![
+            EdgeSpec {
+                from_id: "m1".to_string(),
+                to_id: "c1".to_string(),
+                start: (150.0, 110.0),
+                target: (350.0, 600.0),
+            },
+            EdgeSpec {
+                from_id: "m2".to_string(),
+                to_id: "c2".to_string(),
+                start: (650.0, 110.0),
+                target: (100.0, 600.0),
+            },
+        ];
+
+        let routes = route_edges(&g, &edges, &cards, &[], &member);
+        assert_eq!(routes.len(), 2, "one route per edge, in input order");
+        let combined = [
+            route("m1", "c1", routes[0].points.clone()),
+            route("m2", "c2", routes[1].points.clone()),
+        ];
+        assert_eq!(
+            route_stats(&combined, &[], &[], &member).overlaps,
+            0,
+            "single-pass occupancy keeps the two managers on separate lanes (S4)"
+        );
+
+        // Determinism (AC8): the driver gives the identical result on a second run.
+        let again = route_edges(&g, &edges, &cards, &[], &member);
+        let flat = |rs: &[AStarRoute]| {
+            rs.iter()
+                .flat_map(|r| r.points.iter().map(|p| (p.x, p.y)).collect::<Vec<_>>())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(flat(&routes), flat(&again), "route_edges is deterministic");
+
+        // Control: routed INDEPENDENTLY (no shared occupancy) the two lines share the corridor.
+        let i1 = astar_route(
+            &g,
+            (150.0, 110.0),
+            (350.0, 600.0),
+            "m1",
+            "c1",
+            &cards,
+            &[],
+            &member,
+            &Occupancy::default(),
+        );
+        let i2 = astar_route(
+            &g,
+            (650.0, 110.0),
+            (100.0, 600.0),
+            "m2",
+            "c2",
+            &cards,
+            &[],
+            &member,
+            &Occupancy::default(),
+        );
+        let indep = [route("m1", "c1", i1.points), route("m2", "c2", i2.points)];
+        assert!(
+            route_stats(&indep, &[], &[], &member).overlaps >= 1,
+            "without shared occupancy the two overlap on the corridor"
+        );
+    }
+
+    #[test]
+    fn route_edges_occupies_a_best_effort_edge_without_panicking() {
+        // A failing edge (off-grid target) returns a best-effort line whose mid-Y point is NOT on the
+        // lattice. The driver occupies every edge, including this one — it must skip the off-grid
+        // segments, never index past the grid (critic B1, exercised through the real driver path).
+        let m = ebox("m", 100.0, 50.0, 100.0, 60.0);
+        let c = ebox("c", 300.0, 300.0, 100.0, 60.0);
+        let cards = [m, c];
+        let g = build_corridor_grid(600.0, 500.0, &cards, &[], &[]);
+        let edges = vec![EdgeSpec {
+            from_id: "m".to_string(),
+            to_id: "c".to_string(),
+            start: (150.0, 110.0),
+            target: (355.0, 305.0), // off-grid → best-effort
+        }];
+        let routes = route_edges(&g, &edges, &cards, &[], &no_member);
+        assert_eq!(routes.len(), 1);
+        assert!(
+            routes[0].failed,
+            "the off-grid edge degrades to best-effort"
+        );
     }
 }

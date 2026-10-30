@@ -31,6 +31,12 @@ implement за `tasks.md` T0→T13, red-first, R6 кожен крок. Жива 
 f64-вартість+heap-Ord+carry-g) → верифіковано проти мокапу/детектора → виправлено → рев'ю ПРИЙНЯЛО (0 блокерів).
 5 тестів astar_*. **Відоме обмеження (non-blocking):** `astar_is_deterministic` слабкий (AC8 by-construction
 через seq-tiebreak); cap-hit 250k без прямого тесту. Далі: **T5 occupancy/доріжки** → T6 rip-up → un-ignore AC10.
+Прогрес dg33 (T5): ✅ `Occupancy` + `occupy`/`release` + cost-терми (6000/4000/0.15) + `route_edges` single-pass драйвер.
+R6 повний: критик 3 блокери (off-grid-паніка; відсутній драйвер→невимірюваний S4; node-key) → верифіковано/виправлено
+→ рев'ю ПРИЙНЯЛО (0 блокерів). 4 тести (divert / release / driver S4 overlaps 0 vs 1 / off-grid-no-panic).
+**Відоме (non-blocking, для T8-wiring):** драйвер-sort без первинного ключа `sec` (cross-перед-ext) — p2/sec поза
+скоупом (N2), детермінізм тримається, але порядок може розійтись з мокапом при cross+ext у реальній сцені.
+Далі: **T6 rip-up** (4 проходи, rows 5/7/8 → 0) → un-ignore AC10.
 
 ## 🆕 Відкладена задача (рішення власника dg32): демо на даних mock3 як ЕТАЛОН — ПІСЛЯ A* (T4-T6)
 Зробити demo-таб на даних мокапу `/Users/strelia/Downloads/mock3/ШПС лінії зв'язку.html` (`shps-links.js`:
