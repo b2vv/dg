@@ -10,7 +10,7 @@ import {
 import { buildVariantBData } from '../scenarios/variantB.js';
 import { buildStaffTreeData } from '../scenarios/staffTree.js';
 import { buildShpsStaffData, SHPS_STAFF_LAYOUT } from '../scenarios/shpsStaff.js';
-import { buildMock3ShpsData } from '../scenarios/mock3Shps.js';
+import { buildMock3ShpsData, MOCK3_STAFF_LAYOUT } from '../scenarios/mock3Shps.js';
 import { buildStaffDeptRoutingData } from '../scenarios/staffDeptRouting.js';
 import { buildStaffBrigadeData } from '../scenarios/staffBrigade.js';
 import {
@@ -122,14 +122,14 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
         },
         lodThresholds: MOCKUP_LOD_THRESHOLDS,
         staffCurrentOrgId: 'mock3-org',
-        staffLayout: SHPS_STAFF_LAYOUT,
+        staffLayout: MOCK3_STAFF_LAYOUT,
         render: {
           ...base.render,
           staffZoneChrome: true,
           departmentStyle: 'card',
           staffUseAstar: true,
-          cellWidth: SHPS_STAFF_LAYOUT.refCellWidth,
-          cellHeight: SHPS_STAFF_LAYOUT.refCellHeight,
+          cellWidth: MOCK3_STAFF_LAYOUT.refCellWidth,
+          cellHeight: MOCK3_STAFF_LAYOUT.refCellHeight,
         },
       };
     case 'variant-b':

@@ -12,7 +12,16 @@ import { SHPS_SEAT, SHPS_STAFF_LAYOUT } from './shpsStaff';
  * code. The managing-org `p2` on `da` becomes a second admin report line, exercising the bypass /
  * secondary-port path.
  */
-export { SHPS_STAFF_LAYOUT as MOCK3_STAFF_LAYOUT };
+/**
+ * mock3 layout — the ШПС chrome, but with a deeper vertical drop between levels than
+ * {@link SHPS_STAFF_LAYOUT} so the tree sits lower / breathes, closer to the reference mockup
+ * (owner R3: «просто більше відступу вниз»).
+ */
+export const MOCK3_STAFF_LAYOUT = {
+  ...SHPS_STAFF_LAYOUT,
+  verticalGap: 120,
+  tierGap: 120,
+} as const;
 
 const ORG_ID = 'mock3-org';
 
