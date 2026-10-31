@@ -21,6 +21,11 @@ A* як **ФУНДАМЕНТ на Бар-1** (обчислена tree-розкл
 - `_gate2-VERDICT-dg31.md` / `_gate2-recheck-dg31.md` — GATE 2 PASS після 4 blocking.
 - `_plan-prior-art-search-dg31.md` — вже-обговорене (design-v3 variant C, dept-grouping вже в Rust).
 
+## 📋 HANDOFF (dg33) — холодний старт наступної сесії БЕЗ переразжовування
+**`work/reports/staff-link-routing-astar/_handoff-dg33.md`** — повний стан, коміти T2→R3, архітектура A*,
+діагноз зигзагів (= LAYOUT плаский vs мокапів дерево-блоків), готовий алгоритм layout-фіксу (§5), стилізація
+1:1 (§6), C-flip борг (N1/N2), check:docs-борг, мапа файлів. **Читай його першим.**
+
 ## Наступний крок
 implement за `tasks.md` T0→T13, red-first, R6 кожен крок. Жива нота: `1 - Notes/Sessions/2026-10-30 T128 staff link-routing A* spec-flow.md`.
 Прогрес dg32: T0 ✅, T1 ✅ (детектор route_stats + 9 фікстур S0-S9 + RED-first; незалежне рев'ю в процесі → коміт).
