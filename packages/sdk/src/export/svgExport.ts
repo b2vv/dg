@@ -202,7 +202,8 @@ export async function buildDiagramSvg(input: SvgExportInput): Promise<string> {
       refCellWidth: config.cellWidth,
       refCellHeight: config.cellHeight,
       ...input.staffLayout,
-      deptGrouping: config.staffEdgeRouter === 'v2',
+      // Mirror the render path (staffLayoutInputs): v2 router OR explicit opt-in (T128).
+      deptGrouping: config.staffDeptGrouping === true || config.staffEdgeRouter === 'v2',
       expandedOrgIds: input.expandedOrgIds ?? input.staffLayout?.expandedOrgIds,
     };
     const canvas = await layoutStaffCanvas(

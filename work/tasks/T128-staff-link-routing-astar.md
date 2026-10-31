@@ -124,3 +124,19 @@ GREEN, 0 блокерів; F1 (хибний коментар) виправлен
 TDD 5 тестів (3 дискримінаційні). Гейти: rust 189/0 · SDK 1231/0 · demo 108/0 · typecheck · clippy/fmt.
 **Відкрите:** R3-візуал власника (HUD bends/cross на mock3 мають падати); R3-a (far-render drop ліній)
 заведено окремим пунктом. Не закомічений push (гілка ahead, локально).
+
+## 🔴 dg35 (2026-10-31) — R3 візуал ВИЯВИВ: крок 1 був мертвим кодом → фікс (напрям D, approved)
+Візуальна перевірка R3 у браузері (mock3, HUD bends=112 = точний dg33-базлайн → «наче змін не було»).
+**Корінь:** tree-гілка живе в `group_staff_by_department` (staff_layout.rs:649), яка виконується лише при
+`deptGrouping=true`. mock3 мав deptGrouping=false (бо воно прив'язане до `staffEdgeRouter==='v2'`, а mock3
+на 'legacy'). → `pack_tree_block` = МЕРТВИЙ код для mock3.
+**Probe (4 конфіги, Rust-шлях, mock3-дані):** A legacy+treeOFF=112 · B legacy+treeON=112 (A≡B: прапор
+нічого не змінює) · C v2+treeOFF=136 · D v2+treeON=126 (C≠D: оживає, форма мокапу). Діагноз handoff dg33
+(«зигзаги=flat dept packing») ПЕРЕВЕРНУТО: поточна сцена = ціле tidy-дерево (`layout_tree_block`), не
+деп-пакування; деп-пакування навіть додає заломів.
+**Фікс (approved «go», напрям D):** розчепити deptGrouping від роутера. Новий DEV-прапор
+`RenderConfig.staffDeptGrouping` (default false); `deptGrouping = staffDeptGrouping===true || staffEdgeRouter==='v2'`
+(OR, staffLayoutInputs.ts:92 + svgExport.ts:205); mock3 → `staffDeptGrouping:true`. ~15 рядків, 4 файли.
+Гейти: typecheck · SDK 1231/0 · demo 108/0. Візуал: bends=126, департаменти-блоки в дереві (QA під dev).
+**Залишок:** 126 bends (кінки в/між блоками) → spacing-тюнінг (F2) + deptHead-порт/A* на згрупованій
+сцені; R3-a (far-render) окремо. R6 review-after запущено; коміт після вердикту.

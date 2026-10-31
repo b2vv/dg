@@ -89,7 +89,9 @@ export function buildStaffLayoutOptions(
     refCellHeight: config.cellHeight,
     zoneLabelBand,
     ...staff?.layout,
-    deptGrouping: config.staffEdgeRouter === 'v2',
+    // Dept grouping is on for the v2 router (historical coupling) OR when explicitly requested
+    // (T128: the A* + tree-block path needs grouping without the v2 TS router).
+    deptGrouping: config.staffDeptGrouping === true || config.staffEdgeRouter === 'v2',
     expandedOrgIds: staff?.expandedOrgIds ?? staff?.layout?.expandedOrgIds,
   };
   return { options, zoneLabelBand };

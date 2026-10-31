@@ -291,6 +291,14 @@ export interface RenderConfig {
    * R3 comparison tab alongside `staffUseAstar`.
    */
   staffTreeBlockLayout?: boolean;
+  /**
+   * DEV (T128 step 1): group positions into department regions regardless of the edge router.
+   * Historically dept grouping was coupled to `staffEdgeRouter === 'v2'`; the A* + tree-block path
+   * needs grouping without the v2 TS router, so this decouples it. OR-combined with the v2 coupling,
+   * so leaving it false preserves every existing tab. Default false. Used by the mock3 R3 tab to make
+   * `staffTreeBlockLayout` live (it is a no-op without grouping).
+   */
+  staffDeptGrouping?: boolean;
   /** T64: department paint mode (default blob). */
   departmentStyle?: DepartmentPaintStyle;
   /** Enables dept-grouping layout + v2 routing; default legacy. */
@@ -482,6 +490,7 @@ export const defaultRenderConfig: RenderConfig = {
   staffZoneChrome: false,
   staffUseAstar: false,
   staffTreeBlockLayout: false,
+  staffDeptGrouping: false,
   departmentStyle: 'blob',
   staffEdgeRouter: 'legacy',
   dashedGridFrame: false,
