@@ -3,8 +3,9 @@
 Реалізація plan-zigzag.md (GATE 2 🟢 критика+захист). TDD red→green, R6 critic-before+review-after на слайс.
 **Код пише Codex (exec), Claude тримає дисципліну/гейти/звірку.** Кожен таск — окремий локальний коміт.
 
-Гейт per-task: `cargo test` + `cargo clippy -D warnings` + `cargo fmt --check` зелені; detector mock3 лишається
-0/0/0/0/0; сумарні true-turns не зростають (падіння — лише T-C); власний AC таску. Візуал-фінал — власник.
+Гейт per-task: `cargo test` + `cargo clippy -D warnings` + `cargo fmt --check` зелені; detector mock3 НЕ зростає
+(🔴 baseline cross=9, НЕ 0 — ціль циклу гнати cross→0; over/card/near/dept=0 лишаються); сумарні true-turns не
+зростають (падіння — T-C); власний AC таску. Цілі фіналу: cross=0 + excess_turns=0 (baseline 22). Візуал — власник.
 
 ---
 

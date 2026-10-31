@@ -665,28 +665,70 @@ fn route_via_astar(
     // Live "good-lines" meter (the mockup's `stats()` panel): the §10.4 detector counts + total
     // bends across the routed scene, surfaced as a diagnostic for the R3 tuning overlay.
     let stats = crate::route_stats(&set.segments, &cards, input.department_frames, &mo);
-    let bends: usize = set
-        .segments
-        .iter()
-        .map(|s| s.points.len().saturating_sub(2))
-        .sum();
+    let (bends, excess_turns) = turn_totals(&set.segments, &mo);
     let marked = set
         .segments
         .iter()
         .filter(|s| s.marked == Some(true))
         .count();
     let diag = format!(
-        "A*: cross={} over={} card={} near8={} dept={} bends={} marked={} edges={}",
+        "A*: cross={} over={} card={} near8={} dept={} bends={} turns={} excess={} marked={} edges={}",
         stats.crossings,
         stats.overlaps,
         stats.through_card,
         stats.near_card,
         stats.through_foreign,
         bends,
+        bends,
+        excess_turns,
         marked,
         set.segments.len(),
     );
     (set, vec![diag])
+}
+
+/// Справжні зміни напрямку; нульові відрізки та колінеарні продовження пропускаються.
+fn true_turns(points: &[StaffRoutePoint]) -> usize {
+    let mut previous: Option<(f64, f64)> = None;
+    let mut turns = 0;
+    for pair in points.windows(2) {
+        let dx = f64::from(pair[1].x) - f64::from(pair[0].x);
+        let dy = f64::from(pair[1].y) - f64::from(pair[0].y);
+        if dx == 0.0 && dy == 0.0 {
+            continue;
+        }
+        if let Some((px, py)) = previous {
+            if px * dy != py * dx || px * dx + py * dy < 0.0 {
+                turns += 1;
+            }
+        }
+        previous = Some((dx, dy));
+    }
+    turns
+}
+
+fn turn_limit(from_id: &str, to_id: &str, member_of: &dyn Fn(&str) -> Option<DeptPart>) -> usize {
+    if crate::staff_router::is_internal(from_id, to_id, member_of) {
+        2
+    } else {
+        4
+    }
+}
+
+/// Один підрахунок для bends/turns та excess; marked best-effort не входить у excess.
+fn turn_totals(
+    segments: &[StaffEdgeRoute],
+    member_of: &dyn Fn(&str) -> Option<DeptPart>,
+) -> (usize, usize) {
+    segments.iter().fold((0, 0), |(total, excess), segment| {
+        let turns = true_turns(&segment.points);
+        let extra = if segment.marked == Some(true) {
+            0
+        } else {
+            turns.saturating_sub(turn_limit(&segment.from_id, &segment.to_id, member_of))
+        };
+        (total + turns, excess + extra)
+    })
 }
 
 pub fn staff_routes(input: &RouteInputs) -> StaffRouteSet {
@@ -847,6 +889,105 @@ pub fn staff_routes(input: &RouteInputs) -> StaffRouteSet {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn collinear_z_fallback_has_no_true_turns() {
+        use crate::staff_router::{astar_route, build_corridor_grid, Occupancy};
+        let grid = build_corridor_grid(100.0, 100.0, &[], &[], &[]);
+        let route = astar_route(
+            &grid,
+            (13.25, 11.25),
+            (13.25, 89.25),
+            "a",
+            "b",
+            &[],
+            &[],
+            &|_| None,
+            &Occupancy::default(),
+        );
+        assert!(route.failed);
+        assert_eq!(route.points.len().saturating_sub(2), 2);
+        assert_eq!(true_turns(&route.points), 0);
+    }
+
+    #[test]
+    fn true_turns_ignores_duplicates_and_counts_direction_changes() {
+        let points = |coords: &[(f32, f32)]| {
+            coords
+                .iter()
+                .map(|&(x, y)| StaffRoutePoint { x, y })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(true_turns(&[]), 0);
+        assert_eq!(true_turns(&points(&[(0.0, 0.0)])), 0);
+        assert_eq!(
+            true_turns(&points(&[(0.0, 0.0), (0.0, 1.0), (0.0, 2.0)])),
+            0
+        );
+        assert_eq!(
+            true_turns(&points(&[
+                (0.0, 0.0),
+                (0.0, 1.0),
+                (0.0, 1.0),
+                (1.0, 1.0),
+                (1.0, 2.0)
+            ])),
+            2
+        );
+        assert_eq!(
+            true_turns(&points(&[(0.0, 0.0), (0.0, 1.0), (0.0, 0.0)])),
+            1
+        );
+    }
+
+    #[test]
+    fn turn_limit_uses_endpoint_department_and_part() {
+        let member = |id: &str| match id {
+            "a" | "b" => Some(("dept".to_string(), Some(0))),
+            "other-part" => Some(("dept".to_string(), Some(1))),
+            "other-dept" => Some(("other".to_string(), Some(0))),
+            _ => None,
+        };
+        assert_eq!(turn_limit("a", "b", &member), 2);
+        assert_eq!(turn_limit("a", "other-dept", &member), 4);
+        assert_eq!(turn_limit("a", "other-part", &member), 4);
+        assert_eq!(turn_limit("a", "external", &member), 4);
+        assert_eq!(turn_limit("external", "external2", &member), 4);
+    }
+
+    #[test]
+    fn turn_totals_exclude_marked_failures_only_from_excess() {
+        let mut edge = StaffEdgeRoute {
+            from_id: "a".into(),
+            to_id: "b".into(),
+            kind: "admin".into(),
+            points: [
+                (0.0, 0.0),
+                (0.0, 1.0),
+                (1.0, 1.0),
+                (1.0, 2.0),
+                (2.0, 2.0),
+                (2.0, 3.0),
+            ]
+            .into_iter()
+            .map(|(x, y)| StaffRoutePoint { x, y })
+            .collect(),
+            marked: None,
+            ends_on_dept_top: Some(true),
+        };
+        let member = |_: &str| Some(("dept".into(), None));
+        assert_eq!(turn_totals(&[edge.clone()], &member), (4, 2));
+        let successful = edge.clone();
+        edge.marked = Some(true);
+        assert_eq!(turn_totals(&[edge.clone()], &member), (4, 0));
+        assert_eq!(turn_totals(&[successful, edge.clone()], &member), (8, 2));
+        edge.marked = Some(false);
+        assert_eq!(turn_totals(&[edge.clone()], &member), (4, 2));
+        assert_eq!(turn_totals(&[edge.clone()], &|_| None), (4, 0));
+        edge.points.truncate(2);
+        assert_eq!(turn_totals(&[edge], &member), (0, 0));
+        assert_eq!(turn_totals(&[], &member), (0, 0));
+    }
 
     fn node(id: &str, x: f32, y: f32, tier: u8) -> StaffNodeGeo {
         node_full(id, x, y, 100.0, 50.0, tier, None, None)

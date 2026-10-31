@@ -886,7 +886,11 @@ pub fn route_edges_ripup(
 /// (`frame_intrusion_count`): a "same dept, other part" edge drawn as a straight elbow could cut the
 /// sibling part's frame, so it must stay a cross-edge for A* (dg33 T7 critic B2). A bypass (secondary)
 /// edge is never internal (mockup :112) — it always routes with A*.
-fn is_internal(from_id: &str, to_id: &str, member_of: &dyn Fn(&str) -> Option<DeptPart>) -> bool {
+pub(crate) fn is_internal(
+    from_id: &str,
+    to_id: &str,
+    member_of: &dyn Fn(&str) -> Option<DeptPart>,
+) -> bool {
     match (member_of(from_id), member_of(to_id)) {
         (Some(a), Some(b)) => a == b,
         _ => false,

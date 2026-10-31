@@ -61,7 +61,7 @@ simplify не враховує інші лінії; block-gap у pack_tree_block
 | S7 | регресія | усі гейти + svgExport.parity/entry-dot | зелені; golden інших табів не змінено | AC-рег/N10 |
 | S8 | best-effort `failed`-ребро | фікстура (off-grid/ITER_CAP) | не паніка; виключене з excess_turns; C не чіпає | Q2 |
 
-**Гейт per-slice:** detector 0/0/0/0/0 + сум. true-turns не зростає + власний AC. Падіння — лише C. Фінал — візуал власника.
+**Гейт per-slice:** detector не зростає (🔴 baseline cross=9 — ціль гнати cross→0; решта=0) + сум. true-turns не зростає + власний AC. Цілі фіналу: cross=0 + excess_turns=0. Фінал — візуал власника.
 
 ## Сайд-ефекти
 
