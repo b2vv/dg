@@ -491,17 +491,19 @@ fn detour_edge(
 pub(crate) const DEFAULT_STAFF_ASTAR: bool = false;
 
 /// Route the staff scene — the single seam the production path and the acceptance harness share.
-/// `use_astar=false` → the detour (byte-identical to the pre-T8 path). `true` → the A* pipeline.
+/// `use_astar=false` → the detour (byte-identical to the pre-T8 path). `true` → the A* pipeline, plus
+/// one diagnostic line with the §10.4 detector counts + total bends (a live "good-lines" meter for
+/// the R3 tuning; empty for the detour).
 pub(crate) fn resolve_staff_routes(
     input: &RouteInputs,
     canvas_w: f32,
     canvas_h: f32,
     use_astar: bool,
-) -> StaffRouteSet {
+) -> (StaffRouteSet, Vec<String>) {
     if use_astar {
         route_via_astar(input, canvas_w, canvas_h)
     } else {
-        staff_routes(input)
+        (staff_routes(input), Vec::new())
     }
 }
 
@@ -550,7 +552,11 @@ fn edge_is_secondary(edges: &[StaffEdge], i: usize) -> bool {
 /// matrix/dotted/lead-org edges are routed here as if admin (A* enters the target from above), which
 /// may not match their side-port intent — the owner decides at the R3/flip whether to keep those on
 /// the detour. Both are harmless now because this branch never runs under `DEFAULT_STAFF_ASTAR`.
-fn route_via_astar(input: &RouteInputs, canvas_w: f32, canvas_h: f32) -> StaffRouteSet {
+fn route_via_astar(
+    input: &RouteInputs,
+    canvas_w: f32,
+    canvas_h: f32,
+) -> (StaffRouteSet, Vec<String>) {
     use crate::{route_scene, EdgeSpec, SECONDARY_PORT_DX};
     let cards = build_card_set(
         input.persons,
@@ -652,10 +658,35 @@ fn route_via_astar(input: &RouteInputs, canvas_w: f32, canvas_h: f32) -> StaffRo
             }
         })
         .collect();
-    StaffRouteSet {
+    let set = StaffRouteSet {
         lod: input.lod.to_string(),
         segments,
-    }
+    };
+    // Live "good-lines" meter (the mockup's `stats()` panel): the §10.4 detector counts + total
+    // bends across the routed scene, surfaced as a diagnostic for the R3 tuning overlay.
+    let stats = crate::route_stats(&set.segments, &cards, input.department_frames, &mo);
+    let bends: usize = set
+        .segments
+        .iter()
+        .map(|s| s.points.len().saturating_sub(2))
+        .sum();
+    let marked = set
+        .segments
+        .iter()
+        .filter(|s| s.marked == Some(true))
+        .count();
+    let diag = format!(
+        "A*: cross={} over={} card={} near8={} dept={} bends={} marked={} edges={}",
+        stats.crossings,
+        stats.overlaps,
+        stats.through_card,
+        stats.near_card,
+        stats.through_foreign,
+        bends,
+        marked,
+        set.segments.len(),
+    );
+    (set, vec![diag])
 }
 
 pub fn staff_routes(input: &RouteInputs) -> StaffRouteSet {
@@ -2078,8 +2109,13 @@ mod tests {
         };
         let w = 600.0;
         let h = 900.0;
-        let detour = resolve_staff_routes(&inputs, w, h, false);
-        let astar = resolve_staff_routes(&inputs, w, h, true);
+        let (detour, _) = resolve_staff_routes(&inputs, w, h, false);
+        let (astar, astar_diag) = resolve_staff_routes(&inputs, w, h, true);
+        // The A* branch emits the live "good-lines" diagnostic (detector counts + bends).
+        assert!(
+            astar_diag.iter().any(|d| d.starts_with("A*:")),
+            "A* stats diagnostic present"
+        );
 
         // Same contract shape, same edge set (skips replicated), kinds preserved by index (B3).
         assert_eq!(astar.segments.len(), 3, "three edges routed, none skipped");

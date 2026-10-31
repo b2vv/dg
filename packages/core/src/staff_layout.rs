@@ -1270,7 +1270,9 @@ pub fn compute_staff_geometry(input: &StaffLayoutInput) -> Result<StaffGeometryR
     // The dev `useAstar` input field overrides the compile default (for bring-up / the R3 mock3 tab);
     // absent → detour, so production and golden are unaffected.
     let use_astar = input.use_astar.unwrap_or(DEFAULT_STAFF_ASTAR);
-    let routes = resolve_staff_routes(&route_inputs, dims.width, dims.height, use_astar);
+    let (routes, mut route_diagnostics) =
+        resolve_staff_routes(&route_inputs, dims.width, dims.height, use_astar);
+    diagnostics.append(&mut route_diagnostics);
 
     Ok(StaffGeometryResult {
         current_org_id: input.current_org_id.clone(),

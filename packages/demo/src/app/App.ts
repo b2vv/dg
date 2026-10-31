@@ -606,9 +606,16 @@ export class App {
         );
       },
       onLayoutDiagnostics: (messages) => {
+        // T128 R3: the A* router's live "good-lines" meter goes to a persistent HUD, not a toast.
+        const astar = messages.find((m) => m.startsWith('A*:'));
+        const hud = document.getElementById('astar-metrics');
+        if (hud) {
+          hud.textContent = astar ?? '';
+          hud.style.display = astar ? 'block' : 'none';
+        }
         // The `Renderer: …` line is always present (T83) and is not a warning.
         // Toasting it would bury every real warning behind a "+N".
-        const warnings = messages.filter((m) => !m.startsWith('Renderer: '));
+        const warnings = messages.filter((m) => !m.startsWith('Renderer: ') && !m.startsWith('A*:'));
         if (warnings.length === 0) return;
         this.showToast(
           `Layout: ${warnings[0]}${warnings.length > 1 ? ` (+${warnings.length - 1})` : ''}`,
