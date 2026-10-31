@@ -131,7 +131,10 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
           staffUseAstar: true,
           staffDeptGrouping: true, // T128 dg35: group by department so tree-block is live (mockup shape)
           staffTreeBlockLayout: true,
-          staffMultiSourceParentEval: true, // T128 dg37: parent-eval for multi-source depts → cross→0
+          // T128 dg37→dg38: multiSourceParentEval ВИМКНЕНО — brute-force хак (cross=0, але turns=140,
+          // потворно). Правильний шлях — layout-фікс (голова мульті-деп = перший-оголошений root під джерелом)
+          // + routing det/ast-поділ (метод мокапа). Код правила лишаємо як борг. Рішення власника dg38.
+          staffMultiSourceParentEval: false,
 
           cellWidth: MOCK3_STAFF_LAYOUT.refCellWidth,
           cellHeight: MOCK3_STAFF_LAYOUT.refCellHeight,

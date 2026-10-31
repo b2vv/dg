@@ -650,7 +650,22 @@ fn group_staff_by_department(
     // T128 крок 1: за прапором — дерево-блокове пакування замість плаского ряду.
     // Плаский шлях нижче лишається байт-незмінним, коли прапор вимкнено.
     if geom.tree_block {
-        return pack_tree_block(&dept_ids, &buckets, &parents, reports, org_id, geom, sizes);
+        // Tree-block head follows declaration order, independently of member sorting.
+        let decl_index: HashMap<&str, usize> = positions
+            .iter()
+            .enumerate()
+            .map(|(index, position)| (position.id.as_str(), index))
+            .collect();
+        return pack_tree_block(
+            &dept_ids,
+            &buckets,
+            &parents,
+            &decl_index,
+            reports,
+            org_id,
+            geom,
+            sizes,
+        );
     }
 
     let mut nodes: Vec<StaffNodeGeo> = Vec::new();
@@ -715,7 +730,7 @@ fn group_staff_by_department(
 /// Один блок дерево-блокового пакування (T128 крок 1). `members` — у ЛОКАЛЬНИХ
 /// координатах з `layout_connected_tree` (до зсуву). `dept_id` Some → реальний відділ
 /// (штампуємо на члени, R2); None → no-dept singleton (паритет мокапу, Q2). `head_id` =
-/// region-root (та сама логіка, що й у плаского шляху) — його admin-батько визначає
+/// найраніше оголошений кандидат-root — його admin-батько визначає
 /// батьк-блок, а X batько-привʼязки сортує sibling-блоки (R3/Q3).
 struct DeptTreeBlock {
     dept_id: Option<String>,
@@ -733,10 +748,12 @@ struct DeptTreeBlock {
 /// розкладаються охайним деревом (діти центровані під батьком, вертикаль = низ батька + gap).
 /// Форест коренів іде зліва-направо. Цикл у `parent` розривається (R1): нерозміщуваний блок
 /// стає коренем — рекурсія завжди над форестом без циклів.
+#[allow(clippy::too_many_arguments)]
 fn pack_tree_block(
     dept_ids: &[String],
     buckets: &HashMap<String, Vec<StaffPositionInput>>,
     parents: &HashMap<String, String>,
+    decl_index: &HashMap<&str, usize>,
     reports: &[StaffEdgeInput],
     org_id: &str,
     geom: &Geom,
@@ -777,13 +794,14 @@ fn pack_tree_block(
             }
         } else {
             let member_ids: HashSet<&str> = members.iter().map(|m| m.id.as_str()).collect();
-            // region-root: той самий вибір, що й у плаского шляху (:658).
+            // dg38: earliest declared external-parent root, not first by parent-id.
             let root_id = members
                 .iter()
-                .find(|m| match parents.get(&m.id) {
+                .filter(|m| match parents.get(&m.id) {
                     None => true,
                     Some(par) => !member_ids.contains(par.as_str()),
                 })
+                .min_by_key(|m| (decl_index[m.id.as_str()], m.id.as_str()))
                 .unwrap_or(&members[0])
                 .id
                 .clone();
@@ -2276,6 +2294,44 @@ mod tests {
                 order: Some(1.0),
             },
         ]
+    }
+
+    #[test]
+    fn tree_block_head_uses_declaration_order_not_parent_id() {
+        // z-parent/a-parent are absent from positions, so admin_parent_map drops
+        // their edges: z-head and a-head are both parentless roots. comparePositions
+        // orders parentless roots by id (a-head before z-head), so the old `.find()`
+        // picked a-head; the declaration-order rule must pick z-head (declared first).
+        let mut ps = vec![
+            pos("child", "o", false, Some("B")),
+            pos("z-head", "o", false, Some("B")),
+            pos("a-head", "o", false, Some("B")),
+        ];
+        let reports = vec![
+            admin("z-head", "child"),
+            admin("z-parent", "z-head"),
+            admin("a-parent", "a-head"),
+        ];
+        let layout = |positions: &[StaffPositionInput]| {
+            group_staff_by_department(
+                positions,
+                &reports,
+                &two_depts(),
+                "o",
+                &geom_tree(),
+                &empty_sizes(),
+            )
+            .unwrap()
+        };
+        let out = layout(&ps);
+        assert!(node_by(&out, "z-head").y < node_by(&out, "a-head").y);
+        assert!(node_by(&out, "z-head").y < node_by(&out, "child").y);
+        let again = layout(&ps);
+        assert_eq!(node_by(&out, "z-head").y, node_by(&again, "z-head").y);
+        // Declaration order, not id or StaffPositionInput.order, is the input.
+        ps.swap(1, 2);
+        let reversed = layout(&ps);
+        assert!(node_by(&reversed, "a-head").y < node_by(&reversed, "z-head").y);
     }
 
     // Ядро фічі: дочірній відділ (його голова рапортує в батьк-відділ) стає ПІД

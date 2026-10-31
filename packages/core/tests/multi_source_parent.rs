@@ -18,7 +18,9 @@ fn crossings(out: &StaffGeometryResult) -> usize {
 #[test]
 fn multi_source_parent_chooses_clean_attachment_deterministically() {
     let baseline = compute_staff_geometry(&input(None)).unwrap();
-    assert_eq!(crossings(&baseline), 6);
+    // dg38 layout: declaration-earliest head ah puts ana under fin (cross 6 → 1).
+    // Parent evaluation still improves the remaining crossing to zero.
+    assert_eq!(crossings(&baseline), 1);
     assert_eq!(
         serde_json::to_value(&baseline).unwrap(),
         serde_json::to_value(compute_staff_geometry(&input(Some(false))).unwrap()).unwrap()
@@ -41,6 +43,35 @@ fn multi_source_parent_chooses_clean_attachment_deterministically() {
     assert_eq!(
         serde_json::to_value(&out).unwrap(),
         serde_json::to_value(compute_staff_geometry(&enabled).unwrap()).unwrap()
+    );
+}
+
+#[test]
+fn tree_block_default_mock3_head_is_ah_under_fin_deterministically() {
+    let fixture = input(None);
+    let out = compute_staff_geometry(&fixture).unwrap();
+    let node = |id: &str| out.nodes.iter().find(|n| n.id == id).unwrap();
+    // The local tree head is above the other roots; no head override/eval is set.
+    assert!(node("ah").y < node("da").y);
+    assert!(node("ah").y < node("bi").y);
+    let frame = |id: &str| {
+        out.department_frames
+            .iter()
+            .find(|f| f.department_id == id)
+            .unwrap()
+    };
+    assert!(frame("ana").y >= frame("fin").y + frame("fin").height);
+    assert_eq!(
+        crossings(&out),
+        1,
+        "dg38: declaration-earliest head reduces cross 6 → 1"
+    );
+    // S1 probe baseline: singleton assistant keeps its absolute placement.
+    assert_eq!(node("asst").x + node("asst").width / 2.0, 4438.0);
+    assert_eq!(node("asst").y, 280.0);
+    assert_eq!(
+        serde_json::to_value(&out).unwrap(),
+        serde_json::to_value(compute_staff_geometry(&fixture).unwrap()).unwrap()
     );
 }
 
