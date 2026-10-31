@@ -138,5 +138,18 @@ TDD 5 тестів (3 дискримінаційні). Гейти: rust 189/0 ·
 `RenderConfig.staffDeptGrouping` (default false); `deptGrouping = staffDeptGrouping===true || staffEdgeRouter==='v2'`
 (OR, staffLayoutInputs.ts:92 + svgExport.ts:205); mock3 → `staffDeptGrouping:true`. ~15 рядків, 4 файли.
 Гейти: typecheck · SDK 1231/0 · demo 108/0. Візуал: bends=126, департаменти-блоки в дереві (QA під dev).
-**Залишок:** 126 bends (кінки в/між блоками) → spacing-тюнінг (F2) + deptHead-порт/A* на згрупованій
-сцені; R3-a (far-render) окремо. R6 review-after запущено; коміт після вердикту.
+
+## 🏆 dg37 (2026-10-31) — cross 6→0 на mock3 (парність топології з мокапом)
+R3-візуал dg35 викрив: cross=9 на D (я помилково казав 0). Серія діагностик (critic+Codex, probe-first):
+A(bus)/B(order)/channel-lane/low_traverse/tierGap/flat-bus — УСІ провалились/регресували; корінь не routing,
+а LAYOUT. Вивчення мокапа (схема+дані, не переказ коду): мокап = ТА САМА блок-розкладка, різниця — **мульті-
+джерельні деп** (ana←fin+dev+ceo, sec←ceo+dev) стоять далеко від джерел → довгі крос-деп лінії ріжуть віяло ceo.
+**Фікс (коміти f47cd46 T-A0 метрик, 72008be T-S singleton, c7aed85):**
+- T-A0: excess_turns-метрик (true_turns, лише успішні ребра); виявив baseline cross=9→6.
+- T-S: no-dept singleton біля батька (cross 9→6, X#1-3).
+- **parent-eval правило:** для мульті-джерельних деп перебирає комбінації голів (cap ≤12), обирає min-cross
+  (детермінізм cross→turns→лекс). DEV-прапор `multiSourceParentEval` (default off, golden-паритет). mock3 →
+  **cross 6→0** (обрало sec→dev). Ціна turns/excess 126/18→140/34 (cross-min; почистить reserve-bus).
+R6: критик-перед + review-after на кожен крок (усі GREEN). Борг: N1 вартість DEV-прапора; N2 тест cross-only;
+R3-a (zoom-залежна поведінка: dept=5/marked=18 на far — far-render) — заведено, не чіпано.
+**Залишок:** важіль-2 reserve-bus (рівні ceo-лінії + turns↓ — вимога власника); R3-a far-render; C-flip/T10. R6 review-after запущено; коміт після вердикту.
