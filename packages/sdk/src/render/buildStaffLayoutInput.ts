@@ -48,6 +48,8 @@ export interface BuildStaffLayoutInputArgs {
   dockHints?: StaffDockHintInput[];
   /** DEV (T128 T8): route via the Rust A* pipeline instead of the detour. Default false. */
   useAstar?: boolean;
+  /** DEV (T128 step 1): pack departments as a tidy block-tree instead of the flat row. Default false. */
+  treeBlockLayout?: boolean;
 }
 
 export function resolveMetrics(options: StaffLayoutOptions, contentPadding: number): StaffLayoutMetrics {
@@ -240,5 +242,6 @@ export function buildStaffLayoutInput(args: BuildStaffLayoutInputArgs): StaffLay
     expandedOrgIds: [...forwardedExpandedOrgIds],
     lod,
     ...(args.useAstar ? { useAstar: true } : {}),
+    ...(args.treeBlockLayout ? { treeBlockLayout: true } : {}),
   };
 }

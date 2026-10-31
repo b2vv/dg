@@ -106,7 +106,16 @@ dockHints: Array<StaffDockHintInput>, expandedOrgIds: Array<string>, lod: string
  * true only for bring-up / the mock3 R3 comparison tab. Flipping the production default to A* is
  * T8 step C (gated on the R3 visual gate + golden rebaseline T10).
  */
-useAstar?: boolean, };
+useAstar?: boolean, 
+/**
+ * Internal DEV switch (T128 step 1, NOT a public feature flag): pack department regions as a
+ * recursive tidy block-tree (parent block = block of the position the block head reports to)
+ * instead of the flat left-to-right row. Only active together with `options.deptGrouping`;
+ * absent/false → the flat `group_staff_by_department` packing (production default, golden-safe).
+ * Set true only for bring-up / the mock3 R3 comparison tab. Same `rename + default` shape as
+ * `useAstar` above (no `skip_serializing_if`: it confuses ts-rs into dropping the rename).
+ */
+treeBlockLayout?: boolean, };
 
 /**
  * Числові метрики лейауту (підмножина `StaffLayoutOptions`, що є суто геометрією).

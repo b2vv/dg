@@ -61,6 +61,12 @@ pub struct Geom {
     pub ref_cell_width: f32,
     pub ref_cell_height: f32,
     pub margin: f32,
+    /// Internal DEV routing flag (T128 step 1): when true AND dept grouping is active,
+    /// `group_staff_by_department` packs department regions as a recursive tidy block-tree
+    /// instead of the flat left-to-right row. Carried on `Geom` only because it is the one
+    /// bundle already threaded to every function on this layout path; it is not a geometry
+    /// metric. Default false keeps the flat packing byte-identical (golden-safe).
+    pub tree_block: bool,
 }
 
 /// Розкладений org-блок (аналог TS `StaffOrgBlockResult`, types.ts:104). `nodes` у
@@ -637,6 +643,13 @@ fn group_staff_by_department(
     if buckets.contains_key(NO_DEPARTMENT_ID) {
         dept_ids.push(NO_DEPARTMENT_ID.to_string());
     }
+
+    // T128 крок 1: за прапором — дерево-блокове пакування замість плаского ряду.
+    // Плаский шлях нижче лишається байт-незмінним, коли прапор вимкнено.
+    if geom.tree_block {
+        return pack_tree_block(&dept_ids, &buckets, &parents, reports, org_id, geom, sizes);
+    }
+
     let mut nodes: Vec<StaffNodeGeo> = Vec::new();
     let mut regions: Vec<(f32, f32, f32, f32)> = Vec::new(); // x,y,width,height
     let mut cursor_x = geom.margin;
@@ -694,6 +707,295 @@ fn group_staff_by_department(
         regions.push(region);
     }
     Ok(nodes)
+}
+
+/// Один блок дерево-блокового пакування (T128 крок 1). `members` — у ЛОКАЛЬНИХ
+/// координатах з `layout_connected_tree` (до зсуву). `dept_id` Some → реальний відділ
+/// (штампуємо на члени, R2); None → no-dept singleton (паритет мокапу, Q2). `head_id` =
+/// region-root (та сама логіка, що й у плаского шляху) — його admin-батько визначає
+/// батьк-блок, а X batько-привʼязки сортує sibling-блоки (R3/Q3).
+struct DeptTreeBlock {
+    dept_id: Option<String>,
+    members: Vec<StaffNodeGeo>,
+    bx: f32,
+    by: f32,
+    bw: f32,
+    bh: f32,
+    head_id: String,
+}
+
+/// Рекурсивне tidy-дерево блоків-відділів (переказ мокапу `shps-links.js:62-86`, не копія):
+/// блок = відділ (міні-дерево членів) або no-dept singleton; `block.parent` = блок посади,
+/// у яку рапортує голова блоку; діти сортуються за X точки-привʼязки в батьк-блоці; блоки
+/// розкладаються охайним деревом (діти центровані під батьком, вертикаль = низ батька + gap).
+/// Форест коренів іде зліва-направо. Цикл у `parent` розривається (R1): нерозміщуваний блок
+/// стає коренем — рекурсія завжди над форестом без циклів.
+fn pack_tree_block(
+    dept_ids: &[String],
+    buckets: &HashMap<String, Vec<StaffPositionInput>>,
+    parents: &HashMap<String, String>,
+    reports: &[StaffEdgeInput],
+    org_id: &str,
+    geom: &Geom,
+    sizes: &HashMap<String, (f32, f32)>,
+) -> Result<Vec<StaffNodeGeo>, String> {
+    // ── Крок 1: побудова блоків (реальні відділи + no-dept singletons) ───────
+    let mut blocks: Vec<DeptTreeBlock> = Vec::new();
+    for dept_id in dept_ids {
+        let Some(members) = buckets.get(dept_id) else {
+            continue;
+        };
+        if members.is_empty() {
+            continue;
+        }
+        if dept_id == NO_DEPARTMENT_ID {
+            // Q2: кожна no-dept посада = окремий singleton-блок.
+            for m in members {
+                let local = layout_connected_tree(
+                    std::slice::from_ref(m),
+                    reports,
+                    org_id,
+                    &m.id,
+                    geom,
+                    sizes,
+                    "tree",
+                )?;
+                if let Some((bx, by, bw, bh)) = region_bounds(&local) {
+                    blocks.push(DeptTreeBlock {
+                        dept_id: None,
+                        members: local,
+                        bx,
+                        by,
+                        bw,
+                        bh,
+                        head_id: m.id.clone(),
+                    });
+                }
+            }
+        } else {
+            let member_ids: HashSet<&str> = members.iter().map(|m| m.id.as_str()).collect();
+            // region-root: той самий вибір, що й у плаского шляху (:658).
+            let root_id = members
+                .iter()
+                .find(|m| match parents.get(&m.id) {
+                    None => true,
+                    Some(par) => !member_ids.contains(par.as_str()),
+                })
+                .unwrap_or(&members[0])
+                .id
+                .clone();
+            let local =
+                layout_connected_tree(members, reports, org_id, &root_id, geom, sizes, "tree")?;
+            if let Some((bx, by, bw, bh)) = region_bounds(&local) {
+                blocks.push(DeptTreeBlock {
+                    dept_id: Some(dept_id.clone()),
+                    members: local,
+                    bx,
+                    by,
+                    bw,
+                    bh,
+                    head_id: root_id,
+                });
+            }
+        }
+    }
+    let n = blocks.len();
+    if n == 0 {
+        return Ok(Vec::new());
+    }
+
+    // ── Крок 2: позиція→блок, батьк-блок за admin-батьком голови ─────────────
+    let mut pos_to_block: HashMap<&str, usize> = HashMap::new();
+    for (i, b) in blocks.iter().enumerate() {
+        for m in &b.members {
+            pos_to_block.insert(m.id.as_str(), i);
+        }
+    }
+    let mut parent_of: Vec<Option<usize>> = (0..n)
+        .map(|i| {
+            let par_pos = parents.get(&blocks[i].head_id)?;
+            match pos_to_block.get(par_pos.as_str()) {
+                Some(&p) if p != i => Some(p),
+                _ => None, // батько поза блоками або в тому самому блоці → корінь
+            }
+        })
+        .collect();
+
+    // ── Крок 3: розрив циклів (R1) — нерозміщуваний блок стає коренем ────────
+    loop {
+        let mut reachable = vec![false; n];
+        loop {
+            let mut changed = false;
+            for i in 0..n {
+                if reachable[i] {
+                    continue;
+                }
+                let ok = match parent_of[i] {
+                    None => true,
+                    Some(p) => reachable[p],
+                };
+                if ok {
+                    reachable[i] = true;
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        match reachable.iter().position(|r| !r) {
+            None => break,
+            Some(orphan) => parent_of[orphan] = None, // розрив циклу
+        }
+    }
+
+    // ── Крок 4: діти + сортування за X точки-привʼязки в батьк-блоці ─────────
+    let mut children_of: Vec<Vec<usize>> = vec![Vec::new(); n];
+    for (i, p_opt) in parent_of.iter().enumerate() {
+        if let Some(p) = *p_opt {
+            children_of[p].push(i);
+        }
+    }
+    // attachment-X дитини = локальний x посади-привʼязки (admin-батька голови) у батьк-блоці.
+    let attach_x = |child: usize, parent: usize| -> f32 {
+        let src = parents.get(&blocks[child].head_id);
+        src.and_then(|s| blocks[parent].members.iter().find(|m| &m.id == s))
+            .map(|m| m.x)
+            .unwrap_or(f32::INFINITY)
+    };
+    for (p, kids) in children_of.iter_mut().enumerate() {
+        kids.sort_by(|&a, &b| {
+            attach_x(a, p)
+                .partial_cmp(&attach_x(b, p))
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| a.cmp(&b)) // tie-break стабільний за індексом блоку
+        });
+    }
+
+    // ── Крок 5: ширина піддерева (memo) ──────────────────────────────────────
+    let hgap = geom.horizontal_gap;
+    let vgap = geom.vertical_gap;
+    let mut subtree_w: Vec<Option<f32>> = vec![None; n];
+    // Форест без циклів (крок 3 розірвав цикли) → рекурсія безпечна й термінує.
+    // Глибина рекурсії = глибина ДЕРЕВА БЛОКІВ (ланцюг рапортування відділів), не кількість
+    // вузлів, тож на реальних оргах мала; гарда глибини немає свідомо.
+    fn subtree_width(
+        i: usize,
+        children_of: &[Vec<usize>],
+        bw: &[f32],
+        hgap: f32,
+        memo: &mut [Option<f32>],
+    ) -> f32 {
+        if let Some(w) = memo[i] {
+            return w;
+        }
+        let kids = &children_of[i];
+        let w = if kids.is_empty() {
+            bw[i]
+        } else {
+            let total: f32 = kids
+                .iter()
+                .map(|&c| subtree_width(c, children_of, bw, hgap, memo))
+                .sum::<f32>()
+                + hgap * (kids.len() as f32 - 1.0);
+            bw[i].max(total)
+        };
+        memo[i] = Some(w);
+        w
+    }
+    let bw_vec: Vec<f32> = blocks.iter().map(|b| b.bw).collect();
+
+    // ── Крок 6: розкладка (діти центровані під батьком, вертикаль = низ+gap) ──
+    let mut block_x: Vec<f32> = vec![0.0; n];
+    let mut block_y: Vec<f32> = vec![0.0; n];
+    #[allow(clippy::too_many_arguments)]
+    fn place(
+        i: usize,
+        left: f32,
+        top: f32,
+        children_of: &[Vec<usize>],
+        bw: &[f32],
+        bh: &[f32],
+        hgap: f32,
+        vgap: f32,
+        memo: &mut [Option<f32>],
+        block_x: &mut [f32],
+        block_y: &mut [f32],
+    ) {
+        block_y[i] = top;
+        let sw = subtree_width(i, children_of, bw, hgap, memo);
+        let kids = &children_of[i];
+        if kids.is_empty() {
+            block_x[i] = left; // sw == bw[i]
+            return;
+        }
+        let total: f32 = kids
+            .iter()
+            .map(|&c| subtree_width(c, children_of, bw, hgap, memo))
+            .sum::<f32>()
+            + hgap * (kids.len() as f32 - 1.0);
+        let child_top = top + bh[i] + vgap;
+        let mut cursor = left + (sw - total) / 2.0;
+        let band_start = cursor;
+        // Копія списку дітей, щоб не тримати борроу children_of під час рекурсії.
+        let kids: Vec<usize> = kids.clone();
+        for c in kids {
+            place(
+                c,
+                cursor,
+                child_top,
+                children_of,
+                bw,
+                bh,
+                hgap,
+                vgap,
+                memo,
+                block_x,
+                block_y,
+            );
+            cursor += subtree_width(c, children_of, bw, hgap, memo) + hgap;
+        }
+        // Центр батька над смугою дітей.
+        let children_center = band_start + total / 2.0;
+        block_x[i] = children_center - bw[i] / 2.0;
+    }
+
+    let bh_vec: Vec<f32> = blocks.iter().map(|b| b.bh).collect();
+    let roots: Vec<usize> = (0..n).filter(|&i| parent_of[i].is_none()).collect();
+    let mut cursor_x = geom.margin;
+    for i in roots {
+        place(
+            i,
+            cursor_x,
+            geom.margin,
+            &children_of,
+            &bw_vec,
+            &bh_vec,
+            hgap,
+            vgap,
+            &mut subtree_w,
+            &mut block_x,
+            &mut block_y,
+        );
+        cursor_x += subtree_width(i, &children_of, &bw_vec, hgap, &mut subtree_w) + hgap;
+    }
+
+    // ── Крок 7: емісія вузлів зі зсувом + штамп department_id (R2) ───────────
+    let mut out: Vec<StaffNodeGeo> = Vec::new();
+    for (i, b) in blocks.iter().enumerate() {
+        let dx = block_x[i] - b.bx;
+        let dy = block_y[i] - b.by;
+        for node in &b.members {
+            out.push(StaffNodeGeo {
+                x: node.x + dx,
+                y: node.y + dy,
+                department_id: b.dept_id.clone(),
+                part_index: None,
+                ..node.clone()
+            });
+        }
+    }
+    Ok(out)
 }
 
 /// bbox набору вузлів → (x, y, width, height) (staffDeptGrouping.ts:21).
@@ -989,6 +1291,7 @@ pub fn compute_staff_geometry(input: &StaffLayoutInput) -> Result<StaffGeometryR
         ref_cell_width: input.options.ref_cell_width,
         ref_cell_height: input.options.ref_cell_height,
         margin: input.options.margin,
+        tree_block: input.tree_block_layout.unwrap_or(false),
     };
     let sizes = size_map(&input.node_sizes);
     let departments = &input.departments;
@@ -1317,6 +1620,7 @@ mod tests {
             ref_cell_width: 140.0,
             ref_cell_height: 160.0,
             margin: 32.0,
+            tree_block: false,
         }
     }
 
@@ -1735,6 +2039,185 @@ mod tests {
         assert!(node_by(&out2, "ab").x < node_by(&out2, "za").x);
     }
 
+    // ── T128 крок 1: дерево-блоковий layout (за прапором geom.tree_block) ─────
+    fn geom_tree() -> Geom {
+        Geom {
+            tree_block: true,
+            ..geom()
+        }
+    }
+
+    fn two_depts() -> Vec<crate::types::StaffDepartmentInput> {
+        vec![
+            crate::types::StaffDepartmentInput {
+                id: "A".into(),
+                order: Some(0.0),
+            },
+            crate::types::StaffDepartmentInput {
+                id: "B".into(),
+                order: Some(1.0),
+            },
+        ]
+    }
+
+    // Ядро фічі: дочірній відділ (його голова рапортує в батьк-відділ) стає ПІД
+    // батьком, а не праворуч у ряд. Контроль: той самий вхід на пласкому шляху
+    // лишає їх на одному ряду (той самий y) — доводить, що зсув дає саме прапор.
+    #[test]
+    fn tree_block_child_dept_sits_below_parent() {
+        let ps = vec![
+            pos("a1", "o", false, Some("A")),
+            pos("b1", "o", false, Some("B")),
+        ];
+        let reports = vec![admin("a1", "b1")]; // голова B рапортує в A
+        let tree = group_staff_by_department(
+            &ps,
+            &reports,
+            &two_depts(),
+            "o",
+            &geom_tree(),
+            &empty_sizes(),
+        )
+        .unwrap();
+        let a1 = node_by(&tree, "a1");
+        let b1 = node_by(&tree, "b1");
+        assert!(
+            b1.y > a1.y,
+            "дочірній відділ B мусить бути НИЖЧЕ A: b1.y={} a1.y={}",
+            b1.y,
+            a1.y
+        );
+
+        // Контроль (плаский шлях): той самий вхід → той самий ряд (рівний y).
+        let flat =
+            group_staff_by_department(&ps, &reports, &two_depts(), "o", &geom(), &empty_sizes())
+                .unwrap();
+        assert_eq!(
+            node_by(&flat, "a1").y,
+            node_by(&flat, "b1").y,
+            "плаский шлях лишає відділи на одному ряду"
+        );
+    }
+
+    // R2: дерево-шлях мусить так само штампувати department_id на члени, інакше
+    // рамки (department_frames_from_nodes) і router-membership ламаються.
+    #[test]
+    fn tree_block_stamps_department_id() {
+        let ps = vec![
+            pos("a1", "o", false, Some("A")),
+            pos("b1", "o", false, Some("B")),
+        ];
+        let reports = vec![admin("a1", "b1")];
+        let out = group_staff_by_department(
+            &ps,
+            &reports,
+            &two_depts(),
+            "o",
+            &geom_tree(),
+            &empty_sizes(),
+        )
+        .unwrap();
+        assert_eq!(node_by(&out, "a1").department_id.as_deref(), Some("A"));
+        assert_eq!(node_by(&out, "b1").department_id.as_deref(), Some("B"));
+        assert_eq!(node_by(&out, "a1").part_index, None);
+    }
+
+    // Q2: no-dept посада з admin-батьком усередині відділу = singleton-блок, що
+    // сідає ПІД тим відділом (паритет мокапу `aud` під `fin`), department_id=None.
+    #[test]
+    fn tree_block_no_dept_singleton_sits_under_parent_dept() {
+        let ps = vec![
+            pos("a1", "o", true, Some("A")),
+            pos("u1", "o", false, None), // no-dept, рапортує в a1
+        ];
+        let reports = vec![admin("a1", "u1")];
+        let depts = vec![crate::types::StaffDepartmentInput {
+            id: "A".into(),
+            order: Some(0.0),
+        }];
+        let out =
+            group_staff_by_department(&ps, &reports, &depts, "o", &geom_tree(), &empty_sizes())
+                .unwrap();
+        let a1 = node_by(&out, "a1");
+        let u1 = node_by(&out, "u1");
+        assert_eq!(u1.department_id, None);
+        assert!(
+            u1.y > a1.y,
+            "no-dept singleton мусить сидіти під батьк-відділом: u1.y={} a1.y={}",
+            u1.y,
+            a1.y
+        );
+    }
+
+    // R1: цикл у block.parent (A.head→B, B.head→A) не має зациклити рекурсію чи
+    // лишити блок нерозміщеним — guard розриває цикл, обидва члени присутні.
+    #[test]
+    fn tree_block_cycle_does_not_panic_and_places_all() {
+        let ps = vec![
+            pos("a1", "o", false, Some("A")),
+            pos("b1", "o", false, Some("B")),
+        ];
+        let reports = vec![admin("b1", "a1"), admin("a1", "b1")]; // взаємний цикл
+        let out = group_staff_by_department(
+            &ps,
+            &reports,
+            &two_depts(),
+            "o",
+            &geom_tree(),
+            &empty_sizes(),
+        )
+        .unwrap();
+        assert_eq!(out.len(), 2, "обидва члени розміщені попри цикл");
+    }
+
+    // R3/Q3: sibling-блоки сортуються за X точки-привʼязки (attachment) у батьк-блоці.
+    // CL привʼязаний до лівого члена pl, CR — до правого pr ⇒ CL лівіше CR.
+    #[test]
+    fn tree_block_siblings_ordered_by_attachment_x() {
+        let ps = vec![
+            pos("ph", "o", true, Some("P")),
+            pos_ord("pl", "o", Some("P"), 1.0), // лівий член P
+            pos_ord("pr", "o", Some("P"), 2.0), // правий член P
+            pos("clh", "o", true, Some("CL")),
+            pos("crh", "o", true, Some("CR")),
+        ];
+        let reports = vec![
+            admin("ph", "pl"),
+            admin("ph", "pr"),
+            admin("pl", "clh"), // голова CL привʼязана до лівого pl
+            admin("pr", "crh"), // голова CR привʼязана до правого pr
+        ];
+        // Declared order СВІДОМО конфліктує з attachment: CL=2, CR=1. Плаский шлях
+        // упорядкував би за declared (CR лівіше), дерево — за attachment-x (CL лівіше).
+        let depts = vec![
+            crate::types::StaffDepartmentInput {
+                id: "P".into(),
+                order: Some(0.0),
+            },
+            crate::types::StaffDepartmentInput {
+                id: "CL".into(),
+                order: Some(2.0),
+            },
+            crate::types::StaffDepartmentInput {
+                id: "CR".into(),
+                order: Some(1.0),
+            },
+        ];
+        let out =
+            group_staff_by_department(&ps, &reports, &depts, "o", &geom_tree(), &empty_sizes())
+                .unwrap();
+        assert!(
+            node_by(&out, "pl").x < node_by(&out, "pr").x,
+            "sanity: pl лівіше pr"
+        );
+        assert!(
+            node_by(&out, "clh").x < node_by(&out, "crh").x,
+            "CL (привʼязка до лівого pl) мусить бути лівіше CR: clh.x={} crh.x={}",
+            node_by(&out, "clh").x,
+            node_by(&out, "crh").x
+        );
+    }
+
     // gap #6: departmentId не серед оголошених → no-dept bucket (не викидається).
     #[test]
     fn dept_grouping_unknown_department_falls_back_to_no_dept() {
@@ -1983,6 +2466,7 @@ mod tests {
             expanded_org_ids: Vec::new(),
             lod: "near".to_string(),
             use_astar: None,
+            tree_block_layout: None,
         }
     }
 

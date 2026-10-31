@@ -112,3 +112,15 @@ Rust-пайплайн, звіряти координати+лінії з мок�
 `mock3/export/`. Операціоналізує R3-візуальний гейт (той, що golden-park/T10 відклали). ⚠️ `shps-links.js` =
 third-party код → брати ДАНІ, НЕ цитувати A*-алгоритм буквально (пам'ять no-verbatim). Будувати ПІСЛЯ A*
 (detour-вихід звіряти з еталоном сенсу мало — реальна парність на A*-виході).
+
+## 🆕 Крок 1 — дерево-блоковий layout (dg34, 2026-10-31, за прапором)
+Корінь зигзагів (R3-b) = ПЛАСКЕ пакування відділів. Фікс: `tree_block_layout` flag (default OFF,
+detour-golden байт-незмінний) → `Geom.tree_block` → нова гілка `pack_tree_block` у
+`group_staff_by_department`: рекурсивне tidy-дерево блоків-відділів (block.parent = блок голови-
+рапортування; діти сортуються за X-привʼязки; cycle-guard; stamp department_id; no-dept → singleton-
+блоки, паритет мокапу). SDK: `RenderConfig.staffTreeBlockLayout` → mock3-таб ON (разом з A*).
+R6: критик-перед (`_treeblock-critic-dg34.md`) + рев'ю-після (`_treeblock-review-dg34.md`) — обидва
+GREEN, 0 блокерів; F1 (хибний коментар) виправлено, F2 (рамка vs vgap spacing) → R3-тюнінг.
+TDD 5 тестів (3 дискримінаційні). Гейти: rust 189/0 · SDK 1231/0 · demo 108/0 · typecheck · clippy/fmt.
+**Відкрите:** R3-візуал власника (HUD bends/cross на mock3 мають падати); R3-a (far-render drop ліній)
+заведено окремим пунктом. Не закомічений push (гілка ahead, локально).

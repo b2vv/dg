@@ -284,6 +284,13 @@ export interface RenderConfig {
    * the production default is T8 step C (gated on R3 + golden rebaseline).
    */
   staffUseAstar?: boolean;
+  /**
+   * DEV (T128 step 1, not a product feature): pack department regions as a recursive tidy
+   * block-tree instead of the flat row, so cross-department lines stop crossing (mockup parity).
+   * Only active with dept grouping. Default false → flat packing (golden-safe). Used by the mock3
+   * R3 comparison tab alongside `staffUseAstar`.
+   */
+  staffTreeBlockLayout?: boolean;
   /** T64: department paint mode (default blob). */
   departmentStyle?: DepartmentPaintStyle;
   /** Enables dept-grouping layout + v2 routing; default legacy. */
@@ -474,6 +481,7 @@ export const defaultRenderConfig: RenderConfig = {
   minContourMembers: 1,
   staffZoneChrome: false,
   staffUseAstar: false,
+  staffTreeBlockLayout: false,
   departmentStyle: 'blob',
   staffEdgeRouter: 'legacy',
   dashedGridFrame: false,

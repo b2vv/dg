@@ -469,6 +469,15 @@ pub struct StaffLayoutInput {
     #[serde(rename = "useAstar", default)]
     #[cfg_attr(feature = "ts-export", ts(optional))]
     pub use_astar: Option<bool>,
+    /// Internal DEV switch (T128 step 1, NOT a public feature flag): pack department regions as a
+    /// recursive tidy block-tree (parent block = block of the position the block head reports to)
+    /// instead of the flat left-to-right row. Only active together with `options.deptGrouping`;
+    /// absent/false → the flat `group_staff_by_department` packing (production default, golden-safe).
+    /// Set true only for bring-up / the mock3 R3 comparison tab. Same `rename + default` shape as
+    /// `useAstar` above (no `skip_serializing_if`: it confuses ts-rs into dropping the rename).
+    #[serde(rename = "treeBlockLayout", default)]
+    #[cfg_attr(feature = "ts-export", ts(optional))]
+    pub tree_block_layout: Option<bool>,
 }
 
 /// Координати посади у світовій системі. `tier`: 1|2|3. `role`:

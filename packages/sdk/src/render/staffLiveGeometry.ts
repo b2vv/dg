@@ -190,6 +190,7 @@ async function computeViaRust(input: BranchInput): Promise<StaffLiveGeometry> {
       contentPadding,
       dockHints,
       useAstar: config.staffUseAstar === true,
+      treeBlockLayout: config.staffTreeBlockLayout === true,
     }),
   );
 

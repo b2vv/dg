@@ -110,8 +110,9 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
         },
       };
     case 'staff-mock3':
-      // R3 (T128 T8): the mock3 ШПС org routed through the Rust A* pipeline (`staffUseAstar`), to
-      // compare our lines with the reference mockup screens. Same chrome as `staff-shps`.
+      // R3 (T128 T8): the mock3 ШПС org routed through the Rust A* pipeline (`staffUseAstar`) and
+      // packed with the tidy block-tree layout (`staffTreeBlockLayout`, T128 step 1), to compare
+      // our lines with the reference mockup screens. Same chrome as `staff-shps`.
       return {
         ...base,
         theme: 'dark',
@@ -128,6 +129,7 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
           staffZoneChrome: true,
           departmentStyle: 'card',
           staffUseAstar: true,
+          staffTreeBlockLayout: true,
           cellWidth: MOCK3_STAFF_LAYOUT.refCellWidth,
           cellHeight: MOCK3_STAFF_LAYOUT.refCellHeight,
         },
