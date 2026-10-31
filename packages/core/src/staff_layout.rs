@@ -905,6 +905,45 @@ fn pack_tree_block(
     }
     let bw_vec: Vec<f32> = blocks.iter().map(|b| b.bw).collect();
 
+    // За однакового attachment-X singleton не має опинятися за всіма відділами.
+    // Вставляємо їх біля середини смуги за шириною піддерев, зберігаючи порядок
+    // відділів і singleton-ів. Різні точки привʼязки лишаються впорядкованими.
+    for i in 0..n {
+        subtree_width(i, &children_of, &bw_vec, hgap, &mut subtree_w);
+    }
+    for (p, kids) in children_of.iter_mut().enumerate() {
+        for group in kids.chunk_by_mut(|a, b| attach_x(*a, p) == attach_x(*b, p)) {
+            let (singletons, depts): (Vec<_>, Vec<_>) = group
+                .iter()
+                .copied()
+                .partition(|&c| blocks[c].dept_id.is_none());
+            if singletons.is_empty() || depts.is_empty() {
+                continue;
+            }
+            let width = |c: usize| subtree_w[c].unwrap() + hgap;
+            let total: f32 = depts.iter().map(|&c| width(c)).sum();
+            let mut left = 0.0;
+            let mut split = 0;
+            let mut imbalance = total;
+            for (i, &c) in depts.iter().enumerate() {
+                left += width(c);
+                let candidate = (total - 2.0 * left).abs();
+                if candidate < imbalance {
+                    imbalance = candidate;
+                    split = i + 1;
+                }
+            }
+            for (slot, child) in group.iter_mut().zip(
+                depts[..split]
+                    .iter()
+                    .chain(&singletons)
+                    .chain(&depts[split..]),
+            ) {
+                *slot = *child;
+            }
+        }
+    }
+
     // ── Крок 6: розкладка (діти центровані під батьком, вертикаль = низ+gap) ──
     let mut block_x: Vec<f32> = vec![0.0; n];
     let mut block_y: Vec<f32> = vec![0.0; n];
@@ -2146,6 +2185,106 @@ mod tests {
             "no-dept singleton мусить сидіти під батьк-відділом: u1.y={} a1.y={}",
             u1.y,
             a1.y
+        );
+    }
+
+    #[test]
+    fn tree_block_singleton_stays_near_its_no_dept_parent() {
+        let ps = vec![
+            pos("ceo", "o", true, None),
+            pos("asst", "o", false, None),
+            pos("a", "o", false, Some("A")),
+            pos("b", "o", false, Some("B")),
+        ];
+        let reports = vec![admin("ceo", "asst"), admin("ceo", "a"), admin("ceo", "b")];
+        let out = group_staff_by_department(
+            &ps,
+            &reports,
+            &two_depts(),
+            "o",
+            &geom_tree(),
+            &empty_sizes(),
+        )
+        .unwrap();
+        let ceo = node_by(&out, "ceo");
+        let asst = node_by(&out, "asst");
+        assert!(asst.y > ceo.y);
+        assert!(
+            (asst.x - ceo.x).abs() <= geom_tree().horizontal_gap,
+            "singleton має бути біля батька: asst.x={}, ceo.x={}",
+            asst.x,
+            ceo.x
+        );
+        assert!(node_by(&out, "a").x < asst.x);
+        assert!(asst.x < node_by(&out, "b").x);
+    }
+
+    #[test]
+    fn tree_block_singleton_placement_is_stable_with_missing_parent_and_cycle() {
+        let ps = vec![
+            pos("root", "o", true, None),
+            pos("child", "o", false, None),
+            pos("orphan", "o", false, None),
+            pos("cycle1", "o", false, None),
+            pos("cycle2", "o", false, None),
+        ];
+        let reports = vec![
+            admin("root", "child"),
+            admin("outside", "orphan"),
+            admin("cycle1", "cycle2"),
+            admin("cycle2", "cycle1"),
+        ];
+        let run = || {
+            group_staff_by_department(&ps, &reports, &[], "o", &geom_tree(), &empty_sizes())
+                .unwrap()
+        };
+        let out = run();
+        assert_eq!(out.len(), ps.len());
+        let root = node_by(&out, "root");
+        let child = node_by(&out, "child");
+        assert_eq!(root.x, child.x);
+        assert!(child.y > root.y);
+        assert_eq!(node_by(&out, "orphan").y, root.y);
+        assert!(out.iter().all(|n| n.x.is_finite() && n.y.is_finite()));
+        assert_eq!(
+            serde_json::to_string(&out).unwrap(),
+            serde_json::to_string(&run()).unwrap()
+        );
+    }
+
+    #[test]
+    fn tree_block_singletons_balance_width_not_sibling_count() {
+        let ps = vec![
+            pos("ceo", "o", true, None),
+            pos("s1", "o", false, None),
+            pos("s2", "o", false, None),
+            pos("a", "o", false, Some("A")),
+            pos("b", "o", false, Some("B")),
+            pos("c", "o", false, Some("C")),
+            pos("d", "o", false, Some("D")),
+        ];
+        let reports: Vec<_> = ps[1..].iter().map(|p| admin("ceo", &p.id)).collect();
+        let depts = ["A", "B", "C", "D"]
+            .iter()
+            .map(|id| crate::types::StaffDepartmentInput {
+                id: (*id).into(),
+                order: None,
+            })
+            .collect::<Vec<_>>();
+        let sizes = HashMap::from([("a".into(), (500.0, 80.0))]);
+        let run =
+            || group_staff_by_department(&ps, &reports, &depts, "o", &geom_tree(), &sizes).unwrap();
+        let out = run();
+        // Широкий A урівноважує B+C+D; singleton-и мають бути після A, не B.
+        let order = ["a", "s1", "s2", "b", "c", "d"];
+        for pair in order.windows(2) {
+            let left = node_by(&out, pair[0]);
+            let right = node_by(&out, pair[1]);
+            assert!(left.x + left.width + geom_tree().horizontal_gap <= right.x);
+        }
+        assert_eq!(
+            serde_json::to_string(&out).unwrap(),
+            serde_json::to_string(&run()).unwrap()
         );
     }
 
