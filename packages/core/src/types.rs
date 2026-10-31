@@ -478,6 +478,11 @@ pub struct StaffLayoutInput {
     #[serde(rename = "treeBlockLayout", default)]
     #[cfg_attr(feature = "ts-export", ts(optional))]
     pub tree_block_layout: Option<bool>,
+    /// DEV: оцінити до 12 комбінацій голів мульті-джерельних відділів на LOD near.
+    /// Лише для treeBlockLayout + deptGrouping; відсутній/false зберігає лекс-дефолт.
+    #[serde(rename = "multiSourceParentEval", default)]
+    #[cfg_attr(feature = "ts-export", ts(optional))]
+    pub multi_source_parent_eval: Option<bool>,
 }
 
 /// Координати посади у світовій системі. `tier`: 1|2|3. `role`:

@@ -115,7 +115,12 @@ useAstar?: boolean,
  * Set true only for bring-up / the mock3 R3 comparison tab. Same `rename + default` shape as
  * `useAstar` above (no `skip_serializing_if`: it confuses ts-rs into dropping the rename).
  */
-treeBlockLayout?: boolean, };
+treeBlockLayout?: boolean, 
+/**
+ * DEV: оцінити до 12 комбінацій голів мульті-джерельних відділів на LOD near.
+ * Лише для treeBlockLayout + deptGrouping; відсутній/false зберігає лекс-дефолт.
+ */
+multiSourceParentEval?: boolean, };
 
 /**
  * Числові метрики лейауту (підмножина `StaffLayoutOptions`, що є суто геометрією).

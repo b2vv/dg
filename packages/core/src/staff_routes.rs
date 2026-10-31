@@ -688,7 +688,7 @@ fn route_via_astar(
 }
 
 /// Справжні зміни напрямку; нульові відрізки та колінеарні продовження пропускаються.
-fn true_turns(points: &[StaffRoutePoint]) -> usize {
+pub(crate) fn true_turns(points: &[StaffRoutePoint]) -> usize {
     let mut previous: Option<(f64, f64)> = None;
     let mut turns = 0;
     for pair in points.windows(2) {

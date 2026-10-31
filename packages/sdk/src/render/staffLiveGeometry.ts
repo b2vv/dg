@@ -191,6 +191,7 @@ async function computeViaRust(input: BranchInput): Promise<StaffLiveGeometry> {
       dockHints,
       useAstar: config.staffUseAstar === true,
       treeBlockLayout: config.staffTreeBlockLayout === true,
+      multiSourceParentEval: config.staffMultiSourceParentEval === true,
     }),
   );
 

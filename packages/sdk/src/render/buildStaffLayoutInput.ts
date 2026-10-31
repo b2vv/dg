@@ -50,6 +50,8 @@ export interface BuildStaffLayoutInputArgs {
   useAstar?: boolean;
   /** DEV (T128 step 1): pack departments as a tidy block-tree instead of the flat row. Default false. */
   treeBlockLayout?: boolean;
+  /** DEV (T128 dg37): evaluate parent candidates for multi-source departments to minimize crossings. Default false. */
+  multiSourceParentEval?: boolean;
 }
 
 export function resolveMetrics(options: StaffLayoutOptions, contentPadding: number): StaffLayoutMetrics {
@@ -243,5 +245,6 @@ export function buildStaffLayoutInput(args: BuildStaffLayoutInputArgs): StaffLay
     lod,
     ...(args.useAstar ? { useAstar: true } : {}),
     ...(args.treeBlockLayout ? { treeBlockLayout: true } : {}),
+    ...(args.multiSourceParentEval ? { multiSourceParentEval: true } : {}),
   };
 }

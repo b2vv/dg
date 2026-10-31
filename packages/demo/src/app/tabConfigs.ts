@@ -131,6 +131,8 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
           staffUseAstar: true,
           staffDeptGrouping: true, // T128 dg35: group by department so tree-block is live (mockup shape)
           staffTreeBlockLayout: true,
+          staffMultiSourceParentEval: true, // T128 dg37: parent-eval for multi-source depts → cross→0
+
           cellWidth: MOCK3_STAFF_LAYOUT.refCellWidth,
           cellHeight: MOCK3_STAFF_LAYOUT.refCellHeight,
         },

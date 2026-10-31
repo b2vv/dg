@@ -292,6 +292,13 @@ export interface RenderConfig {
    */
   staffTreeBlockLayout?: boolean;
   /**
+   * DEV (T128 dg37): for multi-source departments (members reporting into ≥2 different parent blocks),
+   * evaluate parent-head candidates and pick the one that minimizes edge crossings, instead of the
+   * arbitrary lexicographically-smallest default. Default false → lex default (golden-safe). Used by
+   * the mock3 R3 tab to reach cross→0.
+   */
+  staffMultiSourceParentEval?: boolean;
+  /**
    * DEV (T128 step 1): group positions into department regions regardless of the edge router.
    * Historically dept grouping was coupled to `staffEdgeRouter === 'v2'`; the A* + tree-block path
    * needs grouping without the v2 TS router, so this decouples it. OR-combined with the v2 coupling,
@@ -490,6 +497,7 @@ export const defaultRenderConfig: RenderConfig = {
   staffZoneChrome: false,
   staffUseAstar: false,
   staffTreeBlockLayout: false,
+  staffMultiSourceParentEval: false,
   staffDeptGrouping: false,
   departmentStyle: 'blob',
   staffEdgeRouter: 'legacy',

@@ -52,12 +52,13 @@ fn resolve_card_pad(content_padding: f32) -> f32 {
 }
 
 /// Геометричні метрики (підмножина, що керує позиціонуванням). Порт `StaffGeom` (coords.ts:5).
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Geom {
     pub node_width: f32,
     pub node_height: f32,
     pub horizontal_gap: f32,
     pub vertical_gap: f32,
+    pub content_padding: f32,
     pub ref_cell_width: f32,
     pub ref_cell_height: f32,
     pub margin: f32,
@@ -67,6 +68,8 @@ pub struct Geom {
     /// bundle already threaded to every function on this layout path; it is not a geometry
     /// metric. Default false keeps the flat packing byte-identical (golden-safe).
     pub tree_block: bool,
+    /// Вибрані голови dept_id → position_id; порожня карта зберігає дефолт.
+    pub head_override: HashMap<String, String>,
 }
 
 /// Розкладений org-блок (аналог TS `StaffOrgBlockResult`, types.ts:104). `nodes` у
@@ -784,6 +787,12 @@ fn pack_tree_block(
                 .unwrap_or(&members[0])
                 .id
                 .clone();
+            let root_id = geom
+                .head_override
+                .get(dept_id)
+                .filter(|id| member_ids.contains(id.as_str()))
+                .unwrap_or(&root_id)
+                .clone();
             let local =
                 layout_connected_tree(members, reports, org_id, &root_id, geom, sizes, "tree")?;
             if let Some((bx, by, bw, bh)) = region_bounds(&local) {
@@ -944,6 +953,26 @@ fn pack_tree_block(
         }
     }
 
+    // Рамка відділу починається на padding вище карток. Singleton того самого
+    // керівника має входити на цій висоті; однаковий X різних керівників не є sibling.
+    let mut attachment_lift = vec![0.0; n];
+    for kids in &children_of {
+        let dept_managers: HashSet<&str> = kids
+            .iter()
+            .filter(|&&c| blocks[c].dept_id.is_some())
+            .filter_map(|&c| parents.get(&blocks[c].head_id).map(String::as_str))
+            .collect();
+        for &c in kids {
+            if blocks[c].dept_id.is_none()
+                && parents
+                    .get(&blocks[c].head_id)
+                    .is_some_and(|p| dept_managers.contains(p.as_str()))
+            {
+                attachment_lift[c] = geom.content_padding;
+            }
+        }
+    }
+
     // ── Крок 6: розкладка (діти центровані під батьком, вертикаль = низ+gap) ──
     let mut block_x: Vec<f32> = vec![0.0; n];
     let mut block_y: Vec<f32> = vec![0.0; n];
@@ -955,6 +984,7 @@ fn pack_tree_block(
         children_of: &[Vec<usize>],
         bw: &[f32],
         bh: &[f32],
+        attachment_lift: &[f32],
         hgap: f32,
         vgap: f32,
         memo: &mut [Option<f32>],
@@ -973,7 +1003,9 @@ fn pack_tree_block(
             .map(|&c| subtree_width(c, children_of, bw, hgap, memo))
             .sum::<f32>()
             + hgap * (kids.len() as f32 - 1.0);
-        let child_top = top + bh[i] + vgap;
+        // Навіть при gap < padding піднята картка не перекриває батька.
+        let lift = kids.iter().map(|&c| attachment_lift[c]).fold(0.0, f32::max);
+        let child_top = top + bh[i] + vgap.max(lift);
         let mut cursor = left + (sw - total) / 2.0;
         let band_start = cursor;
         // Копія списку дітей, щоб не тримати борроу children_of під час рекурсії.
@@ -982,10 +1014,11 @@ fn pack_tree_block(
             place(
                 c,
                 cursor,
-                child_top,
+                child_top - attachment_lift[c],
                 children_of,
                 bw,
                 bh,
+                attachment_lift,
                 hgap,
                 vgap,
                 memo,
@@ -1010,6 +1043,7 @@ fn pack_tree_block(
             &children_of,
             &bw_vec,
             &bh_vec,
+            &attachment_lift,
             hgap,
             vgap,
             &mut subtree_w,
@@ -1318,19 +1352,162 @@ fn department_frames_from_nodes(
         .collect()
 }
 
+/// Кандидати лише для реально розкладених блоків (без зовнішніх менеджерів).
+/// BTreeMap і сортовані голови задають лексикографічний порядок комбінацій.
+fn parent_candidates(
+    input: &StaffLayoutInput,
+    baseline: &StaffGeometryResult,
+) -> std::collections::BTreeMap<String, Vec<String>> {
+    struct Candidate {
+        head_id: String,
+        parent_block: (bool, String),
+    }
+    let visible: HashMap<&str, &StaffNodeGeo> = baseline
+        .nodes
+        .iter()
+        .filter(|n| n.role.as_deref() != Some("external"))
+        .map(|n| (n.id.as_str(), n))
+        .collect();
+    let mut candidates = std::collections::BTreeMap::new();
+    for org in &input.organizations {
+        let positions: Vec<_> = input
+            .positions
+            .iter()
+            .filter(|p| p.organization_id == org.id && visible.contains_key(p.id.as_str()))
+            .cloned()
+            .collect();
+        let parents = admin_parent_map(&positions, &input.reports, &org.id);
+        let mut roots: HashMap<String, Vec<Candidate>> = HashMap::new();
+        for p in &positions {
+            let Some(dept) = &visible[p.id.as_str()].department_id else {
+                continue;
+            };
+            let Some(parent) = parents.get(&p.id).and_then(|id| visible.get(id.as_str())) else {
+                continue;
+            };
+            if parent.department_id.as_ref() == Some(dept) {
+                continue;
+            }
+            // Відділ і singleton із однаковим id — різні блоки.
+            let block = match &parent.department_id {
+                Some(id) => (true, id.clone()),
+                None => (false, parent.id.clone()),
+            };
+            roots.entry(dept.clone()).or_default().push(Candidate {
+                head_id: p.id.clone(),
+                parent_block: block,
+            });
+        }
+        for (dept, roots) in roots {
+            let blocks: HashSet<_> = roots
+                .iter()
+                .map(|candidate| &candidate.parent_block)
+                .collect();
+            if blocks.len() >= 2 {
+                let mut heads: Vec<_> = roots
+                    .into_iter()
+                    .map(|candidate| candidate.head_id)
+                    .collect();
+                heads.sort();
+                heads.dedup();
+                candidates.insert(dept, heads);
+            }
+        }
+    }
+    candidates
+}
+
 /// Повна staff-геометрія для `current_org_id` (порт `layoutStaffCanvas`): яруси 1/2/3,
 /// межі, рамки відділів, ребра й маршрути — єдиний `StaffGeometryResult`.
 /// **ЛИШЕ tree** (контракт не несе member-координат; matrix/hybrid — TS-адаптер).
 pub fn compute_staff_geometry(input: &StaffLayoutInput) -> Result<StaffGeometryResult, String> {
+    let empty = HashMap::new();
+    let baseline = compute_once(input, &empty)?;
+    if input.multi_source_parent_eval != Some(true)
+        || input.tree_block_layout != Some(true)
+        || !input.options.dept_grouping
+    {
+        return Ok(baseline);
+    }
+    let candidates = parent_candidates(input, &baseline);
+    if candidates.is_empty() {
+        return Ok(baseline);
+    }
+    let mut count = 1usize;
+    for heads in candidates.values() {
+        // Перевірка до множення: жодного overflow або часткового greedy-пошуку.
+        if heads.len() > 12 / count {
+            return Ok(baseline);
+        }
+        count *= heads.len();
+    }
+    let mut combinations = vec![Vec::new()];
+    for (dept, heads) in candidates {
+        combinations = combinations
+            .into_iter()
+            .flat_map(|combo| {
+                heads
+                    .iter()
+                    .map(|head| {
+                        let mut next = combo.clone();
+                        next.push((dept.clone(), head.clone()));
+                        next
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+    }
+    let mut near = input.clone();
+    near.lod = "near".to_string();
+    let mut best = None;
+    for combo in combinations {
+        let overrides = combo.iter().cloned().collect();
+        let out = compute_once(&near, &overrides)?;
+        // Cross — топологічна частина штатного detector, незалежна від карток/рамок.
+        let cross = crate::route_stats(&out.routes.segments, &[], &[], &|_| None).crossings;
+        let turns: usize = out
+            .routes
+            .segments
+            .iter()
+            .map(|r| crate::staff_routes::true_turns(&r.points))
+            .sum();
+        let score = (cross, turns, combo);
+        if best.as_ref().is_none_or(|(previous, _)| score < *previous) {
+            best = Some((score, out));
+        }
+    }
+    let ((_, _, combo), near_result) = best.expect("непорожній добуток кандидатів");
+    let mut result = if input.lod == "near" {
+        near_result
+    } else {
+        compute_once(input, &combo.iter().cloned().collect())?
+    };
+    result.diagnostics.push(format!(
+        "Multi-source parents: {}",
+        combo
+            .iter()
+            .map(|(dept, head)| format!("{dept}={head}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    ));
+    Ok(result)
+}
+
+fn compute_once(
+    input: &StaffLayoutInput,
+    head_override: &HashMap<String, String>,
+) -> Result<StaffGeometryResult, String> {
     let geom = Geom {
         node_width: input.options.node_width,
         node_height: input.options.node_height,
         horizontal_gap: input.options.horizontal_gap,
         vertical_gap: input.options.vertical_gap,
+        content_padding: input.options.content_padding,
         ref_cell_width: input.options.ref_cell_width,
         ref_cell_height: input.options.ref_cell_height,
         margin: input.options.margin,
         tree_block: input.tree_block_layout.unwrap_or(false),
+        head_override: head_override.clone(),
     };
     let sizes = size_map(&input.node_sizes);
     let departments = &input.departments;
@@ -1656,10 +1833,12 @@ mod tests {
             node_height: 156.0,
             horizontal_gap: 20.0,
             vertical_gap: 28.0,
+            content_padding: 0.0,
             ref_cell_width: 140.0,
             ref_cell_height: 160.0,
             margin: 32.0,
             tree_block: false,
+            head_override: HashMap::new(),
         }
     }
 
@@ -2606,6 +2785,55 @@ mod tests {
             lod: "near".to_string(),
             use_astar: None,
             tree_block_layout: None,
+            multi_source_parent_eval: None,
+        }
+    }
+
+    #[test]
+    fn singleton_attachment_aligns_with_sibling_department_frame() {
+        for (padding, gap) in [(36.0, 120.0), (12.0, 120.0), (36.0, 8.0)] {
+            let mut inp = input(
+                "o",
+                vec![
+                    pos("ceo", "o", true, None),
+                    pos("asst", "o", false, None),
+                    pos("child", "o", false, None),
+                    pos("a", "o", false, Some("A")),
+                ],
+                vec![
+                    admin("ceo", "asst"),
+                    admin("ceo", "a"),
+                    admin("asst", "child"),
+                ],
+                vec![org("o", None)],
+                two_depts(),
+            );
+            inp.tree_block_layout = Some(true);
+            inp.options.dept_grouping = true;
+            inp.options.content_padding = padding;
+            inp.options.vertical_gap = gap;
+            let out = compute_staff_geometry(&inp).unwrap();
+            let asst = node_by(&out.nodes, "asst");
+            let frame = &out.department_frames[0];
+            assert_eq!(
+                asst.y, frame.y,
+                "singleton і dept-head мають спільний вхідний Y"
+            );
+            let ceo = node_by(&out.nodes, "ceo");
+            assert!(asst.y >= ceo.y + ceo.height);
+            let child = node_by(&out.nodes, "child");
+            assert_eq!(child.y, asst.y + asst.height + gap);
+            assert_eq!(
+                serde_json::to_string(&out.nodes).unwrap(),
+                serde_json::to_string(&compute_staff_geometry(&inp).unwrap().nodes).unwrap()
+            );
+
+            // Без dept-сиблінга singleton зберігає звичайний вертикальний gap.
+            inp.positions.retain(|p| p.id != "a");
+            inp.reports.retain(|r| r.to_id != "a");
+            let plain = compute_staff_geometry(&inp).unwrap();
+            let ceo = node_by(&plain.nodes, "ceo");
+            assert_eq!(node_by(&plain.nodes, "asst").y, ceo.y + ceo.height + gap);
         }
     }
 
