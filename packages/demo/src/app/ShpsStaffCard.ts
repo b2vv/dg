@@ -84,6 +84,8 @@ export function ShpsStaffCard(props: PromoteSlotProps): ReactElement {
     overflow: 'hidden',
     pointerEvents: 'auto',
     fontFamily: 'Onest, system-ui, sans-serif',
+    // Smooth hover dim/accent (mockup `.card{transition:opacity .25s}` + border).
+    transition: 'opacity .2s ease, border-color .15s ease',
   };
 
   // Body — avatar + text column.
@@ -237,6 +239,8 @@ export function ShpsStaffCard(props: PromoteSlotProps): ReactElement {
           'span',
           {
             key: 'tg',
+            // Collapse toggle (§8.1): keyed by position id, like the hover lines.
+            'data-staff-toggle': pos?.id ?? node.ref.id,
             style: {
               position: 'absolute',
               right: px(8),
@@ -252,6 +256,8 @@ export function ShpsStaffCard(props: PromoteSlotProps): ReactElement {
               color: C.headPos,
               fontSize: px(12),
               fontWeight: 600,
+              cursor: 'pointer',
+              pointerEvents: 'auto',
             },
           },
           '⌄',

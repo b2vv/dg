@@ -121,6 +121,42 @@ export function buildStaffChromeGeometry(
   return { org, depts, lines };
 }
 
+/**
+ * Visible slice of the staff data for a set of collapsed positions (§8.1) — the
+ * mockup `visible()`: walk the admin tree from the org roots, include each node,
+ * but do NOT descend into a collapsed node's subtree. A node with several admin
+ * parents stays visible while ANY non-collapsed path reaches it. Returns data with
+ * `positions` and `reportLines` trimmed to the visible set; everything else kept.
+ */
+export function staffVisibleData(
+  data: DiagramData,
+  collapsed: ReadonlySet<string>,
+): DiagramData {
+  const kids = new Map<string, string[]>();
+  const hasParent = new Set<string>();
+  for (const r of data.reportLines) {
+    if (r.kind !== 'admin') continue;
+    hasParent.add(r.toId);
+    const arr = kids.get(r.fromId);
+    if (arr) arr.push(r.toId);
+    else kids.set(r.fromId, [r.toId]);
+  }
+  const visible = new Set<string>();
+  const walk = (id: string): void => {
+    if (visible.has(id)) return;
+    visible.add(id);
+    if (collapsed.has(id)) return; // its subtree is hidden
+    for (const c of kids.get(id) ?? []) walk(c);
+  };
+  for (const p of data.positions) if (!hasParent.has(p.id)) walk(p.id);
+
+  return {
+    ...data,
+    positions: data.positions.filter((p) => visible.has(p.id)),
+    reportLines: data.reportLines.filter((r) => visible.has(r.fromId) && visible.has(r.toId)),
+  };
+}
+
 const HOVER_ACCENT = '#ff8d68'; // mockup `.ln.on` / `.card.rel`
 
 /**
@@ -367,6 +403,8 @@ export function makeStaffChromeBackdrop(
           stroke: C.line,
           strokeWidth: 2,
           vectorEffect: 'non-scaling-stroke',
+          // Smooth hover highlight/dim (mockup `.ln{transition:opacity .15s,stroke .15s}`).
+          style: { transition: 'opacity .15s ease, stroke .15s ease, stroke-width .15s ease' },
         }),
       );
       if (ln.endsOnDeptTop) {
@@ -384,6 +422,7 @@ export function makeStaffChromeBackdrop(
             stroke: C.entHalo,
             strokeWidth: 2,
             vectorEffect: 'non-scaling-stroke',
+            style: { transition: 'opacity .15s ease, fill .15s ease' },
           }),
         );
       }

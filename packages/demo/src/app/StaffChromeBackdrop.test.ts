@@ -1,6 +1,10 @@
 import { describe, expect, it } from '@rstest/core';
 import type { DiagramData, StaffLiveGeometry } from '@org-hierarchy/sdk';
-import { buildStaffChromeGeometry, relatedStaffIds } from './StaffChromeBackdrop.js';
+import {
+  buildStaffChromeGeometry,
+  relatedStaffIds,
+  staffVisibleData,
+} from './StaffChromeBackdrop.js';
 
 /** Minimal live geometry — only the fields `buildStaffChromeGeometry` reads. */
 function live(over: Partial<StaffLiveGeometry> = {}): StaffLiveGeometry {
@@ -98,6 +102,48 @@ describe('buildStaffChromeGeometry', () => {
     // No line touches a lone node → only itself.
     expect([...relatedStaffIds(lines, 'lonely')]).toEqual(['lonely']);
     expect([...relatedStaffIds([], 'x')]).toEqual(['x']);
+  });
+
+  it('staffVisibleData: collapsing a head hides its subtree but keeps the head', () => {
+    const d = data({
+      positions: [
+        { id: 'ceo' },
+        { id: 'a' },
+        { id: 'a1' },
+        { id: 'b' },
+      ] as unknown as DiagramData['positions'],
+      reportLines: [
+        { fromId: 'ceo', toId: 'a', kind: 'admin' },
+        { fromId: 'a', toId: 'a1', kind: 'admin' },
+        { fromId: 'ceo', toId: 'b', kind: 'admin' },
+      ],
+    });
+    // Collapse 'a' → 'a' stays, 'a1' (its child) is hidden; 'b' untouched.
+    const vis = staffVisibleData(d, new Set(['a']));
+    expect(vis.positions.map((p) => p.id).sort()).toEqual(['a', 'b', 'ceo']);
+    expect(vis.reportLines.map((r) => `${r.fromId}>${r.toId}`).sort()).toEqual([
+      'ceo>a',
+      'ceo>b',
+    ]);
+    // Empty collapsed set → everything visible.
+    expect(staffVisibleData(d, new Set()).positions).toHaveLength(4);
+  });
+
+  it('staffVisibleData: a node with a second live parent stays visible', () => {
+    const d = data({
+      positions: [{ id: 'ceo' }, { id: 'a' }, { id: 'x' }] as unknown as DiagramData['positions'],
+      reportLines: [
+        { fromId: 'ceo', toId: 'a', kind: 'admin' },
+        { fromId: 'a', toId: 'x', kind: 'admin' },
+        { fromId: 'ceo', toId: 'x', kind: 'admin' }, // second parent
+      ],
+    });
+    // Collapse 'a' → 'x' still reachable via ceo→x, so it stays.
+    expect(staffVisibleData(d, new Set(['a'])).positions.map((p) => p.id).sort()).toEqual([
+      'a',
+      'ceo',
+      'x',
+    ]);
   });
 
   it('failure/fallback: unknown dept name → departmentId; org name falls back by role', () => {

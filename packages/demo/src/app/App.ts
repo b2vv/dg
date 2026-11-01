@@ -31,6 +31,7 @@ import {
   buildStaffChromeGeometry,
   makeStaffChromeBackdrop,
   installStaffHoverHighlight,
+  staffVisibleData,
 } from './StaffChromeBackdrop.js';
 import { buildFlatOrgsData } from '../scenarios/flatOrgs.js';
 import {
@@ -226,8 +227,10 @@ export class App {
   private promote: ReactPromoteOverlay | null = null;
   /** ШПС alpha near-view chrome backdrop; set when its geometry is ready (else Pixi). */
   private staffChromeBackdrop?: (props: PromoteBackdropProps) => ReactElement | null;
-  /** Teardown for the ШПС alpha hover-highlight delegated listener. */
+  /** Teardown for the ШПС alpha hover-highlight + collapse-toggle delegated listeners. */
   private staffHoverCleanup?: () => void;
+  /** Positions whose subtree is collapsed (§8.1), applied as a data filter on reload. */
+  private readonly staffCollapsed = new Set<string>();
   private testAnchors: TestAnchorOverlay | null = null;
   private readonly e2eMode =
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('e2e');
@@ -384,6 +387,8 @@ export class App {
     // Leaving the Mapper tab drops what the user loaded — coming back should
     // show the sample again, not a stale scene.
     if (tab !== 'mapper') this.mapperData = null;
+    // Collapse state belongs to the scene being left; a new tab starts expanded.
+    this.staffCollapsed.clear();
     this.tab = tab;
     document.querySelectorAll('[data-tab]').forEach((el) => {
       el.classList.toggle('active', (el as HTMLElement).dataset.tab === tab);
@@ -407,6 +412,14 @@ export class App {
   private async reload(): Promise<void> {
     this.disposeDiagram();
     const config = this.buildConfig();
+    // §8.1 collapse: hide collapsed subtrees by trimming the data before layout, so
+    // the diagram, promote cards and chrome all recompute for the visible set.
+    if (config.render?.staffAlphaMockup === true && this.staffCollapsed.size > 0 && config.data) {
+      (config as { data: unknown }).data = staffVisibleData(
+        config.data as unknown as DiagramData,
+        this.staffCollapsed,
+      );
+    }
     await this.prepareStaffChrome(config);
     try {
       this.setStatus('Loading…');
@@ -678,6 +691,13 @@ export class App {
     }
   }
 
+  /** Toggle a head's collapsed subtree (§8.1) and re-render the alpha scene. */
+  private toggleStaffCollapse(id: string): void {
+    if (this.staffCollapsed.has(id)) this.staffCollapsed.delete(id);
+    else this.staffCollapsed.add(id);
+    void this.reload();
+  }
+
   /** Promote overlay always; test anchors + the e2e bridge only in `?e2e=1`. */
   private mountOverlays(diagram: OrgHierarchyDiagram): void {
     // The ШПС scenes are the clean staff demos: their seats are React cards at
@@ -700,9 +720,23 @@ export class App {
       // same camera-synced layer (set only when its geometry computed; else Pixi).
       backdrop: this.staffChromeBackdrop,
     });
-    // Hover-highlight (§7/§8.2) only when the React chrome owns the lines.
+    // Hover-highlight (§7/§8.2) + collapse toggle (§8.1) only when React owns chrome.
     if (this.staffChromeBackdrop) {
-      this.staffHoverCleanup = installStaffHoverHighlight(this.mountEl);
+      const disposeHover = installStaffHoverHighlight(this.mountEl);
+      const onClick = (e: Event): void => {
+        const id = (e.target as Element | null)
+          ?.closest?.('[data-staff-toggle]')
+          ?.getAttribute('data-staff-toggle');
+        if (!id) return;
+        e.preventDefault();
+        e.stopPropagation();
+        this.toggleStaffCollapse(id);
+      };
+      this.mountEl.addEventListener('click', onClick);
+      this.staffHoverCleanup = () => {
+        disposeHover();
+        this.mountEl.removeEventListener('click', onClick);
+      };
     }
     if (!this.e2eMode) return;
     this.testAnchors = createTestAnchorOverlay({
