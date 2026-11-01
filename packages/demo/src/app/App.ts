@@ -26,7 +26,7 @@ import {
   type PromoteBackdropProps,
 } from '@org-hierarchy/sdk/react';
 import { createElement, type ReactElement } from 'react';
-import { ShpsStaffCard } from './ShpsStaffCard.js';
+import { ShpsStaffCard, makeShpsStaffCard } from './ShpsStaffCard.js';
 import {
   buildStaffChromeGeometry,
   makeStaffChromeBackdrop,
@@ -755,18 +755,28 @@ export class App {
       // Opt-in, like `?renderer=`: the default stays the selection card so the
       // existing behaviour — and the e2e that pins it — keeps its meaning.
       mode: shps ? 'near-visible' : this.promoteMode,
-      component: shps
-        ? ShpsStaffCard
-        : this.promoteMode === 'near-visible'
-          ? DemoContentModesCard
-          : DemoPromoteCard,
+      component:
+        this.tab === 'staff-alpha'
+          ? // Alpha binds a focus thunk so a search dims the non-found cards (§8.2);
+            // same `staffChromeGeom.foundId` the backdrop rings, one source of truth.
+            makeShpsStaffCard(() =>
+              this.staffChromeGeom ? { foundId: this.staffChromeGeom.foundId } : null,
+            )
+          : shps
+            ? ShpsStaffCard
+            : this.promoteMode === 'near-visible'
+              ? DemoContentModesCard
+              : DemoPromoteCard,
       // ШПС alpha: dept/org frames + connector lines drawn under the cards, in the
       // same camera-synced layer (set only when its geometry computed; else Pixi).
       backdrop: this.staffChromeBackdrop,
     });
     // Hover-highlight (§7/§8.2) + collapse toggle (§8.1) only when React owns chrome.
     if (this.staffChromeBackdrop) {
-      const disposeHover = installStaffHoverHighlight(this.mountEl);
+      const disposeHover = installStaffHoverHighlight(
+        this.mountEl,
+        () => this.staffChromeGeom?.foundId ?? null,
+      );
       const onClick = (e: Event): void => {
         const id = (e.target as Element | null)
           ?.closest?.('[data-staff-toggle]')

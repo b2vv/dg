@@ -4,6 +4,7 @@ import type { PromoteBackdropProps } from '@org-hierarchy/sdk/react';
 import type { DiagramData, StaffLiveGeometry } from '@org-hierarchy/sdk';
 import {
   buildStaffChromeGeometry,
+  installStaffHoverHighlight,
   makeStaffChromeBackdrop,
   relatedStaffIds,
   staffVisibleData,
@@ -217,6 +218,45 @@ describe('buildStaffChromeGeometry', () => {
     } as unknown as PromoteBackdropProps;
     const html = renderToStaticMarkup(Backdrop(props)!);
     expect(html).not.toContain('data-staff-found');
+  });
+
+  it('hover clear restores the §8.2 focus baseline (not blank) while a search is focused', () => {
+    const mount = document.createElement('div');
+    // Two cards as the promote slots render them: found full, the other dimmed.
+    mount.innerHTML =
+      '<div data-staff-pos="ceo" style="opacity:1"></div>' +
+      '<div data-staff-pos="cfo" style="opacity:0.38"></div>' +
+      '<div data-staff-chrome></div>';
+    const dispose = installStaffHoverHighlight(mount, () => 'ceo');
+    const cfo = mount.querySelector<HTMLElement>('[data-staff-pos="cfo"]')!;
+
+    // Hover cfo → hover dims the non-related cards imperatively.
+    cfo.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    // Leave (hover lands on the non-card chrome) → clear() runs.
+    mount
+      .querySelector('[data-staff-chrome]')!
+      .dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+
+    // The dim must be back to the focus baseline (.38), NOT wiped to '' (full).
+    expect(cfo.style.opacity).toBe('0.38');
+    expect(mount.querySelector<HTMLElement>('[data-staff-pos="ceo"]')!.style.opacity).toBe('1');
+    dispose();
+  });
+
+  it('hover clear blanks opacity when no search is focused (foundId null)', () => {
+    const mount = document.createElement('div');
+    mount.innerHTML =
+      '<div data-staff-pos="ceo" style="opacity:1"></div>' +
+      '<div data-staff-pos="cfo" style="opacity:1"></div>' +
+      '<div data-staff-chrome></div>';
+    const dispose = installStaffHoverHighlight(mount, () => null);
+    const cfo = mount.querySelector<HTMLElement>('[data-staff-pos="cfo"]')!;
+    cfo.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    mount
+      .querySelector('[data-staff-chrome]')!
+      .dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    expect(cfo.style.opacity).toBe('');
+    dispose();
   });
 
   it('failure/fallback: unknown dept name → departmentId; org name falls back by role', () => {

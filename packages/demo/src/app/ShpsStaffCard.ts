@@ -49,7 +49,35 @@ function periodLine(start: string | undefined, end: string | null | undefined): 
   return `з ${d}.${m}.${y} ${tail}`;
 }
 
-export function ShpsStaffCard(props: PromoteSlotProps): ReactElement {
+export interface StaffCardFocusState {
+  /**
+   * The search-found position id (§8.2). While set, every card except this one
+   * dims to .38 — the mockup `.org.focus .card:not(.found){opacity:.38}`. Read on
+   * every render (via `makeShpsStaffCard`'s thunk), so the dim is part of the
+   * rendered output and survives promote re-syncs — unlike an imperative opacity
+   * poke, which a camera-move re-render would wipe.
+   */
+  foundId: string | null;
+}
+
+/**
+ * Factory binding an optional focus-state thunk, read fresh on every render.
+ * `ShpsStaffCard` (no thunk) is the plain card the `staff-shps` tab uses; the
+ * `staff-alpha` tab passes a thunk so a search can dim the non-found cards.
+ */
+export function makeShpsStaffCard(
+  getFocus?: () => StaffCardFocusState | null,
+): (props: PromoteSlotProps) => ReactElement {
+  return (props: PromoteSlotProps) => renderShpsStaffCard(props, getFocus?.() ?? null);
+}
+
+/** Plain card (no search-focus dim) — the shape shared by both ШПС tabs. */
+export const ShpsStaffCard: (props: PromoteSlotProps) => ReactElement = makeShpsStaffCard();
+
+function renderShpsStaffCard(
+  props: PromoteSlotProps,
+  focus: StaffCardFocusState | null,
+): ReactElement {
   const { screenRect, node, viewport } = props;
   const s = viewport.scale;
   const px = (n: number) => `${n * s}px`;
@@ -65,6 +93,12 @@ export function ShpsStaffCard(props: PromoteSlotProps): ReactElement {
   const hasChildren = (pos?.childrenCount ?? 0) > 0;
   const hasCounts = pos?.childrenCount != null || pos?.allDescendantCount != null;
   const date = periodLine(pos?.periodStart, pos?.periodEnd);
+
+  // Position id — matches the connector lines and the §8.2 found marker. ref.id
+  // can be the person id for a filled seat, which neither keys on.
+  const posId = pos?.id ?? node.ref.id;
+  // Search focus (§8.2): dim every card except the found one, mockup `.org.focus`.
+  const dimmed = focus?.foundId != null && posId !== focus.foundId;
 
   const root: CSSProperties = {
     position: 'absolute',
@@ -84,6 +118,7 @@ export function ShpsStaffCard(props: PromoteSlotProps): ReactElement {
     overflow: 'hidden',
     pointerEvents: 'auto',
     fontFamily: 'Onest, system-ui, sans-serif',
+    opacity: dimmed ? 0.38 : 1,
     // Smooth hover dim/accent (mockup `.card{transition:opacity .25s}` + border).
     transition: 'opacity .2s ease, border-color .15s ease',
   };
@@ -291,7 +326,7 @@ export function ShpsStaffCard(props: PromoteSlotProps): ReactElement {
       'data-promote-card': node.ref.id,
       // Position id (matches connector-line fromId/toId) for the hover highlight —
       // ref.id can be the person id for a filled seat, which lines don't key on.
-      'data-staff-pos': pos?.id ?? node.ref.id,
+      'data-staff-pos': posId,
       style: root,
     },
     ...childNodes,

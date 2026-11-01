@@ -205,7 +205,10 @@ export function relatedStaffIds(
  * disposer. `pointerEvents:none` on the backdrop means hover lands on the cards,
  * so one delegated listener on the mount covers enter AND leave.
  */
-export function installStaffHoverHighlight(mount: HTMLElement): () => void {
+export function installStaffHoverHighlight(
+  mount: HTMLElement,
+  getFoundId?: () => string | null,
+): () => void {
   let current: string | null = null;
 
   const clear = (): void => {
@@ -215,8 +218,14 @@ export function installStaffHoverHighlight(mount: HTMLElement): () => void {
       l.style.strokeWidth = '';
       l.style.fill = '';
     });
+    // Restore the search-focus baseline (§8.2) rather than blanking opacity: the
+    // card dim is a rendered inline style (`opacity:.38` on non-found), so clearing
+    // to '' would wipe it until the next re-render. While a search is focused, put
+    // each card back to its focus value; otherwise clear it.
+    const foundId = getFoundId?.() ?? null;
     mount.querySelectorAll<HTMLElement>('[data-staff-pos]').forEach((c) => {
-      c.style.opacity = '';
+      if (foundId == null) c.style.opacity = '';
+      else c.style.opacity = c.getAttribute('data-staff-pos') === foundId ? '1' : '0.38';
     });
   };
 
