@@ -174,6 +174,32 @@ export function staffVisibleData(
   };
 }
 
+/**
+ * Admin ancestors of `id` — every seat on a `kind:'admin'` path up from it
+ * (parent, grandparent, …), following `fromId`→parent, `toId`→child. A node can
+ * have several admin parents, so this walks all of them; the visited set keeps a
+ * multi-parent diamond or a malformed cycle from looping. Used by the §8.2 search
+ * focus to un-collapse the path to a hit so it becomes visible.
+ */
+export function staffAdminAncestors(data: DiagramData, id: string): Set<string> {
+  const parents = new Map<string, string[]>();
+  for (const r of data.reportLines) {
+    if (r.kind !== 'admin' || r.fromId === r.toId) continue;
+    const arr = parents.get(r.toId);
+    if (arr) arr.push(r.fromId);
+    else parents.set(r.toId, [r.fromId]);
+  }
+  const ancestors = new Set<string>();
+  const stack = [...(parents.get(id) ?? [])];
+  while (stack.length > 0) {
+    const p = stack.pop()!;
+    if (ancestors.has(p)) continue;
+    ancestors.add(p);
+    for (const gp of parents.get(p) ?? []) stack.push(gp);
+  }
+  return ancestors;
+}
+
 const HOVER_ACCENT = '#ff8d68'; // mockup `.ln.on` / `.card.rel`
 
 /**

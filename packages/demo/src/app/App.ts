@@ -31,9 +31,15 @@ import {
   buildStaffChromeGeometry,
   makeStaffChromeBackdrop,
   installStaffHoverHighlight,
+  staffAdminAncestors,
   staffVisibleData,
   type StaffChromeGeometry,
 } from './StaffChromeBackdrop.js';
+import {
+  computeStaffSearchHits,
+  makeStaffSearchDropdown,
+  type StaffSearchDropdown,
+} from './StaffSearchDropdown.js';
 import { buildFlatOrgsData } from '../scenarios/flatOrgs.js';
 import {
   SCALE_ORG_TOTAL,
@@ -235,6 +241,8 @@ export class App {
   private staffHoverCleanup?: () => void;
   /** Positions whose subtree is collapsed (§8.1), applied as a data filter on reload. */
   private readonly staffCollapsed = new Set<string>();
+  /** ШПС alpha v3 search dropdown (§8.2); null off the alpha tab. */
+  private staffSearch: StaffSearchDropdown | null = null;
   private testAnchors: TestAnchorOverlay | null = null;
   private readonly e2eMode =
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('e2e');
@@ -742,6 +750,40 @@ export class App {
     void this.rerenderStaffAlpha();
   }
 
+  /**
+   * Focus a seat from the v3 search (§8.2, mockup `focusCard`): un-collapse the
+   * admin path to it so it is on screen, ring it (`foundId` → marker + dim), and
+   * centre the camera on it. `foundId` is set AFTER the re-render, because
+   * `rerenderStaffAlpha` rebuilds `staffChromeGeom` with `foundId: null`.
+   */
+  private async focusStaffCard(posId: string): Promise<void> {
+    const config = this.buildConfig();
+    const data = config.data as unknown as DiagramData | undefined;
+    if (data && this.staffCollapsed.size > 0) {
+      // Reveal: drop every collapsed ancestor on the path to the hit, then re-lay.
+      const ancestors = staffAdminAncestors(data, posId);
+      let changed = false;
+      for (const a of ancestors) {
+        if (this.staffCollapsed.delete(a)) changed = true;
+      }
+      if (changed) await this.rerenderStaffAlpha();
+    }
+    if (this.staffChromeGeom) this.staffChromeGeom.foundId = posId;
+    // Centres the camera without changing zoom (panToNode); the node now exists.
+    await this.diagram?.revealPath(posId);
+    // Drop the ring `revealPath` leaves; the backdrop draws the v3 «Знайдено» marker.
+    await this.diagram?.select(null);
+    this.promote?.sync();
+  }
+
+  /** Clear the §8.2 search focus (Escape / empty query): drop the ring + dim. */
+  private clearStaffFocus(): void {
+    if (this.staffChromeGeom?.foundId) {
+      this.staffChromeGeom.foundId = null;
+      this.promote?.sync();
+    }
+  }
+
   /** Promote overlay always; test anchors + the e2e bridge only in `?e2e=1`. */
   private mountOverlays(diagram: OrgHierarchyDiagram): void {
     // The ШПС scenes are the clean staff demos: their seats are React cards at
@@ -787,9 +829,32 @@ export class App {
         this.toggleStaffCollapse(id);
       };
       this.mountEl.addEventListener('click', onClick);
+
+      // v3 search dropdown (§8.2) — alpha only. Filters the full data (not the
+      // collapsed-visible set), so a hit inside a collapsed subtree is findable;
+      // the pick un-collapses the path to it. `runSearch` drives `render`.
+      if (this.tab === 'staff-alpha') {
+        const search = document.getElementById('search-input') as HTMLInputElement | null;
+        if (search) {
+          this.staffSearch = makeStaffSearchDropdown({
+            input: search,
+            getHits: (q) => {
+              const cfg = this.buildConfig();
+              const data = cfg.data as unknown as DiagramData | undefined;
+              const orgId = cfg.staffCurrentOrgId;
+              return data && orgId ? computeStaffSearchHits(data, orgId, q) : [];
+            },
+            onPick: (posId) => void this.focusStaffCard(posId),
+            onClear: () => this.clearStaffFocus(),
+          });
+        }
+      }
+
       this.staffHoverCleanup = () => {
         disposeHover();
         this.mountEl.removeEventListener('click', onClick);
+        this.staffSearch?.destroy();
+        this.staffSearch = null;
       };
     }
     if (!this.e2eMode) return;
@@ -1384,6 +1449,17 @@ export class App {
 
   private async runSearch(query: string): Promise<void> {
     if (!this.diagram) return;
+
+    // ШПС alpha owns its search through the v3 dropdown (§8.2): render the list
+    // from the FULL data and let a pick (Enter/click) focus — never auto-focus the
+    // top hit on every keystroke, and never the visible-only `diagram.search`.
+    if (this.tab === 'staff-alpha' && this.staffSearch) {
+      const n = this.staffSearch.render(query);
+      this.setStatus(
+        query.trim() ? `search · ${n} hits · «${query}»` : `${this.tab} · ${this.theme}`,
+      );
+      return;
+    }
 
     if (this.tab === 'scale-100k') {
       const idx = parseScaleOrgQuery(query, SCALE_ORG_TOTAL);

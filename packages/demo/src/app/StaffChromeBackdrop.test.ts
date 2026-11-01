@@ -7,6 +7,7 @@ import {
   installStaffHoverHighlight,
   makeStaffChromeBackdrop,
   relatedStaffIds,
+  staffAdminAncestors,
   staffVisibleData,
   type StaffChromeGeometry,
 } from './StaffChromeBackdrop.js';
@@ -154,6 +155,40 @@ describe('buildStaffChromeGeometry', () => {
     ]);
     // Empty collapsed set → everything visible.
     expect(staffVisibleData(d, new Set()).positions).toHaveLength(4);
+  });
+
+  it('staffAdminAncestors: walks every admin parent up, with a visited guard', () => {
+    const d = data({
+      positions: [
+        { id: 'ceo' },
+        { id: 'cfo' },
+        { id: 'acc' },
+        { id: 'bz' },
+        { id: 'x' },
+      ] as unknown as DiagramData['positions'],
+      reportLines: [
+        { fromId: 'ceo', toId: 'cfo', kind: 'admin' },
+        { fromId: 'cfo', toId: 'acc', kind: 'admin' },
+        { fromId: 'acc', toId: 'bz', kind: 'admin' },
+        // 'x' has two admin parents (diamond) — both chains must be gathered once.
+        { fromId: 'cfo', toId: 'x', kind: 'admin' },
+        { fromId: 'acc', toId: 'x', kind: 'admin' },
+      ],
+    });
+    expect([...staffAdminAncestors(d, 'bz')].sort()).toEqual(['acc', 'ceo', 'cfo']);
+    expect([...staffAdminAncestors(d, 'x')].sort()).toEqual(['acc', 'ceo', 'cfo']);
+    expect([...staffAdminAncestors(d, 'ceo')]).toEqual([]); // root has none
+  });
+
+  it('staffAdminAncestors: a cycle does not loop forever', () => {
+    const d = data({
+      positions: [{ id: 'a' }, { id: 'b' }] as unknown as DiagramData['positions'],
+      reportLines: [
+        { fromId: 'a', toId: 'b', kind: 'admin' },
+        { fromId: 'b', toId: 'a', kind: 'admin' }, // malformed cycle
+      ],
+    });
+    expect([...staffAdminAncestors(d, 'a')].sort()).toEqual(['a', 'b']);
   });
 
   it('staffVisibleData: a node with a second live parent stays visible', () => {
