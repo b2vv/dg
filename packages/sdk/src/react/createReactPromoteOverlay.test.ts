@@ -5,6 +5,8 @@ import {
   DefaultPromoteCard,
   type PromoteOverlayDiagram,
   type PromoteSlotProps,
+  type PromoteBackdropProps,
+  type ReactPromoteOverlay,
 } from './createReactPromoteOverlay.js';
 import type { PromoteCandidate } from '../render/promoteTypes.js';
 
@@ -56,6 +58,59 @@ function makeDiagram(overrides: Partial<PromoteOverlayDiagram> = {}): PromoteOve
 describe('createReactPromoteOverlay', () => {
   afterEach(() => {
     document.body.innerHTML = '';
+  });
+
+  it('renders the backdrop behind the cards with the synced viewport and lod', () => {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    const seen: PromoteBackdropProps[] = [];
+    const Backdrop = (p: PromoteBackdropProps) => {
+      seen.push(p);
+      return createElement('div', { 'data-test-backdrop': '' });
+    };
+    let overlay: ReactPromoteOverlay | undefined;
+    act(() => {
+      overlay = createReactPromoteOverlay({
+        diagram: makeDiagram(),
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-visible',
+        backdrop: Backdrop,
+      });
+    });
+
+    // Backdrop rendered, and fed the SAME viewport/lod the cards were built for.
+    expect(mount.querySelector('[data-test-backdrop]')).not.toBeNull();
+    expect(seen.at(-1)?.viewport).toEqual({ x: 0, y: 0, scale: 1 });
+    expect(seen.at(-1)?.lod).toBe('near');
+
+    // Backdrop node comes before the first card slot in DOM paint order (under it).
+    const root = mount.querySelector('[data-org-hierarchy-promote]')!;
+    const kids = [...root.children];
+    const bdWrap = root.querySelector('[data-promote-backdrop]')!;
+    const firstSlot = root.querySelector('[data-promote-slot]');
+    expect(bdWrap).not.toBeNull();
+    if (firstSlot) {
+      expect(kids.indexOf(bdWrap)).toBeLessThan(kids.indexOf(firstSlot));
+    }
+
+    act(() => overlay?.dispose());
+  });
+
+  it('omitting backdrop renders no backdrop node (back-compat)', () => {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    let overlay: ReactPromoteOverlay | undefined;
+    act(() => {
+      overlay = createReactPromoteOverlay({
+        diagram: makeDiagram(),
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-visible',
+      });
+    });
+    expect(mount.querySelector('[data-promote-backdrop]')).toBeNull();
+    act(() => overlay?.dispose());
   });
 
   it('success: promotes selection at near lod and hides via setPromotedNodeIds', async () => {

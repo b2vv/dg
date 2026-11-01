@@ -14,7 +14,13 @@ export { OrganizationNodeView } from './OrganizationNode.js';
 export { OrgEdgesView } from './OrgEdgesView.js';
 export { StaffEdgesView } from './StaffEdgesView.js';
 export { computeStaffLiveGeometry } from './staffLiveGeometry.js';
-export type { StaffLiveGeometry, StaffLiveGeometryInput } from './staffLiveGeometry.js';
+export type {
+  StaffLiveGeometry,
+  StaffLiveGeometryInput,
+  StaffFrameBox,
+} from './staffLiveGeometry.js';
+export { worldPointToScreen, roundedPathD } from './staffChromeGeometry.js';
+export type { ScreenPoint } from './staffChromeGeometry.js';
 export { arrowHeadTriangle, shortenPolylineForArrow } from './staffEdgeArrows.js';
 export {
   buildStaffEdgeSegments,

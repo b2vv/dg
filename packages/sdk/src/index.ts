@@ -121,6 +121,8 @@ export {
   getInactiveOrgSymbolUrl,
   clusterPositionsByDepartment,
   computeStaffLiveGeometry,
+  worldPointToScreen,
+  roundedPathD,
 } from './render/index.js';
 export {
   MediaService,
@@ -167,6 +169,8 @@ export type {
   StaffEdgeRouteVia,
   StaffLiveGeometry,
   StaffLiveGeometryInput,
+  StaffFrameBox,
+  ScreenPoint,
 } from './render/index.js';
 export { SEARCH_PAGE_SIZE } from './callbacks.js';
 export type {

@@ -12,6 +12,7 @@ export {
   type PromoteSlotProps,
   type ReactPromoteOverlay,
   type ReactPromoteOverlayOptions,
+  type PromoteBackdropProps,
   type DefaultPromoteCardProps,
 } from './createReactPromoteOverlay.js';
 export {

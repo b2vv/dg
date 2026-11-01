@@ -76,11 +76,31 @@ export interface PromoteSlotProps {
   onDemote: () => void;
 }
 
+/**
+ * Props a {@link ReactPromoteOverlayOptions.backdrop} receives on every sync.
+ * The viewport and lod are the SAME ones the promoted cards were built for (not a
+ * fresh read), so the backdrop and the cards share one frame of reference and the
+ * layer's catch-up transform carries both together during a pan.
+ */
+export interface PromoteBackdropProps {
+  viewport: ViewportTransform;
+  screen: { width: number; height: number };
+  lod: LodLevel;
+}
+
 export interface ReactPromoteOverlayOptions {
   diagram: PromoteOverlayDiagram;
   /** Diagram mount element — overlay is absolutely positioned on top. */
   mount: HTMLElement;
   component: ComponentType<PromoteSlotProps>;
+  /**
+   * Optional content drawn ONCE behind the promoted cards, in the same
+   * camera-synced layer (so it shares the cards' transform — no second root, no
+   * desync on pan). Used by the staff near-view to draw department/org frames and
+   * connector lines under the seat cards. Rendered only when there are cards to
+   * host it is NOT assumed — the host decides what to show per lod.
+   */
+  backdrop?: ComponentType<PromoteBackdropProps>;
   mode?: PromoteMode;
   maxPromoted?: number;
   /**
@@ -123,7 +143,18 @@ function OverlayRoot(props: {
   component: ComponentType<PromoteSlotProps>;
   onSlotError(id: string, error: unknown): void;
   className?: string;
+  backdrop?: ComponentType<PromoteBackdropProps>;
+  backdropProps: PromoteBackdropProps;
 }): ReactElement {
+  // Backdrop first → lowest in paint order (under the card slots), one DOM node in
+  // the same layer so the catch-up transform moves it with the cards.
+  const backdropEl = props.backdrop
+    ? createElement(
+        'div',
+        { key: '__backdrop', 'data-promote-backdrop': '', style: { display: 'contents' } },
+        createElement(props.backdrop, props.backdropProps),
+      )
+    : null;
   return createElement(
     'div',
     {
@@ -137,6 +168,7 @@ function OverlayRoot(props: {
         zIndex: 5,
       },
     },
+    backdropEl,
     props.slots.map((slot) =>
       // `display: contents` keeps this wrapper out of layout entirely — the
       // host's card positions itself exactly as it would without it — while
@@ -395,7 +427,8 @@ export function createReactPromoteOverlay(
     const measured = options.diagram.getScreenSize();
     const screen = { width: measured.width || 1, height: measured.height || 1 };
 
-    const ids = wantedIds(options.diagram.getLodLevel(), viewport, screen);
+    const lod = options.diagram.getLodLevel();
+    const ids = wantedIds(lod, viewport, screen);
     const sticky = focusedSlotId();
     if (sticky !== null && !ids.includes(sticky)) ids.push(sticky);
 
@@ -413,6 +446,9 @@ export function createReactPromoteOverlay(
         component: options.component,
         onSlotError: handleSlotError,
         className: options.className,
+        backdrop: options.backdrop,
+        // Same viewport/lod the cards were built for → one frame of reference.
+        backdropProps: { viewport, screen, lod },
       }),
     );
   };

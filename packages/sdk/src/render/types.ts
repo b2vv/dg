@@ -323,6 +323,15 @@ export interface RenderConfig {
    * feed the same surfaces (Pixi far, React mid/near). Default false.
    */
   staffAlphaMockup?: boolean;
+  /**
+   * T129 (alpha chrome): the React near-view backdrop owns department/org frames
+   * and lines at mid/near, so Pixi staff chrome (zones, dept cards, frame+edges)
+   * is skipped there to avoid double paint. Keyed SEPARATELY from
+   * `staffAlphaMockup` (which drives layout): the host sets this true ONLY once it
+   * has mounted the backdrop, so if the backdrop is unavailable Pixi still draws
+   * the chrome (graceful fallback, never an empty scene). Default false.
+   */
+  staffReactChrome?: boolean;
   /** T64: department paint mode (default blob). */
   departmentStyle?: DepartmentPaintStyle;
   /** Enables dept-grouping layout + v2 routing; default legacy. */
@@ -516,6 +525,7 @@ export const defaultRenderConfig: RenderConfig = {
   staffTreeBlockLayout: false,
   staffMultiSourceParentEval: false,
   staffAlphaMockup: false,
+  staffReactChrome: false,
   staffDeptGrouping: false,
   departmentStyle: 'blob',
   staffEdgeRouter: 'legacy',

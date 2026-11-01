@@ -673,10 +673,20 @@ export class DiagramRenderer {
       insetY: geom.insetY,
     };
 
-    if (config.staffZoneChrome) this.paintStaffZones(ctx, live, geom);
-    await this.paintStaffDepartments(ctx, canvas, geom);
-    if (!this.isRenderCurrent(epoch)) return;
-    this.paintStaffFrameAndEdges(ctx, live);
+    // React near-view chrome (T129): on mid/near the React backdrop owns dept/org
+    // frames and lines, so Pixi chrome (zones, dept cards, frame+edges) is skipped
+    // to avoid double paint. Keyed on `staffReactChrome` — set by the host ONLY when
+    // the backdrop is mounted — not on `staffAlphaMockup`, so a missing backdrop
+    // leaves Pixi drawing the chrome (graceful fallback, never an empty scene). On
+    // far, Pixi draws everything. Person/org cards are untouched: the promote
+    // overlay hides the ones it draws in React; the rest stay Pixi.
+    const reactChrome = config.staffReactChrome === true && (options.lod ?? 'near') !== 'far';
+    if (!reactChrome) {
+      if (config.staffZoneChrome) this.paintStaffZones(ctx, live, geom);
+      await this.paintStaffDepartments(ctx, canvas, geom);
+      if (!this.isRenderCurrent(epoch)) return;
+      this.paintStaffFrameAndEdges(ctx, live);
+    }
     this.addStaffPersonCards(ctx, canvas, geom);
     this.addStaffOrgCards(ctx, canvas);
   }

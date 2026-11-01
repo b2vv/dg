@@ -62,6 +62,16 @@ export interface StaffLiveGeometryInput {
   lod: LodLevel;
 }
 
+/** Department frame in world coords — the single geometry source (Rust mockup
+ *  layout). The React near-view chrome draws from these; empty off the alpha path. */
+export interface StaffFrameBox {
+  departmentId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface StaffLiveGeometry {
   canvas: StaffCanvasResult;
   staffOptions: StaffLayoutOptions;
@@ -73,6 +83,13 @@ export interface StaffLiveGeometry {
   zones: StaffTierBand[];
   /** Routed edge segments for `lod`. */
   routes: StaffEdgeSegment[];
+  /**
+   * Department frames in world coords — populated only on the alpha mockup path
+   * (from Rust `result.frames`, the single source). Empty elsewhere. The React
+   * near-view chrome consumes these so frames and lines share one geometry (no
+   * AABB drift, entry dots sit on the frame edge).
+   */
+  frames: StaffFrameBox[];
   /** Edges still intruding a foreign department frame after routing (v2 only). */
   markedCrossings: Array<{ fromId: string; toId: string }>;
 }
@@ -222,7 +239,18 @@ async function computeViaRust(input: BranchInput): Promise<StaffLiveGeometry> {
     capDiagnostics: staffExpandCeilingDiagnostics(data, currentOrgId, staffOptions),
   });
 
-  return { canvas, staffOptions, zoneLabelBand, contentPadding, zones, routes, markedCrossings };
+  // frames only on the alpha mockup path (Rust `result.frames`); the real staff
+  // layout derives dept chrome from member AABB, so none here.
+  return {
+    canvas,
+    staffOptions,
+    zoneLabelBand,
+    contentPadding,
+    zones,
+    routes,
+    frames: [],
+    markedCrossings,
+  };
 }
 
 /**
@@ -285,6 +313,7 @@ async function computeViaTs(input: BranchInput): Promise<StaffLiveGeometry> {
     contentPadding,
     zones,
     routes: routed.routedSegments,
+    frames: [],
     markedCrossings: routed.markedCrossings,
   };
 }
@@ -298,21 +327,24 @@ async function computeViaTs(input: BranchInput): Promise<StaffLiveGeometry> {
  * Edges are the admin report lines; zones/routes are empty for now (zone chrome
  * and connectors are later alpha slices).
  */
-async function computeViaMockup(input: BranchInput): Promise<StaffLiveGeometry> {
-  const { data, currentOrgId, staffOptions, zoneLabelBand, contentPadding } = input;
-
+/**
+ * Build the Rust mockup-layout input from diagram data for one org. Exported so a
+ * host (the demo near-view backdrop) can compute the SAME geometry the Pixi path
+ * uses — identical input into the same deterministic WASM function means zero drift
+ * between the Pixi-far scene and the React-near chrome — without re-deriving the
+ * filtering, admin-edge selection or params here.
+ */
+export function buildStaffMockupInput(data: DiagramData, currentOrgId: string): StaffMockupInput {
   const inOrg = data.positions.filter((p) => p.organizationId === currentOrgId);
   const ids = new Set(inOrg.map((p) => p.id));
   const seatW = inOrg[0]?.width ?? 300;
   const seatH = inOrg[0]?.height ?? 112;
-
   const reports = data.reportLines
     .filter(
       (r) => r.kind === 'admin' && r.fromId !== r.toId && ids.has(r.fromId) && ids.has(r.toId),
     )
     .map((r) => ({ fromId: r.fromId, toId: r.toId, kind: 'admin' as const }));
-
-  const mockInput: StaffMockupInput = {
+  return {
     positions: inOrg.map((p) => ({
       id: p.id,
       organizationId: p.organizationId,
@@ -325,16 +357,14 @@ async function computeViaMockup(input: BranchInput): Promise<StaffLiveGeometry> 
       .map((d) => ({ id: d.id, order: d.order })),
     // routing 'astar' = порт справжнього роутера мокапа (route()/A*, 0 перетинів);
     // 'simple' лишається варіантом порівняння в Rust-бібліотеці.
-    params: {
-      pad: 8,
-      lane: 8,
-      cardWidth: seatW,
-      cardHeight: seatH,
-      headerHeight: 34,
-      routing: 'astar',
-    },
+    params: { pad: 8, lane: 8, cardWidth: seatW, cardHeight: seatH, headerHeight: 34, routing: 'astar' },
   };
+}
 
+async function computeViaMockup(input: BranchInput): Promise<StaffLiveGeometry> {
+  const { data, currentOrgId, staffOptions, zoneLabelBand, contentPadding } = input;
+
+  const mockInput = buildStaffMockupInput(data, currentOrgId);
   const result = await computeStaffMockupLayoutWasm(mockInput);
 
   const positionNodes: StaffNodeBox[] = result.nodes.map((n) => ({
@@ -352,7 +382,7 @@ async function computeViaMockup(input: BranchInput): Promise<StaffLiveGeometry> 
     currentOrgId,
     tiers: [],
     positionNodes,
-    edges: reports,
+    edges: mockInput.reports.map((r) => ({ fromId: r.fromId, toId: r.toId, kind: 'admin' as const })),
     orgCards: [],
     width: result.width,
     height: result.height,
@@ -390,6 +420,14 @@ async function computeViaMockup(input: BranchInput): Promise<StaffLiveGeometry> 
     contentPadding,
     zones: [],
     routes,
+    // Рамки департаментів із Rust — єдине джерело для React-хрому (T1/B1).
+    frames: result.frames.map((f) => ({
+      departmentId: f.departmentId,
+      x: f.x,
+      y: f.y,
+      width: f.width,
+      height: f.height,
+    })),
     markedCrossings: [],
   };
 }

@@ -5,7 +5,10 @@ import {
   mapArrayItems,
   recommendWorkerPoolSize,
   SEARCH_PAGE_SIZE,
+  computeStaffLiveGeometry,
+  defaultNodeTheme,
   type DiagramData,
+  type RenderConfig,
   type SearchAllResult,
   type FlatDiagramRow,
   type LayoutPatch,
@@ -20,9 +23,11 @@ import {
   type ReactPromoteOverlay,
   type TestAnchorOverlay,
   type PromoteSlotProps,
+  type PromoteBackdropProps,
 } from '@org-hierarchy/sdk/react';
-import { createElement } from 'react';
+import { createElement, type ReactElement } from 'react';
 import { ShpsStaffCard } from './ShpsStaffCard.js';
+import { buildStaffChromeGeometry, makeStaffChromeBackdrop } from './StaffChromeBackdrop.js';
 import { buildFlatOrgsData } from '../scenarios/flatOrgs.js';
 import {
   SCALE_ORG_TOTAL,
@@ -215,6 +220,8 @@ export class App {
   private lastMappedMs = 0;
   private contextMenu: ReactContextMenuHost | null = null;
   private promote: ReactPromoteOverlay | null = null;
+  /** ШПС alpha near-view chrome backdrop; set when its geometry is ready (else Pixi). */
+  private staffChromeBackdrop?: (props: PromoteBackdropProps) => ReactElement | null;
   private testAnchors: TestAnchorOverlay | null = null;
   private readonly e2eMode =
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('e2e');
@@ -394,6 +401,7 @@ export class App {
   private async reload(): Promise<void> {
     this.disposeDiagram();
     const config = this.buildConfig();
+    await this.prepareStaffChrome(config);
     try {
       this.setStatus('Loading…');
       this.diagram = await OrgHierarchyDiagram.create(this.mountEl, {
@@ -624,6 +632,44 @@ export class App {
     };
   }
 
+  /**
+   * ШПС alpha: compute the near-view chrome geometry (dept frames + org frame +
+   * connector lines) from the SAME deterministic Rust mockup layout the Pixi path
+   * uses, and flip `staffReactChrome` so the renderer skips Pixi chrome at mid/near.
+   * On any failure the backdrop is left unset and the flag false → Pixi draws the
+   * chrome (graceful fallback, never an empty scene). Must run before `create()`,
+   * since the flag lives in the render config the diagram reads.
+   */
+  private async prepareStaffChrome(config: OrgHierarchyConfig<unknown>): Promise<void> {
+    this.staffChromeBackdrop = undefined;
+    const render = config.render;
+    const orgId = config.staffCurrentOrgId;
+    if (render?.staffAlphaMockup !== true || !config.data || !orgId) return;
+    // The staff demos feed already-mapped `DiagramData`; the generic config erases
+    // it to the host-raw type, so recover it here (demo-only, this tab's own data).
+    const data = config.data as unknown as DiagramData;
+    try {
+      const live = await computeStaffLiveGeometry({
+        data,
+        currentOrgId: orgId,
+        theme: defaultNodeTheme,
+        resolvedTheme: config.theme === 'light' ? 'light' : 'dark',
+        config: render as RenderConfig,
+        staff: config.staffLayout ? { layout: config.staffLayout } : undefined,
+        lod: 'near',
+      });
+      this.staffChromeBackdrop = makeStaffChromeBackdrop(
+        buildStaffChromeGeometry(live, data, orgId),
+      );
+      render.staffReactChrome = true;
+    } catch (err) {
+      this.staffChromeBackdrop = undefined;
+      this.showToast(
+        `staff-alpha chrome · Pixi fallback: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
   /** Promote overlay always; test anchors + the e2e bridge only in `?e2e=1`. */
   private mountOverlays(diagram: OrgHierarchyDiagram): void {
     // The ШПС scenes are the clean staff demos: their seats are React cards at
@@ -642,6 +688,9 @@ export class App {
         : this.promoteMode === 'near-visible'
           ? DemoContentModesCard
           : DemoPromoteCard,
+      // ШПС alpha: dept/org frames + connector lines drawn under the cards, in the
+      // same camera-synced layer (set only when its geometry computed; else Pixi).
+      backdrop: this.staffChromeBackdrop,
     });
     if (!this.e2eMode) return;
     this.testAnchors = createTestAnchorOverlay({
