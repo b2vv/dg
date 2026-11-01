@@ -28,6 +28,8 @@ export interface WasmContourModule {
    * the row-tree entry this takes one object and the TS bridge forwards it as-is.
    */
   computeStaffGeometry: (input: unknown) => unknown;
+  /** Alpha staff-layout — окрема версія ліби (порт алгоритму мокапа `shps-links.js`). */
+  computeStaffMockupLayout: (input: unknown) => unknown;
 }
 
 /** Thrown when the WASM module cannot be loaded or initialized. */

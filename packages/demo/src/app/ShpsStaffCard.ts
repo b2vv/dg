@@ -59,7 +59,10 @@ export function ShpsStaffCard(props: PromoteSlotProps): ReactElement {
   const name = node.person?.fullName;
   const vacant = pos?.status === 'vacant' || (!name && node.ref.kind === 'position');
   const acting = pos?.status === 'acting' || pos?.isTemporary === true;
-  const isHead = pos?.isHead === true || (pos?.childrenCount ?? 0) > 0;
+  // Head-стиль (оранж рамка/title/футер-чіп) — лише для голів (деп-корені+орг-корінь),
+  // як у мокапі, а НЕ для будь-якої картки з дітьми. childrenCount керує футером окремо.
+  const isHead = pos?.isHead === true;
+  const hasChildren = (pos?.childrenCount ?? 0) > 0;
   const hasCounts = pos?.childrenCount != null || pos?.allDescendantCount != null;
   const date = periodLine(pos?.periodStart, pos?.periodEnd);
 
@@ -107,7 +110,8 @@ export function ShpsStaffCard(props: PromoteSlotProps): ReactElement {
     'div',
     {
       style: {
-        fontSize: px(15),
+        // v3 `.pos` = var(--pos-fs)=17px (не 15 — те для зовнішньої `.xcard`).
+        fontSize: px(17),
         fontWeight: 600,
         lineHeight: 1.28,
         color: isHead ? C.headPos : C.pos,
@@ -160,7 +164,8 @@ export function ShpsStaffCard(props: PromoteSlotProps): ReactElement {
         display: 'flex',
         alignItems: 'center',
         gap: px(6),
-        fontSize: px(13.5),
+        // v3 `.who` = var(--who-fs)=15px.
+        fontSize: px(15),
         fontWeight: 500,
         lineHeight: 1.3,
         marginTop: px(4),
@@ -214,33 +219,24 @@ export function ShpsStaffCard(props: PromoteSlotProps): ReactElement {
   if (hasCounts) {
     const n = pos?.childrenCount ?? 0;
     const m = pos?.allDescendantCount ?? 0;
-    childNodes.push(
+    const footChildren: ReactElement[] = [
       createElement(
-        'div',
+        'span',
         {
-          key: 'foot',
-          style: {
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: px(34),
-            padding: `${px(6)} ${px(12)}`,
-            borderTop: `1px solid ${C.cardDiv}`,
-            background: C.footBg,
-          },
+          key: 'cnt',
+          style: { fontFamily: 'JetBrains Mono, monospace', fontSize: px(13), color: C.cnt },
         },
+        `${n} `,
+        createElement('span', { style: { color: C.cntDim } }, `[${m}]`),
+      ),
+    ];
+    // Chevron-чіп лише коли є підлеглі (мокап: `.tg` рендериться if k.length).
+    if (hasChildren) {
+      footChildren.push(
         createElement(
           'span',
           {
-            style: { fontFamily: 'JetBrains Mono, monospace', fontSize: px(13), color: C.cnt },
-          },
-          `${n} `,
-          createElement('span', { style: { color: C.cntDim } }, `[${m}]`),
-        ),
-        createElement(
-          'span',
-          {
+            key: 'tg',
             style: {
               position: 'absolute',
               right: px(8),
@@ -260,6 +256,25 @@ export function ShpsStaffCard(props: PromoteSlotProps): ReactElement {
           },
           '⌄',
         ),
+      );
+    }
+    childNodes.push(
+      createElement(
+        'div',
+        {
+          key: 'foot',
+          style: {
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: px(34),
+            padding: `${px(6)} ${px(12)}`,
+            borderTop: `1px solid ${C.cardDiv}`,
+            background: C.footBg,
+          },
+        },
+        ...footChildren,
       ),
     );
   }

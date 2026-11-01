@@ -38,6 +38,20 @@ export function computeStaffGeometry(input) {
     return takeFromExternrefTable0(ret[0]);
 }
 
+/**
+ * Alpha staff-геометрія за алгоритмом мокапа (окрема версія ліби).
+ * Приймає `StaffMockupInput`, повертає `StaffMockupResult`.
+ * @param {any} input
+ * @returns {any}
+ */
+export function computeStaffMockupLayout(input) {
+    const ret = wasm.computeStaffMockupLayout(input);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
 export function init() {
     wasm.init();
 }

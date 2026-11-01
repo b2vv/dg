@@ -9,11 +9,13 @@ import type { NodeTheme } from '@org-hierarchy/sdk';
 export const MOCKUP_FIGMA_STYLES = {
   /** Canvas surface — bg/secondary behind the dashed zones. */
   canvasBackground: 0x222222,
-  /** Connectors: 1px grey elbows, rounded corners, round dot at each port. */
+  /** Connectors: 2px terracotta elbows, uniform 4px corners, round dot at each port. */
   edge: {
-    color: 0xa6a6a6,
-    width: 1,
-    cornerRadius: 8,
+    // Terracotta #c2502a — approved staff screenshots + palette variant D
+    // («--line», «--lw 2px»). Owner decision dg39 over the BA §7 «зараз сірий».
+    color: 0xc2502a,
+    width: 2,
+    cornerRadius: 4,
     terminator: 'dot',
     dotRadius: 2.67,
   },
@@ -106,17 +108,25 @@ export const MOCKUP_FIGMA_STYLES = {
     },
   },
   departmentCard: {
-    // Department block inside a tier: #242f3d fill, dashed #3d5067.
-    fill: 0x242f3d,
+    // Owner decision dg39: dept block rendered «за мокапом» — mockup `.dept`
+    // (near-black body #111113, solid 1px rule #3a3a40, radius) with a filled
+    // `.dn` «залита шапка» (#202023, lighter than the body, divided by the rule).
+    // Was #242f3d / dashed #3d5067 (DG Figma-tier values); the approved
+    // screenshots show near-black frames, so the mockup trio is the faithful port.
+    fill: 0x111113,
     fillAlpha: 1,
-    stroke: 0x3d5067,
+    stroke: 0x3a3a40,
     strokeWidth: 1,
     borderRadius: 8,
     labelColor: 0xa6a6a6,
     labelFontSize: 14,
-    padding: 16,
+    // Internal padding «за мокапом» (`shps-links.js` DP=38 sides/bottom; with the
+    // 20px labelRow the top = 58 = mockup DPt). Was 16. dg39.
+    padding: 38,
     labelRow: true,
-    dashed: true,
+    dashed: false,
+    labelBarFill: 0x202023,
+    labelBarBorder: 0x3a3a40,
     // ШПС mockup `.dn em` — dim mono «N поз.» beside the department name.
     badgeColor: 0x9a9aa0,
     badgeFontSize: 12,

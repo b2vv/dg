@@ -19,7 +19,11 @@ import { SHPS_SEAT, SHPS_STAFF_LAYOUT } from './shpsStaff';
  */
 export const MOCK3_STAFF_LAYOUT = {
   ...SHPS_STAFF_LAYOUT,
-  verticalGap: 120,
+  // dg39: inter-department gutter «за мокапом» (shps-links.js BG=44 horiz, BV=96 vert).
+  // Tuned empirically against the served mockup: these produce ~44px / ~96px
+  // visible gutters between dept frames at the current content padding.
+  horizontalGap: 82,
+  verticalGap: 160,
   tierGap: 120,
 } as const;
 
@@ -115,7 +119,42 @@ function seat(
   };
 }
 
-export function buildMock3ShpsData(): DiagramData {
+/**
+ * @param opts.deptHeadsAsIsHead — позначати голів департаментів прапором `isHead`
+ *   (окрім орг-кореня). Потрібно лише alpha-шляху (мокап-layout ігнорує кратність
+ *   isHead і рендерить head-стиль карток). Справжній staff-layout (tab staff-mock3)
+ *   вимагає РІВНО одну isHead/оргу (`resolveStaffHead`), тож дефолт — false.
+ */
+export function buildMock3ShpsData(opts: { deptHeadsAsIsHead?: boolean } = {}): DiagramData {
+  const deptHeadsAsIsHead = opts.deptHeadsAsIsHead === true;
+
+  // Дати перебування на посаді (ISO) за іменем — для перевірки рядка дати в картці
+  // («з DD.MM.YYYY по т.ч.»). Значення взяті з мокапа v3 (DATES), по збігу імені.
+  const DATES: Record<string, string> = {
+    'Петренко О. В.': '2025-02-03',
+    'Коваленко Т. С.': '2025-09-15',
+    'Мельник А. С.': '2023-01-11',
+    'Бондар Д. І.': '2024-06-01',
+    'Ткач М. О.': '2026-03-20',
+  };
+  // Head-статус і лічильники ВИВОДЯТЬСЯ з дерева reports (як робить мокап
+  // `shps-links.js`: heads = ceo + корені департаментів, counts = KIDS/desc),
+  // а не задаються прапором у даних. Так картка знає, що вона голова (оранж
+  // рамка/title) і скільки під нею посад (футер `N [m]`).
+  const byId = new Map(POS.map((p) => [p.id, p]));
+  const kidsOf = new Map<string, string[]>();
+  for (const p of POS) {
+    if (p.p) {
+      const arr = kidsOf.get(p.p);
+      if (arr) arr.push(p.id);
+      else kidsOf.set(p.p, [p.id]);
+    }
+  }
+  const descCount = (id: string): number =>
+    (kidsOf.get(id) ?? []).reduce((n, k) => n + 1 + descCount(k), 0);
+  // Голова = корінь орги (без батька) або корінь департаменту (батько в іншому деп).
+  const isHeadOf = (p: Pos): boolean => p.p == null || byId.get(p.p)?.d !== p.d;
+
   return {
     organizations: [
       { id: ORG_ID, name: 'Організація (mock3)', role: 'current', groupIds: [], collapsed: false },
@@ -137,8 +176,12 @@ export function buildMock3ShpsData(): DiagramData {
         ...(p.w
           ? { personId: `per-${p.id}`, status: 'filled' as const }
           : { status: 'vacant' as const }),
-        // Only the org root is the authored head; department heads are derived by the layout.
-        ...(p.id === 'ceo' ? { isHead: true } : {}),
+        ...(p.w && DATES[p.w] ? { periodStart: DATES[p.w], periodEnd: null } : {}),
+        childrenCount: (kidsOf.get(p.id) ?? []).length,
+        allDescendantCount: descCount(p.id),
+        // Орг-корінь завжди isHead; деп-голови — лише коли alpha-шлях попросив
+        // (інакше справжній layout кине «Multiple isHead positions»).
+        ...((deptHeadsAsIsHead ? isHeadOf(p) : p.p == null) ? { isHead: true } : {}),
       }),
     ),
     reportLines: POS.flatMap((p) => [

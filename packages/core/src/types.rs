@@ -704,6 +704,16 @@ mod ts_export {
         StaffEdgeRoute::export().expect("StaffEdgeRoute");
         StaffRouteSet::export().expect("StaffRouteSet");
         StaffGeometryResult::export().expect("StaffGeometryResult");
+
+        // Alpha staff-layout (окрема версія ліби, порт алгоритму мокапа).
+        crate::staff_mockup_layout::StaffMockupParams::export().expect("StaffMockupParams");
+        crate::staff_mockup_layout::StaffMockupInput::export().expect("StaffMockupInput");
+        crate::staff_mockup_layout::StaffMockupNode::export().expect("StaffMockupNode");
+        crate::staff_mockup_layout::StaffMockupFrame::export().expect("StaffMockupFrame");
+        crate::staff_mockup_layout::StaffMockupRouting::export().expect("StaffMockupRouting");
+        crate::staff_mockup_layout::StaffMockupPoint::export().expect("StaffMockupPoint");
+        crate::staff_mockup_layout::StaffMockupEdge::export().expect("StaffMockupEdge");
+        crate::staff_mockup_layout::StaffMockupResult::export().expect("StaffMockupResult");
     }
 }
 

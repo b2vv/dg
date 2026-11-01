@@ -24,13 +24,18 @@ import {
   StaffLayoutError,
   type StaffCanvasResult,
   type StaffLayoutOptions,
+  type StaffNodeBox,
   type StaffTierBand,
 } from '../layout/staff/types.js';
 import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
 import { positionHasCoords } from '../layout/staff/coords.js';
 import { resolveStaffHead } from '../layout/staff/resolveHead.js';
 import { resolveDeptHeads } from '../layout/staff/resolveDeptHeads.js';
-import { computeStaffGeometryWasm } from '../wasm/layoutBridge.js';
+import {
+  computeStaffGeometryWasm,
+  computeStaffMockupLayoutWasm,
+  type StaffMockupInput,
+} from '../wasm/layoutBridge.js';
 import { adaptStaffGeometry } from './adaptStaffGeometry.js';
 import {
   buildStaffLayoutInput,
@@ -141,6 +146,16 @@ export async function computeStaffLiveGeometry(
     staff,
   );
   const contentPadding = departmentWrapperPadding(theme, config);
+
+  // T129 (alpha): the ONLY calculation on this path is the mockup-ported layout.
+  // The previous calc (Rust `compute_staff_geometry` via `computeViaRust`, and the
+  // TS `layoutStaffCanvas` via `computeViaTs`) is not called here — owner decision
+  // 2026-11-01. Coords feed the same surfaces (Pixi far / React mid+near).
+  if (config.staffAlphaMockup === true) {
+    return computeViaMockup({
+      data, currentOrgId, theme, config, staffOptions, zoneLabelBand, contentPadding, lod,
+    });
+  }
 
   // Rust implements only `tree` coord-mode (`staff_layout.rs`: «matrix/hybrid — TS
   // adapter»). A *genuine tree* scene — the golden demo tabs, converging matrix→tree
@@ -271,5 +286,110 @@ async function computeViaTs(input: BranchInput): Promise<StaffLiveGeometry> {
     zones,
     routes: routed.routedSegments,
     markedCrossings: routed.markedCrossings,
+  };
+}
+
+/**
+ * T129 alpha: staff geometry from ONLY the mockup-ported layout
+ * (`computeStaffMockupLayout`, two-level tidy-tree). The old calc is not used on
+ * this path. Node coords feed the same `StaffCanvasResult` the surfaces consume —
+ * department card frames and the React promote cards are both DERIVED from
+ * `positionNodes` (frame = member AABB + padding), so placing the nodes is enough.
+ * Edges are the admin report lines; zones/routes are empty for now (zone chrome
+ * and connectors are later alpha slices).
+ */
+async function computeViaMockup(input: BranchInput): Promise<StaffLiveGeometry> {
+  const { data, currentOrgId, staffOptions, zoneLabelBand, contentPadding } = input;
+
+  const inOrg = data.positions.filter((p) => p.organizationId === currentOrgId);
+  const ids = new Set(inOrg.map((p) => p.id));
+  const seatW = inOrg[0]?.width ?? 300;
+  const seatH = inOrg[0]?.height ?? 112;
+
+  const reports = data.reportLines
+    .filter(
+      (r) => r.kind === 'admin' && r.fromId !== r.toId && ids.has(r.fromId) && ids.has(r.toId),
+    )
+    .map((r) => ({ fromId: r.fromId, toId: r.toId, kind: 'admin' as const }));
+
+  const mockInput: StaffMockupInput = {
+    positions: inOrg.map((p) => ({
+      id: p.id,
+      organizationId: p.organizationId,
+      isHead: p.isHead === true,
+      departmentId: p.departmentId,
+    })),
+    reports,
+    departments: data.departments
+      .filter((d) => d.organizationId === currentOrgId)
+      .map((d) => ({ id: d.id, order: d.order })),
+    // routing 'astar' = порт справжнього роутера мокапа (route()/A*, 0 перетинів);
+    // 'simple' лишається варіантом порівняння в Rust-бібліотеці.
+    params: {
+      pad: 8,
+      lane: 8,
+      cardWidth: seatW,
+      cardHeight: seatH,
+      headerHeight: 34,
+      routing: 'astar',
+    },
+  };
+
+  const result = await computeStaffMockupLayoutWasm(mockInput);
+
+  const positionNodes: StaffNodeBox[] = result.nodes.map((n) => ({
+    id: n.id,
+    organizationId: currentOrgId,
+    x: n.x,
+    y: n.y,
+    width: n.width,
+    height: n.height,
+    role: 'tree',
+    tier: 2,
+  }));
+
+  const canvas: StaffCanvasResult = {
+    currentOrgId,
+    tiers: [],
+    positionNodes,
+    edges: reports,
+    orgCards: [],
+    width: result.width,
+    height: result.height,
+    diagnostics: [],
+  };
+
+  // Лінії підпорядкування рахуються в Rust-мокап-бібліотеці (єдине джерело
+  // геометрії, ADR-0002) — тут лише адаптація сегментів у render-форму. x1/y1/x2/y2
+  // = перша/остання точки ламаної, як чекає StaffEdgesView.
+  const routes: StaffEdgeSegment[] = result.edges
+    .filter((e) => e.points.length >= 2)
+    .map((e) => {
+      const points = e.points.map((pt) => ({ x: pt.x, y: pt.y }));
+      const first = points[0]!;
+      const last = points[points.length - 1]!;
+      return {
+        fromId: e.fromId,
+        toId: e.toId,
+        kind: 'admin' as const,
+        points,
+        x1: first.x,
+        y1: first.y,
+        x2: last.x,
+        y2: last.y,
+        // Ребро-в-департамент докається на верх рамки → вхідна крапка, не стрілка
+        // (прапор рахується в Rust-роутері, як у мокапі).
+        endsOnDeptTop: e.endsOnDeptTop,
+      };
+    });
+
+  return {
+    canvas,
+    staffOptions,
+    zoneLabelBand,
+    contentPadding,
+    zones: [],
+    routes,
+    markedCrossings: [],
   };
 }

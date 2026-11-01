@@ -56,22 +56,27 @@ export function worldBoxToScreen(box: WorldBox, viewport: ViewportTransform): Sc
 /**
  * `off` — nothing is promoted.
  * `selection` — the selected node, at any zoom.
- * `near-selection` — the selected node, only in the `near` band.
- * `near-visible` — every visible card in the `near` band, not just the selection.
+ * `near-selection` — the selected node, in the detail band (mid + near).
+ * `near-visible` — every visible card in the detail band (mid + near).
+ *
+ * Mode names keep the historical `near-` prefix for API stability; the band they
+ * gate is the **detail band** (mid + near), not `near` alone — see
+ * {@link nearVisibleGateOpen}.
  */
 export type PromoteMode = 'off' | 'selection' | 'near-selection' | 'near-visible';
 
 /**
- * The `near-visible` gate. It answers only "is this a zoom band where cards
+ * The detail-band gate. It answers only "is this a zoom band where cards
  * deserve real chrome", because the band is the whole rule: the limit is zoom,
  * never a card count. A bigger screen shows more cards at the same zoom, and
  * that is the intended behaviour rather than something to cap.
  *
- * `near` is deliberately the same threshold Pixi's LOD already uses — one
- * boundary for "close enough to be worth detail", not two that can drift apart.
+ * T129 (owner decision 2026-11-01): the React surface covers **mid and near**;
+ * Pixi is the far-only mass renderer. So the band is "not far" — one boundary
+ * shared with Pixi's LOD split (far ↔ detail), not two that can drift apart.
  */
 export function nearVisibleGateOpen(lod: LodLevel): boolean {
-  return lod === 'near';
+  return lod !== 'far';
 }
 
 export interface ResolvePromoteIdsArgs {
@@ -105,7 +110,7 @@ export function promoteVisualForSelection(
 
 /**
  * Decide which node ids should be promoted to HTML **from the selection**.
- * `near-selection`: only when LOD is near and something is selected.
+ * `near-selection`: only in the detail band (mid + near) with a selection.
  * `selection`: any LOD with a selection.
  * Returns typed `kind:id` keys (at most one visual per selection).
  *
@@ -119,7 +124,8 @@ export function promoteVisualForSelection(
 export function resolvePromoteIds(args: ResolvePromoteIdsArgs): string[] {
   const { mode, lod, selection, maxCount = 8 } = args;
   if (mode === 'off' || mode === 'near-visible' || !selection) return [];
-  if (mode === 'near-selection' && lod !== 'near') return [];
+  // Detail band = mid + near (T129); only `far` suppresses near-selection.
+  if (mode === 'near-selection' && lod === 'far') return [];
 
   const visual = promoteVisualForSelection(selection);
   if (!visual) return [];

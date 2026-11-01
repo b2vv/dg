@@ -4,6 +4,8 @@ import type {
   OrgRowTreeLayoutResult,
   StaffGeometryResult,
   StaffLayoutInput,
+  StaffMockupInput,
+  StaffMockupResult,
 } from './generated/rust-types.js';
 
 export type { OrgFlatInput, OrgRowTreeLayoutResult, LayoutNode, LayoutEdge } from './generated/rust-types.js';
@@ -31,6 +33,15 @@ export type {
   StaffRouteSet,
   StaffEdgeRoute,
   StaffRoutePoint,
+} from './generated/rust-types.js';
+
+// Alpha staff-layout — окрема версія ліби (порт алгоритму мокапа `shps-links.js`).
+export type {
+  StaffMockupInput,
+  StaffMockupParams,
+  StaffMockupNode,
+  StaffMockupFrame,
+  StaffMockupResult,
 } from './generated/rust-types.js';
 
 export interface WasmRowTreeOptions {
@@ -83,4 +94,17 @@ export async function computeStaffGeometryWasm(
 ): Promise<StaffGeometryResult> {
   const wasm = await initContourWasm();
   return wasm.computeStaffGeometry(input) as StaffGeometryResult;
+}
+
+/**
+ * Alpha staff-layout над WASM-межею — окрема версія ліби (порт алгоритму мокапа
+ * `shps-links.js` `layout()`): дворівневий tidy-tree з розчепленими LV/BV. Типізований
+ * pass-through, як `computeStaffGeometryWasm`: увесь `StaffMockupInput` переходить одним
+ * об'єктом, помилки — як Rust `JsValue`.
+ */
+export async function computeStaffMockupLayoutWasm(
+  input: StaffMockupInput,
+): Promise<StaffMockupResult> {
+  const wasm = await initContourWasm();
+  return wasm.computeStaffMockupLayout(input) as StaffMockupResult;
 }

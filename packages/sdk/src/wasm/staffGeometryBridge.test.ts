@@ -71,6 +71,9 @@ describe('computeStaffGeometryWasm', () => {
         received = arg;
         return canned;
       },
+      computeStaffMockupLayout: () => {
+        throw new Error('computeStaffMockupLayout must not be called by the staff geometry bridge');
+      },
     };
     setContourWasmLoaderForTests(async () => fake);
 

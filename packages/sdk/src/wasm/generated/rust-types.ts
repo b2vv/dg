@@ -130,6 +130,53 @@ multiSourceParentEval?: boolean, };
 export type StaffLayoutMetrics = { nodeWidth: number, nodeHeight: number, refCellWidth: number, refCellHeight: number, horizontalGap: number, verticalGap: number, margin: number, tierGap: number, orgCardWidth: number, orgCardHeight: number, zoneLabelBand: number, contentPadding: number, deptGrouping: boolean, };
 
 /**
+ * Лінія підпорядкування parent→child. Геометрія рахується тут, у калькуляційному
+ * шарі (ADR-0002), не в рендер-адаптері. `kind`: "int" (той самий департамент),
+ * "cross" (різні департаменти), "ext" (батько без департаменту). `ends_on_dept_top`:
+ * лінія докається на ВЕРХ рамки департаменту (рендер малює вхідну крапку `.ent`).
+ */
+export type StaffMockupEdge = { fromId: string, toId: string, kind: string, endsOnDeptTop: boolean, points: Array<StaffMockupPoint>, };
+
+/**
+ * Рамка департаменту у світових координатах (включно з внутрішнім padding і шапкою).
+ */
+export type StaffMockupFrame = { departmentId: string, x: number, y: number, width: number, height: number, };
+
+/**
+ * Вхід alpha-розкладки. Батьківство береться з admin-ребер (перше admin-ребро на дитину =
+ * первинний батько, як `p.p` у мокапі; `p2` — вторинне, ігнорується для розміщення блоків).
+ */
+export type StaffMockupInput = { positions: Array<StaffPositionInput>, reports: Array<StaffEdgeInput>, departments: Array<StaffDepartmentInput>, params: StaffMockupParams, };
+
+/**
+ * Картка посади у світових координатах.
+ */
+export type StaffMockupNode = { id: string, x: number, y: number, width: number, height: number, };
+
+/**
+ * Налаштування alpha-розкладки. `pad`/`lane` керують усіма gap через формули мокапа;
+ * розміри картки/шапки приходять від DG (seat 300×112), не з мокапа (236×118).
+ */
+export type StaffMockupParams = { pad: number, lane: number, cardWidth: number, cardHeight: number, headerHeight: number, routing: StaffMockupRouting, };
+
+/**
+ * Точка ламаної лінії зв'язку у світових координатах.
+ */
+export type StaffMockupPoint = { x: number, y: number, };
+
+/**
+ * Результат alpha-розкладки.
+ */
+export type StaffMockupResult = { nodes: Array<StaffMockupNode>, frames: Array<StaffMockupFrame>, edges: Array<StaffMockupEdge>, width: number, height: number, };
+
+/**
+ * Режим маршрутизації ліній зв'язку.
+ * `Astar` — порт `route()`/`astar()` з мокапа (обходить картки й чужі рамки, 0 перетинів).
+ * `Simple` — примітивний елбоу card→card (для порівняння; очікувано гірший — протикає рамки).
+ */
+export type StaffMockupRouting = "simple" | "astar";
+
+/**
  * Іменована область (було `tiers`/`StaffTierBand`). Межі x/y/width/height
  * **завжди присутні** — смуги ярусів (не рамки відділів: ті — `StaffDepartmentFrameGeo`).
  * label/role — TS-адаптер. `kind`: "staff-block" | "org-cards".

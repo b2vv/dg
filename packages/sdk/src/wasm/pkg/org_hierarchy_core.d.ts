@@ -12,6 +12,12 @@ export function computeOrgRowTreeLayout(organizations: any, expanded_root_id: st
  */
 export function computeStaffGeometry(input: any): any;
 
+/**
+ * Alpha staff-геометрія за алгоритмом мокапа (окрема версія ліби).
+ * Приймає `StaffMockupInput`, повертає `StaffMockupResult`.
+ */
+export function computeStaffMockupLayout(input: any): any;
+
 export function init(): void;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -20,6 +26,7 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly computeOrgRowTreeLayout: (a: any, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number) => [number, number, number];
     readonly computeStaffGeometry: (a: any) => [number, number, number];
+    readonly computeStaffMockupLayout: (a: any) => [number, number, number];
     readonly init: () => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;

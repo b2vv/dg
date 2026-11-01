@@ -32,6 +32,16 @@ export interface DepartmentCardStyle {
   padding?: number;
   /** Reserve a row above the members for the label (Figma dept header). */
   labelRow?: boolean;
+  /**
+   * Fill the reserved {@link labelRow} as a solid header band — the ШПС mockup's
+   * `.dn` «залита шапка» (`#202023`, rounded only at the frame's top corners,
+   * divided from the body by a 1px rule). Omitted → the label floats over the
+   * body fill, as every scene did before the band reached paint. Painted at the
+   * existing labelRow height (not the mockup's 34px) so seats do not move.
+   */
+  labelBarFill?: number;
+  /** Header-band bottom divider; falls back to {@link stroke}. */
+  labelBarBorder?: number;
   /** «N поз.» badge paint; falls back to {@link labelColor}. */
   badgeColor?: number;
   /** «N поз.» badge size; falls back to two points under the label. */
@@ -306,6 +316,13 @@ export interface RenderConfig {
    * `staffTreeBlockLayout` live (it is a no-op without grouping).
    */
   staffDeptGrouping?: boolean;
+  /**
+   * T129 (alpha): compute staff geometry ONLY via the mockup-ported layout
+   * (`computeStaffMockupLayout`, two-level tidy-tree) — the previous calculation
+   * (`computeStaffLiveGeometry` Rust/TS path) is NOT used on this path. Coords
+   * feed the same surfaces (Pixi far, React mid/near). Default false.
+   */
+  staffAlphaMockup?: boolean;
   /** T64: department paint mode (default blob). */
   departmentStyle?: DepartmentPaintStyle;
   /** Enables dept-grouping layout + v2 routing; default legacy. */
@@ -498,6 +515,7 @@ export const defaultRenderConfig: RenderConfig = {
   staffUseAstar: false,
   staffTreeBlockLayout: false,
   staffMultiSourceParentEval: false,
+  staffAlphaMockup: false,
   staffDeptGrouping: false,
   departmentStyle: 'blob',
   staffEdgeRouter: 'legacy',

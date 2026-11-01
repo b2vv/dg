@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Org Hierarchy — Demo</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <!-- ШПС near-view (alpha) рендериться у шрифтах мокапа v3: Onest для карток/лейблів,
+       JetBrains Mono для лічильників і коду департаменту. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -22,6 +27,7 @@
     <nav class="tabs">
       <button type="button" data-tab="staff-shps" class="active">Staff · ШПС</button>
       <button type="button" data-tab="staff-mock3">ШПС · A* (mock3)</button>
+      <button type="button" data-tab="staff-alpha">ШПС · Alpha</button>
       <button type="button" data-tab="variant-b" data-parked hidden>Variant B</button>
       <button type="button" data-tab="staff-tree" data-parked hidden>Staff tree</button>
       <button type="button" data-tab="staff-dept-legacy" data-parked hidden>Staff dept · legacy</button>

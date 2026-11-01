@@ -98,6 +98,19 @@ _Avoid_: Auto-packing overlapping anchors (host/D&D fixes)
 Static Rsbuild build of `packages/demo` deployed via Actions (`DEMO_BASE_PATH=/dg/`).
 _Avoid_: Serving from `npm run dev` in CI
 
+**Render pipeline (4 layers)**:
+One geometry, three surfaces. (1) **Calculation** — all coordinates, packing, wrapper padding,
+tiers and link points computed in one place (Rust `staff_layout.rs` / `render/staffLiveGeometry.ts`;
+ADR `0002`, the T126 mandate); (2) **React@near / SVG export** — consumers that only *read* that
+geometry (`createReactPromoteOverlay`, `export/svgExport.ts`; USAGE §13 "SVG draws the same as the
+canvas because the geometry source is one"); (3) **Pixi** canvas — far/mid LOD render
+(`DepartmentCardView`, `StaffEdgesView`); (4) **Orchestrator** `DiagramRenderer` wires calculation →
+surfaces. Spacing/geometry belongs to layer 1 so every surface agrees; a style that must be drawn
+per-surface (the dept frame band) is kept in parity across SVG + Pixi.
+_Avoid_: Spacing in a render surface (a Pixi frame inset) or eyeballed demo constants; a second
+padding/anchor formula per surface — ADR 0002 measured live `departmentWrapperPadding` ≈36 vs SVG
+`contourButtonGroupMargin` ≈6 diverging on the same frame
+
 **Promote overlay**:
 HTML/React cards for selected near-LOD nodes, camera-synced (`createReactPromoteOverlay`); Pixi views hidden while promoted.
 _Avoid_: Mass HTML for every node; rasterizing promote into export (interactive-only)

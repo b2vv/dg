@@ -161,8 +161,11 @@ describe('staffGeometry golden', () => {
     // `staff-mock3` is the A* R3 comparison tab (T128 T8, `render.staffUseAstar`): its routed output
     // is deliberately NOT golden-baselined until the flip (step C) + rebaseline (T10) land after the
     // owner's R3 visual gate, so it is excluded here like the scale tab.
+    // `staff-alpha` (T129) computes geometry ONLY via the mockup-ported layout (`staffAlphaMockup`),
+    // deliberately bypassing the Rust/TS calc this golden guards — so it is excluded too.
     const actual = Object.keys(TAB_META).filter((tab) => isDemoTab(tab)).filter((tab) =>
-      tab !== 'scale-100k' && tab !== 'staff-mock3' && buildTabConfig(tab, deps).staffLayout !== undefined);
+      tab !== 'scale-100k' && tab !== 'staff-mock3' && tab !== 'staff-alpha'
+      && buildTabConfig(tab, deps).staffLayout !== undefined);
     expect(actual.sort()).toEqual([...staffTabs].sort());
   });
 

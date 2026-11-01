@@ -69,10 +69,11 @@ describe('resolvePromoteIds', () => {
     ).toEqual([nodeEntityKey('organization', 'org1')]);
   });
 
-  it('failure: near-selection demotes when lod is mid/far', () => {
+  it('near-selection promotes across the detail band (mid+near), demotes only at far', () => {
+    // T129: React surface = mid + near; Pixi = far.
     expect(
       resolvePromoteIds({ mode: 'near-selection', lod: 'mid', selection }),
-    ).toEqual([]);
+    ).toEqual([nodeEntityKey('position', 'pos1')]);
     expect(
       resolvePromoteIds({ mode: 'near-selection', lod: 'far', selection }),
     ).toEqual([]);
@@ -101,12 +102,12 @@ describe('screenRectInView', () => {
 });
 
 describe('nearVisibleGateOpen', () => {
-  it('success: open at near — the band the user called "beauty"', () => {
+  it('success: open across the detail band — mid and near (T129)', () => {
     expect(nearVisibleGateOpen('near')).toBe(true);
+    expect(nearVisibleGateOpen('mid')).toBe(true);
   });
 
-  it('failure: closed at mid and far, where cards are schematic anyway', () => {
-    expect(nearVisibleGateOpen('mid')).toBe(false);
+  it('failure: closed at far, the Pixi-only mass-render band', () => {
     expect(nearVisibleGateOpen('far')).toBe(false);
   });
 });
@@ -140,7 +141,7 @@ describe('near-visible does not go through the selection resolver', () => {
         lod: 'mid',
         selection: { id: 'pos1', kind: 'position', positionId: 'pos1' },
       }),
-    ).toEqual([]);
+    ).toEqual([nodeEntityKey('position', 'pos1')]);
   });
 });
 

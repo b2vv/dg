@@ -9,6 +9,7 @@ mod staff_compose;
 mod staff_edge_box;
 mod staff_geom;
 mod staff_layout;
+mod staff_mockup_layout;
 mod staff_packing;
 mod staff_router;
 mod staff_routes;
@@ -29,6 +30,10 @@ pub use staff_edge_box::{
     visual_org_edge_box, visual_person_edge_box, EdgeRect, PersonEdgeHints, Rect,
 };
 pub use staff_layout::{compute_staff_geometry, layout_staff_org_block, Geom, StaffBlock};
+pub use staff_mockup_layout::{
+    compute_staff_mockup_layout, StaffMockupEdge, StaffMockupFrame, StaffMockupInput,
+    StaffMockupNode, StaffMockupParams, StaffMockupPoint, StaffMockupResult, StaffMockupRouting,
+};
 pub use staff_packing::{pack_departments, DepartmentMembers, StaffPackResult};
 pub use staff_router::{
     astar_route, build_corridor_grid, diagonal_segments, occupy, release, route_edges,
@@ -87,6 +92,16 @@ pub fn wasm_compute_staff_geometry(input: JsValue) -> Result<JsValue, JsValue> {
         .validate()
         .map_err(|e| JsValue::from_str(&e))?;
     let result = compute_staff_geometry(&parsed).map_err(|e| JsValue::from_str(&e))?;
+    to_value(&result).map_err(|e| JsValue::from_str(&format!("serialize error: {e}")))
+}
+
+/// Alpha staff-геометрія за алгоритмом мокапа (окрема версія ліби).
+/// Приймає `StaffMockupInput`, повертає `StaffMockupResult`.
+#[wasm_bindgen(js_name = computeStaffMockupLayout)]
+pub fn wasm_compute_staff_mockup_layout(input: JsValue) -> Result<JsValue, JsValue> {
+    let parsed: StaffMockupInput =
+        from_value(input).map_err(|e| JsValue::from_str(&format!("parse error: {e}")))?;
+    let result = compute_staff_mockup_layout(&parsed).map_err(|e| JsValue::from_str(&e))?;
     to_value(&result).map_err(|e| JsValue::from_str(&format!("serialize error: {e}")))
 }
 

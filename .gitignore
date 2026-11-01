@@ -37,3 +37,6 @@ worktrees/
 # Repo-root scratch — codex prompt drafts and throwaway logs, never tracked.
 # (The session scratchpad lives elsewhere; this one is just local noise.)
 scratchpad/
+
+# AI Factory local connection (machine-specific; never committed)
+AGENTS.local.md

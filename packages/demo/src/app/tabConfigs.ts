@@ -140,6 +140,32 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
           cellHeight: MOCK3_STAFF_LAYOUT.refCellHeight,
         },
       };
+    case 'staff-alpha':
+      // T129 alpha: same mock3 ШПС data, but geometry comes ONLY from the
+      // mockup-ported layout (`staffAlphaMockup`) — the previous calc is not used.
+      // Pixi paints far; React promote paints mid+near (T129 global LOD split).
+      return {
+        ...base,
+        theme: 'dark',
+        // Деп-голови позначені isHead → head-стиль карток (оранж рамка/футер-чіп),
+        // як у мокапі. Безпечно лише тут: alpha-layout не вимагає унікальної isHead.
+        data: buildMock3ShpsData({ deptHeadsAsIsHead: true }),
+        styles: {
+          ...MOCKUP_FIGMA_STYLES,
+          person: { ...MOCKUP_FIGMA_STYLES.person, edgePort: 'center' },
+        },
+        lodThresholds: MOCKUP_LOD_THRESHOLDS,
+        staffCurrentOrgId: 'mock3-org',
+        staffLayout: MOCK3_STAFF_LAYOUT,
+        render: {
+          ...base.render,
+          staffZoneChrome: false,
+          departmentStyle: 'card',
+          staffAlphaMockup: true,
+          cellWidth: MOCK3_STAFF_LAYOUT.refCellWidth,
+          cellHeight: MOCK3_STAFF_LAYOUT.refCellHeight,
+        },
+      };
     case 'variant-b':
       return {
         ...base,

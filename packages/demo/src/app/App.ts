@@ -626,10 +626,11 @@ export class App {
 
   /** Promote overlay always; test anchors + the e2e bridge only in `?e2e=1`. */
   private mountOverlays(diagram: OrgHierarchyDiagram): void {
-    // The ШПС scene is the clean staff demo: its seats are React cards at near
-    // zoom (mockup face) and Pixi only at far zoom, so it always runs in
+    // The ШПС scenes are the clean staff demos: their seats are React cards at
+    // near zoom (mockup face) and Pixi only at far zoom, so they always run in
     // `near-visible` with the mockup card, regardless of the `?promote=` flag.
-    const shps = this.tab === 'staff-shps';
+    // `staff-alpha` shares the same near-view face (mockup-calc geometry + v3 card).
+    const shps = this.tab === 'staff-shps' || this.tab === 'staff-alpha';
     this.promote = createReactPromoteOverlay({
       diagram,
       mount: this.mountEl,

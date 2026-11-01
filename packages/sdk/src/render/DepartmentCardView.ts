@@ -56,9 +56,23 @@ export class DepartmentCardView extends Container {
     const view = new DepartmentCardView();
     view.eventMode = 'none';
     const g = new Graphics();
-    g.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, style.borderRadius);
+    const r = style.borderRadius;
+    g.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, r);
     g.fill({ color: style.fill, alpha: style.fillAlpha });
+    // Mockup `.dn` «залита шапка»: a solid band over the reserved label row,
+    // rounded at the frame's top corners only. The second rect squares off the
+    // band's bottom (roundRect rounds all four corners); the rule divides it
+    // from the body. Only with a solid frame — a dashed outline has no band.
+    if (labelRow && style.labelBarFill != null && !style.dashed) {
+      g.roundRect(bounds.x, bounds.y, bounds.width, labelRow, r);
+      g.fill({ color: style.labelBarFill });
+      g.rect(bounds.x, bounds.y + labelRow - r, bounds.width, r);
+      g.fill({ color: style.labelBarFill });
+      g.moveTo(bounds.x, bounds.y + labelRow).lineTo(bounds.x + bounds.width, bounds.y + labelRow);
+      g.stroke({ width: style.strokeWidth, color: style.labelBarBorder ?? style.stroke });
+    }
     if (!style.dashed) {
+      g.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, r);
       g.stroke({ width: style.strokeWidth, color: style.stroke });
     }
     view.addChild(g);
@@ -66,7 +80,7 @@ export class DepartmentCardView extends Container {
       paintDashedFrame(view, bounds, {
         color: style.stroke,
         width: style.strokeWidth,
-        borderRadius: style.borderRadius,
+        borderRadius: r,
       });
     }
 
@@ -91,10 +105,9 @@ export class DepartmentCardView extends Container {
           },
         })
       : null;
-    // Name and badge read as one right-aligned group, as the mockup's header row
-    // does: shifting the name left by the badge keeps the pair against the edge.
-    const groupWidth = badge ? label.width + BADGE_GAP + badge.width : label.width;
-    label.position.set(bounds.x + bounds.width - groupWidth - labelPad, labelY);
+    // Name then badge, left-aligned — the mockup `.dn` header row (flex-start,
+    // name first) and the approved screenshots put the dept name at top-left.
+    label.position.set(bounds.x + labelPad, labelY);
     view.addChild(label);
     if (badge) {
       badge.position.set(

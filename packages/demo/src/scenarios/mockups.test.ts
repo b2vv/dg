@@ -137,16 +137,22 @@ describe('mockup style tokens (approved)', () => {
     expect(MOCKUP_FIGMA_STYLES.staffZone.fill).toBe(0x191f26);
     expect(MOCKUP_FIGMA_STYLES.staffZone.stroke).toBe(0x3d5067);
     expect(MOCKUP_FIGMA_STYLES.staffZone.labelAlign).toBe('right');
-    expect(MOCKUP_FIGMA_STYLES.departmentCard.fill).toBe(0x242f3d);
-    expect(MOCKUP_FIGMA_STYLES.departmentCard.dashed).toBe(true);
+    // dg39: dept block «за мокапом» — near-black body, solid rule, filled «шапка».
+    expect(MOCKUP_FIGMA_STYLES.departmentCard.fill).toBe(0x111113);
+    expect(MOCKUP_FIGMA_STYLES.departmentCard.stroke).toBe(0x3a3a40);
+    expect(MOCKUP_FIGMA_STYLES.departmentCard.dashed).toBe(false);
+    expect(MOCKUP_FIGMA_STYLES.departmentCard.labelBarFill).toBe(0x202023);
+    expect(MOCKUP_FIGMA_STYLES.departmentCard.labelBarBorder).toBe(0x3a3a40);
   });
 
   it('Figma canvas + connector tokens', () => {
     expect(MOCKUP_FIGMA_STYLES.canvasBackground).toBe(0x222222);
     expect(MOCKUP_FIGMA_STYLES.edge).toEqual({
-      color: 0xa6a6a6,
-      width: 1,
-      cornerRadius: 8,
+      // dg39: terracotta #c2502a (screenshots + palette-D) over BA §7 «зараз сірий»;
+      // width 2px (BA §7 «--lw зараз 2px»); uniform 4px corners (BA §7 «радіус 4px»).
+      color: 0xc2502a,
+      width: 2,
+      cornerRadius: 4,
       terminator: 'dot',
       dotRadius: 2.67,
     });

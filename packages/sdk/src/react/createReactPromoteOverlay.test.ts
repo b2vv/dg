@@ -89,13 +89,14 @@ describe('createReactPromoteOverlay', () => {
     expect(mount.querySelector('[data-org-hierarchy-promote-root]')).toBeNull();
   });
 
-  it('failure: mid lod near-selection demotes (no cards)', async () => {
+  it('failure: far lod near-selection demotes (no cards)', async () => {
+    // T129: detail band = mid + near; only far suppresses near-selection.
     const mount = document.createElement('div');
     Object.defineProperty(mount, 'clientWidth', { value: 800 });
     Object.defineProperty(mount, 'clientHeight', { value: 600 });
     document.body.appendChild(mount);
 
-    const diagram = makeDiagram({ getLodLevel: () => 'mid' });
+    const diagram = makeDiagram({ getLodLevel: () => 'far' });
     let overlay!: ReturnType<typeof createReactPromoteOverlay>;
     await act(async () => {
       overlay = createReactPromoteOverlay({
@@ -261,13 +262,14 @@ describe('near-visible mode', () => {
     await act(async () => overlay.dispose());
   });
 
-  it('failure: below the near band nothing is promoted at all', async () => {
+  it('failure: below the detail band (far) nothing is promoted at all', async () => {
+    // T129: React surface covers mid + near; far is Pixi-only, so no cards here.
     const { diagram } = makeSceneDiagram();
     const mount = mountEl();
     let overlay!: ReturnType<typeof createReactPromoteOverlay>;
     await act(async () => {
       overlay = createReactPromoteOverlay({
-        diagram: { ...diagram, getLodLevel: () => 'mid' },
+        diagram: { ...diagram, getLodLevel: () => 'far' },
         mount,
         component: DefaultPromoteCard,
         mode: 'near-visible',
