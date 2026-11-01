@@ -1,9 +1,13 @@
 import { describe, expect, it } from '@rstest/core';
+import { renderToStaticMarkup } from 'react-dom/server';
+import type { PromoteBackdropProps } from '@org-hierarchy/sdk/react';
 import type { DiagramData, StaffLiveGeometry } from '@org-hierarchy/sdk';
 import {
   buildStaffChromeGeometry,
+  makeStaffChromeBackdrop,
   relatedStaffIds,
   staffVisibleData,
+  type StaffChromeGeometry,
 } from './StaffChromeBackdrop.js';
 
 /** Minimal live geometry — only the fields `buildStaffChromeGeometry` reads. */
@@ -166,6 +170,53 @@ describe('buildStaffChromeGeometry', () => {
       'ceo',
       'x',
     ]);
+  });
+
+  it('found marker (§8.2): foundId → v3 white ring + «Знайдено» chip in the backdrop', () => {
+    const geom: StaffChromeGeometry = {
+      org: null,
+      depts: [],
+      lines: [],
+      nodeBoxes: { p1: { x: 10, y: 20, width: 50, height: 30 } },
+      foundId: 'p1',
+    };
+    const Backdrop = makeStaffChromeBackdrop(() => geom);
+    // scale 1, no pan → px(n)=n and toScreen is identity, so the v3 values read raw.
+    const props = {
+      viewport: { x: 0, y: 0, scale: 1 },
+      screen: { width: 800, height: 600 },
+      lod: 'near',
+    } as unknown as PromoteBackdropProps;
+    const html = renderToStaticMarkup(Backdrop(props)!);
+
+    expect(html).toContain('data-staff-found="p1"');
+    expect(html).toContain('staff-found'); // pulse/glow class
+    expect(html).toContain('outline:2px solid #fff'); // v3 white ring
+    expect(html).toContain('Знайдено'); // chip text
+    expect(html).toContain('#111113'); // chip dark text colour (v3)
+
+    // No hit → no marker.
+    const empty = renderToStaticMarkup(makeStaffChromeBackdrop(() => ({ ...geom, foundId: null }))(props)!);
+    expect(empty).not.toContain('data-staff-found');
+    expect(empty).not.toContain('Знайдено');
+  });
+
+  it('found marker: unknown foundId (collapsed/absent node) → no marker, no throw', () => {
+    const geom: StaffChromeGeometry = {
+      org: null,
+      depts: [],
+      lines: [],
+      nodeBoxes: { p1: { x: 0, y: 0, width: 10, height: 10 } },
+      foundId: 'ghost', // not in nodeBoxes (e.g. inside a collapsed subtree)
+    };
+    const Backdrop = makeStaffChromeBackdrop(() => geom);
+    const props = {
+      viewport: { x: 0, y: 0, scale: 1 },
+      screen: { width: 800, height: 600 },
+      lod: 'near',
+    } as unknown as PromoteBackdropProps;
+    const html = renderToStaticMarkup(Backdrop(props)!);
+    expect(html).not.toContain('data-staff-found');
   });
 
   it('failure/fallback: unknown dept name → departmentId; org name falls back by role', () => {
