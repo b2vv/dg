@@ -200,7 +200,6 @@ export function installStaffHoverHighlight(mount: HTMLElement): () => void {
     });
     mount.querySelectorAll<HTMLElement>('[data-staff-pos]').forEach((c) => {
       c.style.opacity = '';
-      c.style.borderColor = '';
     });
   };
 
@@ -228,8 +227,11 @@ export function installStaffHoverHighlight(mount: HTMLElement): () => void {
     }
     for (const c of mount.querySelectorAll<HTMLElement>('[data-staff-pos]')) {
       const isRel = rel.has(c.getAttribute('data-staff-pos') ?? '');
+      // Only dim via opacity (reverts cleanly). We deliberately do NOT recolour the
+      // card border: `borderColor=''` reverts to `currentColor` (--text #e2e8f0),
+      // not the card's own border, which painted a stray light ring on every card
+      // after a hover. Related cards read as related by staying full-opacity.
       c.style.opacity = isRel ? '1' : '0.45';
-      c.style.borderColor = isRel ? HOVER_ACCENT : '';
     }
   };
 
