@@ -1432,6 +1432,11 @@ export class App {
 
     const hits = await this.diagram.search(query);
     if (!query.trim()) {
+      // Empty query clears the ШПС alpha «Знайдено» ring (mockup: emptying `sq`).
+      if (this.tab === 'staff-alpha' && this.staffChromeGeom?.foundId) {
+        this.staffChromeGeom.foundId = null;
+        this.promote?.sync();
+      }
       this.setStatus(`${this.tab} · ${this.theme}`);
       return;
     }
@@ -1440,11 +1445,19 @@ export class App {
       return;
     }
     const top = hits[0]!;
-    await this.diagram.revealPath(top.node.positionId ?? top.node.id);
+    const topId = top.node.positionId ?? top.node.id;
+    await this.diagram.revealPath(topId);
     // ШПС alpha owns its own found-styling (v3 «Знайдено») — drop the generic
     // selection ring `revealPath` leaves on the focused card so it does not sit on
-    // the React near-view card looking like a stray border.
-    if (this.tab === 'staff-alpha') await this.diagram.select(null);
+    // the React near-view card looking like a stray border, and instead ring the
+    // hit with the mockup «Знайдено» marker on the camera-synced backdrop (§8.2).
+    if (this.tab === 'staff-alpha') {
+      await this.diagram.select(null);
+      if (this.staffChromeGeom) {
+        this.staffChromeGeom.foundId = topId;
+        this.promote?.sync();
+      }
+    }
     this.setStatus(`search · ${hits.length} hits · focus ${top.label}`);
   }
 

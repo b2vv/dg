@@ -49,10 +49,22 @@ export interface ChromeLine {
   points: ScreenPoint[]; // world coords
   endsOnDeptTop: boolean;
 }
+export interface NodeBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 export interface StaffChromeGeometry {
   org: { x: number; y: number; width: number; height: number; name: string } | null;
   depts: ChromeDeptFrame[];
   lines: ChromeLine[];
+  /** Seat boxes in world coords, keyed by position id — so the search-found marker
+   *  (§8.2) can be drawn around the found card, which is a promote slot the backdrop
+   *  cannot reach directly. */
+  nodeBoxes: Record<string, NodeBox>;
+  /** Position id of the search hit to ring with the v3 «Знайдено» marker, or null. */
+  foundId: string | null;
 }
 
 /**
@@ -118,7 +130,12 @@ export function buildStaffChromeGeometry(
     };
   }
 
-  return { org, depts, lines };
+  const nodeBoxes: Record<string, NodeBox> = {};
+  for (const n of live.canvas.positionNodes) {
+    nodeBoxes[n.id] = { x: n.x, y: n.y, width: n.width, height: n.height };
+  }
+
+  return { org, depts, lines, nodeBoxes, foundId: null };
 }
 
 /**
@@ -453,6 +470,60 @@ export function makeStaffChromeBackdrop(
         ...paths,
       ),
     );
+
+    // 4) Search-found marker (§8.2): the v3 `.card.found` ring + «Знайдено» chip.
+    //    The found card is a promote slot above the backdrop, so the ring is drawn
+    //    here around it — the 4px outline-offset and the top chip sit OUTSIDE the
+    //    card box, so the card never occludes them. The pulse keyframes live in the
+    //    demo stylesheet (`.staff-found`); geometry is inline/scaled.
+    if (geom.foundId) {
+      const box = geom.nodeBoxes[geom.foundId];
+      if (box) {
+        const tl = toScreen(box.x, box.y);
+        children.push(
+          createElement(
+            'div',
+            {
+              key: 'found',
+              className: 'staff-found',
+              'data-staff-found': geom.foundId,
+              style: {
+                position: 'absolute',
+                left: tl.x,
+                top: tl.y,
+                width: px(box.width),
+                height: px(box.height),
+                boxSizing: 'border-box',
+                borderRadius: px(10),
+                outline: '2px solid #fff',
+                outlineOffset: px(4),
+                pointerEvents: 'none',
+              } as CSSProperties,
+            },
+            createElement(
+              'div',
+              {
+                style: {
+                  position: 'absolute',
+                  left: px(-2),
+                  top: px(-32),
+                  padding: `${px(4)}px ${px(9)}px`,
+                  borderRadius: px(6),
+                  background: '#fff',
+                  color: '#111113',
+                  fontFamily: 'Onest, system-ui, sans-serif',
+                  fontSize: px(12),
+                  fontWeight: 600,
+                  lineHeight: 1,
+                  whiteSpace: 'nowrap',
+                } as CSSProperties,
+              },
+              'Знайдено',
+            ),
+          ),
+        );
+      }
+    }
 
     return createElement(
       'div',

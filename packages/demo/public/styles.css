@@ -453,3 +453,20 @@ body[data-active-tab='worker'] [data-show-tab='worker'] {
   padding: 0.45rem 0.6rem;
   color: var(--muted);
 }
+
+/* ШПС alpha (T129 §8.2): search-found marker — v3 `.card.found` glow + pulse. The
+   white ring (outline) and the «Знайдено» chip are positioned inline on the backdrop
+   box (cards are promote slots); only the static glow and the pulse keyframes, which
+   do not depend on zoom, live here. */
+.staff-found {
+  box-shadow: 0 0 0 10px rgba(255, 255, 255, 0.08), 0 10px 30px rgba(0, 0, 0, 0.7);
+  animation: staffFoundPulse 1.1s ease-out 2;
+}
+@keyframes staffFoundPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.35), 0 10px 30px rgba(0, 0, 0, 0.7);
+  }
+  100% {
+    box-shadow: 0 0 0 18px rgba(255, 255, 255, 0), 0 10px 30px rgba(0, 0, 0, 0.7);
+  }
+}

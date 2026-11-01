@@ -89,6 +89,28 @@ describe('buildStaffChromeGeometry', () => {
     expect(geom.org).toBeNull();
     expect(geom.depts).toEqual([]);
     expect(geom.lines).toEqual([]);
+    expect(geom.nodeBoxes).toEqual({});
+    expect(geom.foundId).toBeNull();
+  });
+
+  it('nodeBoxes: seat boxes keyed by position id (for the §8.2 found marker)', () => {
+    const geom = buildStaffChromeGeometry(
+      live({
+        canvas: {
+          positionNodes: [
+            { id: 'p1', x: 10, y: 20, width: 50, height: 30 },
+            { id: 'p2', x: 70, y: 20, width: 50, height: 30 },
+          ],
+        },
+      } as unknown as Partial<StaffLiveGeometry>),
+      data(),
+      'org',
+    );
+    expect(geom.nodeBoxes).toEqual({
+      p1: { x: 10, y: 20, width: 50, height: 30 },
+      p2: { x: 70, y: 20, width: 50, height: 30 },
+    });
+    expect(geom.foundId).toBeNull();
   });
 
   it('relatedStaffIds: hovered + both endpoints of touching lines; boundary = just itself', () => {
