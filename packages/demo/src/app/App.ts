@@ -27,7 +27,11 @@ import {
 } from '@org-hierarchy/sdk/react';
 import { createElement, type ReactElement } from 'react';
 import { ShpsStaffCard } from './ShpsStaffCard.js';
-import { buildStaffChromeGeometry, makeStaffChromeBackdrop } from './StaffChromeBackdrop.js';
+import {
+  buildStaffChromeGeometry,
+  makeStaffChromeBackdrop,
+  installStaffHoverHighlight,
+} from './StaffChromeBackdrop.js';
 import { buildFlatOrgsData } from '../scenarios/flatOrgs.js';
 import {
   SCALE_ORG_TOTAL,
@@ -222,6 +226,8 @@ export class App {
   private promote: ReactPromoteOverlay | null = null;
   /** ШПС alpha near-view chrome backdrop; set when its geometry is ready (else Pixi). */
   private staffChromeBackdrop?: (props: PromoteBackdropProps) => ReactElement | null;
+  /** Teardown for the ШПС alpha hover-highlight delegated listener. */
+  private staffHoverCleanup?: () => void;
   private testAnchors: TestAnchorOverlay | null = null;
   private readonly e2eMode =
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('e2e');
@@ -463,6 +469,8 @@ export class App {
     // The window belonged to the scene being dropped. Left behind, it would
     // describe the old tab on the new one — which `demo-audit` checks by name.
     this.setWindowState(null);
+    this.staffHoverCleanup?.();
+    this.staffHoverCleanup = undefined;
     this.promote?.dispose();
     this.promote = null;
     this.testAnchors?.dispose();
@@ -692,6 +700,10 @@ export class App {
       // same camera-synced layer (set only when its geometry computed; else Pixi).
       backdrop: this.staffChromeBackdrop,
     });
+    // Hover-highlight (§7/§8.2) only when the React chrome owns the lines.
+    if (this.staffChromeBackdrop) {
+      this.staffHoverCleanup = installStaffHoverHighlight(this.mountEl);
+    }
     if (!this.e2eMode) return;
     this.testAnchors = createTestAnchorOverlay({
       diagram,

@@ -44,6 +44,8 @@ export interface ChromeDeptFrame {
   count: number;
 }
 export interface ChromeLine {
+  fromId: string;
+  toId: string;
   points: ScreenPoint[]; // world coords
   endsOnDeptTop: boolean;
 }
@@ -80,6 +82,8 @@ export function buildStaffChromeGeometry(
   }));
 
   const lines: ChromeLine[] = live.routes.map((r) => ({
+    fromId: r.fromId,
+    toId: r.toId,
     points: r.points.map((p) => ({ x: p.x, y: p.y })),
     endsOnDeptTop: r.endsOnDeptTop === true,
   }));
@@ -115,6 +119,97 @@ export function buildStaffChromeGeometry(
   }
 
   return { org, depts, lines };
+}
+
+const HOVER_ACCENT = '#ff8d68'; // mockup `.ln.on` / `.card.rel`
+
+/**
+ * Pure: the set of position ids highlighted when `hoveredId` is hovered — itself
+ * plus every endpoint of a connector line that touches it (parent + direct
+ * children + cross-dept counterparts), as the mockup `hl()` computes `rel`.
+ */
+export function relatedStaffIds(
+  lines: ReadonlyArray<{ fromId: string; toId: string }>,
+  hoveredId: string,
+): Set<string> {
+  const rel = new Set<string>([hoveredId]);
+  for (const l of lines) {
+    if (l.fromId === hoveredId || l.toId === hoveredId) {
+      rel.add(l.fromId);
+      rel.add(l.toId);
+    }
+  }
+  return rel;
+}
+
+/**
+ * ШПС alpha hover highlight (§7/§8.2): hovering a seat card lights its connector
+ * lines (accent, thicker) and keeps the related cards full, dimming every other
+ * card and line — the mockup `.hl` behaviour. Imperative (toggles inline styles on
+ * the already-rendered DOM, like the mockup's class toggles) rather than React
+ * state, so it does not force the overlay to re-sync; a camera move re-renders the
+ * backdrop and clears the hover, which is the intended end-of-hover. Returns a
+ * disposer. `pointerEvents:none` on the backdrop means hover lands on the cards,
+ * so one delegated listener on the mount covers enter AND leave.
+ */
+export function installStaffHoverHighlight(mount: HTMLElement): () => void {
+  let current: string | null = null;
+
+  const clear = (): void => {
+    mount.querySelectorAll<SVGElement>('[data-ln]').forEach((l) => {
+      l.style.opacity = '';
+      l.style.stroke = '';
+      l.style.strokeWidth = '';
+      l.style.fill = '';
+    });
+    mount.querySelectorAll<HTMLElement>('[data-staff-pos]').forEach((c) => {
+      c.style.opacity = '';
+      c.style.borderColor = '';
+    });
+  };
+
+  const apply = (id: string | null): void => {
+    if (!id) {
+      clear();
+      return;
+    }
+    const lnEls = [...mount.querySelectorAll<SVGElement>('[data-ln]')];
+    const rel = relatedStaffIds(
+      lnEls.map((l) => ({
+        fromId: l.getAttribute('data-from') ?? '',
+        toId: l.getAttribute('data-to') ?? '',
+      })),
+      id,
+    );
+    for (const l of lnEls) {
+      const on = l.getAttribute('data-from') === id || l.getAttribute('data-to') === id;
+      l.style.opacity = on ? '1' : '0.18';
+      if (l.tagName.toLowerCase() === 'circle') l.style.fill = on ? HOVER_ACCENT : '';
+      else {
+        l.style.stroke = on ? HOVER_ACCENT : '';
+        l.style.strokeWidth = on ? '2.5' : '';
+      }
+    }
+    for (const c of mount.querySelectorAll<HTMLElement>('[data-staff-pos]')) {
+      const isRel = rel.has(c.getAttribute('data-staff-pos') ?? '');
+      c.style.opacity = isRel ? '1' : '0.45';
+      c.style.borderColor = isRel ? HOVER_ACCENT : '';
+    }
+  };
+
+  const onOver = (e: Event): void => {
+    const target = e.target as Element | null;
+    const id = target?.closest?.('[data-staff-pos]')?.getAttribute('data-staff-pos') ?? null;
+    if (id === current) return;
+    current = id;
+    apply(id);
+  };
+
+  mount.addEventListener('mouseover', onOver);
+  return () => {
+    mount.removeEventListener('mouseover', onOver);
+    clear();
+  };
 }
 
 /** Factory: bind the (world) geometry; the returned component positions it per sync. */
@@ -264,6 +359,9 @@ export function makeStaffChromeBackdrop(
       paths.push(
         createElement('path', {
           key: `ln-${i}`,
+          'data-ln': '',
+          'data-from': ln.fromId,
+          'data-to': ln.toId,
           d: roundedPathD(pts, px(4)),
           fill: 'none',
           stroke: C.line,
@@ -276,6 +374,9 @@ export function makeStaffChromeBackdrop(
         paths.push(
           createElement('circle', {
             key: `ent-${i}`,
+            'data-ln': '',
+            'data-from': ln.fromId,
+            'data-to': ln.toId,
             cx: last.x,
             cy: last.y,
             r: 3.5,

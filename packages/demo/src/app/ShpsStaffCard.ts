@@ -279,5 +279,15 @@ export function ShpsStaffCard(props: PromoteSlotProps): ReactElement {
     );
   }
 
-  return createElement('div', { 'data-promote-card': node.ref.id, style: root }, ...childNodes);
+  return createElement(
+    'div',
+    {
+      'data-promote-card': node.ref.id,
+      // Position id (matches connector-line fromId/toId) for the hover highlight —
+      // ref.id can be the person id for a filled seat, which lines don't key on.
+      'data-staff-pos': pos?.id ?? node.ref.id,
+      style: root,
+    },
+    ...childNodes,
+  );
 }

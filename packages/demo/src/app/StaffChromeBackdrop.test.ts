@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@rstest/core';
 import type { DiagramData, StaffLiveGeometry } from '@org-hierarchy/sdk';
-import { buildStaffChromeGeometry } from './StaffChromeBackdrop.js';
+import { buildStaffChromeGeometry, relatedStaffIds } from './StaffChromeBackdrop.js';
 
 /** Minimal live geometry — only the fields `buildStaffChromeGeometry` reads. */
 function live(over: Partial<StaffLiveGeometry> = {}): StaffLiveGeometry {
@@ -65,6 +65,8 @@ describe('buildStaffChromeGeometry', () => {
     expect(geom.depts[0]).toMatchObject({ departmentId: 'd1', name: 'Dept One', count: 2 });
     expect(geom.lines).toHaveLength(1);
     expect(geom.lines[0]).toEqual({
+      fromId: 'a',
+      toId: 'b',
       points: [
         { x: 1, y: 2 },
         { x: 3, y: 4 },
@@ -83,6 +85,19 @@ describe('buildStaffChromeGeometry', () => {
     expect(geom.org).toBeNull();
     expect(geom.depts).toEqual([]);
     expect(geom.lines).toEqual([]);
+  });
+
+  it('relatedStaffIds: hovered + both endpoints of touching lines; boundary = just itself', () => {
+    const lines = [
+      { fromId: 'ceo', toId: 'cfo' },
+      { fromId: 'cfo', toId: 'acc' },
+      { fromId: 'cto', toId: 'dev' }, // unrelated to cfo
+    ];
+    // cfo touches ceo→cfo and cfo→acc → related = {cfo, ceo, acc}, not cto/dev.
+    expect([...relatedStaffIds(lines, 'cfo')].sort()).toEqual(['acc', 'ceo', 'cfo']);
+    // No line touches a lone node → only itself.
+    expect([...relatedStaffIds(lines, 'lonely')]).toEqual(['lonely']);
+    expect([...relatedStaffIds([], 'x')]).toEqual(['x']);
   });
 
   it('failure/fallback: unknown dept name → departmentId; org name falls back by role', () => {
