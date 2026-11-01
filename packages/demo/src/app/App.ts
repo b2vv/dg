@@ -32,6 +32,7 @@ import {
   makeStaffChromeBackdrop,
   installStaffHoverHighlight,
   staffVisibleData,
+  type StaffChromeGeometry,
 } from './StaffChromeBackdrop.js';
 import { buildFlatOrgsData } from '../scenarios/flatOrgs.js';
 import {
@@ -227,6 +228,9 @@ export class App {
   private promote: ReactPromoteOverlay | null = null;
   /** ШПС alpha near-view chrome backdrop; set when its geometry is ready (else Pixi). */
   private staffChromeBackdrop?: (props: PromoteBackdropProps) => ReactElement | null;
+  /** Latest alpha chrome geometry; the backdrop reads this ref so collapse/expand
+   *  can swap it and re-sync in place (no diagram teardown, no flash). */
+  private staffChromeGeom: StaffChromeGeometry | null = null;
   /** Teardown for the ШПС alpha hover-highlight + collapse-toggle delegated listeners. */
   private staffHoverCleanup?: () => void;
   /** Positions whose subtree is collapsed (§8.1), applied as a data filter on reload. */
@@ -663,6 +667,7 @@ export class App {
    */
   private async prepareStaffChrome(config: OrgHierarchyConfig<unknown>): Promise<void> {
     this.staffChromeBackdrop = undefined;
+    this.staffChromeGeom = null;
     const render = config.render;
     const orgId = config.staffCurrentOrgId;
     if (render?.staffAlphaMockup !== true || !config.data || !orgId) return;
@@ -670,32 +675,71 @@ export class App {
     // it to the host-raw type, so recover it here (demo-only, this tab's own data).
     const data = config.data as unknown as DiagramData;
     try {
-      const live = await computeStaffLiveGeometry({
-        data,
-        currentOrgId: orgId,
-        theme: defaultNodeTheme,
-        resolvedTheme: config.theme === 'light' ? 'light' : 'dark',
-        config: render as RenderConfig,
-        staff: config.staffLayout ? { layout: config.staffLayout } : undefined,
-        lod: 'near',
-      });
-      this.staffChromeBackdrop = makeStaffChromeBackdrop(
-        buildStaffChromeGeometry(live, data, orgId),
-      );
+      this.staffChromeGeom = await this.computeStaffChrome(config, data, orgId);
+      // The backdrop reads the geometry ref each render → collapse can swap it.
+      this.staffChromeBackdrop = makeStaffChromeBackdrop(() => this.staffChromeGeom);
       render.staffReactChrome = true;
     } catch (err) {
       this.staffChromeBackdrop = undefined;
+      this.staffChromeGeom = null;
       this.showToast(
         `staff-alpha chrome · Pixi fallback: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
 
-  /** Toggle a head's collapsed subtree (§8.1) and re-render the alpha scene. */
+  /** Chrome geometry (frames/org/lines) from the mockup layout for `data`. */
+  private async computeStaffChrome(
+    config: OrgHierarchyConfig<unknown>,
+    data: DiagramData,
+    orgId: string,
+  ): Promise<StaffChromeGeometry> {
+    const live = await computeStaffLiveGeometry({
+      data,
+      currentOrgId: orgId,
+      theme: defaultNodeTheme,
+      resolvedTheme: config.theme === 'light' ? 'light' : 'dark',
+      config: config.render as RenderConfig,
+      staff: config.staffLayout ? { layout: config.staffLayout } : undefined,
+      lod: 'near',
+    });
+    return buildStaffChromeGeometry(live, data, orgId);
+  }
+
+  /**
+   * Collapse/expand in place (§8.1): re-layout the visible data with `setData` and
+   * swap the chrome geometry + `sync()`, WITHOUT disposing the diagram — so there is
+   * no teardown flash and the camera is kept. Falls back to a full reload only if the
+   * scene is not the alpha chrome path.
+   */
+  private async rerenderStaffAlpha(): Promise<void> {
+    const diagram = this.diagram;
+    const config = this.buildConfig();
+    const orgId = config.staffCurrentOrgId;
+    if (!diagram || config.render?.staffAlphaMockup !== true || !config.data || !orgId) {
+      void this.reload();
+      return;
+    }
+    let data = config.data as unknown as DiagramData;
+    if (this.staffCollapsed.size > 0) data = staffVisibleData(data, this.staffCollapsed);
+    try {
+      this.staffChromeGeom = await this.computeStaffChrome(config, data, orgId);
+    } catch {
+      // Keep the previous geometry rather than blanking the chrome.
+    }
+    await diagram.setData(data);
+    // Re-render cards + backdrop for the new layout (setData moved the nodes). No
+    // auto-fit: it preserves the camera (stays at the user's zoom, React chrome kept)
+    // instead of a teardown flash. (fitView here mis-computed to far scale on the
+    // alpha scene — a smooth re-fit is a follow-up once that is understood.)
+    this.promote?.sync();
+  }
+
+  /** Toggle a head's collapsed subtree (§8.1) and re-render the alpha scene in place. */
   private toggleStaffCollapse(id: string): void {
     if (this.staffCollapsed.has(id)) this.staffCollapsed.delete(id);
     else this.staffCollapsed.add(id);
-    void this.reload();
+    void this.rerenderStaffAlpha();
   }
 
   /** Promote overlay always; test anchors + the e2e bridge only in `?e2e=1`. */

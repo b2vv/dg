@@ -248,14 +248,20 @@ export function installStaffHoverHighlight(mount: HTMLElement): () => void {
   };
 }
 
-/** Factory: bind the (world) geometry; the returned component positions it per sync. */
+/**
+ * Factory: the returned component reads the LATEST geometry from `getGeom` on every
+ * render (not a bound snapshot), so collapse/expand can swap the geometry and force
+ * one overlay `sync()` — re-laying the frames/lines in place, with no diagram
+ * teardown and no flash.
+ */
 export function makeStaffChromeBackdrop(
-  geom: StaffChromeGeometry,
+  getGeom: () => StaffChromeGeometry | null,
 ): (props: PromoteBackdropProps) => ReactElement | null {
   return function StaffChromeBackdrop(props: PromoteBackdropProps): ReactElement | null {
+    const geom = getGeom();
     const { viewport, screen, lod } = props;
-    // Pixi owns far; the backdrop only paints at detail zoom.
-    if (lod === 'far') return null;
+    // Pixi owns far; the backdrop only paints at detail zoom (and needs geometry).
+    if (lod === 'far' || !geom) return null;
     const s = viewport.scale;
     const px = (n: number) => n * s;
     const toScreen = (x: number, y: number) => worldPointToScreen(x, y, viewport);
