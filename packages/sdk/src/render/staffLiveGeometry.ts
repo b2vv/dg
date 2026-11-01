@@ -319,22 +319,12 @@ async function computeViaTs(input: BranchInput): Promise<StaffLiveGeometry> {
 }
 
 /**
- * T129 alpha: staff geometry from ONLY the mockup-ported layout
- * (`computeStaffMockupLayout`, two-level tidy-tree). The old calc is not used on
- * this path. Node coords feed the same `StaffCanvasResult` the surfaces consume —
- * department card frames and the React promote cards are both DERIVED from
- * `positionNodes` (frame = member AABB + padding), so placing the nodes is enough.
- * Edges are the admin report lines; zones/routes are empty for now (zone chrome
- * and connectors are later alpha slices).
+ * Build the Rust mockup-layout input from diagram data for one org — the filtering,
+ * admin-edge selection and params in one place so `computeViaMockup` and any future
+ * caller can't drift. Internal (not exported): the demo near-view chrome gets the
+ * same geometry through `computeStaffLiveGeometry`, not by re-building the input.
  */
-/**
- * Build the Rust mockup-layout input from diagram data for one org. Exported so a
- * host (the demo near-view backdrop) can compute the SAME geometry the Pixi path
- * uses — identical input into the same deterministic WASM function means zero drift
- * between the Pixi-far scene and the React-near chrome — without re-deriving the
- * filtering, admin-edge selection or params here.
- */
-export function buildStaffMockupInput(data: DiagramData, currentOrgId: string): StaffMockupInput {
+function buildStaffMockupInput(data: DiagramData, currentOrgId: string): StaffMockupInput {
   const inOrg = data.positions.filter((p) => p.organizationId === currentOrgId);
   const ids = new Set(inOrg.map((p) => p.id));
   const seatW = inOrg[0]?.width ?? 300;
@@ -361,6 +351,13 @@ export function buildStaffMockupInput(data: DiagramData, currentOrgId: string): 
   };
 }
 
+/**
+ * T129 alpha: staff geometry from ONLY the mockup-ported layout
+ * (`computeStaffMockupLayout`, two-level tidy-tree + A* line routing). The old calc
+ * is not used on this path. Node coords feed the same `StaffCanvasResult` the
+ * surfaces consume; `frames`/`routes` come straight from the Rust result (the single
+ * geometry source for both the Pixi-far scene and the React-near chrome).
+ */
 async function computeViaMockup(input: BranchInput): Promise<StaffLiveGeometry> {
   const { data, currentOrgId, staffOptions, zoneLabelBand, contentPadding } = input;
 

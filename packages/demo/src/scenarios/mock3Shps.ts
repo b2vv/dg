@@ -152,8 +152,20 @@ export function buildMock3ShpsData(opts: { deptHeadsAsIsHead?: boolean } = {}): 
   }
   const descCount = (id: string): number =>
     (kidsOf.get(id) ?? []).reduce((n, k) => n + 1 + descCount(k), 0);
-  // Голова = корінь орги (без батька) або корінь департаменту (батько в іншому деп).
-  const isHeadOf = (p: Pos): boolean => p.p == null || byId.get(p.p)?.d !== p.d;
+  // Голова департаменту = ПЕРШИЙ його корінь у порядку оголошення (мокап `d.head =
+  // roots[0]`), а не будь-який корінь. Корінь = член депу без батька або з батьком у
+  // ІНШОМУ департаменті. Департамент із кількома зовнішньо-підпорядкованими членами
+  // (напр. «Служба безпеки»: Керівник + Фахівець з ІБ) має РІВНО одну оранжеву голову.
+  const deptHeadId = new Map<string, string>();
+  for (const p of POS) {
+    if (!p.d) continue;
+    const parentDept = p.p ? byId.get(p.p)?.d : null;
+    const isRoot = !p.p || parentDept !== p.d;
+    if (isRoot && !deptHeadId.has(p.d)) deptHeadId.set(p.d, p.id);
+  }
+  // Голова = корінь орги (без батька) або перший корінь свого департаменту.
+  const isHeadOf = (p: Pos): boolean =>
+    p.p == null || (p.d != null && deptHeadId.get(p.d) === p.id);
 
   return {
     organizations: [

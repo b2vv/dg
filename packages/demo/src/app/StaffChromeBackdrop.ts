@@ -35,6 +35,7 @@ const C = {
 } as const;
 
 export interface ChromeDeptFrame {
+  departmentId: string;
   x: number;
   y: number;
   width: number;
@@ -69,6 +70,7 @@ export function buildStaffChromeGeometry(
   }
 
   const depts: ChromeDeptFrame[] = live.frames.map((f) => ({
+    departmentId: f.departmentId,
     x: f.x,
     y: f.y,
     width: f.width,
@@ -196,7 +198,7 @@ export function makeStaffChromeBackdrop(
         createElement(
           'div',
           {
-            key: `dept-${d.name}-${d.x}-${d.y}`,
+            key: `dept-${d.departmentId}`,
             'data-staff-dept': '',
             style: {
               position: 'absolute',
