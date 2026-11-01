@@ -1441,6 +1441,10 @@ export class App {
     }
     const top = hits[0]!;
     await this.diagram.revealPath(top.node.positionId ?? top.node.id);
+    // ШПС alpha owns its own found-styling (v3 «Знайдено») — drop the generic
+    // selection ring `revealPath` leaves on the focused card so it does not sit on
+    // the React near-view card looking like a stray border.
+    if (this.tab === 'staff-alpha') await this.diagram.select(null);
     this.setStatus(`search · ${hits.length} hits · focus ${top.label}`);
   }
 
