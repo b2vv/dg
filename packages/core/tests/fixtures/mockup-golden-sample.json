@@ -1,0 +1,109 @@
+{
+  "nodes": [
+    {
+      "id": "acc",
+      "x": 374.0,
+      "y": 518.0,
+      "width": 236.0,
+      "height": 118.0
+    },
+    {
+      "id": "asst",
+      "x": 56.0,
+      "y": 286.0,
+      "width": 236.0,
+      "height": 118.0
+    },
+    {
+      "id": "ceo",
+      "x": 234.0,
+      "y": 72.0,
+      "width": 236.0,
+      "height": 118.0
+    },
+    {
+      "id": "cfo",
+      "x": 374.0,
+      "y": 344.0,
+      "width": 236.0,
+      "height": 118.0
+    }
+  ],
+  "frames": [
+    {
+      "departmentId": "fin",
+      "x": 336.0,
+      "y": 286.0,
+      "width": 312.0,
+      "height": 388.0
+    }
+  ],
+  "edges": [
+    {
+      "fromId": "ceo",
+      "toId": "asst",
+      "kind": "ext",
+      "endsOnDeptTop": false,
+      "points": [
+        {
+          "x": 352.0,
+          "y": 190.0
+        },
+        {
+          "x": 352.0,
+          "y": 238.0
+        },
+        {
+          "x": 174.0,
+          "y": 238.0
+        },
+        {
+          "x": 174.0,
+          "y": 286.0
+        }
+      ]
+    },
+    {
+      "fromId": "ceo",
+      "toId": "cfo",
+      "kind": "ext",
+      "endsOnDeptTop": true,
+      "points": [
+        {
+          "x": 352.0,
+          "y": 190.0
+        },
+        {
+          "x": 352.0,
+          "y": 238.0
+        },
+        {
+          "x": 492.0,
+          "y": 238.0
+        },
+        {
+          "x": 492.0,
+          "y": 286.0
+        }
+      ]
+    },
+    {
+      "fromId": "cfo",
+      "toId": "acc",
+      "kind": "int",
+      "endsOnDeptTop": false,
+      "points": [
+        {
+          "x": 492.0,
+          "y": 462.0
+        },
+        {
+          "x": 492.0,
+          "y": 518.0
+        }
+      ]
+    }
+  ],
+  "width": 704.0,
+  "height": 730.0
+}

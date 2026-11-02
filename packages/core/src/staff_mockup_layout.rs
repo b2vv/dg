@@ -1838,6 +1838,14 @@ mod tests {
         }
     }
 
+    /// Та сама сцена на DG-розмірі картки (300×112) — параметри шляху alpha в SDK.
+    fn mock3_dg() -> StaffMockupInput {
+        let mut inp = mock3_scene();
+        inp.params.card_width = 300.0;
+        inp.params.card_height = 112.0;
+        inp
+    }
+
     #[test]
     fn mock3_astar_zero_crossings_and_card_hits() {
         // Гейт вірності порту: на повній сцені мокап-роутер дає 0 перетинів ліній
@@ -1850,6 +1858,21 @@ mod tests {
             "перетини лінія-лінія: {cross} (over={over} near={near} dept={dept})"
         );
         assert_eq!(card, 0, "ліній крізь чужі картки: {card}");
+    }
+
+    /// Знімає еталон «до» для регресії розміру на картку: `cargo test dump_mockup_golden -- --ignored`.
+    #[test]
+    #[ignore]
+    fn dump_mockup_golden() {
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+        for (name, inp) in [("sample", sample()), ("mock3", mock3_scene()), ("mock3-dg", mock3_dg())] {
+            let out = compute_staff_mockup_layout(&inp).unwrap();
+            std::fs::write(
+                format!("{dir}/mockup-golden-{name}.json"),
+                serde_json::to_string_pretty(&out).unwrap(),
+            )
+            .unwrap();
+        }
     }
 
     #[test]
