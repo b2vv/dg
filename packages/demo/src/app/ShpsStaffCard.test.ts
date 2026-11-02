@@ -36,3 +36,37 @@ describe('ShpsStaffCard search-focus dim (§8.2)', () => {
     expect(renderToStaticMarkup(ShpsStaffCard(slot('cfo')))).not.toContain('opacity:0.38');
   });
 });
+
+/** A head with 3 direct reports — the only kind of card that renders the `.tg` chip. */
+function headSlot(posId: string): PromoteSlotProps {
+  const p = slot(posId);
+  (p.node.position as unknown as Record<string, unknown>).childrenCount = 3;
+  (p.node.position as unknown as Record<string, unknown>).allDescendantCount = 7;
+  return p;
+}
+
+describe('ShpsStaffCard collapse chevron (§8.1, v3 `.card.closed .tg`)', () => {
+  it('collapsed: filled chip, white text, chevron rotated -90°, direct-report count shown', () => {
+    const Card = makeShpsStaffCard(() => ({ foundId: null, collapsed: new Set(['ceo']) }));
+    const html = renderToStaticMarkup(Card(headSlot('ceo')));
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('title="Розгорнути підлеглі посади"');
+    expect(html).toContain('background:#e5491d');
+    expect(html).toContain('color:#fff');
+    expect(html).toContain('rotate(-90deg)');
+    expect(html).toMatch(/<b[^>]*>3<\/b>/);
+  });
+
+  it('expanded: tinted chip, chevron unrotated, no count', () => {
+    const Card = makeShpsStaffCard(() => ({ foundId: null, collapsed: new Set(['other']) }));
+    const html = renderToStaticMarkup(Card(headSlot('ceo')));
+    expect(html).toContain('aria-expanded="true"');
+    expect(html).toContain('title="Згорнути підлеглі посади"');
+    expect(html).toContain('rgba(229,73,29,.14)');
+    expect(html).not.toContain('rotate(-90deg)');
+    expect(html).not.toMatch(/<b[^>]*>3<\/b>/);
+    // The v3 SVG chevron, not a text glyph.
+    expect(html).toContain('M4 6l4 4 4-4');
+    expect(html).not.toContain('⌄');
+  });
+});

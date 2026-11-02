@@ -8,6 +8,7 @@ import {
   makeStaffChromeBackdrop,
   relatedStaffIds,
   staffAdminAncestors,
+  staffFitTransform,
   staffVisibleData,
   type StaffChromeGeometry,
 } from './StaffChromeBackdrop.js';
@@ -34,6 +35,25 @@ function data(over: Partial<DiagramData> = {}): DiagramData {
     ...over,
   } as unknown as DiagramData;
 }
+
+describe('staffFitTransform (§8.1 re-fit, v3 `fit`)', () => {
+  const screen = { width: 1000, height: 700 };
+  it('wide org: scale = available width / org width, centred, top-aligned', () => {
+    const t = staffFitTransform({ x: 0, y: 0, width: 1500, height: 900 }, screen, 50, 0.4, 1);
+    expect(t.scale).toBeCloseTo(900 / 1500); // (1000 - 2·50) / 1500
+    expect(t.x).toBeCloseTo((1000 - 1500 * t.scale) / 2);
+    expect(t.y).toBe(50);
+  });
+  it('narrow org (one collapsed head): capped at 1, never zooms past 1:1', () => {
+    const t = staffFitTransform({ x: 100, y: 200, width: 300, height: 160 }, screen, 50, 0.55, 1);
+    expect(t.scale).toBe(1);
+    expect(t.x).toBe((1000 - 300) / 2 - 100);
+    expect(t.y).toBe(50 - 200);
+  });
+  it('very wide org: floored at the near-view minimum', () => {
+    expect(staffFitTransform({ x: 0, y: 0, width: 9000, height: 900 }, screen, 50, 0.55, 1).scale).toBe(0.55);
+  });
+});
 
 describe('buildStaffChromeGeometry', () => {
   it('success: joins dept name + count, maps lines, computes org AABB', () => {

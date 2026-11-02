@@ -58,6 +58,8 @@ export interface StaffCardFocusState {
    * poke, which a camera-move re-render would wipe.
    */
   foundId: string | null;
+  /** Heads whose subtree is collapsed (§8.1) — drives the v3 `.card.closed .tg` chip. */
+  collapsed?: ReadonlySet<string>;
 }
 
 /**
@@ -269,13 +271,17 @@ function renderShpsStaffCard(
     ];
     // Chevron-чіп лише коли є підлеглі (мокап: `.tg` рендериться if k.length).
     if (hasChildren) {
+      const closed = focus?.collapsed?.has(posId) === true;
       footChildren.push(
         createElement(
           'span',
           {
             key: 'tg',
             // Collapse toggle (§8.1): keyed by position id, like the hover lines.
-            'data-staff-toggle': pos?.id ?? node.ref.id,
+            'data-staff-toggle': posId,
+            role: 'button',
+            'aria-expanded': !closed,
+            title: closed ? 'Розгорнути підлеглі посади' : 'Згорнути підлеглі посади',
             style: {
               position: 'absolute',
               right: px(8),
@@ -283,19 +289,40 @@ function renderShpsStaffCard(
               transform: 'translateY(-50%)',
               display: 'flex',
               alignItems: 'center',
+              gap: px(4),
               height: px(24),
-              padding: `0 ${px(7)}`,
+              padding: `0 ${px(7)} 0 ${px(6)}`,
               borderRadius: px(12),
               border: `1px solid ${C.headBorder}`,
-              background: 'rgba(229,73,29,.14)',
-              color: C.headPos,
+              background: closed ? C.headBorder : 'rgba(229,73,29,.14)',
+              color: closed ? '#fff' : C.headPos,
               fontSize: px(12),
               fontWeight: 600,
               cursor: 'pointer',
               pointerEvents: 'auto',
+              transition: 'background .15s',
             },
           },
-          '⌄',
+          createElement(
+            'svg',
+            {
+              key: 'chev',
+              viewBox: '0 0 16 16',
+              fill: 'none',
+              stroke: 'currentColor',
+              strokeWidth: 2,
+              strokeLinecap: 'round',
+              strokeLinejoin: 'round',
+              style: {
+                width: px(14),
+                height: px(14),
+                transition: 'transform .2s',
+                transform: closed ? 'rotate(-90deg)' : 'none',
+              },
+            },
+            createElement('path', { d: 'M4 6l4 4 4-4' }),
+          ),
+          closed ? createElement('b', { key: 'n', style: { fontWeight: 600 } }, String(n)) : null,
         ),
       );
     }

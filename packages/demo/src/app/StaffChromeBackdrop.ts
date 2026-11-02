@@ -200,6 +200,28 @@ export function staffAdminAncestors(data: DiagramData, id: string): Set<string> 
   return ancestors;
 }
 
+/**
+ * Camera that frames the org box the v3 way (mockup `fit`: `zoom = min(1, availW / w)`):
+ * scale from width only, clamped to [minScale, maxScale], centred horizontally and
+ * top-aligned with `padding`. Width-only, because fitting height would drop a tall
+ * tree below the near-view threshold where the React cards give way to Pixi.
+ */
+export function staffFitTransform(
+  box: { x: number; y: number; width: number; height: number },
+  screen: { width: number; height: number },
+  padding: number,
+  minScale: number,
+  maxScale: number,
+): { x: number; y: number; scale: number } {
+  const avail = Math.max(1, screen.width - padding * 2);
+  const scale = Math.min(maxScale, Math.max(minScale, avail / Math.max(1, box.width)));
+  return {
+    x: (screen.width - box.width * scale) / 2 - box.x * scale,
+    y: padding - box.y * scale,
+    scale,
+  };
+}
+
 const HOVER_ACCENT = '#ff8d68'; // mockup `.ln.on` / `.card.rel`
 
 /**

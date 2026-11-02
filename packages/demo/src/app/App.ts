@@ -26,12 +26,14 @@ import {
   type PromoteBackdropProps,
 } from '@org-hierarchy/sdk/react';
 import { createElement, type ReactElement } from 'react';
+import { flushSync } from 'react-dom';
 import { ShpsStaffCard, makeShpsStaffCard } from './ShpsStaffCard.js';
 import {
   buildStaffChromeGeometry,
   makeStaffChromeBackdrop,
   installStaffHoverHighlight,
   staffAdminAncestors,
+  staffFitTransform,
   staffVisibleData,
   type StaffChromeGeometry,
 } from './StaffChromeBackdrop.js';
@@ -737,9 +739,8 @@ export class App {
     }
     await diagram.setData(data);
     // Re-render cards + backdrop for the new layout (setData moved the nodes). No
-    // auto-fit: it preserves the camera (stays at the user's zoom, React chrome kept)
-    // instead of a teardown flash. (fitView here mis-computed to far scale on the
-    // alpha scene — a smooth re-fit is a follow-up once that is understood.)
+    // fit here: the collapse toggle re-frames smoothly after (`refitStaffAlpha`), and
+    // the search focus pans to its hit instead.
     this.promote?.sync();
   }
 
@@ -747,7 +748,48 @@ export class App {
   private toggleStaffCollapse(id: string): void {
     if (this.staffCollapsed.has(id)) this.staffCollapsed.delete(id);
     else this.staffCollapsed.add(id);
-    void this.rerenderStaffAlpha();
+    void this.rerenderStaffAlpha().then(() => this.refitStaffAlpha());
+  }
+
+  private staffFitTween = 0;
+
+  /**
+   * Smoothly re-frame the alpha org after a collapse/expand (v3 `fit()` after a
+   * toggle). Not `fitView`: that fits all content in both axes with no upper cap,
+   * so one collapsed head zooms to 4× and a tall tree drops to the far LOD.
+   */
+  private refitStaffAlpha(durationMs = 280): void {
+    const diagram = this.diagram;
+    const box = this.staffChromeGeom?.org;
+    if (!diagram || !box) return;
+    const screen = { width: this.mountEl.clientWidth, height: this.mountEl.clientHeight };
+    const to = staffFitTransform(box, screen, 48, MOCKUP_FIT_MIN_SCALE, 1);
+    const from = diagram.getViewport();
+    cancelAnimationFrame(this.staffFitTween);
+    // Build the cards for the TARGET frame first: the promote overlay only carries
+    // existing cards with a CSS transform while the camera moves and rebuilds on
+    // settle, so a card off-screen in the start frame would pop in at the end.
+    // flushSync: the overlay's `root.render` must commit before the catch-up transform
+    // for `from` is written, or one frame shows the old cards at the target's scale.
+    diagram.setViewport(to);
+    flushSync(() => this.promote?.sync());
+    diagram.setViewport(from);
+    // Clock starts on the first frame, so a long rebuild task before it does not
+    // swallow the opening of the ease.
+    let t0 = -1;
+    const step = (now: number): void => {
+      if (this.diagram !== diagram) return;
+      if (t0 < 0) t0 = now;
+      const k = Math.min(1, (now - t0) / durationMs);
+      const e = 1 - (1 - k) ** 3;
+      diagram.setViewport({
+        x: from.x + (to.x - from.x) * e,
+        y: from.y + (to.y - from.y) * e,
+        scale: from.scale + (to.scale - from.scale) * e,
+      });
+      if (k < 1) this.staffFitTween = requestAnimationFrame(step);
+    };
+    this.staffFitTween = requestAnimationFrame(step);
   }
 
   /**
@@ -801,9 +843,10 @@ export class App {
         this.tab === 'staff-alpha'
           ? // Alpha binds a focus thunk so a search dims the non-found cards (§8.2);
             // same `staffChromeGeom.foundId` the backdrop rings, one source of truth.
-            makeShpsStaffCard(() =>
-              this.staffChromeGeom ? { foundId: this.staffChromeGeom.foundId } : null,
-            )
+            makeShpsStaffCard(() => ({
+              foundId: this.staffChromeGeom?.foundId ?? null,
+              collapsed: this.staffCollapsed,
+            }))
           : shps
             ? ShpsStaffCard
             : this.promoteMode === 'near-visible'
