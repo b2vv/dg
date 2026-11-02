@@ -6,6 +6,12 @@ import {
   makeStaffSearchDropdown,
 } from './StaffSearchDropdown.js';
 
+/** The dropdown just created — the last `ul`, so a leak from a failed test cannot stand in. */
+const lastList = (): HTMLElement => {
+  const all = document.querySelectorAll<HTMLElement>('ul.sl[data-staff-search]');
+  return all[all.length - 1]!;
+};
+
 function data(over: Partial<DiagramData> = {}): DiagramData {
   return {
     organizations: [],
@@ -69,7 +75,7 @@ describe('makeStaffSearchDropdown (§8.2 UI + keyboard)', () => {
         cleared += 1;
       },
     });
-    const ul = document.querySelector('ul.sl[data-staff-search]') as HTMLElement;
+    const ul = lastList();
     return { input, dd, ul, picked, getCleared: () => cleared };
   };
 
@@ -111,6 +117,42 @@ describe('makeStaffSearchDropdown (§8.2 UI + keyboard)', () => {
     expect(getCleared()).toBe(1);
     expect(dd.render('zzz')).toBe(0);
     expect(ul.querySelector('.se')?.textContent).toBe('Посад не знайдено');
+    // No-hit keeps an earlier found ring (v3): onClear is NOT signalled again.
+    expect(getCleared()).toBe(1);
+    dd.destroy();
+  });
+
+  it('dept and person names are HTML-escaped in the subtitle', () => {
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    const d = data({
+      departments: [{ id: 'fin', name: '<img src=x onerror=alert(1)>', organizationId: 'org' }],
+      persons: [{ id: 'per1', fullName: '<b>Іван</b>' }],
+      positions,
+    } as unknown as Partial<DiagramData>);
+    const dd = makeStaffSearchDropdown({
+      input,
+      getHits: (q) => computeStaffSearchHits(d, 'org', q),
+      onPick: () => {},
+      onClear: () => {},
+    });
+    dd.render('директор');
+    const ul = lastList();
+    expect(ul.querySelector('img')).toBeNull();
+    expect(ul.querySelector('.ss b')).toBeNull();
+    expect(ul.querySelector('.ss')?.textContent).toBe('<img src=x onerror=alert(1)> · <b>Іван</b>');
+    dd.destroy();
+  });
+
+  it('a quick blur→focus does not let the pending blur-close shut the list', async () => {
+    const { input, dd, ul } = setup();
+    dd.render('фінансов');
+    input.dispatchEvent(new FocusEvent('blur'));
+    input.dispatchEvent(new FocusEvent('focus'));
+    await new Promise<void>((r) => {
+      setTimeout(r, 200);
+    });
+    expect(ul.classList.contains('open')).toBe(true);
     dd.destroy();
   });
 });

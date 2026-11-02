@@ -47,10 +47,11 @@ export function computeStaffSearchHits(
     }));
 }
 
+const esc = (s: string): string =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
 /** `<mark>`-wrap every match of `query` in `text` (mockup `.st mark`). Safe HTML. */
 function markHits(text: string, query: string): string {
-  const esc = (s: string): string =>
-    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const q = query.trim();
   if (!q) return esc(text);
   const re = new RegExp(escapeRegExp(q), 'ig');
@@ -129,8 +130,8 @@ export function makeStaffSearchDropdown(opts: {
       ul.innerHTML = hits
         .map((h, i) => {
           const sub = h.person
-            ? `${h.dept} · ${h.person}`
-            : `${h.dept} · <span class="vac">Вакантно</span>`;
+            ? `${esc(h.dept)} · ${esc(h.person)}`
+            : `${esc(h.dept)} · <span class="vac">Вакантно</span>`;
           return `<li data-i="${i}" class="${i === 0 ? 'act' : ''}"><span class="st">${markHits(
             h.title,
             query,
@@ -179,6 +180,8 @@ export function makeStaffSearchDropdown(opts: {
     pick(Number(li.dataset.i));
   };
   const onFocus = (): void => {
+    // A quick blur→focus must not let the pending blur-close shut the reopened list.
+    clearTimeout(closeTimer);
     if (lastQuery.trim()) render(lastQuery);
   };
   const onBlur = (): void => {
