@@ -2,6 +2,38 @@
 
 Формат: людською мовою, найновіше зверху. Версія — `packages/sdk/package.json`.
 
+## 1.0.0 — 2026-11-02
+
+Перша стабільна версія, за рішенням власника від 2026-11-02 — під заміну GoJS у хості,
+починаючи з табу ШПС. З цього моменту semver означає те, що й має означати: ламальна зміна
+публічного API (`docs/USAGE.md`) — це **2.0.0**. Зокрема, рознесення фасаду T119 тепер мажорне.
+
+Запис охоплює й `0.6.0`, яка вийшла без рядка в цьому файлі.
+
+### Додано
+
+- **Bulk-мутації ієрархії** (з `0.6.0`): `transferChildren`, `deleteSubtree`, `transferChildOrgs`,
+  `deleteOrgSubtree` — атомарні, валідація кидає `InteractionError` **до** зміни стану; типи
+  `*Summary` і чотири нові варіанти `LayoutPatch`. Опис — `docs/USAGE.md` §8.
+- **`setStyles`, `highlightPath`, `setFoundFocus`** на `OrgHierarchyDiagram`.
+- **`onOrgExpandChange(OrgExpandChange)`** — з причиною (`toggle` / `data` / `reveal` /
+  `reveal-rollback`). Хост, який перевіряє, що тогл не зрушив виділення, має ігнорувати все, крім `toggle`.
+- **Тема:** `edgePort`, `currentAccent`, `accentColor`/`accentWidth`, `dimAlpha`/`foundDimAlpha`,
+  `fonts` та поля бейджів/лейбл-бару — усі необов'язкові.
+- **`createReactPromoteOverlay({ backdrop })`** + тип `PromoteBackdropProps`: шар під картками в
+  тій самій системі координат камери (рамки, лінії).
+- **Утиліти геометрії ШПС:** `computeStaffLiveGeometry`, `worldPointToScreen`, `roundedPathD` і їхні типи.
+- ⚠️ **Експериментальні прапори `RenderConfig`:** `staffAlphaMockup`, `staffReactChrome`, `staffUseAstar`
+  (усі за замовчуванням `false`). Обслуговують ШПС alpha, на них стабільність 1.0 **не поширюється**,
+  доки alpha не замінить чинний шлях.
+
+### Змінено
+
+- **Геометрія ШПС рахується в Rust/WASM на прод-шляху рендера** (T126 R7). Маршрутизація ліній
+  поки лишається TypeScript (`resolveStaffRouting`).
+  **Кого стосується:** тих, хто порівнює координати карток штатної сцени з власними знімками —
+  числа можуть зсунутись. Публічні типи не змінились.
+
 ## 0.5.1 — 2026-09-11
 
 ### Прибрано
