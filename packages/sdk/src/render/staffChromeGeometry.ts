@@ -169,12 +169,18 @@ export function buildStaffChromeGeometry(
     const minY = Math.min(...boxes.map((b) => b.y));
     const maxX = Math.max(...boxes.map((b) => b.r));
     const maxY = Math.max(...boxes.map((b) => b.b));
-    const bottom = pad.bottom ?? pad.x;
+    // Pad is host styling, not geometry: a negative or NaN value is a host mistake
+    // that must never shrink the box inside its own content or poison the numbers —
+    // and must never throw, since this runs inside the render path. Clamp to ≥0.
+    const nonNeg = (n: number): number => (Number.isFinite(n) && n > 0 ? n : 0);
+    const padX = nonNeg(pad.x);
+    const padTop = nonNeg(pad.top);
+    const bottom = nonNeg(pad.bottom ?? pad.x);
     org = {
-      x: minX - pad.x,
-      y: minY - pad.top,
-      width: maxX - minX + pad.x * 2,
-      height: maxY - minY + pad.top + bottom,
+      x: minX - padX,
+      y: minY - padTop,
+      width: maxX - minX + padX * 2,
+      height: maxY - minY + padTop + bottom,
       name:
         data.organizations.find((o) => o.id === currentOrgId)?.name ??
         data.organizations.find((o) => o.role === 'current')?.name ??

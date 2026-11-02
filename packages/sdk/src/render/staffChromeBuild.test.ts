@@ -98,6 +98,23 @@ describe('buildStaffChromeGeometry (SDK, Б2 getter body)', () => {
     expect(wider.height).toBe(80 + 50 + 5);
   });
 
+  it('pad validation (N5): negative/NaN pad is clamped to 0, never a smaller-than-AABB box', () => {
+    const l = live({
+      frames: [{ departmentId: 'd1', x: 0, y: 0, width: 100, height: 80 }],
+    } as unknown as Partial<StaffLiveGeometry>);
+    // Negative would otherwise shrink the box inside its own content (x > minX); NaN
+    // would poison every downstream number. Both clamp to 0 → box == bare AABB.
+    const neg = buildStaffChromeGeometry(l, data(), 'org', { x: -10, top: -5, bottom: -3 }).org!;
+    expect(neg).toMatchObject({ x: 0, y: 0, width: 100, height: 80 });
+    const nan = buildStaffChromeGeometry(
+      l,
+      data(),
+      'org',
+      { x: Number.NaN, top: Number.NaN } as unknown as StaffChromePad,
+    ).org!;
+    expect(nan).toMatchObject({ x: 0, y: 0, width: 100, height: 80 });
+  });
+
   it('boundary: no frames and no nodes → org null, empty depts/lines/nodeBoxes', () => {
     const geom = buildStaffChromeGeometry(live(), data(), 'org', DEFAULT_PAD);
     expect(geom.org).toBeNull();
