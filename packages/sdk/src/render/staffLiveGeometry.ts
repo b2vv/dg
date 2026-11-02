@@ -327,8 +327,12 @@ async function computeViaTs(input: BranchInput): Promise<StaffLiveGeometry> {
 function buildStaffMockupInput(data: DiagramData, currentOrgId: string): StaffMockupInput {
   const inOrg = data.positions.filter((p) => p.organizationId === currentOrgId);
   const ids = new Set(inOrg.map((p) => p.id));
-  const seatW = inOrg[0]?.width ?? 300;
-  const seatH = inOrg[0]?.height ?? 112;
+  // Розмір — на картку (`position.width/height`, калібрує хост); посада без нього бере
+  // DG-сидіння 300×112 з `params`. Не розмір першої посади на всіх: так калібровані
+  // висоти не мали ефекту.
+  const sizes = inOrg
+    .filter((p) => p.width !== undefined || p.height !== undefined)
+    .map((p) => ({ id: p.id, width: p.width ?? 300, height: p.height ?? 112 }));
   const reports = data.reportLines
     .filter(
       (r) => r.kind === 'admin' && r.fromId !== r.toId && ids.has(r.fromId) && ids.has(r.toId),
@@ -347,7 +351,8 @@ function buildStaffMockupInput(data: DiagramData, currentOrgId: string): StaffMo
       .map((d) => ({ id: d.id, order: d.order })),
     // routing 'astar' = порт справжнього роутера мокапа (route()/A*, 0 перетинів);
     // 'simple' лишається варіантом порівняння в Rust-бібліотеці.
-    params: { pad: 8, lane: 8, cardWidth: seatW, cardHeight: seatH, headerHeight: 34, routing: 'astar' },
+    params: { pad: 8, lane: 8, cardWidth: 300, cardHeight: 112, headerHeight: 34, routing: 'astar' },
+    sizes,
   };
 }
 

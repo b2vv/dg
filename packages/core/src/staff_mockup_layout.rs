@@ -19,7 +19,7 @@ use std::collections::{BTreeSet, BinaryHeap, HashMap, HashSet};
 #[cfg(feature = "ts-export")]
 use ts_rs::TS;
 
-use crate::types::{StaffDepartmentInput, StaffEdgeInput, StaffPositionInput};
+use crate::types::{StaffDepartmentInput, StaffEdgeInput, StaffNodeSize, StaffPositionInput};
 
 /// Парне округлення (мокап `ev`).
 fn ev(n: f32) -> f32 {
@@ -108,6 +108,9 @@ pub struct StaffMockupInput {
     pub departments: Vec<StaffDepartmentInput>,
     #[serde(default)]
     pub params: StaffMockupParams,
+    /// Розмір **на картку** (калібрує хост). Картка без запису бере `params.card_width/height`.
+    #[serde(default)]
+    pub sizes: Vec<StaffNodeSize>,
 }
 
 /// Картка посади у світових координатах.
@@ -189,21 +192,25 @@ pub struct StaffMockupResult {
     pub height: f32,
 }
 
-/// bottom-up ширина піддерева всередині департаменту (мокап `sw`).
+/// Розмір картки (ширина, висота): запис хоста або `params`.
+type Dims = HashMap<String, (f32, f32)>;
+
+/// bottom-up ширина піддерева всередині департаменту (мокап `sw`); кламп — до ширини
+/// **цієї** картки.
 fn subtree_width(
     id: &str,
     dept_kids: &HashMap<String, Vec<String>>,
-    cw: f32,
+    dims: &Dims,
     sg: f32,
     out: &mut HashMap<String, f32>,
 ) -> f32 {
     let kids = dept_kids.get(id).map(|v| v.as_slice()).unwrap_or(&[]);
     let s: f32 = kids
         .iter()
-        .map(|c| subtree_width(c, dept_kids, cw, sg, out))
+        .map(|c| subtree_width(c, dept_kids, dims, sg, out))
         .sum::<f32>()
         + sg * kids.len().saturating_sub(1) as f32;
-    let val = cw.max(s);
+    let val = dims[id].0.max(s);
     out.insert(id.to_string(), val);
     val
 }
@@ -218,7 +225,25 @@ fn subtree_depth(id: &str, dept_kids: &HashMap<String, Vec<String>>) -> usize {
         .unwrap_or(0)
 }
 
+/// Висота кожного рівня відділу = найвища картка рівня (рядки вирівняні по верху).
+fn row_heights(
+    id: &str,
+    level: usize,
+    dept_kids: &HashMap<String, Vec<String>>,
+    dims: &Dims,
+    rows: &mut Vec<f32>,
+) {
+    if rows.len() <= level {
+        rows.push(0.0);
+    }
+    rows[level] = rows[level].max(dims[id].1);
+    for c in dept_kids.get(id).map(|v| v.as_slice()).unwrap_or(&[]) {
+        row_heights(c, level + 1, dept_kids, dims, rows);
+    }
+}
+
 /// top-down центрування над піддеревом; пише rel-координати (мокап внутрішній `place`).
+/// `row_top[k]` — верх рядка k відносно `dpt`: картки рівня стоять по верху рядка.
 #[allow(clippy::too_many_arguments)]
 fn place_within(
     id: &str,
@@ -226,11 +251,10 @@ fn place_within(
     level: usize,
     dept_kids: &HashMap<String, Vec<String>>,
     w: &HashMap<String, f32>,
-    cw: f32,
+    dims: &Dims,
     sg: f32,
     dpt: f32,
-    ch: f32,
-    lv: f32,
+    row_top: &[f32],
     rel: &mut HashMap<String, (f32, f32)>,
 ) {
     let kids = dept_kids.get(id).map(|v| v.as_slice()).unwrap_or(&[]);
@@ -239,11 +263,11 @@ fn place_within(
         kids.iter().map(|c| w[c]).sum::<f32>() + sg * kids.len().saturating_sub(1) as f32;
     rel.insert(
         id.to_string(),
-        (x0 + (wid - cw) / 2.0, dpt + level as f32 * (ch + lv)),
+        (x0 + (wid - dims[id].0) / 2.0, dpt + row_top[level]),
     );
     let mut x = x0 + (wid - tot) / 2.0;
     for c in kids {
-        place_within(c, x, level + 1, dept_kids, w, cw, sg, dpt, ch, lv, rel);
+        place_within(c, x, level + 1, dept_kids, w, dims, sg, dpt, row_top, rel);
         x += w[c] + sg;
     }
 }
@@ -326,8 +350,8 @@ struct DeptRect {
 /// Повний вхід роутера (owned, щоб уникнути lifetime-складнощів у одноразовому розрахунку).
 struct RouteInput {
     cards: HashMap<String, (f64, f64)>,
-    cw: f64,
-    ch: f64,
+    /// Розмір кожної картки (ширина, висота) — розмір на картку, не один на всіх.
+    dims: HashMap<String, (f64, f64)>,
     depts: Vec<DeptRect>,
     dept_by_id: HashMap<String, usize>,
     dept_of: HashMap<String, Option<String>>,
@@ -343,6 +367,15 @@ struct RouteInput {
     lane: f64,
     w: f64,
     h: f64,
+}
+
+impl RouteInput {
+    fn wof(&self, id: &str) -> f64 {
+        self.dims[id].0
+    }
+    fn hof(&self, id: &str) -> f64 {
+        self.dims[id].1
+    }
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -450,16 +483,16 @@ fn dept_ok(s: (f64, f64, f64, f64), d: &DeptRect, role: Option<char>) -> bool {
 fn edge_target(l: &RouteInput, c: &str, sec: bool) -> (f64, f64, bool) {
     let (cx, cy) = l.cards[c];
     if sec {
-        return (cx + l.cw / 2.0 + 28.0, cy, false);
+        return (cx + l.wof(c) / 2.0 + 28.0, cy, false);
     }
     if let Some(Some(dep)) = l.dept_of.get(c) {
         if let Some(&di) = l.dept_by_id.get(dep) {
             if l.depts[di].head == c {
-                return (cx + l.cw / 2.0, l.depts[di].y1, true);
+                return (cx + l.wof(c) / 2.0, l.depts[di].y1, true);
             }
         }
     }
-    (cx + l.cw / 2.0, cy, false)
+    (cx + l.wof(c) / 2.0, cy, false)
 }
 
 fn dept_of<'a>(l: &'a RouteInput, id: &str) -> Option<&'a str> {
@@ -494,7 +527,9 @@ fn build_edges(l: &RouteInput) -> (Vec<REdge>, Vec<REdge>) {
             let kind = classify(l, m, c);
             let mut by = None;
             if kind == EKind::Int {
-                by = Some(l.cards[m].1 + l.ch + l.lv / 2.0);
+                // Під низом РЯДКА менеджера, не його картки: діти рівня вирівняні по верху,
+                // тож верх дитини − LV/2 і є серединою gap під найвищою карткою рядка.
+                by = Some(l.cards[c].1 - l.lv / 2.0);
             } else if dept_of(l, m).is_none() {
                 let cb = &l.block_of[c];
                 let mb = &l.block_of[m];
@@ -506,7 +541,7 @@ fn build_edges(l: &RouteInput) -> (Vec<REdge>, Vec<REdge>) {
                     .map(|r| r.iter().any(|x| x == c))
                     .unwrap_or(false);
                 if parent_ok && root_ok {
-                    by = Some(l.cards[m].1 + l.ch + l.bv / 2.0);
+                    by = Some(l.cards[m].1 + l.hof(m) + l.bv / 2.0);
                 }
             }
             let e = REdge {
@@ -605,11 +640,11 @@ fn build_grid(l: &RouteInput, det: &[REdge]) -> Grid {
 
     let mut wx = vec![0.0, l.w];
     let mut wy = vec![0.0, l.h];
-    for (_, x, y) in &cr {
+    for (id, x, y) in &cr {
         wx.push(x - l.pad);
-        wx.push(x + l.cw + l.pad);
+        wx.push(x + l.wof(id) + l.pad);
         wy.push(y - l.pad);
-        wy.push(y + l.ch + l.pad);
+        wy.push(y + l.hof(id) + l.pad);
     }
     for d in &l.depts {
         wx.extend([
@@ -633,11 +668,11 @@ fn build_grid(l: &RouteInput, det: &[REdge]) -> Grid {
     let mut yset = BTreeSet::new();
     wall(&mut xset, &wx, l.lane);
     wall(&mut yset, &wy, l.lane);
-    for (_, x, y) in &cr {
-        xset.insert(key2(x + l.cw / 2.0));
-        xset.insert(key2(x + l.cw / 2.0 + 28.0));
+    for (id, x, y) in &cr {
+        xset.insert(key2(x + l.wof(id) / 2.0));
+        xset.insert(key2(x + l.wof(id) / 2.0 + 28.0));
         yset.insert(key2(*y));
-        yset.insert(key2(y + l.ch));
+        yset.insert(key2(y + l.hof(id)));
     }
     for d in &l.depts {
         yset.insert(key2(d.y1));
@@ -659,9 +694,14 @@ fn build_grid(l: &RouteInput, det: &[REdge]) -> Grid {
         .iter()
         .map(|(id, x, y)| PCard {
             id: id.clone(),
-            cx: x + l.cw / 2.0,
-            raw: (*x, *y, x + l.cw, y + l.ch),
-            padded: (x - l.pad, y - l.pad, x + l.cw + l.pad, y + l.ch + l.pad),
+            cx: x + l.wof(id) / 2.0,
+            raw: (*x, *y, x + l.wof(id), y + l.hof(id)),
+            padded: (
+                x - l.pad,
+                y - l.pad,
+                x + l.wof(id) + l.pad,
+                y + l.hof(id) + l.pad,
+            ),
         })
         .collect();
 
@@ -834,7 +874,7 @@ fn astar(grid: &Grid, l: &RouteInput, occ: &Occ, mkey: u32, e: &REdge) -> (Vec<(
     let b_dept = dept_of(l, &e.c)
         .filter(|d| l.dept_by_id.contains_key(*d))
         .map(|s| s.to_string());
-    let s = (mc.0 + l.cw / 2.0, mc.1 + l.ch);
+    let s = (mc.0 + l.wof(&e.m) / 2.0, mc.1 + l.hof(&e.m));
     let t = edge_target(l, &e.c, e.sec);
     let fallback = || {
         let my = (s.1 + t.1) / 2.0;
@@ -983,8 +1023,7 @@ struct EdgeView<'a> {
 fn stats_core(
     edges: &[EdgeView],
     cards: &HashMap<String, (f64, f64)>,
-    cw: f64,
-    ch: f64,
+    dims: &HashMap<String, (f64, f64)>,
     depts: &[DeptRect],
     dept_of_map: &HashMap<String, Option<String>>,
     pad: f64,
@@ -1046,6 +1085,7 @@ fn stats_core(
             if id == edges[sg.ei].m || id == edges[sg.ei].c {
                 continue;
             }
+            let (cw, ch) = dims[id];
             let r = (x, y, x + cw, y + ch);
             if seg_hits(s, r) {
                 card += 1;
@@ -1091,9 +1131,9 @@ fn route_simple(l: &RouteInput) -> Vec<StaffMockupEdge> {
         let (Some(&(px, py)), Some(&(cx, cy))) = (l.cards.get(m), l.cards.get(c)) else {
             continue;
         };
-        let pcx = px + l.cw / 2.0;
-        let ccx = cx + l.cw / 2.0;
-        let y1 = py + l.ch;
+        let pcx = px + l.wof(m) / 2.0;
+        let ccx = cx + l.wof(c) / 2.0;
+        let y1 = py + l.hof(m);
         let pts = if (pcx - ccx).abs() < 0.5 {
             vec![(pcx, y1), (ccx, cy)]
         } else {
@@ -1125,8 +1165,8 @@ fn route_astar(l: &RouteInput) -> Vec<StaffMockupEdge> {
 
     for e in det.iter_mut() {
         let m = l.cards[&e.m];
-        let mcx = m.0 + l.cw / 2.0;
-        let mbot = m.1 + l.ch;
+        let mcx = m.0 + l.wof(&e.m) / 2.0;
+        let mbot = m.1 + l.hof(&e.m);
         let by = e.by.unwrap();
         let (tx, ty, edt) = edge_target(l, &e.c, false);
         e.pts = simp(&[(mcx, mbot), (mcx, by), (tx, by), (tx, ty)]);
@@ -1187,7 +1227,7 @@ fn route_astar(l: &RouteInput) -> Vec<StaffMockupEdge> {
                 })
                 .collect();
             let (_, _, _, _, _, bad) =
-                stats_core(&views, &l.cards, l.cw, l.ch, &l.depts, &l.dept_of, l.pad);
+                stats_core(&views, &l.cards, &l.dims, &l.depts, &l.dept_of, l.pad);
             bad
         };
         if bad.is_empty() {
@@ -1245,8 +1285,11 @@ fn mockup_stats(
         .iter()
         .map(|n| (n.id.clone(), (n.x as f64, n.y as f64)))
         .collect();
-    let cw = input.params.card_width as f64;
-    let ch = input.params.card_height as f64;
+    let dims: HashMap<String, (f64, f64)> = result
+        .nodes
+        .iter()
+        .map(|n| (n.id.clone(), (n.width as f64, n.height as f64)))
+        .collect();
     let depts: Vec<DeptRect> = result
         .frames
         .iter()
@@ -1282,8 +1325,7 @@ fn mockup_stats(
     let (cross, over, card, near, dept, _) = stats_core(
         &views,
         &cards,
-        cw,
-        ch,
+        &dims,
         &depts,
         &dept_of_map,
         input.params.pad as f64,
@@ -1298,6 +1340,33 @@ pub fn compute_staff_mockup_layout(input: &StaffMockupInput) -> Result<StaffMock
     let cw = p.card_width;
     let ch = p.card_height;
     let hd = p.header_height;
+
+    // Розмір на картку: запис хоста або `params`. Невалідний чи дубльований запис — помилка,
+    // не тихий фолбек: хост, що надіслав 0 чи NaN, мусить про це дізнатись.
+    let mut given: HashMap<&str, (f32, f32)> = HashMap::new();
+    for sz in &input.sizes {
+        let ok = |v: f32| v.is_finite() && v > 0.0;
+        if !ok(sz.width) || !ok(sz.height) {
+            return Err(format!(
+                "staff mockup: invalid size for {}: {}x{}",
+                sz.id, sz.width, sz.height
+            ));
+        }
+        if given
+            .insert(sz.id.as_str(), (sz.width, sz.height))
+            .is_some()
+        {
+            return Err(format!("staff mockup: duplicate size for {}", sz.id));
+        }
+    }
+    let dims: Dims = input
+        .positions
+        .iter()
+        .map(|pos| {
+            let d = given.get(pos.id.as_str()).copied().unwrap_or((cw, ch));
+            (pos.id.clone(), d)
+        })
+        .collect();
 
     let sg = ev(f32::max(24.0, 2.0 * pad + 2.0 * lane + 8.0));
     let lv = ev(f32::max(56.0, 2.0 * pad + 4.0 * lane));
@@ -1391,21 +1460,31 @@ pub fn compute_staff_mockup_layout(input: &StaffMockupInput) -> Result<StaffMock
 
         let mut w: HashMap<String, f32> = HashMap::new();
         for r in &roots {
-            subtree_width(r, &dept_kids, cw, sg, &mut w);
+            subtree_width(r, &dept_kids, &dims, sg, &mut w);
         }
         let depth = roots
             .iter()
             .map(|r| subtree_depth(r, &dept_kids))
             .max()
             .unwrap_or(1);
+        let mut rows: Vec<f32> = Vec::new();
+        for r in &roots {
+            row_heights(r, 0, &dept_kids, &dims, &mut rows);
+        }
+        let mut row_top: Vec<f32> = Vec::with_capacity(rows.len());
+        let mut acc = 0.0_f32;
+        for h in &rows {
+            row_top.push(acc);
+            acc += h + lv;
+        }
         let mut rel: HashMap<String, (f32, f32)> = HashMap::new();
         let mut x = dp;
         for r in &roots {
-            place_within(r, x, 0, &dept_kids, &w, cw, sg, dpt, ch, lv, &mut rel);
+            place_within(r, x, 0, &dept_kids, &w, &dims, sg, dpt, &row_top, &mut rel);
             x += w[*r] + sg;
         }
         let width = x - sg + dp;
-        let height = dpt + depth as f32 * ch + (depth as f32 - 1.0) * lv + dp;
+        let height = dpt + rows.iter().sum::<f32>() + (depth as f32 - 1.0) * lv + dp;
 
         block_order.push(d.id.clone());
         block_w.insert(d.id.clone(), width);
@@ -1423,8 +1502,8 @@ pub fn compute_staff_mockup_layout(input: &StaffMockupInput) -> Result<StaffMock
             let mut rel = HashMap::new();
             rel.insert(pos.id.clone(), (0.0, 0.0));
             block_order.push(bid.clone());
-            block_w.insert(bid.clone(), cw);
-            block_h.insert(bid.clone(), ch);
+            block_w.insert(bid.clone(), dims[&pos.id].0);
+            block_h.insert(bid.clone(), dims[&pos.id].1);
             block_rel.insert(bid.clone(), rel);
             block_head.insert(bid.clone(), pos.id.clone());
             block_roots.insert(bid.clone(), vec![pos.id.clone()]);
@@ -1522,8 +1601,8 @@ pub fn compute_staff_mockup_layout(input: &StaffMockupInput) -> Result<StaffMock
                 id: id.clone(),
                 x,
                 y,
-                width: cw,
-                height: ch,
+                width: dims[id].0,
+                height: dims[id].1,
             });
         }
     }
@@ -1605,8 +1684,10 @@ pub fn compute_staff_mockup_layout(input: &StaffMockupInput) -> Result<StaffMock
             .iter()
             .map(|(id, &(x, y))| (id.clone(), (x as f64, y as f64)))
             .collect(),
-        cw: cw as f64,
-        ch: ch as f64,
+        dims: coords
+            .keys()
+            .map(|id| (id.clone(), (dims[id].0 as f64, dims[id].1 as f64)))
+            .collect(),
         depts: dept_rects,
         dept_by_id,
         dept_of: input
@@ -1691,6 +1772,7 @@ mod tests {
             ],
             departments: vec![dept("fin")],
             params: StaffMockupParams::default(),
+            sizes: Vec::new(),
         }
     }
 
@@ -1835,6 +1917,7 @@ mod tests {
                 header_height: 34.0,
                 routing: StaffMockupRouting::Astar,
             },
+            sizes: Vec::new(),
         }
     }
 
@@ -1865,7 +1948,11 @@ mod tests {
     #[ignore]
     fn dump_mockup_golden() {
         let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
-        for (name, inp) in [("sample", sample()), ("mock3", mock3_scene()), ("mock3-dg", mock3_dg())] {
+        for (name, inp) in [
+            ("sample", sample()),
+            ("mock3", mock3_scene()),
+            ("mock3-dg", mock3_dg()),
+        ] {
             let out = compute_staff_mockup_layout(&inp).unwrap();
             std::fs::write(
                 format!("{dir}/mockup-golden-{name}.json"),
@@ -1873,6 +1960,178 @@ mod tests {
             )
             .unwrap();
         }
+    }
+
+    // ---- Б1: розмір на картку ----
+
+    fn size(id: &str, w: f32, h: f32) -> StaffNodeSize {
+        StaffNodeSize {
+            id: id.to_string(),
+            width: w,
+            height: h,
+        }
+    }
+    fn node<'a>(out: &'a StaffMockupResult, id: &str) -> &'a StaffMockupNode {
+        out.nodes.iter().find(|n| n.id == id).unwrap()
+    }
+    fn golden(name: &str) -> String {
+        std::fs::read_to_string(format!(
+            "{}/tests/fixtures/mockup-golden-{name}.json",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .unwrap()
+    }
+    fn pretty(inp: &StaffMockupInput) -> String {
+        serde_json::to_string_pretty(&compute_staff_mockup_layout(inp).unwrap()).unwrap()
+    }
+
+    /// Відділ fin: cfo → {acc, trs}; acc → {bk, bz}. Розміри задає тест.
+    fn fin_tree(sizes: Vec<StaffNodeSize>) -> StaffMockupInput {
+        StaffMockupInput {
+            positions: ["cfo", "acc", "trs", "bk", "bz"]
+                .iter()
+                .map(|id| pos(id, Some("fin")))
+                .collect(),
+            reports: vec![
+                admin("cfo", "acc"),
+                admin("cfo", "trs"),
+                admin("acc", "bk"),
+                admin("acc", "bz"),
+            ],
+            departments: vec![dept("fin")],
+            params: StaffMockupParams {
+                card_width: 300.0,
+                card_height: 112.0,
+                ..StaffMockupParams::default()
+            },
+            sizes,
+        }
+    }
+
+    #[test]
+    fn equal_sizes_reproduce_the_pre_change_golden() {
+        // Еталон знято на коді ДО зміни (8daa0a5) — це не новий-код-проти-нового-коду.
+        for (name, inp) in [
+            ("sample", sample()),
+            ("mock3", mock3_scene()),
+            ("mock3-dg", mock3_dg()),
+        ] {
+            assert_eq!(pretty(&inp), golden(name), "{name}: без sizes");
+            let mut with_sizes = inp.clone();
+            with_sizes.sizes = inp
+                .positions
+                .iter()
+                .map(|p| size(&p.id, inp.params.card_width, inp.params.card_height))
+                .collect();
+            assert_eq!(pretty(&with_sizes), golden(name), "{name}: sizes = params");
+        }
+    }
+
+    #[test]
+    fn a_row_is_top_aligned_and_the_next_row_clears_its_tallest_card() {
+        let out = compute_staff_mockup_layout(&fin_tree(vec![size("trs", 300.0, 250.0)])).unwrap();
+        let (acc, trs, bk) = (node(&out, "acc"), node(&out, "trs"), node(&out, "bk"));
+        assert_eq!(acc.y, trs.y, "один рівень — один верх");
+        assert_eq!(trs.height, 250.0, "нода несе свій розмір");
+        assert_eq!(acc.height, 112.0, "картка без запису — params");
+        // Онук acc стоїть під НАЙВИЩОЮ карткою рядка (trs), не під своїм батьком.
+        let lv = bk.y - (trs.y + trs.height);
+        assert_eq!(lv, 56.0, "gap LV від низу найвищої картки рядка");
+    }
+
+    #[test]
+    fn a_taller_card_grows_its_department_frame() {
+        let base = compute_staff_mockup_layout(&fin_tree(vec![])).unwrap();
+        let tall = compute_staff_mockup_layout(&fin_tree(vec![size("bz", 300.0, 200.0)])).unwrap();
+        assert_eq!(tall.frames[0].height - base.frames[0].height, 200.0 - 112.0);
+    }
+
+    #[test]
+    fn a_wider_card_pushes_its_siblings_apart() {
+        let base = compute_staff_mockup_layout(&fin_tree(vec![])).unwrap();
+        let wide = compute_staff_mockup_layout(&fin_tree(vec![size("bk", 500.0, 112.0)])).unwrap();
+        let gap = |o: &StaffMockupResult| node(o, "bz").x - (node(o, "bk").x + node(o, "bk").width);
+        assert_eq!(node(&wide, "bk").width, 500.0);
+        assert_eq!(
+            gap(&wide),
+            gap(&base),
+            "той самий сиблінг-gap від правого краю ширшої картки"
+        );
+        assert!(wide.frames[0].width > base.frames[0].width);
+    }
+
+    #[test]
+    fn the_bus_runs_below_the_row_not_below_a_shorter_manager() {
+        // acc (112) строго нижчий за сусіда по рядку trs (250): шина acc→{bk,bz} мусить іти під
+        // низом РЯДКА, інакше горизонталь проходить крізь trs.
+        let out = compute_staff_mockup_layout(&fin_tree(vec![size("trs", 300.0, 250.0)])).unwrap();
+        let (acc, trs) = (node(&out, "acc"), node(&out, "trs"));
+        // Передумова: без неї тест зелений і без фічі (обидві картки 112, шини збігаються).
+        assert!(
+            trs.height > acc.height && trs.y == acc.y,
+            "фікстура: менеджер нижчий за сусіда рядка"
+        );
+        let row_bottom = trs.y + trs.height;
+        for to in ["bk", "bz"] {
+            let e = out
+                .edges
+                .iter()
+                .find(|e| e.from_id == "acc" && e.to_id == to)
+                .unwrap();
+            for w in e.points.windows(2) {
+                if w[0].y == w[1].y && w[0].x != w[1].x {
+                    assert!(
+                        w[0].y > row_bottom,
+                        "{to}: горизонталь на y={} вище низу рядка {row_bottom}",
+                        w[0].y
+                    );
+                }
+            }
+            assert!(
+                e.points[0].y == acc.y + acc.height,
+                "{to}: старт — низ самої картки"
+            );
+        }
+    }
+
+    #[test]
+    fn mixed_heights_on_the_full_scene_keep_zero_crossings_and_card_hits() {
+        let mut inp = mock3_dg();
+        inp.sizes = inp
+            .positions
+            .iter()
+            .enumerate()
+            .map(|(i, p)| size(&p.id, 300.0, [112.0, 160.0, 136.0][i % 3]))
+            .collect();
+        let out = compute_staff_mockup_layout(&inp).unwrap();
+        assert!(
+            out.nodes.iter().any(|n| n.height == 160.0),
+            "фікстура справді змішана"
+        );
+        let (cross, over, card, near, dept) = mockup_stats(&inp, &out);
+        assert_eq!(
+            cross, 0,
+            "перетини: {cross} (over={over} near={near} dept={dept})"
+        );
+        assert_eq!(card, 0, "ліній крізь чужі картки: {card}");
+    }
+
+    #[test]
+    fn invalid_or_duplicate_sizes_are_errors_not_fallbacks() {
+        for bad in [0.0, -5.0, f32::NAN, f32::INFINITY] {
+            assert!(
+                compute_staff_mockup_layout(&fin_tree(vec![size("acc", 300.0, bad)])).is_err(),
+                "h={bad}"
+            );
+            assert!(
+                compute_staff_mockup_layout(&fin_tree(vec![size("acc", bad, 112.0)])).is_err(),
+                "w={bad}"
+            );
+        }
+        let dup = fin_tree(vec![size("acc", 300.0, 120.0), size("acc", 300.0, 140.0)]);
+        assert!(compute_staff_mockup_layout(&dup).is_err(), "дублікат id");
+        // Запис для посади поза входом — не помилка, просто не використовується.
+        assert!(compute_staff_mockup_layout(&fin_tree(vec![size("ghost", 300.0, 120.0)])).is_ok());
     }
 
     #[test]

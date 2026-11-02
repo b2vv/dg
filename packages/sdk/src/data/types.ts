@@ -138,7 +138,11 @@ export interface DiagramPosition {
    * host HTML overlay; canvas state rendering is additive (follow-up).
    */
   external?: boolean;
-  /** Розмір картки (staff layout AABB) */
+  /**
+   * Розмір картки (staff layout AABB), **на картку**: хост подає калібровані висоти, розкладка
+   * їх споживає (на шляху alpha теж). Без значення — дефолт шляху (alpha: 300×112). Нуль,
+   * від'ємне чи не-число на alpha — помилка розкладки, не тихий фолбек.
+   */
   width?: number;
   height?: number;
   /** Примітивні координати (після drag) — локальні px org */
