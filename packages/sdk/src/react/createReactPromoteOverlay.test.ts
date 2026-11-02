@@ -9,6 +9,7 @@ import {
   type ReactPromoteOverlay,
 } from './createReactPromoteOverlay.js';
 import type { PromoteCandidate } from '../render/promoteTypes.js';
+import { worldPointToScreen } from '../render/staffChromeGeometry.js';
 
 function makeDiagram(overrides: Partial<PromoteOverlayDiagram> = {}): PromoteOverlayDiagram {
   const candidate: PromoteCandidate = {
@@ -92,6 +93,39 @@ describe('createReactPromoteOverlay', () => {
     expect(bdWrap).not.toBeNull();
     if (firstSlot) {
       expect(kids.indexOf(bdWrap)).toBeLessThan(kids.indexOf(firstSlot));
+    }
+
+    act(() => overlay?.dispose());
+  });
+
+  it('backdrop gets a worldTransform that reproduces worldPointToScreen (Б2)', () => {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    const seen: PromoteBackdropProps[] = [];
+    const Backdrop = (p: PromoteBackdropProps) => {
+      seen.push(p);
+      return createElement('div', { 'data-test-backdrop': '' });
+    };
+    const viewport = { x: 5, y: 7, scale: 2 };
+    let overlay: ReactPromoteOverlay | undefined;
+    act(() => {
+      overlay = createReactPromoteOverlay({
+        diagram: makeDiagram({ getViewport: () => viewport }),
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-visible',
+        backdrop: Backdrop,
+      });
+    });
+
+    // One transform string, usable as both a CSS and an SVG transform: applying it
+    // to a world point (origin 0,0) must equal the per-point map the host is dropping.
+    const wt = seen.at(-1)?.worldTransform;
+    expect(wt).toBe(`translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`);
+    for (const [wx, wy] of [[0, 0], [10, 20], [-3, 4]] as const) {
+      expect({ x: wx * viewport.scale + viewport.x, y: wy * viewport.scale + viewport.y }).toEqual(
+        worldPointToScreen(wx, wy, viewport),
+      );
     }
 
     act(() => overlay?.dispose());

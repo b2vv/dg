@@ -38,10 +38,13 @@ import {
   resolveTheme,
   resolveNodeTheme,
   canvasBackgroundForTheme,
+  computeStaffFit,
   type NodeThemeOverrides,
   type RenderConfig,
   type CameraMotionOptions,
   type NodeWorldBox,
+  type StaffChromeGeometry,
+  type StaffFitOptions,
 } from './render/index.js';
 import { inferStaffCurrentOrgId } from './render/inferStaffCurrentOrgId.js';
 import { resolveLodLevel, type LodLevel, type LodThresholds } from './render/lod.js';
@@ -1842,6 +1845,18 @@ export class OrgHierarchyDiagram {
   }
 
   /**
+   * Chrome geometry (department/org frames, connector lines and seat boxes, all in
+   * world coords) from the last render that drew the React near-view chrome; null
+   * before the first render and whenever that chrome was not drawn (org-view, grid,
+   * backdrop unmounted). The host reads this to draw the staff-alpha chrome instead
+   * of recomputing the layout. Pad around the org box is the diagram's set-once
+   * `render.staffChromePad`.
+   */
+  getStaffChromeGeometry(): StaffChromeGeometry | null {
+    return this.renderer?.getStaffChromeGeometry() ?? null;
+  }
+
+  /**
    * World boxes + resolved node payloads for promote overlay.
    * When `ids` omitted, returns all remembered boxes that resolve to a node.
    */
@@ -1905,6 +1920,39 @@ export class OrgHierarchyDiagram {
       this.onViewportTransform(this.host?.getZoom() ?? 1);
     }
     return ok;
+  }
+
+  /**
+   * Frame the staff near-view chrome (Б2): fit the padded org box from
+   * {@link OrgHierarchyDiagram.getStaffChromeGeometry} — NOT content bounds, which
+   * `fitView` fits — clamped to `[minScale,maxScale]`, centred horizontally and
+   * (by default) top-aligned, fitting width only so a tall tree is not shrunk
+   * below the near-view threshold. Returns the target transform it moved to, or
+   * `null` when there is no chrome box (before the first alpha render, org-view,
+   * backdrop unmounted). The camera math and the move are the SDK's; building the
+   * promote cards for the target frame before an animation is the host's (read the
+   * returned target, pre-sync the overlay, then let the animation run).
+   *
+   * Coupling caveat: `minScale`/`maxScale` are additionally bounded by the diagram's
+   * own zoom clamp (default 0.15–4, configurable at construction). The returned
+   * target carries the scale computed from the requested range; if that range
+   * exceeds the zoom clamp the camera is clamped further, so the returned target
+   * would then differ from the final camera. The default 0.55–1 sits inside the
+   * clamp — stay within the zoom limits to keep the returned target truthful.
+   */
+  fitStaffChrome(
+    opts: StaffFitOptions & CameraMotionOptions = {},
+  ): { x: number; y: number; scale: number } | null {
+    const box = this.getStaffChromeGeometry()?.org;
+    if (!box) return null;
+    const target = computeStaffFit(box, this.getScreenSize(), opts);
+    if (opts.animate === false) {
+      this.host?.setViewport(target);
+      this.onViewportTransform(target.scale);
+    } else {
+      this.host?.animateViewport(target, opts);
+    }
+    return target;
   }
 
   /** Reset camera to identity (scale 1, origin). */

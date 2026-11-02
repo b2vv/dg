@@ -52,6 +52,11 @@ import { resolveSeatDrop, type SeatDrop } from '../core/index.js';
 import type { LodLevel } from './lod.js';
 import { computeStaffLiveGeometry, type StaffLiveGeometry } from './staffLiveGeometry.js';
 import {
+  buildStaffChromeGeometry,
+  DEFAULT_STAFF_CHROME_PAD,
+  type StaffChromeGeometry,
+} from './staffChromeGeometry.js';
+import {
   resolveContourWorldTransform,
   type ContourWorldTransform,
 } from './contour/contourWorldTransform.js';
@@ -203,6 +208,14 @@ export class DiagramRenderer {
 
   /** Strip reserved for zone labels in the last render; 0 without zone chrome. */
   private lastZoneLabelBand = 0;
+
+  /**
+   * Chrome geometry from the LAST render that drew the React near-view chrome
+   * (Б2 getter). Reset to null at the top of every render() — so an org-view or a
+   * React-chrome-off render leaves no stale box — and set only in the
+   * reactChrome-on branch of renderStaffCanvas. Read by `getStaffChromeGeometry`.
+   */
+  private lastStaffChrome: StaffChromeGeometry | null = null;
 
   /**
    * Union of the chrome painted around the nodes — zones and department frames.
@@ -413,6 +426,16 @@ export class DiagramRenderer {
     return unionBoxes(parts);
   }
 
+  /**
+   * Chrome geometry (frames/org/lines/seat boxes, world coords) from the last
+   * render that drew the React near-view chrome; null before the first render and
+   * on any render that did not (org-view, grid, React chrome off). The Б2 host
+   * reads this instead of recomputing the layout.
+   */
+  getStaffChromeGeometry(): StaffChromeGeometry | null {
+    return this.lastStaffChrome;
+  }
+
   /** Grow the painted-chrome union; reset per render. */
   private rememberChrome(rect: WorldRect): void {
     this.chromeBounds = unionBoxes(
@@ -442,6 +465,9 @@ export class DiagramRenderer {
     this.layers.clear();
     this.scene.clear();
     this.lastDiagnostics = [];
+    // Reset here — not inside renderStaffCanvas — because org-view and grid renders
+    // never enter it, and would otherwise leave the previous alpha box cached.
+    this.lastStaffChrome = null;
 
     this.layers.root.eventMode = 'static';
     this.layers.root.removeAllListeners('pointertap');
@@ -681,7 +707,15 @@ export class DiagramRenderer {
     // far, Pixi draws everything. Person/org cards are untouched: the promote
     // overlay hides the ones it draws in React; the rest stay Pixi.
     const reactChrome = config.staffReactChrome === true && (options.lod ?? 'near') !== 'far';
-    if (!reactChrome) {
+    if (reactChrome) {
+      // The host owns the chrome in React; cache the geometry it must read (Б2).
+      this.lastStaffChrome = buildStaffChromeGeometry(
+        live,
+        data,
+        currentOrgId,
+        config.staffChromePad ?? DEFAULT_STAFF_CHROME_PAD,
+      );
+    } else {
       if (config.staffZoneChrome) this.paintStaffZones(ctx, live, geom);
       await this.paintStaffDepartments(ctx, canvas, geom);
       if (!this.isRenderCurrent(epoch)) return;

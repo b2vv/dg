@@ -123,6 +123,9 @@ export {
   computeStaffLiveGeometry,
   worldPointToScreen,
   roundedPathD,
+  buildStaffChromeGeometry,
+  computeStaffFit,
+  DEFAULT_STAFF_CHROME_PAD,
 } from './render/index.js';
 export {
   MediaService,
@@ -171,6 +174,13 @@ export type {
   StaffLiveGeometryInput,
   StaffFrameBox,
   ScreenPoint,
+  WorldPoint,
+  StaffChromeGeometry,
+  StaffChromePad,
+  StaffFitOptions,
+  ChromeDeptFrame,
+  ChromeLine,
+  NodeBox,
 } from './render/index.js';
 export { SEARCH_PAGE_SIZE } from './callbacks.js';
 export type {

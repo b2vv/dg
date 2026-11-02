@@ -209,6 +209,12 @@ export class PixiHost {
     this.viewport?.panTo(worldX, worldY, motion);
   }
 
+  /** Tween (or jump) the camera to an explicit transform — used by fitStaffChrome,
+   *  which computes its own target rather than fitting content bounds. */
+  animateViewport(target: ViewportTransform, motion?: CameraMotionOptions): void {
+    this.viewport?.animateTo(target, motion);
+  }
+
   /** Fit content bounds into the screen. Returns false if nothing to fit. */
   fitView(
     padding = 48,

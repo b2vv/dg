@@ -19,8 +19,23 @@ export type {
   StaffLiveGeometryInput,
   StaffFrameBox,
 } from './staffLiveGeometry.js';
-export { worldPointToScreen, roundedPathD } from './staffChromeGeometry.js';
-export type { ScreenPoint } from './staffChromeGeometry.js';
+export {
+  worldPointToScreen,
+  roundedPathD,
+  buildStaffChromeGeometry,
+  computeStaffFit,
+  DEFAULT_STAFF_CHROME_PAD,
+} from './staffChromeGeometry.js';
+export type {
+  ScreenPoint,
+  WorldPoint,
+  StaffChromeGeometry,
+  StaffChromePad,
+  StaffFitOptions,
+  ChromeDeptFrame,
+  ChromeLine,
+  NodeBox,
+} from './staffChromeGeometry.js';
 export { arrowHeadTriangle, shortenPolylineForArrow } from './staffEdgeArrows.js';
 export {
   buildStaffEdgeSegments,

@@ -86,6 +86,19 @@ export interface PromoteBackdropProps {
   viewport: ViewportTransform;
   screen: { width: number; height: number };
   lod: LodLevel;
+  /**
+   * World→screen transform for THIS synced frame, as a `translate(..) scale(..)`
+   * string valid as both a CSS `transform` and an SVG `transform` attribute (Б2).
+   * Wrap the backdrop in ONE element carrying it and draw children in world coords,
+   * instead of mapping each point: a point (wx,wy) under `transform` with
+   * `transform-origin:0 0` lands where `worldPointToScreen(wx,wy,viewport)` would.
+   * Put HTML frames under a CSS-transformed div and connector lines under an SVG
+   * `<g transform>` with `vector-effect:non-scaling-stroke`, so the stroke stays
+   * crisp while the geometry scales. The overlay layer already carries the
+   * pan catch-up transform on top, so the backdrop stays aligned while the camera
+   * moves — keep the backdrop inside that layer.
+   */
+  worldTransform: string;
 }
 
 export interface ReactPromoteOverlayOptions {
@@ -448,7 +461,12 @@ export function createReactPromoteOverlay(
         className: options.className,
         backdrop: options.backdrop,
         // Same viewport/lod the cards were built for → one frame of reference.
-        backdropProps: { viewport, screen, lod },
+        backdropProps: {
+          viewport,
+          screen,
+          lod,
+          worldTransform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`,
+        },
       }),
     );
   };
