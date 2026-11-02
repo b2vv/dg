@@ -5,10 +5,7 @@ import {
   mapArrayItems,
   recommendWorkerPoolSize,
   SEARCH_PAGE_SIZE,
-  computeStaffLiveGeometry,
-  defaultNodeTheme,
   type DiagramData,
-  type RenderConfig,
   type SearchAllResult,
   type FlatDiagramRow,
   type LayoutPatch,
@@ -29,13 +26,10 @@ import { createElement, type ReactElement } from 'react';
 import { flushSync } from 'react-dom';
 import { ShpsStaffCard, makeShpsStaffCard } from './ShpsStaffCard.js';
 import {
-  buildStaffChromeGeometry,
   makeStaffChromeBackdrop,
   installStaffHoverHighlight,
   staffAdminAncestors,
-  staffFitTransform,
   staffVisibleData,
-  type StaffChromeGeometry,
 } from './StaffChromeBackdrop.js';
 import {
   computeStaffSearchHits,
@@ -238,7 +232,10 @@ export class App {
   private staffChromeBackdrop?: (props: PromoteBackdropProps) => ReactElement | null;
   /** Latest alpha chrome geometry; the backdrop reads this ref so collapse/expand
    *  can swap it and re-sync in place (no diagram teardown, no flash). */
-  private staffChromeGeom: StaffChromeGeometry | null = null;
+  /** §8.2 search-hit id (host state; SDK chrome geometry does not carry it). */
+  private staffFoundId: string | null = null;
+  /** Generation guard for overlapping collapse/search re-renders (Б2.1 race). */
+  private staffRerenderGen = 0;
   /** Teardown for the ШПС alpha hover-highlight + collapse-toggle delegated listeners. */
   private staffHoverCleanup?: () => void;
   /** Positions whose subtree is collapsed (§8.1), applied as a data filter on reload. */
@@ -434,7 +431,7 @@ export class App {
         this.staffCollapsed,
       );
     }
-    await this.prepareStaffChrome(config);
+    this.prepareStaffChrome(config);
     try {
       this.setStatus('Loading…');
       this.diagram = await OrgHierarchyDiagram.create(this.mountEl, {
@@ -668,59 +665,34 @@ export class App {
   }
 
   /**
-   * ШПС alpha: compute the near-view chrome geometry (dept frames + org frame +
-   * connector lines) from the SAME deterministic Rust mockup layout the Pixi path
-   * uses, and flip `staffReactChrome` so the renderer skips Pixi chrome at mid/near.
-   * On any failure the backdrop is left unset and the flag false → Pixi draws the
-   * chrome (graceful fallback, never an empty scene). Must run before `create()`,
+   * ШПС alpha: mount the React near-view chrome and flip `staffReactChrome` so the
+   * renderer skips Pixi chrome at mid/near AND caches the chrome geometry for the
+   * host to read (Б2). The backdrop reads `diagram.getStaffChromeGeometry()` lazily
+   * at render time (after the first render populates the cache) and composes the
+   * demo's own `foundId` — the host computes NO geometry. Must run before `create()`,
    * since the flag lives in the render config the diagram reads.
    */
-  private async prepareStaffChrome(config: OrgHierarchyConfig<unknown>): Promise<void> {
+  private prepareStaffChrome(config: OrgHierarchyConfig<unknown>): void {
     this.staffChromeBackdrop = undefined;
-    this.staffChromeGeom = null;
+    this.staffFoundId = null;
     const render = config.render;
     const orgId = config.staffCurrentOrgId;
     if (render?.staffAlphaMockup !== true || !config.data || !orgId) return;
-    // The staff demos feed already-mapped `DiagramData`; the generic config erases
-    // it to the host-raw type, so recover it here (demo-only, this tab's own data).
-    const data = config.data as unknown as DiagramData;
-    try {
-      this.staffChromeGeom = await this.computeStaffChrome(config, data, orgId);
-      // The backdrop reads the geometry ref each render → collapse can swap it.
-      this.staffChromeBackdrop = makeStaffChromeBackdrop(() => this.staffChromeGeom);
-      render.staffReactChrome = true;
-    } catch (err) {
-      this.staffChromeBackdrop = undefined;
-      this.staffChromeGeom = null;
-      this.showToast(
-        `staff-alpha chrome · Pixi fallback: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-  }
-
-  /** Chrome geometry (frames/org/lines) from the mockup layout for `data`. */
-  private async computeStaffChrome(
-    config: OrgHierarchyConfig<unknown>,
-    data: DiagramData,
-    orgId: string,
-  ): Promise<StaffChromeGeometry> {
-    const live = await computeStaffLiveGeometry({
-      data,
-      currentOrgId: orgId,
-      theme: defaultNodeTheme,
-      resolvedTheme: config.theme === 'light' ? 'light' : 'dark',
-      config: config.render as RenderConfig,
-      staff: config.staffLayout ? { layout: config.staffLayout } : undefined,
-      lod: 'near',
+    // Lazy: the getter is null until the first render, and the backdrop first draws
+    // on the post-render sync — so reading it here (before create) is not needed.
+    this.staffChromeBackdrop = makeStaffChromeBackdrop(() => {
+      const g = this.diagram?.getStaffChromeGeometry();
+      return g ? { ...g, foundId: this.staffFoundId } : null;
     });
-    return buildStaffChromeGeometry(live, data, orgId);
+    render.staffReactChrome = true;
   }
 
   /**
-   * Collapse/expand in place (§8.1): re-layout the visible data with `setData` and
-   * swap the chrome geometry + `sync()`, WITHOUT disposing the diagram — so there is
-   * no teardown flash and the camera is kept. Falls back to a full reload only if the
-   * scene is not the alpha chrome path.
+   * Collapse/expand in place (§8.1): re-layout the visible data with `setData`
+   * (which refreshes the SDK chrome-geometry cache) and `sync()`, WITHOUT disposing
+   * the diagram — no teardown flash, camera kept. Falls back to a full reload only
+   * if the scene is not the alpha chrome path. A generation guard drops a superseded
+   * re-render (two toggles racing) so the last one wins (Б2.1).
    */
   private async rerenderStaffAlpha(): Promise<void> {
     const diagram = this.diagram;
@@ -732,15 +704,12 @@ export class App {
     }
     let data = config.data as unknown as DiagramData;
     if (this.staffCollapsed.size > 0) data = staffVisibleData(data, this.staffCollapsed);
-    try {
-      this.staffChromeGeom = await this.computeStaffChrome(config, data, orgId);
-    } catch {
-      // Keep the previous geometry rather than blanking the chrome.
-    }
+    const gen = ++this.staffRerenderGen;
     await diagram.setData(data);
-    // Re-render cards + backdrop for the new layout (setData moved the nodes). No
-    // fit here: the collapse toggle re-frames smoothly after (`refitStaffAlpha`), and
-    // the search focus pans to its hit instead.
+    if (gen !== this.staffRerenderGen || this.diagram !== diagram) return; // superseded
+    // Re-render cards + backdrop for the new layout (setData moved the nodes, and
+    // refreshed getStaffChromeGeometry). No fit here: the collapse toggle re-frames
+    // smoothly after (`refitStaffAlpha`), and the search focus pans to its hit.
     this.promote?.sync();
   }
 
@@ -760,18 +729,25 @@ export class App {
    */
   private refitStaffAlpha(durationMs = 280): void {
     const diagram = this.diagram;
-    const box = this.staffChromeGeom?.org;
-    if (!diagram || !box) return;
-    const screen = { width: this.mountEl.clientWidth, height: this.mountEl.clientHeight };
-    const to = staffFitTransform(box, screen, 48, MOCKUP_FIT_MIN_SCALE, 1);
+    if (!diagram) return;
     const from = diagram.getViewport();
     cancelAnimationFrame(this.staffFitTween);
-    // Build the cards for the TARGET frame first: the promote overlay only carries
-    // existing cards with a CSS transform while the camera moves and rebuilds on
-    // settle, so a card off-screen in the start frame would pop in at the end.
-    // flushSync: the overlay's `root.render` must commit before the catch-up transform
-    // for `from` is written, or one frame shows the old cards at the target's scale.
-    diagram.setViewport(to);
+    // SDK owns the fit math: fitStaffChrome frames the padded org box (width-only,
+    // clamped, top-aligned) and leaves the camera AT the target, returning it. Null
+    // when there is no chrome box (not the alpha path) → nothing to re-frame.
+    const to = diagram.fitStaffChrome({
+      animate: false,
+      padding: 48,
+      minScale: MOCKUP_FIT_MIN_SCALE,
+      maxScale: 1,
+    });
+    if (!to) return;
+    // Build the cards for the TARGET frame first (camera is already at `to`): the
+    // promote overlay only carries existing cards with a CSS transform while the
+    // camera moves and rebuilds on settle, so a card off-screen in the start frame
+    // would pop in at the end. flushSync: the overlay's `root.render` must commit
+    // before the catch-up transform for `from` is written, or one frame shows the
+    // old cards at the target's scale.
     flushSync(() => this.promote?.sync());
     diagram.setViewport(from);
     // Clock starts on the first frame, so a long rebuild task before it does not
@@ -795,8 +771,8 @@ export class App {
   /**
    * Focus a seat from the v3 search (§8.2, mockup `focusCard`): un-collapse the
    * admin path to it so it is on screen, ring it (`foundId` → marker + dim), and
-   * centre the camera on it. `foundId` is set AFTER the re-render, because
-   * `rerenderStaffAlpha` rebuilds `staffChromeGeom` with `foundId: null`.
+   * centre the camera on it. `foundId` is host state (`staffFoundId`), set AFTER the
+   * re-render and composed onto the SDK chrome geometry by the backdrop.
    */
   private async focusStaffCard(posId: string): Promise<void> {
     const config = this.buildConfig();
@@ -810,7 +786,7 @@ export class App {
       }
       if (changed) await this.rerenderStaffAlpha();
     }
-    if (this.staffChromeGeom) this.staffChromeGeom.foundId = posId;
+    this.staffFoundId = posId;
     // Centres the camera without changing zoom (panToNode); the node now exists.
     await this.diagram?.revealPath(posId);
     // Drop the ring `revealPath` leaves; the backdrop draws the v3 «Знайдено» marker.
@@ -820,8 +796,8 @@ export class App {
 
   /** Clear the §8.2 search focus (Escape / empty query): drop the ring + dim. */
   private clearStaffFocus(): void {
-    if (this.staffChromeGeom?.foundId) {
-      this.staffChromeGeom.foundId = null;
+    if (this.staffFoundId) {
+      this.staffFoundId = null;
       this.promote?.sync();
     }
   }
@@ -842,9 +818,9 @@ export class App {
       component:
         this.tab === 'staff-alpha'
           ? // Alpha binds a focus thunk so a search dims the non-found cards (§8.2);
-            // same `staffChromeGeom.foundId` the backdrop rings, one source of truth.
+            // same `staffFoundId` the backdrop rings, one source of truth.
             makeShpsStaffCard(() => ({
-              foundId: this.staffChromeGeom?.foundId ?? null,
+              foundId: this.staffFoundId,
               collapsed: this.staffCollapsed,
             }))
           : shps
@@ -853,14 +829,14 @@ export class App {
               ? DemoContentModesCard
               : DemoPromoteCard,
       // ШПС alpha: dept/org frames + connector lines drawn under the cards, in the
-      // same camera-synced layer (set only when its geometry computed; else Pixi).
+      // same camera-synced layer (set only on the alpha path; else Pixi draws chrome).
       backdrop: this.staffChromeBackdrop,
     });
     // Hover-highlight (§7/§8.2) + collapse toggle (§8.1) only when React owns chrome.
     if (this.staffChromeBackdrop) {
       const disposeHover = installStaffHoverHighlight(
         this.mountEl,
-        () => this.staffChromeGeom?.foundId ?? null,
+        () => this.staffFoundId,
       );
       const onClick = (e: Event): void => {
         const id = (e.target as Element | null)
