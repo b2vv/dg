@@ -1,6 +1,7 @@
 import type { DiagramData } from '../data/types.js';
 import { defaultContextMenuItems } from './contextMenu.js';
 import {
+  incomingAdminLink,
   resolveContextMenuNodeData,
   type ContextMenuPointer,
   type ContextMenuRequest,
@@ -46,8 +47,10 @@ export class ContextMenuController {
 
   /** Build the request, let the host filter/replace items, remember it. */
   open(node: NodeRef, pointer: ContextMenuPointer): void {
+    const data = this.deps.data();
+    const nodeData = resolveContextMenuNodeData(data, node);
     const request: ContextMenuRequest = {
-      node: resolveContextMenuNodeData(this.deps.data(), node),
+      node: nodeData,
       items: defaultContextMenuItems(node, { selection: this.deps.selection() }),
       pointer: {
         clientX: pointer.clientX,
@@ -55,6 +58,10 @@ export class ContextMenuController {
         canvasX: pointer.canvasX,
         canvasY: pointer.canvasY,
       },
+      incomingLink:
+        node.kind === 'organization'
+          ? null
+          : incomingAdminLink(data.reportLines, nodeData.ref.positionId),
     };
     const result = this.deps.hooks().onContextMenu?.(request);
     if (result === false) return;

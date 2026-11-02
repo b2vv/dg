@@ -2,6 +2,18 @@
 
 Формат: людською мовою, найновіше зверху. Версія — `packages/sdk/package.json`.
 
+## Unreleased (1.1.0)
+
+Шов під адаптер рушія хоста (`TreeDiagramEngine` у `cassiopeia-admin-ui`): хост читає точки
+геометрії з SDK, а не складає `world·scale + pan` сам. Лише додавання — нічого не ламає.
+
+### Додано
+- `nodeCanvasPoint(id)`, `nodeCenter(id)`, `expanderCenter(id)` — центр картки в пікселях канви /
+  client-пікселях і центр кнопки розгортання (поки лише організації); `null` замість винятку.
+- `onNodeClick(node, { modifiers })` — другий аргумент з `shiftKey` / `ctrlKey` / `metaKey`.
+- `DiagramReportLine.payload?: unknown` — дані хоста на лінку, SDK лише несе їх.
+- `ContextMenuRequest.incomingLink` — admin-лінк у вузол (з `payload`) або `null`.
+
 ## 1.0.0 — 2026-11-02
 
 Перша стабільна версія, за рішенням власника від 2026-11-02 — під заміну GoJS у хості,

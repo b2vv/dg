@@ -4,6 +4,7 @@ import type {
   DiagramOrganization,
   DiagramPerson,
   DiagramPosition,
+  DiagramReportLine,
 } from '../data/types.js';
 import type { MenuItem, NodeRef } from '../core/index.js';
 
@@ -27,6 +28,29 @@ export interface ContextMenuRequest {
   node: ContextMenuNodeData;
   items: MenuItem[];
   pointer: ContextMenuPointer;
+  /**
+   * The admin link **into** the node — its manager edge, `payload` included —
+   * or `null` when it has none (a head, an organization). Not a click on a line.
+   * Always set by the SDK; optional only so a request built by hand (a host
+   * test) still compiles after 1.0.
+   */
+  incomingLink?: DiagramReportLine | null;
+}
+
+/**
+ * The admin edge whose `toId` is the position, by the same rule as
+ * `adminParentsOf`: self-edges skipped, the last one wins.
+ */
+export function incomingAdminLink(
+  reports: readonly DiagramReportLine[],
+  positionId: string | undefined,
+): DiagramReportLine | null {
+  if (!positionId) return null;
+  let found: DiagramReportLine | null = null;
+  for (const r of reports) {
+    if (r.kind === 'admin' && r.toId === positionId && r.fromId !== r.toId) found = r;
+  }
+  return found;
 }
 
 export function resolveContextMenuNodeData(

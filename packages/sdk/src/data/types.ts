@@ -176,6 +176,12 @@ export interface DiagramReportLine {
   fromId: string;
   toId: string;
   kind: 'admin' | 'matrix' | 'dotted';
+  /**
+   * Host data riding on the link, opaque to the SDK: never read, only handed
+   * back (e.g. `ContextMenuNodeData.incomingLink`). A reparent makes a **new**
+   * link, so it carries no payload until the host's next `setData`.
+   */
+  payload?: unknown;
 }
 
 export interface DiagramOrgLink {

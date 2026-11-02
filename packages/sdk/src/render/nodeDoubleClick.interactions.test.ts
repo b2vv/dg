@@ -96,6 +96,7 @@ describe('onNodeDoubleClick (T69)', () => {
     expect(onNodeClick).toHaveBeenCalledTimes(1);
     expect(onNodeClick).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'organization', id: expect.any(String) }),
+      { modifiers: { shiftKey: false, ctrlKey: false, metaKey: false } },
     );
     expect(onNodeDoubleClick).toHaveBeenCalledTimes(1);
     expect(onNodeDoubleClick).toHaveBeenCalledWith(

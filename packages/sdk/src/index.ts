@@ -177,6 +177,7 @@ export type {
   LayoutPatch,
   OrgHierarchyCallbacks,
   OrgExpandChange,
+  NodeClickMeta,
   ViewportChangeMeta,
   ViewportChangeReason,
   HostSearchHit,

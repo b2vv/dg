@@ -79,7 +79,7 @@ diagram.destroy();               // обов'язково: звільняє Pixi
 | `departments` | відділи; саме за ними малюються контури |
 | `persons` | люди (`fullName`, `photoUrl` / `media`) |
 | `positions` | **посади** — головна сутність штатки |
-| `reportLines` | звʼязки `admin` / `matrix` / `dotted` між посадами |
+| `reportLines` | звʼязки `admin` / `matrix` / `dotted` між посадами; `payload?` — ваші дані на лінку, SDK їх не читає, лише віддає назад (`incomingLink` у контекстному меню). Reparent створює **новий** лінк без `payload` |
 | `orgLinks` | звʼязки між організаціями (опційно) |
 
 Три речі, на яких найчастіше спотикаються:
@@ -333,7 +333,17 @@ diagram.setZoom(1);
 diagram.resetView();
 diagram.getViewport();                        // { x, y, scale }
 diagram.getLodLevel();                        // 'far' | 'mid' | 'near'
+
+// точки вузла — камеру вже застосовано, хост нічого не множить сам
+diagram.nodeCanvasPoint('pos-9');             // { x, y } у пікселях канви | null
+diagram.nodeCenter('pos-9');                  // { x, y } у client-пікселях (вікно) | null
+diagram.expanderCenter('org-2');              // центр кнопки розгортання, client | null
 ```
+
+Точки рахуються на кожен виклик, тож ідуть за камерою. `null` — вузла немає в сцені, кнопки в
+цьому кадрі немає (лист, далекий LOD, chrome вимкнено) або діаграму знищено; винятку немає.
+`expanderCenter` поки знає лише кнопки організацій. Шеврон, який хост малює сам у своєму
+overlay, — його DOM: хост читає `getBoundingClientRect()` власного елемента.
 
 Жести на канвасі: `Ctrl`/`⌘` + колесо — зум, просто колесо — панорама, `Shift`/`⌘` + клік —
 множинний вибір.
@@ -484,7 +494,7 @@ await diagram.media.refresh({ kind: 'organization', id: 'org-7' });
 await OrgHierarchyDiagram.create(el, {
   data,
   callbacks: {
-    onNodeClick: (node) => {},
+    onNodeClick: (node, { modifiers }) => {},  // { shiftKey, ctrlKey, metaKey }
     onNodeDoubleClick: (node) => {},
     onSelectionChange: (nodes) => {},
     onBackgroundClick: () => {},
@@ -496,6 +506,7 @@ await OrgHierarchyDiagram.create(el, {
     onLayoutDiagnostics: (messages) => {},      // див. §12
     onViewportChange: (t, meta) => {},          // камера/ресайз — див. §11
     onContextMenu: (request) => request.items,  // повернути false → меню не показувати
+                                                // request.incomingLink — admin-лінк у вузол | null
     onContextMenuAction: (item, request) => {},
     onSeatCollision: async (request) => ({ kind: 'swap' }),  // див. нижче; null = скасувати
   },

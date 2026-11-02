@@ -16,6 +16,7 @@ import type {
   DiagramOrganization,
   DiagramReportLine,
   GridCell,
+  Point2D,
 } from './data/types.js';
 import { isDiagramData, mergePartial } from './data/mergeData.js';
 import { applyInitialExpand } from './data/initialExpand.js';
@@ -78,6 +79,7 @@ import {
 import type {
   OrgHierarchyCallbacks,
   OrgExpandChange,
+  NodeClickMeta,
   LayoutPatch,
   ViewportChangeReason,
   HostSearchHit,
@@ -217,6 +219,17 @@ export interface SearchAllResult {
    * focusable can tell.
    */
   unresolved?: string[];
+}
+
+/** A click with no modifier info is a plain click — the host gets all `false`, never `undefined`. */
+function nodeClickMeta(mods?: SelectionPointerMods): NodeClickMeta {
+  return {
+    modifiers: {
+      shiftKey: mods?.shiftKey ?? false,
+      ctrlKey: mods?.ctrlKey ?? false,
+      metaKey: mods?.metaKey ?? false,
+    },
+  };
 }
 
 /**
@@ -863,7 +876,7 @@ export class OrgHierarchyDiagram {
         if (this.destroyed) return;
         const node = orgNodeRef(orgId);
         this.handleNodeSelect(node, mods);
-        this.callbacks.onNodeClick?.(node);
+        this.callbacks.onNodeClick?.(node, nodeClickMeta(mods));
         this.repaintSelection();
       },
       onOrgDoubleClick: (orgId) => {
@@ -882,7 +895,7 @@ export class OrgHierarchyDiagram {
         if (this.destroyed) return;
         const node = seatNodeRef(this.data, personId, positionId);
         this.handleNodeSelect(node, mods);
-        this.callbacks.onNodeClick?.(node);
+        this.callbacks.onNodeClick?.(node, nodeClickMeta(mods));
         this.repaintSelection();
       },
       onPersonDoubleClick: (personId, positionId) => {
@@ -1739,6 +1752,46 @@ export class OrgHierarchyDiagram {
 
   getViewport(): { x: number; y: number; scale: number } {
     return this.host?.getViewport() ?? { x: 0, y: 0, scale: 1 };
+  }
+
+  /**
+   * Centre of a node's card in canvas pixels — camera already applied.
+   *
+   * Exists so a host never composes `world·scale + pan` itself: geometry is
+   * computed once, here. Recomputed on every call, so it follows the camera.
+   * `null` for an id the scene holds no card for, and after `destroy()`.
+   */
+  nodeCanvasPoint(nodeId: string): Point2D | null {
+    const box = this.destroyed ? undefined : this.renderer?.getNodeBox(nodeId);
+    return box ? this.worldToCanvas(box.x + box.width / 2, box.y + box.height / 2) : null;
+  }
+
+  /** {@link nodeCanvasPoint} in client (window) pixels, for placing host DOM. */
+  nodeCenter(nodeId: string): Point2D | null {
+    return this.canvasToClient(this.nodeCanvasPoint(nodeId));
+  }
+
+  /**
+   * Centre of a node's expand button in client pixels, or `null` when the
+   * scene draws no button for it this frame (a leaf, far LOD, chrome off).
+   * Organizations only today; a host-drawn chevron is host DOM and the host
+   * reads its own element.
+   */
+  expanderCenter(nodeId: string): Point2D | null {
+    const e = this.destroyed ? undefined : this.renderer?.getNodeBox(nodeId)?.expander;
+    return e ? this.canvasToClient(this.worldToCanvas(e.x + e.width / 2, e.y + e.height / 2)) : null;
+  }
+
+  private worldToCanvas(x: number, y: number): Point2D {
+    const v = this.getViewport();
+    return { x: x * v.scale + v.x, y: y * v.scale + v.y };
+  }
+
+  private canvasToClient(point: Point2D | null): Point2D | null {
+    const canvas = this.getCanvas();
+    if (!point || !canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    return { x: point.x + rect.left, y: point.y + rect.top };
   }
 
   setViewport(next: Partial<{ x: number; y: number; scale: number }>): void {
