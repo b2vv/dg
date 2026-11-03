@@ -155,8 +155,10 @@ export interface DiagramPosition {
   /** Staff hierarchy band (block shift) */
   hierarchyLevel?: number;
   /**
-   * When true and `collapseUnexpandedPositions` is on, admin-report children are laid out.
-   * Default omitted/false — only honored when collapse mode is enabled (T66).
+   * Tri-state expand flag (#96, SPEC §2.2). `true` — this position's admin-report
+   * subtree is shown; `false` — explicitly collapsed. Omitted/`undefined` takes the
+   * role-based default: expanded in the current org (tier 2), collapsed in the
+   * leading/subordinate tiers (1/3). Prune is always on — there is no gate.
    */
   expanded?: boolean;
   /** Assignment / acting window on the seat (E7 chip). */

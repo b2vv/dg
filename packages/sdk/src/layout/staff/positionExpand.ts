@@ -1,5 +1,6 @@
 import type { DiagramPosition, DiagramReportLine } from '../../data/types.js';
 import { detachedRootIds, resolveStaffHead } from './resolveHead.js';
+import { StaffLayoutError } from './types.js';
 
 /** Admin children: reportLines fromId = manager, toId = report. */
 export function adminChildrenMap(
@@ -56,7 +57,17 @@ export function visiblePositions(
 
   const byId = new Map(inOrg.map((p) => [p.id, p]));
   const children = adminChildrenMap(inOrg, reports, orgId);
-  const headId = resolveStaffHead(inOrg, orgId, reports);
+  // #96: prune is unconditional, so `visiblePositions` now runs on scenes that
+  // the gate used to spare — including a matrix/headless org with no resolvable
+  // head. Without a root there is no tree to collapse, so degrade to showing all
+  // (the pre-#96 gate-off behaviour) instead of throwing.
+  let headId: string;
+  try {
+    headId = resolveStaffHead(inOrg, orgId, reports);
+  } catch (err) {
+    if (err instanceof StaffLayoutError) return inOrg;
+    throw err;
+  }
 
   const visible: DiagramPosition[] = [];
   const seen = new Set<string>();

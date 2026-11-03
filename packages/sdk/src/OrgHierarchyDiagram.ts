@@ -71,6 +71,7 @@ import {
   swapMatrixOrder,
   applyMatrixPlacement,
   assignExpandToDepth,
+  adminChildrenMap,
   adminDescendantIds,
   positionHasAdminChildren,
   victimsForExpand,
@@ -672,11 +673,38 @@ export class OrgHierarchyDiagram {
     return this.dataEpoch === epoch;
   }
 
-  /** Sync interactive expand set from mapper/`position.expanded` flags. */
+  /**
+   * Sync the interactive expand set from the role-based default (SPEC §2.2) and
+   * the mapper/`position.expanded` flags (#96). The current org (tier 2) is
+   * expanded unless a position is explicitly collapsed (`expanded === false`);
+   * the leading (tier 1) and subordinate (tier 3) orgs stay collapsed unless a
+   * position is explicitly expanded (`expanded === true`). Only positions with
+   * admin children carry an expand flag (mirrors `expandIdsForDepth`), so a
+   * childless seat never enters the set.
+   *
+   * The tri-state `position.expanded` is what makes MERGE and rollback fall out
+   * for free (#96 plan §2.1): a host `setData` that re-sends `expanded === false`
+   * keeps a manual collapse, a fresh position arrives `undefined` and defaults to
+   * expanded, and `drawOrRestore` re-seeds losslessly because
+   * `setPositionExpandedFlag` already wrote the state onto `this.data`.
+   */
   private seedExpandedPositionsFromData(): void {
-    this.viewState.staffExpandedPositionIds.clear();
+    const currentOrgId = this.viewState.staffCurrentOrgId ?? inferStaffCurrentOrgId(this.data);
+    const set = this.viewState.staffExpandedPositionIds;
+    set.clear();
+    const childrenByOrg = new Map<string, Map<string, string[]>>();
+    const hasAdminChildren = (orgId: string, id: string): boolean => {
+      let kids = childrenByOrg.get(orgId);
+      if (!kids) {
+        kids = adminChildrenMap(this.data.positions, this.data.reportLines, orgId);
+        childrenByOrg.set(orgId, kids);
+      }
+      return (kids.get(id)?.length ?? 0) > 0;
+    };
     for (const p of this.data.positions) {
-      if (p.expanded === true) this.viewState.staffExpandedPositionIds.add(p.id);
+      const wantExpanded =
+        p.organizationId === currentOrgId ? p.expanded !== false : p.expanded === true;
+      if (wantExpanded && hasAdminChildren(p.organizationId, p.id)) set.add(p.id);
     }
   }
 
@@ -705,6 +733,13 @@ export class OrgHierarchyDiagram {
    */
   private async commitDataChange(next: DiagramData, patch: LayoutPatch): Promise<void> {
     this.data = next;
+    // #96: re-derive the role-based expand set from the edited data before the
+    // draw. Prune is always on now, so an in-place edit that gives a position a
+    // new admin child (e.g. a reparent) must expand it per the current-org default
+    // — otherwise the moved subtree prunes away and the node vanishes. MERGE-safe:
+    // a manual collapse lives in `position.expanded === false` on `next` and
+    // survives the re-seed (mirrors `setData` and the `drawOrRestore` rollback).
+    this.seedExpandedPositionsFromData();
     await this.drawOrRestore(next);
     if (this.lastDrawnData !== next) {
       // Our frame resolved, but the state on screen is not ours. Either a
@@ -1934,7 +1969,7 @@ export class OrgHierarchyDiagram {
    * returned target, pre-sync the overlay, then let the animation run).
    *
    * Coupling caveat: `minScale`/`maxScale` are additionally bounded by the diagram's
-   * own zoom clamp (default 0.15–4, configurable at construction). The returned
+   * own zoom clamp (default 0.36–4, configurable at construction). The returned
    * target carries the scale computed from the requested range; if that range
    * exceeds the zoom clamp the camera is clamped further, so the returned target
    * would then differ from the final camera. The default 0.55–1 sits inside the

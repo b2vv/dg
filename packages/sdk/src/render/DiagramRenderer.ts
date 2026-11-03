@@ -850,7 +850,6 @@ export class DiagramRenderer {
       expandedOrgIds: options.staff?.expandedOrgIds ?? options.staff?.layout?.expandedOrgIds,
     };
     const expandedPosIds = new Set(staffLayoutOpts.expandedPositionIds ?? []);
-    const collapsePositions = staffLayoutOpts.collapseUnexpandedPositions === true;
     const childrenByOrg = new Map<string, Map<string, string[]>>();
     const childrenFor = (orgId: string) => {
       let m = childrenByOrg.get(orgId);
@@ -866,7 +865,9 @@ export class DiagramRenderer {
       if (!position) continue;
       const person = position.personId ? personById.get(position.personId) : undefined;
       const kids = childrenFor(position.organizationId).get(position.id) ?? [];
-      const showExpand = collapsePositions && kids.length > 0 && !!options.onPositionExpandToggle;
+      // #96: prune is always on, so the chevron shows for any node with admin
+      // children and a toggle handler (no gate term).
+      const showExpand = kids.length > 0 && !!options.onPositionExpandToggle;
       const node = PersonNodeView.create(
         person,
         position,

@@ -51,14 +51,16 @@ function nodesById(nodes: StaffNodeBox[]) {
 
 describe('layoutStaffCanvas department grouping', () => {
   it('threads grouping through tier 2 while preserving default-off geometry', async () => {
-    const grouped = await layoutStaffCanvas(data, currentOrgId, { deptGrouping: true });
-    const legacy = await layoutStaffCanvas(data, currentOrgId);
+    // #96: prune is always on; expand the full tier-2 chain so both departments stay visible.
+    const expandedPositionIds = data.positions.map((p) => p.id);
+    const grouped = await layoutStaffCanvas(data, currentOrgId, { deptGrouping: true, expandedPositionIds });
+    const legacy = await layoutStaffCanvas(data, currentOrgId, { expandedPositionIds });
     expect(grouped.tiers.map((tier) => tier.tier)).toEqual([2]);
     expect(legacy.tiers.map((tier) => tier.tier)).toEqual([2]);
     expect(aabbOverlap(departmentBounds(grouped.positionNodes, 'a'), departmentBounds(grouped.positionNodes, 'b'), 0, 0)).toBe(false);
     expect(aabbOverlap(departmentBounds(legacy.positionNodes, 'a'), departmentBounds(legacy.positionNodes, 'b'), 0, 0)).toBe(true);
 
-    const disabled = await layoutStaffCanvas(data, currentOrgId, { deptGrouping: false });
+    const disabled = await layoutStaffCanvas(data, currentOrgId, { deptGrouping: false, expandedPositionIds });
     expect(nodesById(legacy.positionNodes)).toEqual(nodesById(disabled.positionNodes));
   });
 });

@@ -147,6 +147,7 @@ describe('layoutStaffOrgBlock', () => {
     ];
     const result = await layoutStaffOrgBlock(positions, reports, 'o1', {
       staffCoordMode: 'tree',
+      expandedPositionIds: positions.map((p) => p.id),
     });
     expect(result.mode).toBe('tree');
     const root = result.nodes.find((n) => n.id === 'root')!;
@@ -164,6 +165,7 @@ describe('layoutStaffOrgBlock', () => {
     ];
     const result = await layoutStaffOrgBlock(positions, reports, 'o1', {
       staffCoordMode: 'hybrid',
+      expandedPositionIds: positions.map((p) => p.id),
     });
     expect(result.mode).toBe('hybrid');
     const root = result.nodes.find((n) => n.id === 'root')!;
@@ -185,6 +187,7 @@ describe('layoutStaffOrgBlock', () => {
     ];
     const result = await layoutStaffOrgBlock(positions, reports, 'o1', {
       staffCoordMode: 'hybrid',
+      expandedPositionIds: positions.map((p) => p.id),
     });
     const a = result.nodes.find((n) => n.id === 'f1')!;
     const b = result.nodes.find((n) => n.id === 'f2')!;
@@ -213,6 +216,7 @@ describe('layoutStaffOrgBlock', () => {
     ];
     const result = await layoutStaffOrgBlock(positions, reports, 'o1', {
       staffCoordMode: 'tree',
+      expandedPositionIds: positions.map((p) => p.id),
     });
 
     const head = result.nodes.find((n) => n.id === 'head')!;
@@ -246,6 +250,7 @@ describe('layoutStaffOrgBlock', () => {
     ];
     const result = await layoutStaffOrgBlock(positions, reports, 'o1', {
       staffCoordMode: 'tree',
+      expandedPositionIds: positions.map((p) => p.id),
     });
     expect(result.nodes).toHaveLength(2);
     expect(result.edges).toEqual([{ fromId: 'root', toId: 'child', kind: 'admin' }]);
@@ -273,6 +278,8 @@ describe('layoutStaffCanvas', () => {
     const canvas = await layoutStaffCanvas(
       { organizations, positions, reports, groups: [], departments: [], persons: [] },
       'current',
+      // #96: prune is always on; expand the current head so tier 2 shows full staff.
+      { expandedPositionIds: ['ceo'] },
     );
 
     expect(canvas.tiers.some((t) => t.tier === 1)).toBe(true);
@@ -361,6 +368,9 @@ describe('layoutStaffCanvas', () => {
     const canvas = await layoutStaffCanvas(
       { organizations, positions, reports, groups: [], departments: [], persons: [] },
       'current',
+      // #96: tier-1 defaults to head-only; expanding the managing head reveals the
+      // leadership subset (head + direct reports), which is the «керівний склад» ceiling.
+      { expandedPositionIds: ['mgr-ceo'] },
     );
 
     const tier1 = canvas.positionNodes.filter((n) => n.tier === 1).map((n) => n.id).sort();
@@ -408,7 +418,12 @@ describe('layoutStaffCanvas', () => {
     ];
     const input = { organizations, positions, reports, groups: [], departments: [], persons: [] };
 
-    const canvas = await layoutStaffCanvas(input, 'current', { expandedOrgIds: ['sub'] });
+    // #96: prune is always on; expand the current head and the sub-org head so the
+    // expanded child shows full staff (role default collapses them otherwise).
+    const canvas = await layoutStaffCanvas(input, 'current', {
+      expandedOrgIds: ['sub'],
+      expandedPositionIds: ['ceo', 'sub-head'],
+    });
     const card = canvas.orgCards.find((c) => c.orgId === 'sub')!;
     expect(card.expanded).toBe(true);
     const subNodes = canvas.positionNodes.filter((n) => n.organizationId === 'sub');

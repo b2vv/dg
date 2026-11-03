@@ -29,8 +29,10 @@ describe('SVG export department routing', () => {
       ],
     };
 
-    const v2 = await buildDiagramSvg({ data, currentOrgId, config: { staffEdgeRouter: 'v2' } });
-    const legacy = await buildDiagramSvg({ data, currentOrgId, config: {} });
+    // #96: prune is always on; expand the full chain so the export keeps all edges.
+    const staffLayout = { expandedPositionIds: ['a1', 'b1', 'a2', 'b2'] };
+    const v2 = await buildDiagramSvg({ data, currentOrgId, staffLayout, config: { staffEdgeRouter: 'v2' } });
+    const legacy = await buildDiagramSvg({ data, currentOrgId, staffLayout, config: {} });
 
     for (const svg of [v2, legacy]) {
       expect(svg).toContain('<g id="edges">');

@@ -120,11 +120,10 @@ describe('adminDescendantIds / helpers', () => {
   });
 });
 
-describe('layoutStaffOrgBlock + collapseUnexpandedPositions', () => {
+describe('layoutStaffOrgBlock — always-on prune (#96)', () => {
   it('success: filters hidden descendants before tree layout', async () => {
     const result = await layoutStaffOrgBlock(treePositions, treeReports, 'o1', {
       staffCoordMode: 'tree',
-      collapseUnexpandedPositions: true,
       expandedPositionIds: ['root'],
     });
     expect(result.nodes.map((n) => n.id).sort()).toEqual(['mid', 'root']);
@@ -132,11 +131,13 @@ describe('layoutStaffOrgBlock + collapseUnexpandedPositions', () => {
     expect(result.edges[0]).toMatchObject({ fromId: 'root', toId: 'mid' });
   });
 
-  it('success: default keeps full tree (opt-in collapse)', async () => {
+  it('success: prune is always on — no expanded ids → head only', async () => {
+    // #96: there is no gate; an org block with no expanded ids collapses to its
+    // head. (The current-org = all default is seeded upstream, not here.)
     const result = await layoutStaffOrgBlock(treePositions, treeReports, 'o1', {
       staffCoordMode: 'tree',
     });
-    expect(result.nodes).toHaveLength(4);
+    expect(result.nodes.map((n) => n.id)).toEqual(['root']);
   });
 
   it('success: detached roots stay visible under collapse (T65+T66)', async () => {
@@ -149,7 +150,6 @@ describe('layoutStaffOrgBlock + collapseUnexpandedPositions', () => {
 
     const result = await layoutStaffOrgBlock(positions, treeReports, 'o1', {
       staffCoordMode: 'tree',
-      collapseUnexpandedPositions: true,
       expandedPositionIds: [],
     });
     expect(result.nodes.map((n) => n.id).sort()).toEqual(['orphan', 'root']);

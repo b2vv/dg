@@ -375,12 +375,9 @@ async function layoutStaffOrgBlockCore(
     };
   }
 
-  const collapse =
-    options.collapseUnexpandedPositions ??
-    DEFAULT_STAFF_LAYOUT_OPTIONS.collapseUnexpandedPositions;
-  if (collapse) {
-    inOrg = visiblePositions(inOrg, reports, orgId, options.expandedPositionIds ?? []);
-  }
+  // #96: prune is unconditional; `visiblePositions` degrades to all positions
+  // when the org has no resolvable head (matrix/headless scene).
+  inOrg = visiblePositions(inOrg, reports, orgId, options.expandedPositionIds ?? []);
 
   const withCoords = inOrg.filter((p) => positionHasCoords(p));
   const without = inOrg.filter((p) => !positionHasCoords(p));

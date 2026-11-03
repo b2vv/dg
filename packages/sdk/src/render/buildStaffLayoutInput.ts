@@ -210,22 +210,22 @@ export function buildStaffLayoutInput(args: BuildStaffLayoutInputArgs): StaffLay
 
   const { cappedChildren, forwardedExpandedOrgIds } = capExpandedChildren(data, currentOrgId, options);
 
-  const collapse =
-    options.collapseUnexpandedPositions ??
-    DEFAULT_STAFF_LAYOUT_OPTIONS.collapseUnexpandedPositions ??
-    false;
-  const positions = collapse
-    ? collapseVisiblePositions(data, currentOrgId, cappedChildren, options.expandedPositionIds ?? [])
-    : data.positions;
+  // Prune is unconditional (#96): the role-based default expand set (SPEC §2.2,
+  // seeded in OrgHierarchyDiagram) carries the visibility, not a gate. The current
+  // org defaults to fully expanded, the leading/subordinate tiers to head-only.
+  const positions = collapseVisiblePositions(
+    data,
+    currentOrgId,
+    cappedChildren,
+    options.expandedPositionIds ?? [],
+  );
 
   // Collapse hides nodes: a matrix/dotted line to one would route to nothing. Admin lines
   // are left to Rust's own guards (org-scoped children map + global admin-parent map).
   const visibleIds = new Set(positions.map((p) => p.id));
-  const reports = collapse
-    ? data.reportLines.filter(
-        (r) => r.kind === 'admin' || (visibleIds.has(r.fromId) && visibleIds.has(r.toId)),
-      )
-    : data.reportLines;
+  const reports = data.reportLines.filter(
+    (r) => r.kind === 'admin' || (visibleIds.has(r.fromId) && visibleIds.has(r.toId)),
+  );
 
   return {
     currentOrgId,
