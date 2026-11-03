@@ -16,7 +16,10 @@ describe('mockup staff edge inventory', () => {
         persons: data.persons,
       },
       'region',
-      FIGMA_STAFF_LAYOUT,
+      // #96: prune is always on; expand every position to document the FULL canonical
+      // edge inventory (managing tier is still bounded to its depth-1 leadership by
+      // `leadershipOf`, so the inventory is unchanged from the gate-off baseline).
+      { ...FIGMA_STAFF_LAYOUT, expandedPositionIds: data.positions.map((p) => p.id) },
     );
 
     const sorted = canvas.edges

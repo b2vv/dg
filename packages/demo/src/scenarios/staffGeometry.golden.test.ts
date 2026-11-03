@@ -76,7 +76,14 @@ async function capture(tab: DemoTab) {
   // These tab builders supply DiagramData, never mapper input (inventory below).
   const data = cfg.data as DiagramData;
   const currentOrgId = cfg.staffCurrentOrgId;
-  const staffLayout = cfg.staffLayout;
+  // #96: prune is always on and this golden computes geometry directly (not through
+  // OrgHierarchyDiagram's seed). Mirror the role-based default (SPEC §2.2): the
+  // current org is fully expanded. Flat/matrix tabs are unaffected (every seat was
+  // already visible); a deep current-org tree (mock3) expands as the app renders it.
+  const roleDefaultExpanded = data.positions
+    .filter((p) => p.organizationId === currentOrgId)
+    .map((p) => p.id);
+  const staffLayout = { ...cfg.staffLayout, expandedPositionIds: roleDefaultExpanded };
 
   // Seam A — the raw layout straight from the tab's own `staffLayout`, before
   // the renderer folds in theme/config-derived options.

@@ -68,11 +68,10 @@ interface Seat {
   title: string;
   status?: Status;
   /**
-   * Open at first paint (T66), which only means anything because the tab turns
-   * on `collapseUnexpandedPositions`. Set down to the section chiefs and no
-   * further: eleven departments of officers side by side fit the screen at zoom
-   * 0.15, which is a smear rather than a demo. The staff is all still there —
-   * it opens on a click, which is also how the product behaves.
+   * Tri-state expand flag (#96, SPEC §2.2). Omitted → the role-based default:
+   * the current org paints fully expanded. Set `false` to collapse a subtree at
+   * first paint; the staff is all still there and opens on a click. (Readability
+   * at full expand comes from the library's 0.36 fit-zoom floor, not collapsing.)
    */
   expanded?: boolean;
   /** Assignment window — drives the period chip (E7). */
