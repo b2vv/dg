@@ -22,7 +22,11 @@ export interface CameraMotionOptions {
   cancelFrame?: (id: number) => void;
 }
 
-const DEFAULT_MIN_SCALE = 0.15;
+// #96 (owner, universal org+staff): the library floors fit- and wheel-zoom at
+// 0.36 so a fully-expanded large staff (SPEC §2.2 current org = all) stays
+// readable — scroll rather than zoom out to an unreadable 0.15. A host may still
+// override `minScale` at construction.
+const DEFAULT_MIN_SCALE = 0.36;
 const DEFAULT_MAX_SCALE = 4;
 const DEFAULT_WHEEL = 0.0015;
 const DEFAULT_CAMERA_MS = 280;

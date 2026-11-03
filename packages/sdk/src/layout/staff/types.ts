@@ -44,17 +44,14 @@ export interface StaffLayoutOptions {
   /** Cap simultaneous expands (default 1). */
   maxExpandedOrgCards?: number;
   /**
-   * Position ids whose admin-report subtrees are visible when
-   * `collapseUnexpandedPositions` is true (T66).
+   * Position ids whose admin-report subtrees are visible. Prune is always on
+   * (#96): the current org (SPEC §2.2 tier 2) defaults to fully expanded, the
+   * leading/subordinate tiers to head-only; this set and `position.expanded`
+   * override that default.
    */
   expandedPositionIds?: readonly string[];
   /** Cap interactive position expands; `expandToDepth` bypasses this. */
   maxExpandedPositions?: number;
-  /**
-   * When true, honor `position.expanded` / `expandedPositionIds` and hide
-   * collapsed subtrees. Default false — demos keep showing full trees.
-   */
-  collapseUnexpandedPositions?: boolean;
 }
 
 export const DEFAULT_STAFF_LAYOUT_OPTIONS: Required<
@@ -81,7 +78,6 @@ export const DEFAULT_STAFF_LAYOUT_OPTIONS: Required<
   maxExpandedOrgCards: 1,
   expandedPositionIds: [],
   maxExpandedPositions: Number.POSITIVE_INFINITY,
-  collapseUnexpandedPositions: false,
 };
 
 export interface StaffNodeBox {

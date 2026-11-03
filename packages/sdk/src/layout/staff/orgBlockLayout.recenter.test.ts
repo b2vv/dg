@@ -25,8 +25,10 @@ const reports: DiagramReportLine[] = [
 
 describe('root recentring over the full subtree span', () => {
   it('centres the root on the content bbox and leaves no edge forced', async () => {
+    // #96: prune is always on, so expand every branch to recover the full
+    // subtree this test recentres over (was `collapseUnexpandedPositions: false`).
     const block = await layoutStaffOrgBlock(positions, reports, 'org', {
-      collapseUnexpandedPositions: false,
+      expandedPositionIds: ['dir', 'depA', 'depB'],
     });
     const root = block.nodes.find((n) => n.id === 'dir')!;
     const minX = Math.min(...block.nodes.map((n) => n.x));

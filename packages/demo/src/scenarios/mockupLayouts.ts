@@ -28,7 +28,6 @@ export const FIGMA_STAFF_LAYOUT = {
   orgCardHeight: 110,
   refCellWidth: 304,
   refCellHeight: 88,
-  collapseUnexpandedPositions: false,
 } satisfies StaffLayoutOptions;
 
 /** Magnetic copy: matrix mode, so `refCell*` must equal `render.cell*`. */

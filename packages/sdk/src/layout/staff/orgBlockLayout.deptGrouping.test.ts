@@ -46,8 +46,9 @@ const chainReports = [admin('a1', 'b1'), admin('b1', 'a2'), admin('a2', 'b2')];
 
 describe('layoutStaffOrgBlock department grouping', () => {
   it('separates department unions that overlap with grouping off', async () => {
-    const legacy = await layoutStaffOrgBlock(chain, chainReports, orgId, { departments });
-    const grouped = await layoutStaffOrgBlock(chain, chainReports, orgId, { deptGrouping: true, departments });
+    const expandedPositionIds = chain.map((p) => p.id); // #96: expand full chain (prune is always on)
+    const legacy = await layoutStaffOrgBlock(chain, chainReports, orgId, { departments, expandedPositionIds });
+    const grouped = await layoutStaffOrgBlock(chain, chainReports, orgId, { deptGrouping: true, departments, expandedPositionIds });
     expect(legacy.mode).toBe('tree');
     expect(grouped.mode).toBe('tree');
     expect(aabbOverlap(departmentBounds(legacy.nodes, chain, 'a'), departmentBounds(legacy.nodes, chain, 'b'), 0, 0)).toBe(true);
@@ -69,11 +70,12 @@ describe('layoutStaffOrgBlock department grouping', () => {
   it('accepts repeated cross-department member hints and preserves the unhinted canonical tail', async () => {
     const positions = [position('root', 'a'), position('a2', 'a'), position('b2', 'b'), position('a1', 'a'), position('b1', 'b'), position('b0', 'b')];
     const reports = [admin('root', 'a1'), admin('root', 'a2'), admin('root', 'b0'), admin('b0', 'b1'), admin('b0', 'b2')];
+    const expandedPositionIds = positions.map((p) => p.id); // #96: expand full tree (prune is always on)
     const first = await layoutStaffOrgBlock(positions, reports, orgId, {
-      deptGrouping: true, departments, memberOrder: ['a2', 'b2', 'a1', 'b1'],
+      deptGrouping: true, departments, memberOrder: ['a2', 'b2', 'a1', 'b1'], expandedPositionIds,
     });
     const second = await layoutStaffOrgBlock(positions, reports, orgId, {
-      deptGrouping: true, departments, memberOrder: ['a1', 'b1', 'a2', 'b2'],
+      deptGrouping: true, departments, memberOrder: ['a1', 'b1', 'a2', 'b2'], expandedPositionIds,
     });
     // gap#6 fix (org_tree.rs): x-order зберігає порядок членів — ранніший у memberOrder лівіше.
     for (const prefix of ['a', 'b']) {
@@ -81,7 +83,7 @@ describe('layoutStaffOrgBlock department grouping', () => {
       expect(nodeX(second.nodes, `${prefix}1`)).toBeLessThan(nodeX(second.nodes, `${prefix}2`));
     }
     const partial = await layoutStaffOrgBlock(positions, reports, orgId, {
-      deptGrouping: true, departments, memberOrder: ['missing', 'a2'],
+      deptGrouping: true, departments, memberOrder: ['missing', 'a2'], expandedPositionIds,
     });
     // a2 запінено першим → лівіше за unranked a1; b-хвіст лишається канонічним (b1 перед b2).
     expect(nodeX(partial.nodes, 'a2')).toBeLessThan(nodeX(partial.nodes, 'a1'));
@@ -91,11 +93,12 @@ describe('layoutStaffOrgBlock department grouping', () => {
   it('falls back to the legacy tree for an admin cycle with an explicit staff head', async () => {
     const positions = [{ ...position('a', 'a'), isHead: true }, position('b', 'b')];
     const reports = [admin('a', 'b'), admin('b', 'a')];
-    const result = await layoutStaffOrgBlock(positions, reports, orgId, { deptGrouping: true, departments });
+    const expandedPositionIds = positions.map((p) => p.id); // #96: expand so cycle pair stays visible
+    const result = await layoutStaffOrgBlock(positions, reports, orgId, { deptGrouping: true, departments, expandedPositionIds });
     expect(result.mode).toBe('tree');
     expect(result.nodes.map((node) => node.id).sort()).toEqual(['a', 'b']);
     expect(result.diagnostics).toContain('dept-grouping skipped (cycle)');
-    const legacy = await layoutStaffOrgBlock(positions, reports, orgId);
+    const legacy = await layoutStaffOrgBlock(positions, reports, orgId, { expandedPositionIds });
     // Порядко-нечутливо (як вище у «disabled === legacy»): cycle-fallback іде raw через
     // layoutTreeBlock, а порядок Vec у raw.nodes з WASM недетермінований між процесами
     // (Rust HashMap seed per-process → macOS збігається, Linux-CI ні). Контракт — та сама
@@ -108,7 +111,8 @@ describe('layoutStaffOrgBlock department grouping', () => {
     const reports = [admin('root', 'z'), admin('root', 'a'), admin('root', 'unknown')];
     for (const p of positions) Object.freeze(p);
     Object.freeze(positions);
-    const options = { deptGrouping: true, departments };
+    // #96: expand full tree (prune is always on); options is not frozen.
+    const options = { deptGrouping: true, departments, expandedPositionIds: positions.map((p) => p.id) };
     const result = await layoutStaffOrgBlock(positions, reports, orgId, options);
     const reversed = await layoutStaffOrgBlock(positions.map((_, i) => positions[positions.length - 1 - i]!), reports, orgId, options);
     expect(nodesById(reversed)).toEqual(nodesById(result));

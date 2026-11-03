@@ -22,6 +22,10 @@ function treeData(): DiagramData {
         status: 'filled',
         isTemporary: false,
         isHead: true,
+        // #96: the current org now defaults to fully expanded. These toggle-machinery
+        // tests want a known collapsed start, so the branch nodes opt out explicitly
+        // (`expanded: false`); the all-expanded default is covered separately.
+        expanded: false,
       },
       {
         id: 'mid',
@@ -31,6 +35,7 @@ function treeData(): DiagramData {
         personId: 'p-mid',
         status: 'filled',
         isTemporary: false,
+        expanded: false,
       },
       {
         id: 'leaf',
@@ -61,7 +66,6 @@ async function mount(extra: { maxExpandedPositions?: number } = {}) {
     useWorker: false,
     staffLayout: {
       staffCoordMode: 'tree',
-      collapseUnexpandedPositions: true,
       maxExpandedPositions: extra.maxExpandedPositions,
     },
     callbacks: { onPositionExpandChange },
@@ -176,7 +180,6 @@ describe('OrgHierarchyDiagram position expand (T66)', () => {
       useWorker: false,
       staffLayout: {
         staffCoordMode: 'tree',
-        collapseUnexpandedPositions: true,
         maxExpandedPositions: 1,
       },
       callbacks: { onLayoutChange, onPositionExpandChange },
