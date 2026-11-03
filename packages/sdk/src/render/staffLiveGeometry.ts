@@ -30,6 +30,7 @@ import {
 import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
 import { positionHasCoords } from '../layout/staff/coords.js';
 import { resolveStaffHead } from '../layout/staff/resolveHead.js';
+import { visiblePositions } from '../layout/staff/positionExpand.js';
 import { resolveDeptHeads } from '../layout/staff/resolveDeptHeads.js';
 import {
   computeStaffGeometryWasm,
@@ -324,8 +325,17 @@ async function computeViaTs(input: BranchInput): Promise<StaffLiveGeometry> {
  * caller can't drift. Internal (not exported): the demo near-view chrome gets the
  * same geometry through `computeStaffLiveGeometry`, not by re-building the input.
  */
-function buildStaffMockupInput(data: DiagramData, currentOrgId: string): StaffMockupInput {
-  const inOrg = data.positions.filter((p) => p.organizationId === currentOrgId);
+function buildStaffMockupInput(
+  data: DiagramData,
+  currentOrgId: string,
+  expandedPositionIds: readonly string[],
+): StaffMockupInput {
+  // #96: prune the current org's admin tree to the visible set — the role-based
+  // default (SPEC §2.2 current org = all unless collapsed) is seeded into
+  // `expandedPositionIds` by OrgHierarchyDiagram, and `togglePositionExpand`
+  // mutates it. `visiblePositions` filters by org and degrades to all positions
+  // when the org has no resolvable head (matrix/headless).
+  const inOrg = visiblePositions(data.positions, data.reportLines, currentOrgId, expandedPositionIds);
   const ids = new Set(inOrg.map((p) => p.id));
   // Розмір — на картку (`position.width/height`, калібрує хост); посада без нього бере
   // DG-сидіння 300×112 з `params`. Не розмір першої посади на всіх: так калібровані
@@ -366,7 +376,11 @@ function buildStaffMockupInput(data: DiagramData, currentOrgId: string): StaffMo
 async function computeViaMockup(input: BranchInput): Promise<StaffLiveGeometry> {
   const { data, currentOrgId, staffOptions, zoneLabelBand, contentPadding } = input;
 
-  const mockInput = buildStaffMockupInput(data, currentOrgId);
+  const mockInput = buildStaffMockupInput(
+    data,
+    currentOrgId,
+    staffOptions.expandedPositionIds ?? [],
+  );
   const result = await computeStaffMockupLayoutWasm(mockInput);
 
   const positionNodes: StaffNodeBox[] = result.nodes.map((n) => ({
