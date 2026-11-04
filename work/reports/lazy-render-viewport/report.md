@@ -27,8 +27,12 @@ typecheck 0):
   snapshot, AC12/NB1 (битий/відсутній box × NaN/±Inf → **явне renderable=true**), N3 (getBox throw → no-throw).
 - `PixiHost.test.ts`: порядок ['cull','render'], коалесинг, свіжий transform, no-cull після destroy (AC3-інтеграція).
 - `export.test.ts`: extract-time spy — promote знято, усі renderable=true (B1/AC11); restore у finally (×extractionFails).
-- `e2e/viewport-culling.spec.ts`: AC9 motion-blur `blur(>0px)` під час pan + `none` після + no pageerror;
-  AC2 поведінкові (камера рушила, test-anchors у вьюпорті).
+- `e2e/viewport-culling.spec.ts`: **прогнано в реальному браузері — 2 passed** (AC9 motion-blur
+  `blur(>0px)` під час pan + `none` після + no pageerror; AC2 поведінкові: камера рушила,
+  test-anchors у вьюпорті).
+- **AC2 пиксель-паритет — ДОВЕДЕНО (one-off, цю сесію):** бейзлайн знято з `CULL_MIN_NODES=Infinity`
+  (culling OFF), потім culling-білд (поріг 300) порівняно проти нього — **passed у межах 2%**
+  (throwaway-spec після прибрано). Culling нічого не змінює у вьюпорті. Це не постійний CI-гейт.
 
 ## 3. Неочевидні знахідки
 
@@ -44,8 +48,9 @@ typecheck 0):
 
 ## 4. Скріншоти / візуальне
 
-E2e `viewport-culling.spec.ts` існує, але **в цій пісочниці не біжить** (preview-сервер EPERM на
-:4173) — прогін AC2/AC9 лишається на CI/локально.
+E2e `viewport-culling.spec.ts` **прогнано в цій сесії — 2 passed** (demo build + preview :4173 +
+Chromium). Пиксель-паритет окремо підтверджено порівнянням no-cull бейзлайна (вище). Скріншотів до
+звіту не доклав (деплою ще нема).
 
 ## 5. User-flow
 
@@ -55,19 +60,22 @@ E2e `viewport-culling.spec.ts` існує, але **в цій пісочниці
 
 ## 6. Ризики й обмеження
 
-- **AC2 пиксель-паритет — РУЧНИЙ крок (не CI-гейт):** зняти бейзлайн із `CULL_MIN_NODES=Infinity`
-  (culling off), потім порівняти culling-білд. Само-референтний бейзлайн із culling-білда — не доказ.
+- **AC2 пиксель-паритет — ПІДТВЕРДЖЕНО цю сесію** (no-cull бейзлайн vs culling-білд, 2% толеранс).
+  Не постійний CI-гейт: для повтору — та сама процедура (`CULL_MIN_NODES=Infinity` → бейзлайн →
+  поріг 300 → порівняти). Само-референтний бейзлайн із culling-білда доказом НЕ є.
 - **Поріг 300 — стартовий**, валідувати `npm run measure` (OQ5); змінюється однією константою.
 - **N5:** при сильному zoom-out margin у world стає величезним → `culled≈0` (очікувано, не баг).
 - **Overview/minimap ⟂ culling** (урок GoJS) — на майбутнє, поза скоупом.
 - Ось 1-A (CPU build-skip на initial render) і spatial index для дуже великого дерева — **окремі
   майбутні фічі** (свідомо відкладено).
 
-## 7. Відкриті рішення власника
+## 7. Закрито (рішення власника)
 
-1. **Аномальний git worktree** `.claude/worktrees/dg-archive-factory-api-e359fb` (detached 8e97ff1)
-   існує в репо — суперечить «без worktree». Не чіпав (можливо AI Factory). Видалити?
-2. **Commit / PR** ще не роблено (чекає слова).
+1. **Worktree** `.claude/worktrees/dg-archive-factory-api-e359fb` — видалено.
+2. **Commit + merge:** `8ced990` (фіча) → merge `effe63f` у `main`. **Не пушено.**
+3. **Прееснуючий lint на main** (не від фічі) — полагоджено окремим комітом `05ed93c`
+   (`staffLiveGeometry.ts` arrow-wrap; `dg29-*.mjs` sort-vars). `npm run lint` тепер 0.
+4. **#2 AC2 паритет** і **#3 e2e** — виконано (див. §2, §4).
 
 ## Post-deploy
 (заповнити після деплою — `post-deploy-check`)
