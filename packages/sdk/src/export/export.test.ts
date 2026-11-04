@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from '@rstest/core';
+import { afterEach, describe, expect, it, rstest } from '@rstest/core';
 import { VARIANT_B_POSITIONS } from '../render/contour/variantBPositions.js';
 import { assertExportOptions, ExportError } from './types.js';
 import { filterDiagramSubtree } from './subtree.js';
@@ -6,7 +6,9 @@ import { buildDiagramSvg } from './svgExport.js';
 import { exportDiagram, printDiagram } from './exportDiagram.js';
 import { rgbImageToPdf, solidRgb } from './pdfExport.js';
 import { extractPngFromPixi, setCanvasToBlobImpl } from './pngExport.js';
-import type { Application } from 'pixi.js';
+import { Container, type Application } from 'pixi.js';
+import { OrgHierarchyDiagram } from '../OrgHierarchyDiagram.js';
+import { PixiHost } from '../render/PixiHost.js';
 import type { DiagramData } from '../data/types.js';
 import { defaultRenderConfig } from '../render/types.js';
 
@@ -51,6 +53,59 @@ describe('export options', () => {
       /subtreeRootId/,
     );
   });
+});
+
+describe('OrgHierarchyDiagram raster export after culling', () => {
+  for (const extractionFails of [false, true]) {
+    it(`${extractionFails ? 'failure' : 'success'}: extracts all nodes and restores promotion`, async () => {
+      const diagram = new OrgHierarchyDiagram();
+      const host = new PixiHost();
+      const renderer = host.renderer;
+      diagram['host'] = host;
+      const views = Array.from({ length: 300 }, (_, index) => {
+        const view = renderer.layers.persons.addChild(new Container());
+        renderer['scene'].registerView('position', String(index), view);
+        renderer['scene'].rememberBox({
+          id: String(index), kind: 'position',
+          x: index === 0 ? 10 : 2000, y: 10, width: 20, height: 20,
+        });
+        return view;
+      });
+      renderer.setPromotedNodeIds(['1']);
+      renderer.cullToViewport({ x: 0, y: 0, scale: 2 }, { width: 800, height: 600 });
+      const canvas = document.createElement('canvas');
+      const extract = rstest.fn(() => {
+        expect([...renderer.getPromotedNodeIds()]).toEqual([]);
+        expect(views[1].visible).toBe(true);
+        expect(views.every((view) => view.renderable === true)).toBe(true);
+        if (extractionFails) throw new Error('extraction unavailable');
+        return canvas;
+      });
+      const app = {
+        stage: renderer.layers.persons,
+        renderer: { extract: { canvas: extract } },
+      } as unknown as Application;
+      const application = rstest.spyOn(host, 'getApplication').mockReturnValue(app);
+      setCanvasToBlobImpl(async () => new Blob(['png'], { type: 'image/png' }));
+      try {
+        expect(views[0].renderable).toBe(true);
+        expect(views.slice(1).every((view) => !view.renderable)).toBe(true);
+        expect(views[1].visible).toBe(false);
+        if (extractionFails) {
+          await expect(diagram.export({ format: 'png' })).rejects.toThrow('extraction unavailable');
+        } else {
+          await expect(diagram.export({ format: 'png' })).resolves.toBeInstanceOf(Blob);
+        }
+        expect(extract).toHaveBeenCalledWith(app.stage);
+        expect([...renderer.getPromotedNodeIds()]).toEqual(['1']);
+        expect(views[1].visible).toBe(false);
+        expect(views.every((view) => view.renderable === true)).toBe(true);
+      } finally {
+        application.mockRestore();
+        diagram.destroy();
+      }
+    });
+  }
 });
 
 describe('exportDiagram', () => {

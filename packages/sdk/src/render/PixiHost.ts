@@ -272,7 +272,10 @@ export class PixiHost {
     this.paintHandle = requestAnimationFrame(() => {
       this.paintHandle = 0;
       this.paintRequested = false;
-      if (!this.destroyed) this.app?.render();
+      if (!this.destroyed) {
+        this.renderer.cullToViewport(this.getViewport(), this.getScreenSize());
+        this.app?.render();
+      }
     });
   }
 

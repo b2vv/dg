@@ -2341,6 +2341,7 @@ export class OrgHierarchyDiagram {
     // байт у байт однаковий в обох станах).
     const promoted = [...(this.renderer?.getPromotedNodeIds() ?? [])];
     if (promoted.length > 0) this.renderer?.setPromotedNodeIds([]);
+    this.renderer?.resetCull();
     try {
       return await this.runExportNow(this.host, options);
     } finally {
