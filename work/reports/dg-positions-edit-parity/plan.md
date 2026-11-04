@@ -50,8 +50,10 @@
 - **Перезапис host-переданих counts** — свідома зміна поведінки (host=legacy, AC5). Хост, що покладався на
   свої числа, отримає SDK-числа (мають збігатися за побудовою, AC4).
 - **`appendData`** (:1352) мерджить partial і рендерить, але counts НЕ перераховує → стануть **stale**
-  після append. Рішення: перерахувати counts і в `appendData` перед render (той самий виклик). Інакше
-  append-додані підлеглі не відобразяться в числах. (Якщо дорого — відкласти, але за замовчуванням робимо.)
+  після append. **Рішення (hedge знято, GATE 2):** `appendData` ЗАВЖДИ перераховує counts на `merged`
+  (повні positions+reportLines після `mergePartial`, mergeData.ts:25-35) ПЕРЕД commit `this.data=merged`
+  (:1374) — синхронно, epoch-сумісно (epoch лише читається, не ++). Вартість O(V+E) — вже дешево, відкладати
+  нема підстав. Покрито S10.
 - Картка листа: без змін (undefined → футер прихований, AC6).
 
 ## Migration plan
@@ -78,9 +80,29 @@
 | S7 | getNode data | змонтована діаграма | getNode(ref).getData() | поля однієї посади (вкл. counts), без клону сцени | unit | AC9 |
 | S8 | getNode state | selection/hover/expand | getNode(ref).getState() | {selected,hovered,expanded,collapsed} вірні | unit | AC10 |
 | S9 | USAGE.md | — | check:docs | A-поля + getNode задокументовані, гейт зелений | gate | AC7/AC12 |
+| S10 | appendData свіжі counts | базова сцена | appendData з новим підлеглим | counts перераховані; посада лист→не-лист переходить undefined→число | unit | AC1/AC5 |
+
+## GATE 2 — закриття знахідок (RED→зелено-готово, reviewer Opus 4.8, `_gate2-review.md`)
+**BLOCKING (закрито):** appendData hedge знято + S10 додано (вище).
+**NON-BLOCKING (враховано в дизайні/tasks):**
+1. **Клобер листа:** wiring застосовує counts по ВСІХ позиціях — для кожної посади, якої НЕМА в Map
+   (лист), ЯВНО видалити `childrenCount`/`allDescendantCount` (щоб перезаписати host-передане листу на
+   undefined, AC5). Не покладатись на «host не слав».
+2. **Reuse-first:** перевикористати `adminChildrenMap`/`positionHasAdminChildren`/`isPositionExpanded`
+   (`positionExpand.ts:15,24,35`) — `adminChildrenMap` уже скіпає self-loop + missing-id (знімає частину
+   cross-org guard і cycle-коду).
+3. **getState джерела:** position expanded/collapsed ← `isPositionExpanded` (`expanded===true || set.has`,
+   не лише set) + `positionHasAdminChildren` для collapsed. ORG tier-3 expanded ← `lastDrawnStaffOrgIds`
+   (OrgHierarchyDiagram.ts:296-309), НЕ staffExpandedOrgIds (намальовані картки живуть там). person →
+   expanded=collapsed=false. Додати в S8/AC10 покриття org+person.
+4. **cross-org guard спрощено:** замість перевірки org на ребрі — брати лише ребра, обидва кінці яких
+   присутні в positions-map (org береться з position.organizationId; DiagramReportLine org не має).
+5. **getNode подвійний null:** `getNode(ref)` повертає accessor завжди (навіть для невідомого ref);
+   `getData()` на ньому → null якщо не знайдено. АБО `getNode`→null одразу. Обрати: **getNode→null для
+   невідомого ref** (простіше; хост перевіряє раз). getState на неіснуючому — не викликається.
 
 ## Констит-чек (інлайн)
-- Тести перед кодом: TDD, success+failure — так (S1–S8 unit, S6 failure). ✅
+- Тести перед кодом: TDD, success+failure — так (S1–S8, S10 unit; S6 failure; S10 appendData). ✅
 - KISS>GoF: pure-функція + additive метод, без патернів/абстракцій наперед. ✅
 - Публічний API: `getNode` новий + семантика counts → `docs/USAGE.md` оновити (AC7/AC12). ✅
 - Межа WASM↔TS: не чіпається (логіка в TS core). ✅

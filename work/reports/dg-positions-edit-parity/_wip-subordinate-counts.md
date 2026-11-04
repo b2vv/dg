@@ -77,10 +77,32 @@ allDescendantCount (DiagramOrganization теж має ці поля) — у ск
 - B: additive `diagram.getNode(ref)` → `{getData, getState}` (shallow-clone одного обʼєкта, не сцени).
 - Side-effects/migration/rollback розписані. Acceptance-таблиця S1–S9 → AC. Констит-чек інлайн ✅.
 
-## 🔄 GATE 2 ЗАПУЩЕНО (gate-reviewer Opus 4.8, свіжий контекст)
-plan-critique + plan-defense + конституція на spec+plan. Робочий файл `_gate2-review.md`. Чекаю вердикт.
+## GATE 2 — RED → виправлено → re-check (gate-reviewer Opus 4.8, `_gate2-review.md`)
+**1-й прогін: RED**, 1 blocking + 5 non-blocking. Рев'юер звірив усі підозри з кодом (setData-вікно
+синхронне ✅; appendData stale-ризик РЕАЛЬНИЙ; DiagramReportLine без organizationId; лист=undefined не
+конфліктує з AC5 бо футер VALUE-check).
+- **Blocking (закрито в plan):** appendData hedge знято → завжди перераховує counts на merged; + S10 тест.
+- **5 non-blocking (враховано в plan §«GATE 2 закриття»):** клобер-листа по всіх позиціях; reuse
+  adminChildrenMap/positionHasAdminChildren/isPositionExpanded; getState org=lastDrawnStaffOrgIds/person=false;
+  cross-org guard=обидва кінці в positions-map; getNode→null для невідомого ref.
+- **Re-check: ✅ GREEN** (2026-11-05) — blocking закрито, 5 non-blocking коректні, plan-critique 4/4,
+  plan-defense 5/5, конституція чиста. Вердикт у `_gate2-review.md`. **Можна в tasks/implement.**
+
+## ✅ tasks.md написано (крок 6) — 6 задач, GREEN-готово
+T1[P] core/subordinateCounts.ts+тести · T2 setData-wiring · T3 appendData-wiring · T4[P] getNode/DiagramNode
+· T5 USAGE.md+check:docs · T6 verify. Порядок: T1∥T4 → T2,T3 → T5 → T6 → сигнал Cass-1.
+
+## БЛОК: owner «no code now» (втрата доступу до PC)
+Увесь пре-імплемент готовий (spec+plan GREEN+tasks). Код НЕ починав. Наступна сесія: зняти блок →
+`codex exec` за tasks.md (TDD) → Claude рев'ю+verify → сигнал Cass-1. Codex доступний (0.163.0).
+
 Після GREEN → код через `codex exec` (сам, не сабагент, не --worktree; Claude рев'юнить+верифікує, не вірить
-чужому зеленому). Codex доступний (0.163.0).
+чужому зеленому).
+
+## Гілки/merge (2026-11-05)
+- `feat/sdk-subordinate-counts` → **main** (579cbd8). main ahead origin **8**, НЕ запушено (push за власником).
+- 8 «unmerged» гілок (ci/park-ai-review, fix/ai-review-*, t101-*×3, t118-*×3) — УСІ вже в main (git cherry
+  patch-id=1, 0 нових). Застарілі вказівники; НЕ видаляв (не просили). Мерджити нема чого.
 
 ## Наступне (після GATE 2 GREEN): implement via codex exec
 Промпт Codex: spec + plan-рішення + TDD (success+failure) + точні анкери. Я прожену тести сам
