@@ -136,6 +136,7 @@ const mappers = {
 | `staffCurrentOrgId` | яка org у центрі (ярус 2) |
 | `useWorker`, `workerPoolSize`, `workerFactory` | воркери під contour/search/map |
 | `lodThresholds` | межі far/mid/near |
+| `motionBlur` | **дефолт on.** Легкий velocity-blur на всю діаграму під час **пану**, знімається на settle. Сила — від екранної швидкості зсуву камери (зум блюриться лише через супутній зсув фокуса, не сам масштаб — v1). `{ maxPx, minSpeed, maxSpeed }` перевизначає пороги; **`false` вимикає**. Dead-zone тримає повільний пан чітким; **завжди вимкнено під `prefers-reduced-motion: reduce`**. SDK **володіє** `filter`/`willChange` на mount-елементі поки увімкнено (не застосовуйте власний CSS-`filter` на той самий mount — його затре; на clear ставиться `''`). Один CSS-фільтр на mount блюрить і canvas, і promote-overlay — але overlay лише якщо його змонтовано на **той самий** mount (`createReactPromoteOverlay({ mount })`) |
 | `renderer` | **`'auto'` (default) \| `'webgl'` \| `'canvas'`** — який рушій малює сцену (нижче) |
 | `callbacks` | див. §9 |
 

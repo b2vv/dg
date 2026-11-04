@@ -7,6 +7,8 @@ export { Viewport } from './Viewport.js';
 export type { ViewportTransform, ViewportOptions, CameraMotionOptions } from './Viewport.js';
 export { resolveLodLevel, simplifyPolyline, defaultLodThresholds } from './lod.js';
 export type { LodLevel, LodThresholds } from './lod.js';
+export { motionBlurPx, defaultMotionBlurOptions } from './motionBlur.js';
+export type { MotionBlurOptions } from './motionBlur.js';
 export { DepartmentBlobView } from './contour/DepartmentBlob.js';
 export { PersonNodeView } from './PersonNode.js';
 export { personInitials, avatarColorFromName } from './personInitials.js';
