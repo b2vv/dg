@@ -5,6 +5,8 @@ import { LayerManager } from './LayerManager.js';
 import { DropTargetIndex } from './dropTargetIndex.js';
 import { nodeEntityKey, normalizeSelected, parseNodeEntityKey, type NodeRef } from '../core/index.js';
 import { SceneRegistry, type NodeWorldBox } from './SceneRegistry.js';
+import { screenRectInView, worldBoxToScreen } from './promoteMath.js';
+import type { ViewportTransform } from './Viewport.js';
 import { ContourPainter } from './contour/ContourPainter.js';
 import { projectedOccupantMove } from '../core/index.js';
 import {
@@ -168,6 +170,12 @@ const EXTERNAL_CARD_ALPHA = 0.55;
 const DROP_VALID_COLOR = 0x16a34a;
 const DROP_INVALID_COLOR = 0xdc2626;
 
+// Small scenes can spend more on culling than they save. Start conservatively
+// within the 100–500 node guidance; validate this threshold with npm run measure.
+const CULL_MIN_NODES = 300;
+
+type CullStats = { drawn: number; culled: number; passes: number };
+
 export class DiagramRenderer {
   readonly layers = new LayerManager();
   private destroyed = false;
@@ -177,6 +185,7 @@ export class DiagramRenderer {
   private highlightApplied = false;
   /** Boxes, views and promote state for what the last render put on screen. */
   private readonly scene = new SceneRegistry();
+  private lastCullStats: CullStats = { drawn: 0, culled: 0, passes: 0 };
   private lastDiagnostics: string[] = [];
   /** Contour cell-space → staff world (pitch + origin). */
   private contourWorld: ContourWorldTransform | null = null;
@@ -441,6 +450,55 @@ export class DiagramRenderer {
     this.chromeBounds = unionBoxes(
       this.chromeBounds ? [this.chromeBounds, rect] : [rect],
     );
+  }
+
+  /** Fail open on bad geometry so a cull pass cannot abort the animation frame. */
+  cullToViewport(
+    viewport: ViewportTransform,
+    screen: { width: number; height: number },
+  ): void {
+    this.lastCullStats.passes += 1;
+    const views = this.scene.listViews();
+    if (views.length < CULL_MIN_NODES) {
+      this.resetCull();
+      return;
+    }
+    const pad = 0.5 * Math.max(screen.width, screen.height);
+    let drawn = 0;
+    for (const { key, view } of views) {
+      let renderable = true;
+      try {
+        const box = this.scene.getBox(key);
+        if (
+          box &&
+          Number.isFinite(box.x) && Number.isFinite(box.y) &&
+          Number.isFinite(box.width) && Number.isFinite(box.height)
+        ) {
+          renderable = screenRectInView(worldBoxToScreen(box, viewport), screen, pad);
+        }
+      } catch {
+        // Geometry failure must restore a view culled by the previous paint.
+        renderable = true;
+      }
+      view.renderable = renderable;
+      if (renderable) drawn += 1;
+    }
+    this.lastCullStats = {
+      drawn,
+      culled: views.length - drawn,
+      passes: this.lastCullStats.passes,
+    };
+  }
+
+  /** Restore node paint without changing the visibility owned by promote. */
+  resetCull(): void {
+    const views = this.scene.listViews();
+    for (const { view } of views) view.renderable = true;
+    this.lastCullStats = { drawn: views.length, culled: 0, passes: this.lastCullStats.passes };
+  }
+
+  getCullStats(): CullStats {
+    return { ...this.lastCullStats };
   }
 
   async render(
