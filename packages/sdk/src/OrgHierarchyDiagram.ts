@@ -53,7 +53,7 @@ import { SelectionStore } from './state/SelectionStore.js';
 import { ViewStateStore } from './state/ViewStateStore.js';
 import { DataStore } from './state/DataStore.js';
 import type { PromoteCandidate, PromoteChrome } from './render/promoteTypes.js';
-import { promoteIdMatches } from './render/promoteMath.js';
+import { promoteIdMatches, type PromoteSyncReason } from './render/promoteMath.js';
 import type { SelectionPointerMods } from './interaction/selection.js';
 import {
   adminParentsOf,
@@ -322,7 +322,7 @@ export class OrgHierarchyDiagram {
   /** T75 D2: coalesce overlapping render() so layers.clear never races. */
   private readonly renderCoalesce = createRenderCoalesce(() => this.renderNow());
   private destroyed = false;
-  private promoteSyncListeners = new Set<() => void>();
+  private promoteSyncListeners = new Set<(reason: PromoteSyncReason) => void>();
 
   // The viewport notifier is deliberately separate from `promoteSync`: that one
   // has no transform to hand out and also fires from selection and from the end
@@ -461,7 +461,10 @@ export class OrgHierarchyDiagram {
     instance.viewportSettleMs = config.viewportSettleMs ?? 150;
     instance.host.setOnViewportChange((t) => {
       instance.onViewportTransform(t.scale);
-      instance.notifyPromoteSync();
+      // Camera moved — the overlay rides a CSS catch-up and rebuilds on settle.
+      // A LOD transition crossing here still re-renders (onViewportTransform),
+      // and THAT render's afterRender emits 'structural' to force the rebuild.
+      instance.notifyPromoteSync('camera');
       instance.notifyViewportChange(t, 'camera');
     });
     // A resize changes how much of the scene fits without moving the camera, so
@@ -553,8 +556,8 @@ export class OrgHierarchyDiagram {
     });
   }
 
-  private notifyPromoteSync(): void {
-    for (const listener of this.promoteSyncListeners) listener();
+  private notifyPromoteSync(reason: PromoteSyncReason = 'structural'): void {
+    for (const listener of this.promoteSyncListeners) listener(reason);
   }
 
   private callHostCallback<TArgs extends readonly unknown[]>(
@@ -595,7 +598,7 @@ export class OrgHierarchyDiagram {
   }
 
   /** Subscribe to viewport / selection / render changes for HTML promote overlays. */
-  subscribePromoteSync(listener: () => void): () => void {
+  subscribePromoteSync(listener: (reason: PromoteSyncReason) => void): () => void {
     this.promoteSyncListeners.add(listener);
     return () => {
       this.promoteSyncListeners.delete(listener);

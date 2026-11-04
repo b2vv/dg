@@ -158,6 +158,7 @@ export type {
   NodeTextureLoader,
   PromoteCandidate,
   PromoteMode,
+  PromoteSyncReason,
   ScreenRect,
   WorldBox,
   DepartmentPaintStyle,

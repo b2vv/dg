@@ -9,6 +9,7 @@ import {
   type ReactPromoteOverlay,
 } from './createReactPromoteOverlay.js';
 import type { PromoteCandidate } from '../render/promoteTypes.js';
+import type { PromoteSyncReason } from '../render/promoteMath.js';
 import { worldPointToScreen } from '../render/staffChromeGeometry.js';
 
 function makeDiagram(overrides: Partial<PromoteOverlayDiagram> = {}): PromoteOverlayDiagram {
@@ -637,11 +638,11 @@ describe('maxPromoted meets focus', () => {
       height: 40,
     }));
     let viewport = { x: 0, y: 0, scale: 1 };
-    let listener: (() => void) | null = null;
+    let listener: ((reason: PromoteSyncReason) => void) | null = null;
     return {
       panBy: (dx: number) => {
         viewport = { ...viewport, x: viewport.x + dx };
-        listener?.();
+        listener?.('camera');
       },
       getViewport: () => viewport,
       getLodLevel: () => 'near',
@@ -851,7 +852,7 @@ describe('deferred recompute while the camera moves', () => {
     syncs: number;
   } {
     const state = { viewport: { x: 0, y: 0, scale: 1 }, syncs: 0 };
-    let listener: (() => void) | null = null;
+    let listener: ((reason: PromoteSyncReason) => void) | null = null;
     const box = { id: 'pos1', kind: 'position' as const, x: 100, y: 100, width: 60, height: 40 };
     const diagram: PromoteOverlayDiagram = {
       getViewport: () => state.viewport,
@@ -892,7 +893,7 @@ describe('deferred recompute while the camera moves', () => {
       diagram,
       moveTo: (v) => {
         state.viewport = v;
-        listener?.();
+        listener?.('camera');
       },
       get syncs() {
         return state.syncs;
@@ -1254,7 +1255,7 @@ describe('a node entering the view during a gesture is never a hole', () => {
       height: 40,
     };
     let viewport = { x: 0, y: 0, scale: 1 };
-    let listener: (() => void) | null = null;
+    let listener: ((reason: PromoteSyncReason) => void) | null = null;
     const diagram: PromoteOverlayDiagram = {
       getViewport: () => viewport,
       getLodLevel: () => 'near',
@@ -1310,7 +1311,7 @@ describe('a node entering the view during a gesture is never a hole', () => {
     // so no rebuild has run.
     await act(async () => {
       viewport = { x: -1900, y: 0, scale: 1 };
-      listener?.();
+      listener?.('camera');
     });
 
     // `arriving` has no card yet, and that is not a hole: it was never hidden, so
@@ -1319,5 +1320,123 @@ describe('a node entering the view during a gesture is never a hole', () => {
     expect(mount.querySelector('[data-promote-card="arriving"]')).toBeNull();
     expect(diagram.setPromotedNodeIds).toHaveBeenLastCalledWith(['here']);
     await act(async () => overlay.dispose());
+  });
+});
+
+describe('sync reason: structural is immediate, camera is deferred', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  // Build a diagram whose promote listener and setPromotedNodeIds calls the test
+  // can observe directly. A `sync()` always calls setPromotedNodeIds (even with
+  // an empty set), so a setPromotedNodeIds call after a notify is the observable
+  // proof that a rebuild happened; its ABSENCE proves the rebuild was deferred.
+  function harness() {
+    const setCalls: ReadonlyArray<string>[] = [];
+    let listener: ((reason: PromoteSyncReason) => void) | null = null;
+    const base = makeDiagram({
+      getLodLevel: () => 'near',
+      getViewport: () => ({ x: 0, y: 0, scale: 1 }),
+    });
+    const diagram: PromoteOverlayDiagram = {
+      ...base,
+      setPromotedNodeIds: (ids) => setCalls.push(ids),
+      subscribePromoteSync: (l) => {
+        listener = l;
+        return () => {
+          listener = null;
+        };
+      },
+    };
+    return {
+      diagram,
+      setCalls,
+      notify: (reason: PromoteSyncReason) => listener?.(reason),
+    };
+  }
+
+  it('structural: rebuilds synchronously, without waiting settleMs', () => {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    const h = harness();
+    let overlay: ReactPromoteOverlay | undefined;
+    act(() => {
+      overlay = createReactPromoteOverlay({
+        diagram: h.diagram,
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-visible',
+        settleMs: 10_000, // remove the clock: the point is the write is NOT deferred
+      });
+    });
+    const before = h.setCalls.length; // construction already synced once
+
+    act(() => h.notify('structural'));
+
+    // A structural notify rebuilds in the same tick — no timer advance.
+    expect(h.setCalls.length).toBe(before + 1);
+
+    act(() => overlay?.dispose());
+  });
+
+  it('camera: does NOT rebuild synchronously (defers to settle)', () => {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    const h = harness();
+    let overlay: ReactPromoteOverlay | undefined;
+    act(() => {
+      overlay = createReactPromoteOverlay({
+        diagram: h.diagram,
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-visible',
+        settleMs: 10_000,
+      });
+    });
+    const before = h.setCalls.length;
+
+    act(() => h.notify('camera'));
+
+    // A camera notify rides the catch-up transform; the rebuild waits for settle.
+    expect(h.setCalls.length).toBe(before);
+
+    act(() => overlay?.dispose());
+  });
+
+  it('camera then structural in one frame: structural rebuilds now and cancels the pending settle', async () => {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    const h = harness();
+    let overlay: ReactPromoteOverlay | undefined;
+    act(() => {
+      overlay = createReactPromoteOverlay({
+        diagram: h.diagram,
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-visible',
+        settleMs: 20,
+      });
+    });
+    const before = h.setCalls.length;
+
+    // The far-crossing frame: the camera change schedules a settle, then the
+    // LOD re-render's afterRender fires structural. The structural sync must run
+    // now AND cancel the orphaned camera settle — otherwise it fires later and
+    // rebuilds a second time against a scene already rebuilt.
+    act(() => {
+      h.notify('camera');
+      h.notify('structural');
+    });
+    expect(h.setCalls.length).toBe(before + 1); // structural rebuilt once, now
+
+    await act(async () => {
+      await new Promise((r) => {
+        setTimeout(r, 40); // past settleMs: a live settle would fire here
+      });
+    });
+    expect(h.setCalls.length).toBe(before + 1); // no second rebuild → settle was cancelled
+
+    act(() => overlay?.dispose());
   });
 });

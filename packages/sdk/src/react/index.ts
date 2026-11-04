@@ -10,6 +10,7 @@ export {
   DefaultPromoteCard,
   type PromoteOverlayDiagram,
   type PromoteSlotProps,
+  type PromoteSyncReason,
   type ReactPromoteOverlay,
   type ReactPromoteOverlayOptions,
   type PromoteBackdropProps,

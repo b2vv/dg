@@ -20,8 +20,10 @@ import {
   screenRectInView,
   worldBoxToScreen,
   type PromoteMode,
+  type PromoteSyncReason,
   type ScreenRect,
 } from '../render/promoteMath.js';
+export type { PromoteSyncReason } from '../render/promoteMath.js';
 import type { ViewportTransform } from '../render/Viewport.js';
 
 /** A node's world rectangle and identity, without its card data. */
@@ -62,7 +64,13 @@ export interface PromoteOverlayDiagram {
   listPromoteBoxes(): readonly PromoteBox[];
   listPromoteCandidates(ids?: readonly string[]): PromoteCandidate[];
   setPromotedNodeIds(ids: readonly string[]): void;
-  subscribePromoteSync(listener: () => void): () => void;
+  /**
+   * The overlay re-syncs when this fires. `reason` says whether the camera moved
+   * (`'camera'` — ride the catch-up, rebuild on settle) or the scene changed
+   * structurally (`'structural'` — rebuild now). A listener free to ignore it,
+   * but then an expand/LOD change lags by `settleMs`. See {@link PromoteSyncReason}.
+   */
+  subscribePromoteSync(listener: (reason: PromoteSyncReason) => void): () => void;
 }
 
 export interface PromoteSlotProps {
@@ -498,7 +506,15 @@ export function createReactPromoteOverlay(
     }, settleMs);
   };
 
-  const unsubscribe = options.diagram.subscribePromoteSync(onCameraChange);
+  // A camera move rides the catch-up transform and rebuilds on settle; a
+  // structural change (LOD transition, layout/setData, expand) has already moved
+  // or hidden the Pixi nodes, so the HTML must rebuild in the same tick — else
+  // cards lag at stale positions (ghost) or a far node is hidden with no card in
+  // its place (empty frame). `sync()` cancels any pending camera settle on entry.
+  const unsubscribe = options.diagram.subscribePromoteSync((reason) => {
+    if (reason === 'structural') sync();
+    else onCameraChange();
+  });
   sync();
 
   return {

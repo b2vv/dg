@@ -139,6 +139,7 @@ export {
   type WorldBox,
   type ScreenRect,
   type PromoteMode,
+  type PromoteSyncReason,
 } from './promoteMath.js';
 export type { PromoteCandidate } from './promoteTypes.js';
 export {
