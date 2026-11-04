@@ -436,6 +436,9 @@ export class App {
       this.setStatus('Loading…');
       this.diagram = await OrgHierarchyDiagram.create(this.mountEl, {
         ...config,
+        // Feel the motion blur while panning/zooming (research: scroll-blur).
+        // Dead-zone keeps slow pans sharp; disabled under prefers-reduced-motion.
+        motionBlur: true,
         // Forwarded unvalidated on purpose: the demo stands in for an untyped
         // host here, and the SDK owns normalising anything it does not know
         // (resolveRendererPreference) — validating twice would hide that path.

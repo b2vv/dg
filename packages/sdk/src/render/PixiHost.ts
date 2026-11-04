@@ -167,6 +167,15 @@ export class PixiHost {
     return this.app?.canvas ?? null;
   }
 
+  /**
+   * The mount element — the common parent of the WebGL canvas and any HTML
+   * overlay layer. A single CSS filter here (e.g. motion blur) blurs both
+   * together.
+   */
+  getContainer(): HTMLElement | null {
+    return this.container;
+  }
+
   getApplication(): Application | null {
     return this.app;
   }

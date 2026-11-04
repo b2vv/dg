@@ -48,6 +48,11 @@ import {
 } from './render/index.js';
 import { inferStaffCurrentOrgId } from './render/inferStaffCurrentOrgId.js';
 import { resolveLodLevel, type LodLevel, type LodThresholds } from './render/lod.js';
+import {
+  motionBlurPx,
+  defaultMotionBlurOptions,
+  type MotionBlurOptions,
+} from './render/motionBlur.js';
 import { createRenderCoalesce } from './render/renderCoalesce.js';
 import { SelectionStore } from './state/SelectionStore.js';
 import { ViewStateStore } from './state/ViewStateStore.js';
@@ -137,6 +142,14 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
   callbacks?: OrgHierarchyCallbacks;
   /** Quiet period before `onViewportChange` reports `settled` (default 150). */
   viewportSettleMs?: number;
+  /**
+   * Light velocity-driven blur on the whole diagram while the camera pans,
+   * cleared when it settles. Strength tracks on-screen pan speed; a zoom blurs
+   * only through its incidental focal shift, not the scale itself (v1).
+   * `true`/omitted = on with defaults; an object overrides them; `false` = off.
+   * Default **on**. Always disabled under `prefers-reduced-motion: reduce`.
+   */
+  motionBlur?: boolean | Partial<MotionBlurOptions>;
   /** Staff 3-tier focus organization id */
   staffCurrentOrgId?: string;
   /** Staff layout (node/cell pitch — keep refCell* aligned with render.cell* for contours). */
@@ -333,6 +346,10 @@ export class OrgHierarchyDiagram {
   private viewportPending: { t: ViewportTransform; reason: ViewportChangeReason } | null = null;
   private viewportFrame: number | null = null;
   private viewportSettleTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Resolved motion-blur options, or null when off / reduced-motion. */
+  private motionBlur: MotionBlurOptions | null = null;
+  private motionBlurLast: { x: number; y: number; t: number } | null = null;
+  private motionBlurClearTimer: ReturnType<typeof setTimeout> | null = null;
   private mediaService: MediaService | null = null;
   /** Menu build + dispatch (was an inline switch on this class). */
   private readonly contextMenu = new ContextMenuController({
@@ -459,9 +476,11 @@ export class OrgHierarchyDiagram {
       );
     }
     instance.viewportSettleMs = config.viewportSettleMs ?? 150;
+    instance.motionBlur = resolveMotionBlur(config.motionBlur ?? true);
     instance.host.setOnViewportChange((t) => {
       instance.onViewportTransform(t.scale);
       instance.notifyPromoteSync();
+      instance.onMotionBlurFrame(t);
       instance.notifyViewportChange(t, 'camera');
     });
     // A resize changes how much of the scene fits without moving the camera, so
@@ -551,6 +570,47 @@ export class OrgHierarchyDiagram {
       if (this.destroyed || !pending) return;
       this.callbacks.onViewportChange?.(pending.t, { settled: false, reason: pending.reason });
     });
+  }
+
+  /**
+   * One camera frame → set the blur radius from pan speed, and arm a timer to
+   * clear it once the camera goes quiet. Self-contained (own debounce), so it
+   * runs whether or not the host listens for `onViewportChange`. A speed below
+   * the dead zone yields 0 and no filter — the common slow pan stays free.
+   */
+  private onMotionBlurFrame(t: ViewportTransform): void {
+    if (!this.motionBlur || this.destroyed) return;
+    const now =
+      typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+    const last = this.motionBlurLast;
+    this.motionBlurLast = { x: t.x, y: t.y, t: now };
+    if (last) {
+      const dt = now - last.t;
+      if (dt > 0) {
+        const speed = Math.hypot(t.x - last.x, t.y - last.y) / dt;
+        this.writeMotionFilter(motionBlurPx(speed, this.motionBlur));
+      }
+    }
+    if (this.motionBlurClearTimer !== null) clearTimeout(this.motionBlurClearTimer);
+    this.motionBlurClearTimer = setTimeout(() => this.clearMotionBlur(), this.viewportSettleMs);
+  }
+
+  /** Blur radius (px) → container filter + GPU hint. `px <= 0` clears both. */
+  private writeMotionFilter(px: number): void {
+    const container = this.host?.getContainer();
+    if (!container) return;
+    container.style.filter = px > 0 ? `blur(${px.toFixed(2)}px)` : '';
+    container.style.willChange = px > 0 ? 'filter' : '';
+  }
+
+  /** Remove the blur and its hint — camera is still (or diagram torn down). */
+  private clearMotionBlur(): void {
+    if (this.motionBlurClearTimer !== null) {
+      clearTimeout(this.motionBlurClearTimer);
+      this.motionBlurClearTimer = null;
+    }
+    this.motionBlurLast = null;
+    this.writeMotionFilter(0);
   }
 
   private notifyPromoteSync(): void {
@@ -2328,6 +2388,7 @@ export class OrgHierarchyDiagram {
     this.viewportFrame = null;
     this.viewportSettleTimer = null;
     this.viewportPending = null;
+    this.clearMotionBlur();
     this.promoteSyncListeners.clear();
     void this.mediaService?.destroy();
     this.mediaService = null;
@@ -2337,4 +2398,23 @@ export class OrgHierarchyDiagram {
     this.host?.destroy();
     this.host = null;
   }
+}
+
+/**
+ * Resolve the `motionBlur` config to options, or null when it must not run:
+ * falsy config, or the user asked for reduced motion. Checked once at create —
+ * a mid-session OS toggle is not tracked (v1).
+ */
+function resolveMotionBlur(
+  cfg: boolean | Partial<MotionBlurOptions> | undefined,
+): MotionBlurOptions | null {
+  if (!cfg) return null;
+  if (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  ) {
+    return null;
+  }
+  return cfg === true ? { ...defaultMotionBlurOptions } : { ...defaultMotionBlurOptions, ...cfg };
 }
