@@ -200,6 +200,33 @@ describe('PersonNodeView', () => {
     expect(view.hasPhotoSprite()).toBe(false);
   });
 
+  it('markAtMid: a mid seat collapses to the far mark (name hidden), unlike a plain mid seat', () => {
+    const person = { id: 'p1', fullName: 'Іваненко Іван' };
+    const position = {
+      id: 'pos1',
+      title: 'Інженер',
+      organizationId: 'org1',
+      groupIds: [],
+      status: 'filled' as const,
+      isTemporary: false,
+    };
+
+    // Control: a plain mid seat still draws its detail card (name visible).
+    const plainMid = PersonNodeView.create(person, position, defaultNodeTheme.person, 'mid');
+    expect(plainMid.findText('Іваненко Іван')).toBeDefined();
+
+    // Card-split: the same seat at mid degrades to the far mark — no name card.
+    const markMid = PersonNodeView.create(person, position, defaultNodeTheme.person, 'mid', {
+      markAtMid: true,
+    });
+    expect(markMid.findText('Іваненко Іван')).toBeUndefined();
+    // near is untouched: the detailed card still renders at max zoom.
+    const markNear = PersonNodeView.create(person, position, defaultNodeTheme.person, 'near', {
+      markAtMid: true,
+    });
+    expect(markNear.findText('Іваненко Іван')).toBeDefined();
+  });
+
   it('success: expand chrome shows when hasChildren', async () => {
     const onToggle = rstest.fn();
     const view = PersonNodeView.create(

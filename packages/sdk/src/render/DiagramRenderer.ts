@@ -891,6 +891,9 @@ export class DiagramRenderer {
                 onToggle: () => options.onPositionExpandToggle!(position.id),
               }
             : undefined,
+          // Card-split: when the host owns detail via the HTML overlay, a seat
+          // that falls back to Pixi at mid draws the far mark, not a stale card.
+          markAtMid: config.staffReactChrome === true,
         },
       );
       node.position.set(n.x, n.y);
@@ -1017,6 +1020,8 @@ export class DiagramRenderer {
                 canvasY: 0,
               })
           : undefined,
+        // Card-split: seat falling back to Pixi at mid draws the far mark.
+        markAtMid: config.staffReactChrome === true,
       });
       const x = position.gridCell.col * config.cellWidth + insetX;
       const y = position.gridCell.row * config.cellHeight + insetY;
