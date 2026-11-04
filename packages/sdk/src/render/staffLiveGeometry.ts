@@ -144,7 +144,7 @@ function staffHeadResolvable(data: DiagramData, currentOrgId: string): boolean {
  */
 function isGenuineTreeScene(data: DiagramData, currentOrgId: string): boolean {
   const inOrg = data.positions.filter((p) => p.organizationId === currentOrgId);
-  if (!inOrg.some(positionHasCoords)) return true;
+  if (!inOrg.some((p) => positionHasCoords(p))) return true;
   if (inOrg.some((p) => p.isHead === true)) return true;
   const ids = new Set(inOrg.map((p) => p.id));
   return data.reportLines.some(
