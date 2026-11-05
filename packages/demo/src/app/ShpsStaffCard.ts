@@ -58,8 +58,8 @@ export interface StaffCardFocusState {
    * poke, which a camera-move re-render would wipe.
    */
   foundId: string | null;
-  /** Heads whose subtree is collapsed (§8.1) — drives the v3 `.card.closed .tg` chip. */
-  collapsed?: ReadonlySet<string>;
+  /** Current SDK expand state, read again whenever the overlay syncs. */
+  expandedPositionIds?: readonly string[];
 }
 
 /**
@@ -271,7 +271,7 @@ function renderShpsStaffCard(
     ];
     // Chevron-чіп лише коли є підлеглі (мокап: `.tg` рендериться if k.length).
     if (hasChildren) {
-      const closed = focus?.collapsed?.has(posId) === true;
+      const closed = pos?.expanded !== true && !focus?.expandedPositionIds?.includes(posId);
       footChildren.push(
         createElement(
           'span',

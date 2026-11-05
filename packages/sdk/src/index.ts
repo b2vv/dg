@@ -3,7 +3,7 @@ export type { DiagramNode } from './DiagramNode.js';
  * Public surface of the SDK. Implementation lives in the feature folders —
  * this file only re-exports, so «what is public» stays readable in one screen.
  */
-export { OrgHierarchyDiagram, type OrgHierarchyConfig } from './OrgHierarchyDiagram.js';
+export { OrgHierarchyDiagram, type OrgHierarchyConfig, type RevealPathOptions } from './OrgHierarchyDiagram.js';
 
 export type {
   DiagramData,

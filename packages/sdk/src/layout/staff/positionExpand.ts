@@ -190,3 +190,23 @@ export function victimsForExpand(
   if (surplus <= 0) return [];
   return [...expandedIds].slice(0, Math.min(surplus, expandedIds.size));
 }
+
+/** All admin ancestors, across every parent; the target itself is excluded on cycles. */
+export function adminAncestorIds(id: string, reports: readonly DiagramReportLine[]): Set<string> {
+  const parents = new Map<string, string[]>();
+  for (const r of reports) {
+    if (r.kind !== 'admin' || r.fromId === r.toId) continue;
+    const arr = parents.get(r.toId);
+    if (arr) arr.push(r.fromId);
+    else parents.set(r.toId, [r.fromId]);
+  }
+  const ancestors = new Set<string>();
+  const stack = [...(parents.get(id) ?? [])];
+  while (stack.length > 0) {
+    const p = stack.pop()!;
+    if (p === id || ancestors.has(p)) continue;
+    ancestors.add(p);
+    for (const gp of parents.get(p) ?? []) stack.push(gp);
+  }
+  return ancestors;
+}

@@ -47,7 +47,7 @@ function headSlot(posId: string): PromoteSlotProps {
 
 describe('ShpsStaffCard collapse chevron (§8.1, v3 `.card.closed .tg`)', () => {
   it('collapsed: filled chip, white text, chevron rotated -90°, direct-report count shown', () => {
-    const Card = makeShpsStaffCard(() => ({ foundId: null, collapsed: new Set(['ceo']) }));
+    const Card = makeShpsStaffCard(() => ({ foundId: null, expandedPositionIds: [] }));
     const html = renderToStaticMarkup(Card(headSlot('ceo')));
     expect(html).toContain('aria-expanded="false"');
     expect(html).toContain('title="Розгорнути підлеглі посади"');
@@ -57,8 +57,15 @@ describe('ShpsStaffCard collapse chevron (§8.1, v3 `.card.closed .tg`)', () => 
     expect(html).toMatch(/<b[^>]*>3<\/b>/);
   });
 
+  it('an explicit position expanded flag keeps the chevron open without a set entry', () => {
+    const Card = makeShpsStaffCard(() => ({ foundId: null, expandedPositionIds: [] }));
+    const props = headSlot('ceo');
+    props.node.position!.expanded = true;
+    expect(renderToStaticMarkup(Card(props))).toContain('aria-expanded="true"');
+  });
+
   it('expanded: tinted chip, chevron unrotated, no count', () => {
-    const Card = makeShpsStaffCard(() => ({ foundId: null, collapsed: new Set(['other']) }));
+    const Card = makeShpsStaffCard(() => ({ foundId: null, expandedPositionIds: ['ceo'] }));
     const html = renderToStaticMarkup(Card(headSlot('ceo')));
     expect(html).toContain('aria-expanded="true"');
     expect(html).toContain('title="Згорнути підлеглі посади"');

@@ -1,5 +1,5 @@
 import type { DiagramNode } from './DiagramNode.js';
-import { isPositionExpanded } from './layout/staff/positionExpand.js';
+import { adminAncestorIds, isPositionExpanded } from './layout/staff/positionExpand.js';
 import { sameNodeRef } from './interaction/selection.js';
 import { computeSubordinateCounts } from './core/subordinateCounts.js';
 import {
@@ -130,6 +130,11 @@ import {
   ExportError,
   type ExportOptions,
 } from './export/index.js';
+
+export interface RevealPathOptions {
+  /** Default true. false = reveal and bring into view without changing the selection. */
+  select?: boolean;
+}
 
 export interface OrgHierarchyConfig<TRaw = DiagramData> {
   data: TRaw | DiagramData;
@@ -1789,35 +1794,58 @@ export class OrgHierarchyDiagram {
   }
 
   /**
-   * Expand org path to root for a person/position/org id, then focus.
+   * Expand org and admin ancestor paths for a person/position/org id, then focus.
    * Unknown id → no-op (returns false).
    */
-  async revealPath(nodeId: string): Promise<boolean> {
+  async revealPath(nodeId: string, options?: RevealPathOptions): Promise<boolean> {
     // A destroyed diagram has nothing to reveal a path into, and `search()`
     // already answers that way (`:881`).
     if (this.destroyed) return false;
 
     const orgId = resolveOrganizationIdForNode(this.data, nodeId);
     if (!orgId) return false;
-    const organizations = revealOrgPath(this.data.organizations, orgId);
-    if (organizations !== this.data.organizations) {
-      // The node box only exists after the reveal is laid out — focusing before
-      // the render silently skipped the pan for anything under a collapsed org.
-      const previous = this.data;
-      this.data = { ...this.data, organizations };
-      this.callbacks.onOrgModeChange?.(this.getOrgMode());
-      this.emitOrgExpandChange('reveal', previous.organizations, organizations);
+    const previous = this.data;
+    const previousExpandedIds = new Set(this.viewState.staffExpandedPositionIds);
+    const organizations = revealOrgPath(previous.organizations, orgId);
+    const orgChanged = organizations !== previous.organizations;
+    const ref = resolveNodeRefInData(previous, nodeId);
+    const positionId = ref?.kind === 'position' ? ref.id : ref?.positionId;
+    const changedIds: string[] = [];
+    if (positionId) {
+      const positions = new Map(previous.positions.map((position) => [position.id, position]));
+      for (const id of adminAncestorIds(positionId, previous.reportLines)) {
+        const position = positions.get(id);
+        if (position && !isPositionExpanded(position, previousExpandedIds)
+          && positionHasAdminChildren(id, previous.positions, previous.reportLines)) {
+          changedIds.push(id);
+        }
+      }
+    }
+    if (orgChanged || changedIds.length > 0) {
+      this.data = { ...previous, organizations };
+      // Revealing a full path bypasses eviction: evicting an ancestor hides the target again.
+      for (const id of changedIds) this.setPositionExpandedFlag(id, true);
+      if (orgChanged) {
+        this.callbacks.onOrgModeChange?.(this.getOrgMode());
+        this.emitOrgExpandChange('reveal', previous.organizations, organizations);
+      }
       try {
+        // Org and admin paths must both be visible before focusing the target.
         await this.render();
       } catch (error) {
         // Rolled back rather than left half-applied. The data said «expanded»
         // and the scene did not, so the next caller read a tree that was never
         // drawn — and `getOrgMode()` had already been told about it. Same shape
         // as the staff window's rebuild, which advertises optimistically and
-        // undoes it here (T88 report §20).
+        // undoes it here (T88 report §20). The position expand set is restored
+        // with the data: `setPositionExpandedFlag` wrote into both.
         this.data = previous;
-        this.callbacks.onOrgModeChange?.(this.getOrgMode());
-        this.emitOrgExpandChange('reveal-rollback', organizations, previous.organizations);
+        this.viewState.staffExpandedPositionIds.clear();
+        for (const id of previousExpandedIds) this.viewState.staffExpandedPositionIds.add(id);
+        if (orgChanged) {
+          this.callbacks.onOrgModeChange?.(this.getOrgMode());
+          this.emitOrgExpandChange('reveal-rollback', organizations, previous.organizations);
+        }
         throw error;
       }
       // After the await as well as before it: `destroy()` during a reveal is
@@ -1825,8 +1853,15 @@ export class OrgHierarchyDiagram {
       // because each call gates itself on `this.host`, but that is a
       // coincidence of the current call chain rather than a guarantee.
       if (this.destroyed) return false;
+      // Announced after the frame (T104): a refused frame above re-throws first.
+      if (changedIds.length > 0) this.emitPositionExpand(changedIds[0]!, true, changedIds);
     }
-    await this.focusNode(nodeId);
+    if (options?.select === false) {
+      const target = resolveNodeRefInData(this.data, nodeId);
+      if (target) this.panToNodeOrSeat(nodeId, target.positionId);
+    } else {
+      await this.focusNode(nodeId);
+    }
     return true;
   }
 
@@ -1910,11 +1945,15 @@ export class OrgHierarchyDiagram {
     if (!ref) return false;
     this.applySelection(ref);
     this.repaintSelection();
-    // A person id has no box of its own — the seat it fills does.
-    if (!this.panToNode(nodeId, { animate: true }) && ref.positionId) {
-      this.panToNode(ref.positionId, { animate: true });
-    }
+    this.panToNodeOrSeat(nodeId, ref.positionId);
     return true;
+  }
+
+  private panToNodeOrSeat(nodeId: string, positionId?: string): void {
+    // A person id has no box of its own — the seat it fills does.
+    if (!this.panToNode(nodeId, { animate: true }) && positionId) {
+      this.panToNode(positionId, { animate: true });
+    }
   }
 
   getViewport(): { x: number; y: number; scale: number } {

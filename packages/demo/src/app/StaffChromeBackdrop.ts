@@ -1,7 +1,6 @@
 import { createElement, type ReactElement, type CSSProperties } from 'react';
 import type { PromoteBackdropProps } from '@org-hierarchy/sdk/react';
 import { roundedPathD, type StaffChromeGeometry } from '@org-hierarchy/sdk';
-import type { DiagramData } from '@org-hierarchy/sdk';
 
 /**
  * React near-view CHROME for ШПС alpha (T129): department frames, the current-org
@@ -37,68 +36,6 @@ const C = {
 
 /** SDK chrome geometry plus the demo's own search-hit id (host state, §8.2). */
 export type StaffChromeWithFound = StaffChromeGeometry & { foundId: string | null };
-
-/**
- * Visible slice of the staff data for a set of collapsed positions (§8.1) — the
- * mockup `visible()`: walk the admin tree from the org roots, include each node,
- * but do NOT descend into a collapsed node's subtree. A node with several admin
- * parents stays visible while ANY non-collapsed path reaches it. Returns data with
- * `positions` and `reportLines` trimmed to the visible set; everything else kept.
- */
-export function staffVisibleData(
-  data: DiagramData,
-  collapsed: ReadonlySet<string>,
-): DiagramData {
-  const kids = new Map<string, string[]>();
-  const hasParent = new Set<string>();
-  for (const r of data.reportLines) {
-    if (r.kind !== 'admin') continue;
-    hasParent.add(r.toId);
-    const arr = kids.get(r.fromId);
-    if (arr) arr.push(r.toId);
-    else kids.set(r.fromId, [r.toId]);
-  }
-  const visible = new Set<string>();
-  const walk = (id: string): void => {
-    if (visible.has(id)) return;
-    visible.add(id);
-    if (collapsed.has(id)) return; // its subtree is hidden
-    for (const c of kids.get(id) ?? []) walk(c);
-  };
-  for (const p of data.positions) if (!hasParent.has(p.id)) walk(p.id);
-
-  return {
-    ...data,
-    positions: data.positions.filter((p) => visible.has(p.id)),
-    reportLines: data.reportLines.filter((r) => visible.has(r.fromId) && visible.has(r.toId)),
-  };
-}
-
-/**
- * Admin ancestors of `id` — every seat on a `kind:'admin'` path up from it
- * (parent, grandparent, …), following `fromId`→parent, `toId`→child. A node can
- * have several admin parents, so this walks all of them; the visited set keeps a
- * multi-parent diamond or a malformed cycle from looping. Used by the §8.2 search
- * focus to un-collapse the path to a hit so it becomes visible.
- */
-export function staffAdminAncestors(data: DiagramData, id: string): Set<string> {
-  const parents = new Map<string, string[]>();
-  for (const r of data.reportLines) {
-    if (r.kind !== 'admin' || r.fromId === r.toId) continue;
-    const arr = parents.get(r.toId);
-    if (arr) arr.push(r.fromId);
-    else parents.set(r.toId, [r.fromId]);
-  }
-  const ancestors = new Set<string>();
-  const stack = [...(parents.get(id) ?? [])];
-  while (stack.length > 0) {
-    const p = stack.pop()!;
-    if (ancestors.has(p)) continue;
-    ancestors.add(p);
-    for (const gp of parents.get(p) ?? []) stack.push(gp);
-  }
-  return ancestors;
-}
 
 const HOVER_ACCENT = '#ff8d68'; // mockup `.ln.on` / `.card.rel`
 

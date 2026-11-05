@@ -23,13 +23,10 @@ import {
   type PromoteBackdropProps,
 } from '@org-hierarchy/sdk/react';
 import { createElement, type ReactElement } from 'react';
-import { flushSync } from 'react-dom';
-import { ShpsStaffCard, makeShpsStaffCard } from './ShpsStaffCard.js';
+import { makeShpsStaffCard } from './ShpsStaffCard.js';
 import {
   makeStaffChromeBackdrop,
   installStaffHoverHighlight,
-  staffAdminAncestors,
-  staffVisibleData,
 } from './StaffChromeBackdrop.js';
 import {
   computeStaffSearchHits,
@@ -234,12 +231,8 @@ export class App {
    *  can swap it and re-sync in place (no diagram teardown, no flash). */
   /** §8.2 search-hit id (host state; SDK chrome geometry does not carry it). */
   private staffFoundId: string | null = null;
-  /** Generation guard for overlapping collapse/search re-renders (Б2.1 race). */
-  private staffRerenderGen = 0;
   /** Teardown for the ШПС alpha hover-highlight + collapse-toggle delegated listeners. */
   private staffHoverCleanup?: () => void;
-  /** Positions whose subtree is collapsed (§8.1), applied as a data filter on reload. */
-  private readonly staffCollapsed = new Set<string>();
   /** ШПС alpha v3 search dropdown (§8.2); null off the alpha tab. */
   private staffSearch: StaffSearchDropdown | null = null;
   private testAnchors: TestAnchorOverlay | null = null;
@@ -398,8 +391,6 @@ export class App {
     // Leaving the Mapper tab drops what the user loaded — coming back should
     // show the sample again, not a stale scene.
     if (tab !== 'mapper') this.mapperData = null;
-    // Collapse state belongs to the scene being left; a new tab starts expanded.
-    this.staffCollapsed.clear();
     this.tab = tab;
     document.querySelectorAll('[data-tab]').forEach((el) => {
       el.classList.toggle('active', (el as HTMLElement).dataset.tab === tab);
@@ -423,14 +414,6 @@ export class App {
   private async reload(): Promise<void> {
     this.disposeDiagram();
     const config = this.buildConfig();
-    // §8.1 collapse: hide collapsed subtrees by trimming the data before layout, so
-    // the diagram, promote cards and chrome all recompute for the visible set.
-    if (config.render?.staffAlphaMockup === true && this.staffCollapsed.size > 0 && config.data) {
-      (config as { data: unknown }).data = staffVisibleData(
-        config.data as unknown as DiagramData,
-        this.staffCollapsed,
-      );
-    }
     this.prepareStaffChrome(config);
     try {
       this.setStatus('Loading…');
@@ -691,109 +674,15 @@ export class App {
   }
 
   /**
-   * Collapse/expand in place (§8.1): re-layout the visible data with `setData`
-   * (which refreshes the SDK chrome-geometry cache) and `sync()`, WITHOUT disposing
-   * the diagram — no teardown flash, camera kept. Falls back to a full reload only
-   * if the scene is not the alpha chrome path. A generation guard drops a superseded
-   * re-render (two toggles racing) so the last one wins (Б2.1).
-   */
-  private async rerenderStaffAlpha(): Promise<void> {
-    const diagram = this.diagram;
-    const config = this.buildConfig();
-    const orgId = config.staffCurrentOrgId;
-    if (!diagram || config.render?.staffAlphaMockup !== true || !config.data || !orgId) {
-      void this.reload();
-      return;
-    }
-    let data = config.data as unknown as DiagramData;
-    if (this.staffCollapsed.size > 0) data = staffVisibleData(data, this.staffCollapsed);
-    const gen = ++this.staffRerenderGen;
-    await diagram.setData(data);
-    if (gen !== this.staffRerenderGen || this.diagram !== diagram) return; // superseded
-    // Re-render cards + backdrop for the new layout (setData moved the nodes, and
-    // refreshed getStaffChromeGeometry). No fit here: the collapse toggle re-frames
-    // smoothly after (`refitStaffAlpha`), and the search focus pans to its hit.
-    this.promote?.sync();
-  }
-
-  /** Toggle a head's collapsed subtree (§8.1) and re-render the alpha scene in place. */
-  private toggleStaffCollapse(id: string): void {
-    if (this.staffCollapsed.has(id)) this.staffCollapsed.delete(id);
-    else this.staffCollapsed.add(id);
-    void this.rerenderStaffAlpha().then(() => this.refitStaffAlpha());
-  }
-
-  private staffFitTween = 0;
-
-  /**
-   * Smoothly re-frame the alpha org after a collapse/expand (v3 `fit()` after a
-   * toggle). Not `fitView`: that fits all content in both axes with no upper cap,
-   * so one collapsed head zooms to 4× and a tall tree drops to the far LOD.
-   */
-  private refitStaffAlpha(durationMs = 280): void {
-    const diagram = this.diagram;
-    if (!diagram) return;
-    const from = diagram.getViewport();
-    cancelAnimationFrame(this.staffFitTween);
-    // SDK owns the fit math: fitStaffChrome frames the padded org box (width-only,
-    // clamped, top-aligned) and leaves the camera AT the target, returning it. Null
-    // when there is no chrome box (not the alpha path) → nothing to re-frame.
-    const to = diagram.fitStaffChrome({
-      animate: false,
-      padding: 48,
-      minScale: MOCKUP_FIT_MIN_SCALE,
-      maxScale: 1,
-    });
-    if (!to) return;
-    // Build the cards for the TARGET frame first (camera is already at `to`): the
-    // promote overlay only carries existing cards with a CSS transform while the
-    // camera moves and rebuilds on settle, so a card off-screen in the start frame
-    // would pop in at the end. flushSync: the overlay's `root.render` must commit
-    // before the catch-up transform for `from` is written, or one frame shows the
-    // old cards at the target's scale.
-    flushSync(() => this.promote?.sync());
-    diagram.setViewport(from);
-    // Clock starts on the first frame, so a long rebuild task before it does not
-    // swallow the opening of the ease.
-    let t0 = -1;
-    const step = (now: number): void => {
-      if (this.diagram !== diagram) return;
-      if (t0 < 0) t0 = now;
-      const k = Math.min(1, (now - t0) / durationMs);
-      const e = 1 - (1 - k) ** 3;
-      diagram.setViewport({
-        x: from.x + (to.x - from.x) * e,
-        y: from.y + (to.y - from.y) * e,
-        scale: from.scale + (to.scale - from.scale) * e,
-      });
-      if (k < 1) this.staffFitTween = requestAnimationFrame(step);
-    };
-    this.staffFitTween = requestAnimationFrame(step);
-  }
-
-  /**
    * Focus a seat from the v3 search (§8.2, mockup `focusCard`): un-collapse the
    * admin path to it so it is on screen, ring it (`foundId` → marker + dim), and
-   * centre the camera on it. `foundId` is host state (`staffFoundId`), set AFTER the
-   * re-render and composed onto the SDK chrome geometry by the backdrop.
+   * centre the camera on it. SDK owns path visibility; `foundId` is host state
+   * composed onto the SDK chrome geometry by the backdrop.
    */
   private async focusStaffCard(posId: string): Promise<void> {
-    const config = this.buildConfig();
-    const data = config.data as unknown as DiagramData | undefined;
-    if (data && this.staffCollapsed.size > 0) {
-      // Reveal: drop every collapsed ancestor on the path to the hit, then re-lay.
-      const ancestors = staffAdminAncestors(data, posId);
-      let changed = false;
-      for (const a of ancestors) {
-        if (this.staffCollapsed.delete(a)) changed = true;
-      }
-      if (changed) await this.rerenderStaffAlpha();
-    }
     this.staffFoundId = posId;
     // Centres the camera without changing zoom (panToNode); the node now exists.
-    await this.diagram?.revealPath(posId);
-    // Drop the ring `revealPath` leaves; the backdrop draws the v3 «Знайдено» marker.
-    await this.diagram?.select(null);
+    await this.diagram?.revealPath(posId, { select: false });
     this.promote?.sync();
   }
 
@@ -818,19 +707,14 @@ export class App {
       // Opt-in, like `?renderer=`: the default stays the selection card so the
       // existing behaviour — and the e2e that pins it — keeps its meaning.
       mode: shps ? 'near-visible' : this.promoteMode,
-      component:
-        this.tab === 'staff-alpha'
-          ? // Alpha binds a focus thunk so a search dims the non-found cards (§8.2);
-            // same `staffFoundId` the backdrop rings, one source of truth.
-            makeShpsStaffCard(() => ({
-              foundId: this.staffFoundId,
-              collapsed: this.staffCollapsed,
-            }))
-          : shps
-            ? ShpsStaffCard
-            : this.promoteMode === 'near-visible'
-              ? DemoContentModesCard
-              : DemoPromoteCard,
+      component: shps
+        ? makeShpsStaffCard(() => ({
+            foundId: this.tab === 'staff-alpha' ? this.staffFoundId : null,
+            expandedPositionIds: diagram.getStaffExpandedPositionIds(),
+          }))
+        : this.promoteMode === 'near-visible'
+          ? DemoContentModesCard
+          : DemoPromoteCard,
       // ШПС alpha: dept/org frames + connector lines drawn under the cards, in the
       // same camera-synced layer (set only on the alpha path; else Pixi draws chrome).
       backdrop: this.staffChromeBackdrop,
@@ -841,14 +725,15 @@ export class App {
         this.mountEl,
         () => this.staffFoundId,
       );
-      const onClick = (e: Event): void => {
+      const onClick = async (e: Event): Promise<void> => {
         const id = (e.target as Element | null)
           ?.closest?.('[data-staff-toggle]')
           ?.getAttribute('data-staff-toggle');
         if (!id) return;
         e.preventDefault();
         e.stopPropagation();
-        this.toggleStaffCollapse(id);
+        await diagram.togglePositionExpand(id);
+        this.promote?.sync();
       };
       this.mountEl.addEventListener('click', onClick);
 

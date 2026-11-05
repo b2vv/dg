@@ -1,28 +1,12 @@
 import { describe, expect, it } from '@rstest/core';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { PromoteBackdropProps } from '@org-hierarchy/sdk/react';
-import type { DiagramData } from '@org-hierarchy/sdk';
 import {
   installStaffHoverHighlight,
   makeStaffChromeBackdrop,
   relatedStaffIds,
-  staffAdminAncestors,
-  staffVisibleData,
   type StaffChromeWithFound,
 } from './StaffChromeBackdrop.js';
-
-function data(over: Partial<DiagramData> = {}): DiagramData {
-  return {
-    organizations: [],
-    groups: [],
-    departments: [],
-    persons: [],
-    positions: [],
-    reportLines: [],
-    orgLinks: [],
-    ...over,
-  } as unknown as DiagramData;
-}
 
 const EMPTY: StaffChromeWithFound = { org: null, depts: [], lines: [], nodeBoxes: {}, foundId: null };
 
@@ -125,64 +109,6 @@ describe('staff host helpers (collapse / search / hover)', () => {
     expect([...relatedStaffIds(lines, 'cfo')].sort()).toEqual(['acc', 'ceo', 'cfo']);
     expect([...relatedStaffIds(lines, 'lonely')]).toEqual(['lonely']);
     expect([...relatedStaffIds([], 'x')]).toEqual(['x']);
-  });
-
-  it('staffVisibleData: collapsing a head hides its subtree but keeps the head', () => {
-    const d = data({
-      positions: [{ id: 'ceo' }, { id: 'a' }, { id: 'a1' }, { id: 'b' }] as unknown as DiagramData['positions'],
-      reportLines: [
-        { fromId: 'ceo', toId: 'a', kind: 'admin' },
-        { fromId: 'a', toId: 'a1', kind: 'admin' },
-        { fromId: 'ceo', toId: 'b', kind: 'admin' },
-      ],
-    });
-    const vis = staffVisibleData(d, new Set(['a']));
-    expect(vis.positions.map((p) => p.id).sort()).toEqual(['a', 'b', 'ceo']);
-    expect(vis.reportLines.map((r) => `${r.fromId}>${r.toId}`).sort()).toEqual(['ceo>a', 'ceo>b']);
-    expect(staffVisibleData(d, new Set()).positions).toHaveLength(4);
-  });
-
-  it('staffVisibleData: a node with a second live parent stays visible', () => {
-    const d = data({
-      positions: [{ id: 'ceo' }, { id: 'a' }, { id: 'x' }] as unknown as DiagramData['positions'],
-      reportLines: [
-        { fromId: 'ceo', toId: 'a', kind: 'admin' },
-        { fromId: 'a', toId: 'x', kind: 'admin' },
-        { fromId: 'ceo', toId: 'x', kind: 'admin' }, // second parent
-      ],
-    });
-    expect(staffVisibleData(d, new Set(['a'])).positions.map((p) => p.id).sort()).toEqual([
-      'a',
-      'ceo',
-      'x',
-    ]);
-  });
-
-  it('staffAdminAncestors: walks every admin parent up, with a visited guard', () => {
-    const d = data({
-      positions: [{ id: 'ceo' }, { id: 'cfo' }, { id: 'acc' }, { id: 'bz' }, { id: 'x' }] as unknown as DiagramData['positions'],
-      reportLines: [
-        { fromId: 'ceo', toId: 'cfo', kind: 'admin' },
-        { fromId: 'cfo', toId: 'acc', kind: 'admin' },
-        { fromId: 'acc', toId: 'bz', kind: 'admin' },
-        { fromId: 'cfo', toId: 'x', kind: 'admin' },
-        { fromId: 'acc', toId: 'x', kind: 'admin' },
-      ],
-    });
-    expect([...staffAdminAncestors(d, 'bz')].sort()).toEqual(['acc', 'ceo', 'cfo']);
-    expect([...staffAdminAncestors(d, 'x')].sort()).toEqual(['acc', 'ceo', 'cfo']);
-    expect([...staffAdminAncestors(d, 'ceo')]).toEqual([]);
-  });
-
-  it('staffAdminAncestors: a cycle does not loop forever', () => {
-    const d = data({
-      positions: [{ id: 'a' }, { id: 'b' }] as unknown as DiagramData['positions'],
-      reportLines: [
-        { fromId: 'a', toId: 'b', kind: 'admin' },
-        { fromId: 'b', toId: 'a', kind: 'admin' },
-      ],
-    });
-    expect([...staffAdminAncestors(d, 'a')].sort()).toEqual(['a', 'b']);
   });
 
   it('hover clear restores the §8.2 focus baseline (not blank) while a search is focused', () => {
