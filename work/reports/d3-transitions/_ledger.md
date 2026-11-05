@@ -71,3 +71,10 @@ review_mode = **independent_subagent** (додаткової сесії-рев'�
 - gaps final re-check (rev 5): DONE → GREEN, 0 blocking; 3 non-blocking → рев. 6. **GATE 2: critique ЗЕЛЕНИЙ, defense ЗЕЛЕНИЙ.** Далі — конституція inline + tasks.md.
 - Конституція (inline, координатор): 1 прогалина (недокументована зміна публічного getStaffChromeGeometry: lines:[] + linesOpacity) → дописано в T-E → PASS. **GATE 2 = ЗЕЛЕНИЙ (critique + defense + конституція).**
 - T-A0: dispatched (coder=Codex CLI exec) → `_impl-T-A0.md`
+- T-A0: complete (commit bc9a827, review: coordinator verbatim-check vs plan §3 + typecheck/lint, model=Codex CLI).
+- T-A: dispatched (coder=Codex CLI #1) → `_impl-T-A.md` · T-B: dispatched (coder=Codex CLI #2, паралельно) → `_impl-T-B.md`
+- Wave 1 mutation runner (coordinator, disposable scratch copy): 22/22 KILLED → `_review-wave1-mutations.md`. Reviewers: standards ∥ spec dispatched (gate-reviewer, Opus 4.8).
+- Review SPEC (wave 1): DONE → GREEN, 0 blocking; non-blocking: (1) тест re-entry #39 без зубів (поглинання гарантоване Map; пропозиція: assert made.length); (2) tick() snap при >MAX_STEPS — буквально за брифом/#13, АЛЕ поріг ~117мс спрацьовує на ОДНОМУ foreground-ривку в перші 750мс → картки «телепортуються»; фікс: відкинути залишок і продовжити, snap лишити cap-у — ПОТРЕБУЄ РІШЕННЯ ВЛАСНИКА.
+- Review STANDARDS (wave 1): DONE → GREEN, 0 blocking; non-blocking: extensionless imports у TransitionController(.test).ts:1-4; data clump confirmed*; неактивна директива eslint (oxlint) animators.ts:49.
+- **Review wave 1: запущено 2 / повернуто 2, обидва GREEN.** Коміт — рівно рецензований snapshot (хеші звірено); неблокуючі правки — наступна сесія з дельта-рев'ю.
+- T-A: complete (model=Codex CLI, reviewer=gate-reviewer Opus 4.8 ×2, mutations 22/22). T-B: complete (те саме).
