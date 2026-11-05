@@ -137,6 +137,7 @@ const mappers = {
 | `useWorker`, `workerPoolSize`, `workerFactory` | воркери під contour/search/map |
 | `lodThresholds` | межі far/mid/near |
 | `motionBlur` | **дефолт on.** Легкий velocity-blur на всю діаграму під час **пану**, знімається на settle. Сила — від екранної швидкості зсуву камери (зум блюриться лише через супутній зсув фокуса, не сам масштаб — v1). `{ maxPx, minSpeed, maxSpeed }` перевизначає пороги; **`false` вимикає**. Dead-zone тримає повільний пан чітким; **завжди вимкнено під `prefers-reduced-motion: reduce`**. SDK **володіє** `filter`/`willChange` на mount-елементі поки увімкнено (не застосовуйте власний CSS-`filter` на той самий mount — його затре; на clear ставиться `''`). Один CSS-фільтр на mount блюрить і canvas, і promote-overlay — але overlay лише якщо його змонтовано на **той самий** mount (`createReactPromoteOverlay({ mount })`) |
+| `staffRefitOnToggle` | **Opt-in, дефолт off.** Після згортання або розгортання через `togglePositionExpand` вписує staff org-бокс у камеру. `true` використовує дефолти `computeStaffFit`; об’єкт `StaffFitOptions` перевизначає їх. Без staff chrome org-боксу лишається звичайний `panToNode`. Не впливає на `revealPath`, `expandToDepth` чи `collapsePositionSubtree`. |
 | `renderer` | **`'auto'` (default) \| `'webgl'` \| `'canvas'`** — який рушій малює сцену (нижче) |
 | `callbacks` | див. §9 |
 
@@ -975,6 +976,17 @@ const promote = createReactPromoteOverlay({
 ⚠️ **Зняття режиму помилки не дає.** Повернувши `mode` на `'near-selection'`, ви **не**
 отримаєте попередження — поведінка тихо повернеться до підйому **виділеної** ноди. Якщо після
 зміни режиму на екрані одна картка замість багатьох, це не збій.
+
+### Підготовка promote-оверлея до руху камери
+
+`subscribePromoteSync` передає `PromoteSyncReason`: `camera`, `structural` або
+`prepare-camera`. Новий сигнал `prepare-camera` надходить під час opt-in refit після
+`togglePositionExpand`, коли камера вже тимчасово стоїть у цільовому кадрі.
+`createReactPromoteOverlay` синхронно будує й комітить картки цього кадру через
+`flushSync`, після чого SDK повертає камеру на старт і запускає штатну анімацію.
+Звичайний `structural` зберігає попередній режим React commit; `camera` переносить
+шар CSS-трансформом і перебудовує після settle. Власні слухачі можуть ігнорувати
+невідомі причини; наявні `camera` та `structural` залишаються без змін.
 
 ### Геометрія хрому ШПС для хоста (Б2)
 

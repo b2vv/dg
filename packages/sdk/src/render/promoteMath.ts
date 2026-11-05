@@ -78,8 +78,11 @@ export type PromoteMode = 'off' | 'selection' | 'near-selection' | 'near-visible
  * than lag by `settleMs` — otherwise cards sit at stale positions (ghost) or a
  * node is hidden in Pixi with no card drawn in its place (empty far frame).
  * The safe default: a sync whose reason is unstated is `'structural'`.
+ *
+ * `'prepare-camera'` — the viewport temporarily holds the animation target.
+ * Build and commit its cards synchronously before the camera returns to start.
  */
-export type PromoteSyncReason = 'camera' | 'structural';
+export type PromoteSyncReason = 'camera' | 'structural' | 'prepare-camera';
 
 /**
  * The detail-band gate. It answers only "is this a zoom band where cards

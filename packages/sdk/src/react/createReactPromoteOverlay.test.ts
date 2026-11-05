@@ -62,6 +62,45 @@ describe('createReactPromoteOverlay', () => {
     document.body.innerHTML = '';
   });
 
+  for (const reason of ['prepare-camera', 'structural'] as const) {
+    it(`${reason} commits cards synchronously only for camera preparation`, () => {
+      const mount = document.createElement('div');
+      document.body.appendChild(mount);
+      let viewport = { x: -2000, y: 0, scale: 1 };
+      let notify: (reason: PromoteSyncReason) => void = () => undefined;
+      let overlay: ReactPromoteOverlay | undefined;
+      act(() => {
+        overlay = createReactPromoteOverlay({
+          diagram: makeDiagram({
+            getViewport: () => viewport,
+            subscribePromoteSync: (listener) => {
+              notify = listener;
+              return () => undefined;
+            },
+          }),
+          mount,
+          component: DefaultPromoteCard,
+          mode: 'near-visible',
+          settleMs: 10_000,
+        });
+      });
+      try {
+        expect(mount.querySelector('[data-promote-card]')).toBeNull();
+        viewport = { x: 0, y: 0, scale: 1 };
+        // Assert inside act, before it flushes ordinary concurrent root renders.
+        act(() => {
+          notify(reason);
+          expect(mount.querySelector('[data-promote-card]') !== null).toBe(
+            reason === 'prepare-camera',
+          );
+        });
+        expect(mount.querySelector('[data-promote-card]')).not.toBeNull();
+      } finally {
+        act(() => overlay?.dispose());
+      }
+    });
+  }
+
   it('renders the backdrop behind the cards with the synced viewport and lod', () => {
     const mount = document.createElement('div');
     document.body.appendChild(mount);

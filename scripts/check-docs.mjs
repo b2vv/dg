@@ -117,7 +117,6 @@ const UNDOCUMENTED_BASELINE = new Set([
   'openContextMenu',
   'runContextMenuAction',
   'setStaffFocus',
-  'subscribePromoteSync',
 ]);
 
 const facade = readFileSync(join(ROOT, 'packages/sdk/src/OrgHierarchyDiagram.ts'), 'utf8');

@@ -159,6 +159,9 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
    * Default **on**. Always disabled under `prefers-reduced-motion: reduce`.
    */
   motionBlur?: boolean | Partial<MotionBlurOptions>;
+  /** Re-frame the staff org box after `togglePositionExpand` (collapse or expand). Off by default.
+   * `true` = the `computeStaffFit` defaults; an object overrides them. */
+  staffRefitOnToggle?: boolean | StaffFitOptions;
   /** Staff 3-tier focus organization id */
   staffCurrentOrgId?: string;
   /** Staff layout (node/cell pitch — keep refCell* aligned with render.cell* for contours). */
@@ -357,6 +360,7 @@ export class OrgHierarchyDiagram {
   private viewportSettleTimer: ReturnType<typeof setTimeout> | null = null;
   /** Resolved motion-blur options, or null when off / reduced-motion. */
   private motionBlur: MotionBlurOptions | null = null;
+  private staffRefitOnToggle: boolean | StaffFitOptions = false;
   private motionBlurLast: { x: number; y: number; t: number } | null = null;
   private motionBlurClearTimer: ReturnType<typeof setTimeout> | null = null;
   private mediaService: MediaService | null = null;
@@ -490,6 +494,7 @@ export class OrgHierarchyDiagram {
     }
     instance.viewportSettleMs = config.viewportSettleMs ?? 150;
     instance.motionBlur = resolveMotionBlur(config.motionBlur ?? true);
+    instance.staffRefitOnToggle = config.staffRefitOnToggle ?? false;
     instance.host.setOnViewportChange((t) => {
       instance.onViewportTransform(t.scale);
       // Camera moved — the overlay rides a CSS catch-up and rebuilds on settle.
@@ -1505,7 +1510,7 @@ export class OrgHierarchyDiagram {
       // taken back.
       await this.drawOrRestore(this.data);
       this.emitPositionExpand(positionId, false, [positionId]);
-      this.panToNode(positionId, { animate: true });
+      this.framePositionToggle(positionId);
       return false;
     }
 
@@ -1520,8 +1525,25 @@ export class OrgHierarchyDiagram {
     await this.drawOrRestore(this.data);
     for (const id of evicted) this.emitPositionExpand(id, false, [id]);
     this.emitPositionExpand(positionId, true, [positionId, ...evicted]);
-    this.panToNode(positionId, { animate: true });
+    this.framePositionToggle(positionId);
     return true;
+  }
+
+  private framePositionToggle(positionId: string): void {
+    if (this.staffRefitOnToggle) {
+      const from = this.getViewport();
+      const options = this.staffRefitOnToggle === true ? {} : this.staffRefitOnToggle;
+      const target = this.fitStaffChrome({ ...options, animate: false });
+      if (target) {
+        // Commit target-frame cards before returning to the start frame. During
+        // the animation the overlay carries these cards with one CSS transform.
+        this.notifyPromoteSync('prepare-camera');
+        this.setViewport(from);
+        this.host?.animateViewport(target);
+        return;
+      }
+    }
+    this.panToNode(positionId, { animate: true });
   }
 
   /** Both expand callbacks always fire together — one place, one shape. */

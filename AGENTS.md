@@ -41,7 +41,7 @@ It checks six things, each because that drift already happened here and nothing 
   merely documentation: the threshold below defines the public API as *what `docs/USAGE.md`
   describes*, so a method absent from it cannot be seen by the rule that decides how carefully it
   may be changed. Twenty-one were missing when the check went in — a named baseline that may shrink
-  and never grow. **Seven now** (eight until this commit): T104 documented the five mutators, which it had to, since the
+  and never grow. **Six now** (seven until T131 documented `subscribePromoteSync` together with its new `prepare-camera` reason; eight before that): T104 documented the five mutators, which it had to, since the
   three with the worst failure semantics in the tree were formally below the threshold until then;
   T105 then dropped `getData`, which the script had been reporting as documented for a day; T119
   took one off by the other route — `getLastContextMenu` was **deleted**, not documented, being a

@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { flushSync } from 'react-dom';
 import type { ContextMenuNodeData } from '../interaction/contextMenuPayload.js';
 import type { NodeKind, NodeRef } from '../core/index.js';
 import type { LodLevel } from '../render/lod.js';
@@ -512,7 +513,8 @@ export function createReactPromoteOverlay(
   // cards lag at stale positions (ghost) or a far node is hidden with no card in
   // its place (empty frame). `sync()` cancels any pending camera settle on entry.
   const unsubscribe = options.diagram.subscribePromoteSync((reason) => {
-    if (reason === 'structural') sync();
+    if (reason === 'prepare-camera') flushSync(sync);
+    else if (reason === 'structural') sync();
     else onCameraChange();
   });
   sync();
