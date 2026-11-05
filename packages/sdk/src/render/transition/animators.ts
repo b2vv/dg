@@ -46,7 +46,7 @@ export class SpringAnimator implements Animator {
 }
 
 // Both strategies belong to the assigned animator module and share its factory.
-// eslint-disable-next-line max-classes-per-file
+// oxlint-disable-next-line max-classes-per-file
 export class TweenAnimator implements Animator {
   private current: number;
   private start: number;

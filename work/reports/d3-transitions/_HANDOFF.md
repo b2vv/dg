@@ -25,9 +25,9 @@ React-оверлея; хост лише вмикає `animate` (opt-in OFF, ан
 
 ## 3. Стан дерева
 
-- Root `/Users/strelia/projects/dg`, гілка **`feat/d3-transitions`** @ **`d6a62e3`**. Нічого **не запушено, не злито**.
+- Root `/Users/strelia/projects/dg`, гілка **`feat/d3-transitions`** @ **див. `git log -1`** (T-A1 закомічено поверх `4a3db0c`). Нічого **не запушено, не злито**.
 - Стек гілок (кожна на попередній): `main` ← `chore/library-boundary-housekeeping` (`945069b`, `7080443`,
-  `646e58c`) ← `feat/t132-devtools-panel` (`0752843`) ← `feat/d3-transitions` (`bc9a827`, `d6a62e3`).
+  `646e58c`) ← `feat/t132-devtools-panel` (`0752843`) ← `feat/d3-transitions` (`bc9a827`, `d6a62e3`, `4a3db0c`, T-A1).
 - Незакомічене **не моє** (не чіпати): `work/reports/dg-positions-edit-parity/_wip-subordinate-counts.md`,
   untracked `work/reports/{lazy-render-viewport,mockup-expand-prune,staff-link-routing-astar}/_*`,
   `work/reports/library-boundary-audit/_impl-*.md`.
@@ -58,13 +58,13 @@ React-оверлея; хост лише вмикає `animate` (opt-in OFF, ан
 
 ## 6. Відкрите / блокери
 
-1. **🔴 Рішення власника:** `TransitionController.tick()` (`TransitionController.ts:199`) — якщо в одному кадрі
-   заборговано >6 кроків (ривок >~117 мс у перші 750 мс переходу), увесь перехід **миттєво** доходить до кінця →
-   картки «телепортуються» на великих деревах / повільних машинах. Рекомендація рев'юера Spec: відкинути залишок
-   акумулятора й **продовжити** анімацію, snap лишити cap-у (750 мс). Зараз — буквально за брифом і рядком #13.
-2. **Неблокуючі правки хвилі 1** (дельта-рев'ю після них): `.js` в імпортах `TransitionController.ts:1-2` і
-   `.test.ts:2-4`; прибрати неактивну `eslint-disable` у `animators.ts:49`; тест повторного входу (#39) —
-   додати `made.length` без змін; (судження) data clump `confirmed*` → один об'єкт.
+1. ✅ **Закрито тієї ж сесії (T-A1):** власник погодив — у `tick()` при >6 заборгованих кроках залишок
+   відкидається, анімація **триває**; кінець лише на settle або cap 750 мс (рядок #13a). Неблокуючі правки
+   хвилі 1 зроблено (`.js` імпорти; тест повторного входу тепер ловить мутацію M22 сам). Знахідку «неактивна
+   eslint-директива» рев'юер **відкликав** — правило `max-classes-per-file` активне (`pedantic: error`),
+   директиву перейменовано на `oxlint-disable`. Дельта-рев'ю Standards + Spec: GREEN. Лишився лише
+   неблокуючий data clump `confirmed*` (судження).
+2. —
 3. **Хвиля 2 — BLOCKED → тепер розблокована** (хвиля 1 у `d6a62e3`): T-C (рендерер: `DiagramRenderer`,
    `LayerManager`, `SceneRegistry`, `personInteractions`), T-D (оверлей + тест-якорі + `PromoteSyncReason`),
    T-E (фасад + USAGE). Брифів ще нема — писати з plan §4–§5 + API хвилі 1 (`_impl-T-B.md` фіксує API контролера).
@@ -77,11 +77,10 @@ React-оверлея; хост лише вмикає `animate` (opt-in OFF, ан
 
 ## 7. Наступний крок (один)
 
-**Отримати від власника рішення по п. 6.1** (snap у `tick()`), потім одним Codex-прогоном зробити неблокуючі
-правки п. 6.2 + (якщо власник погодить) фікс `tick()`, дельта-рев'ю тим самим `gate-reviewer`, коміт — і писати
-брифи хвилі 2 (T-C ∥ T-D ∥ T-E, три кодери паралельно, неперетинні файли за plan §4).
-Виконавець: координатор (Claude) + Codex. Критерій готовності: дельта-рев'ю GREEN, `npm test -w @org-hierarchy/sdk
--- src/render/transition` зелений.
+**Писати брифи хвилі 2 і запускати T-C ∥ T-D ∥ T-E** (три Codex-кодери паралельно, неперетинні файли за plan §4,
+шви §5). API контролера — `packages/sdk/src/render/transition/TransitionController.ts` (і `_impl-T-B.md`). Після
+кожного: тести задачі координатором, мутації в одноразовій копії, рев'ю Standards ∥ Spec (`gate-reviewer`),
+коміт. Перед повним `npm test`/root `typecheck`/`build` — «ок» cass-сесії (спільний dist).
 
 ## 8. Крос-сесія (хост `cassiopeia-admin-ui`)
 

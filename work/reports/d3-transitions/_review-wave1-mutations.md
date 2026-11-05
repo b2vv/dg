@@ -32,3 +32,7 @@
 
 **Result:** 22/22 KILLED, 0 survived, 0 inconclusive.
 **Note for the spec reviewer:** M22 (re-entry creates a fresh entry instead of absorbing the fading one) was killed by the velocity-carry test, NOT by the re-entry test — the re-entry test itself may not discriminate absorption.
+
+## T-A1 delta (after owner decision on tick())
+Baseline 59/59. M24 (owed time not dropped → old snap) KILLED by "a 200 ms frame gap drops owed steps and continues animating"; M24b (owed time kept) KILLED by the same; M22 (re-entry creates new entry) now KILLED by the re-entry test itself ("re-entry absorbs the fading entry") and the velocity test. Baseline after: green.
+Directive check: removing `max-classes-per-file` directive from animators.ts in a scratch copy → `oxlint -c .oxlintrc.json` exit 1, `eslint(max-classes-per-file): File has too many classes (2)` — the rule IS active (`pedantic: error`); the standards finding "inert directive" was incorrect.

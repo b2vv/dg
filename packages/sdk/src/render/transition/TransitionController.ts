@@ -1,5 +1,5 @@
-import { ANIMATE_MAX_NODES, ENTER_SCALE_FROM, FIXED_DT, MAX_STEPS_PER_FRAME, SETTLE_CAP_MS } from './constants';
-import type { Animator, AnimatorFactory, FrameBox, FrameClock, ResolvedAnimate, TargetBox, TransitionFrame } from './types';
+import { ANIMATE_MAX_NODES, ENTER_SCALE_FROM, FIXED_DT, MAX_STEPS_PER_FRAME, SETTLE_CAP_MS } from './constants.js';
+import type { Animator, AnimatorFactory, FrameBox, FrameClock, ResolvedAnimate, TargetBox, TransitionFrame } from './types.js';
 
 interface ControllerOptions {
   resolved: ResolvedAnimate;
@@ -196,7 +196,8 @@ export class TransitionController {
       this.accumulator -= FIXED_DT;
       steps++;
     }
-    if (this.accumulator >= FIXED_DT || this.allSettled()) {
+    if (this.accumulator >= FIXED_DT) this.accumulator = 0;
+    if (this.allSettled()) {
       this.snapToTarget();
       return;
     }

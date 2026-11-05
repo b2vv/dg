@@ -1,7 +1,7 @@
 import { describe, expect, it, rs } from '@rstest/core';
-import { TransitionController } from './TransitionController';
-import { FIXED_DT, MAX_STEPS_PER_FRAME } from './constants';
-import type { Animator, AnimatorFactory, FrameClock, TargetBox } from './types';
+import { TransitionController } from './TransitionController.js';
+import { FIXED_DT, MAX_STEPS_PER_FRAME } from './constants.js';
+import type { Animator, AnimatorFactory, FrameClock, TargetBox } from './types.js';
 
 class LinearAnimator implements Animator {
   target: number;
@@ -108,14 +108,16 @@ describe('TransitionController', () => {
   });
 
   it('success: exiting boxes stay at their last position and re-entry absorbs the fading entry', () => {
-    const { controller: c, seed, tick, finish } = setup();
+    const { controller: c, seed, tick, finish, made } = setup();
     seed(); c.prepare([box('person:a', 100)], { animate: true }); c.start(); tick();
     c.prepare([], { animate: true });
     expect(c.frame().get('person:a')?.x).toBe(1);
     c.start(); tick();
     expect(c.frame().get('person:a')?.x).toBe(1);
     expect(c.frame().get('person:a')?.opacity).toBeCloseTo(0.9);
+    const count = made.length;
     c.prepare([box('person:a', 80)], { animate: true });
+    expect(made.length).toBe(count);
     expect(c.frame().size).toBe(1);
     expect(c.frame().get('person:a')?.phase).toBe('updating');
     expect(c.frame().get('person:a')?.opacity).toBeCloseTo(0.9);
@@ -169,14 +171,36 @@ describe('TransitionController', () => {
     expect(pending.size).toBe(0); expect(settled).toHaveBeenCalledTimes(1);
   });
 
-  it('failure: long frame gaps bound integration work and snap safely even below the cap', () => {
-    const { controller: c, seed, tick, made, pending } = setup({ stuck: true, settleCapMs: 10000 });
+  it('failure: a 200 ms frame gap drops owed steps and continues animating', () => {
+    const { controller: c, seed, tick, made, pending, finish } = setup();
+    seed(); c.prepare([box('person:a', 100)], { animate: true }); c.start();
+    const frame = rs.fn(); c.onFrame(frame);
+    tick(200);
+    for (const { animator } of made) {
+      expect(animator.steps.length).toBe(MAX_STEPS_PER_FRAME);
+      expect(animator.steps.every((dt) => dt === FIXED_DT)).toBe(true);
+    }
+    expect(c.isActive()).toBe(true);
+    expect(c.frame().get('person:a')?.x).toBe(21);
+    expect(pending.size).toBe(1);
+    expect(frame).toHaveBeenCalledTimes(1);
+    // The next short frame must not integrate the discarded backlog.
+    tick(1);
+    for (const { animator } of made) expect(animator.steps.length).toBe(MAX_STEPS_PER_FRAME);
+    expect(c.frame().get('person:a')?.x).toBe(21);
+    finish();
+    expect(c.frame().get('person:a')?.x).toBe(100);
+  });
+
+  it('failure: a 5 s frame gap reaches the settle cap and snaps safely', () => {
+    const { controller: c, seed, tick, made, pending } = setup({ stuck: true });
     seed(); c.prepare([box('person:a', 100)], { animate: true }); c.start(); tick(5000);
     for (const { animator } of made) {
       expect(animator.steps.length).toBeLessThanOrEqual(MAX_STEPS_PER_FRAME);
-      expect(animator.steps.every((dt) => dt === FIXED_DT)).toBe(true);
     }
-    expect(c.frame().get('person:a')?.x).toBe(100); expect(pending.size).toBe(0);
+    expect(c.frame().get('person:a')).toEqual({ ...box('person:a', 100), scale: 1, opacity: 1, phase: 'idle' });
+    expect(c.isActive()).toBe(false);
+    expect(pending.size).toBe(0);
   });
 
   it('success: fractional frame time accumulates into fixed steps', () => {

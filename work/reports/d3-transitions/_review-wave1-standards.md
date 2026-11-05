@@ -19,3 +19,12 @@ FACT: animators.ts:49 `// eslint-disable-next-line max-classes-per-file` — oxl
 FACT: TDD — each of 3 modules has both success and failure it() cases; resolveAnimate.test.ts quiet-vs-warn distinction tested (L30-35 quiet null; L48-54 warn-once). Mutation evidence 22/22 killed. work/TDD.md §2 satisfied.
 
 DECISION: No BLOCKER. Standards-axis gate GREEN. Three non-blocking findings.
+
+## Delta review T-A1
+
+FACT: 3 scope files match pinned SHA-256 in _review-T-A1-scope.txt.
+FACT (3) RETRACTED: independently ran `node_modules/.bin/oxlint -c .oxlintrc.json` on animators.ts WITH directive → exit 0; on a directive-removed copy → exit 1 `eslint(max-classes-per-file): File has too many classes (2)`. Rule is active via `"pedantic":"error"`. My finding 3 premise (rule inactive) was WRONG. The `oxlint-disable-next-line` rename is oxlint-native and correct.
+FACT (1) CLOSED: diff shows TransitionController.ts:1-2 and TransitionController.test.ts:1-4 now `.js`.
+FACT (2): confirmed* data clump deliberately untouched — remains pre-existing non-blocking judgement call.
+FACT NEW: tick() L199-201 changed — owed backlog now dropped (accumulator=0) + continue, vs old snap-abort. Behavior improvement, clean/KISS, no new violation. New failure tests (200ms gap, 5s gap) + strengthened re-entry test (made-count). Both success+failure classes retained — TDD intact.
+DECISION: Delta GREEN. No BLOCKER, no new findings. Finding 3 withdrawn.

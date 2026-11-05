@@ -78,3 +78,10 @@ review_mode = **independent_subagent** (додаткової сесії-рев'�
 - Review STANDARDS (wave 1): DONE → GREEN, 0 blocking; non-blocking: extensionless imports у TransitionController(.test).ts:1-4; data clump confirmed*; неактивна директива eslint (oxlint) animators.ts:49.
 - **Review wave 1: запущено 2 / повернуто 2, обидва GREEN.** Коміт — рівно рецензований snapshot (хеші звірено); неблокуючі правки — наступна сесія з дельта-рев'ю.
 - T-A: complete (model=Codex CLI, reviewer=gate-reviewer Opus 4.8 ×2, mutations 22/22). T-B: complete (те саме).
+
+## Після handoff (та сама сесія)
+- **Рішення власника (2026-11-05, «Yes»):** `tick()` при >MAX_STEPS_PER_FRAME — відкинути залишок акумулятора й ПРОДОВЖИТИ анімацію; snap до кінця лише через cap (750 мс) або settle. Рядок #13 уточнено: 5-секундна пауза → cap → кінцевий стан; одиночний ривок кадру → анімація триває.
+- T-A1 (фікс tick + неблокуючі правки хвилі 1): dispatched (coder=Codex CLI) → `_impl-T-A1.md`
+- T-A1: DONE_WITH_CONCERNS (Codex: директива max-classes-per-file НЕ неактивна — правило в pedantic=error; замінено на oxlint-disable; координатор підтвердив: без директиви oxlint exit 1). 59/59; мутації M24, M24b, M22 KILLED. Дельта-рев'ю: standards ∥ spec (ті самі рев'юери).
+- Delta review STANDARDS (T-A1): DONE → GREEN; знахідку (3) рев'юер ВІДКЛИКАВ (сам перезапустив oxlint); (1) CLOSED; (2) data clump — лишається неблокуючим.
+- Delta review SPEC (T-A1): DONE → GREEN; (1) re-entry teeth CLOSED, (2) tick() CLOSED за рішенням власника. **Дельта-рев'ю: 2/2 GREEN.** T-A1: complete.

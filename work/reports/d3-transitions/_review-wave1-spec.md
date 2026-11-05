@@ -14,3 +14,15 @@ FACT: plan row#13 expected visible result = "виконано ≤6 кроків;
 DECISION: Q2 = defensible literal reading (matches brief + plan row#13 + passing test) but over-eager threshold → latent UX pop. Non-blocking for the SPEC gate (no spec VIOLATION), flagged design concern.
 DECISION: Q1 = tests have teeth overall (mutation 22/22); EXCEPTION row#39 re-entry absorption test lacks teeth. Non-blocking (impl correct, runner already flagged).
 DECISION: No scope creep; no missing requirement at unit/controller level. GATE: GREEN (no blocking findings).
+
+## Delta review T-A1
+
+NEXT: verify scope SHA-256 of _review-T-A1-scope.txt; read git diff of TransitionController.ts/.test.ts/animators.ts; read plan row #13/#13a; read mutation "T-A1 delta"; check tick() behaviour, re-entry teeth, new issues.
+
+FACT: all 3 delta scope SHA-256 match _review-T-A1-scope.txt.
+FACT: tick() change (TransitionController.ts:199-201) — old `if (acc>=FIXED_DT || allSettled()) snap` replaced by `if (acc>=FIXED_DT) acc=0;` then `if (allSettled()) snap`. Leftover owed time is dropped, transition CONTINUES; snap only via allSettled(), or L184 cap/non-finite guard (unchanged). Matches owner decision + row #13a.
+FACT: row #13a added (plan.md:233). 5s case still owned by cap (row #13) — new "5 s frame gap" test snaps via L184. 200ms "drops owed steps and continues" test asserts 6 steps, acc dropped, isActive true, no backlog catch-up on next frame, finishes at target.
+FACT: re-entry test (TransitionController.test.ts:118-120) now captures made.length before re-entry and asserts unchanged → absorption has teeth. Mutation M24/M24b/M22 killed; M22 now by the re-entry test itself.
+FACT: other diff hunks (import '.js' extensions; eslint→oxlint directive) are non-semantic; mutation note confirms oxlint max-classes rule is active.
+FACT: focused suite 59/59 passed, 0 failed.
+DECISION: finding (2) CLOSED; finding (1) CLOSED; no new spec issue. Delta GATE: GREEN.
