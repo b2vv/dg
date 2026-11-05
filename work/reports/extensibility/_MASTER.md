@@ -9,7 +9,7 @@ GATE-1-рішення беру з роадмапу (там багато вирі
 
 | # | Фіча | Залежить | Статус | Теки |
 |---|---|---|---|---|
-| R1 | Pixi hover hit-test (far-LOD): pointermove→нода→related→акцент; через D1-store | D1 ✓ | TODO | reports/extensibility/r1/ |
+| R1 | Pixi hover hit-test (far-LOD dim) | D1 OK | DONE b40118a | reports/extensibility/r1/ |
 | R5 | Мультивибір: shift-клік toggle + marquee (hit-test за геометрією); SDK-логіка, хост-стиль гумки | D1 ✓ | TODO | r5/ |
 | R4 | Зум wheel/button конфіг: behavior/gestures opt-out, Mac→meta, hint, клавіатурний, анімована кнопка | — | TODO | r4/ |
 | R3 | Pixi зовнішні view-фабрики (D2: дві моделі інжекції; гола функція + create/update/destroy retained) | R1(hit-test) | TODO | r3/ |
@@ -36,3 +36,16 @@ GATE-1-рішення беру з роадмапу (там багато вирі
 - R1 GATE 2: RED (B1 неназваний перевернутий тест; B2 setHovered-правка протікає в legacy-не-opt-in → AC3) → plan рев.2 **DIM-ONLY** (зняти лише :254-виняток, setHovered не чіпати; файли → лише DiagramRenderer.ts). B1: названо interaction.test:186-206 + нові far [1,1,0.45] + null-source тест. Re-check тим самим рев'юером: dispatched.
 - R1 GATE 2 re-check: **GREEN** (B1/B2 closed, non-blocking handled). → tasks(R1-A) + implement.
 - R1-A: dispatched (Codex `< /dev/null`, dim-only, файли лише DiagramRenderer.ts+test) → r1/_impl-R1-A.md
+
+## R1 — DONE (commit b40118a). far-LOD dim-only, 16 тестів, 177/1503/0, GATE 2 GREEN. Наступна: R5.
+
+## R5 (у роботі) — marquee мультивибір (shift-клік уже є)
+- spec+plan: marquee жест у DiagramRenderer; чистий hit-test render/marquee.ts; колбек onMarquee (хост стилізує гумку); opt-in (повний marquee лише з onMarquee — урок D1). Нарізка R5-A(pure)→R5-B(renderer)∥R5-C(facade).
+- GATE 2 (combined): dispatched → r5/_gate2.md
+- R5 GATE 2: RED (F1 gesture-колізія з stage-pan [продуктове, роадмап-grounded→Shift+drag]; F2 AC6 застаріла; F3 pointertap стирає вибір; F4-F8 nb) → spec AC6/AC8 + plan рев.2: marquee=Shift+drag (роадмап Shift=вибір), пан гаситься лише при Shift AND sink≠null, tapAfterDrag-придушення, world-capture, callHostCallback, reuse-fix. **F1-рішення винести власнику на огляд (роадмап-grounded, не блокую).** Re-check: dispatched.
+- R5 GATE 2 re-check: 3 оригінальні CLOSED, NEW F1b (Shift перевантажений тригер+additive → replace недосяжний, сценарії застаріли) → рев.3: marquee ЗАВЖДИ additive (легенда «рамка=мультивибір»), onSelect(ids) без replace, spec-сценарії/AC2 узгоджено. F1+F1b → огляд власника при пуші. Re-check F1b: dispatched.
+- R5 GATE 2 re-check F1b: **GREEN** (усі 4 блокери закрито). Non-blocking stale «selectMany/toggle»→«Shift-union» прибрано. → R5-A→R5-B∥R5-C.
+- R5-A: dispatched (Codex) → r5/_impl-R5-A.md
+- R5-A: DONE (31 тести GREEN, pure render/marquee.ts). → R5-B ∥ R5-C dispatched (Codex, неперетинні: B=DiagramRenderer, C=facade/USAGE/barrel).
+- R5-B: DONE (68/68). R5-C: implemented (5 тестів+typecheck ok; «lint-блок» був timing-артефактом — R5-B-файл писався паралельно; тепер lint exit 0). Інтеграція: pkg typecheck+lint чисто, повний сьют 180/1550/0. check:docs ↓.
+- Рев'ю R5 Standards: **GREEN**, 0 блокерів. Opt-in byte-for-byte підтверджено; 3 гарди (pan-suppress/union/tap-suppress) red-if-deleted з реальним dispatch; фейків нема; lint 0. Non-blocking: USAGE «every frame»→«per pointermove» (виправлено). Чекаю Spec.

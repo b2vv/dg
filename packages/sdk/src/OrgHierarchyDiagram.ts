@@ -1,3 +1,4 @@
+import type { MarqueeRect } from './render/marquee.js';
 import { resolveAnimate } from './render/transition/resolveAnimate.js';
 import type { AnimateOption, TransitionFrame } from './render/transition/types.js';
 import type { DiagramNode } from './DiagramNode.js';
@@ -152,6 +153,8 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
   /** Custom worker factory (transform.worker.ts) */
   workerFactory?: () => Worker;
   callbacks?: OrgHierarchyCallbacks;
+  /** Opt in to additive Shift+drag selection; the host draws this world-space rectangle. */
+  onMarquee?: (rect: MarqueeRect | null) => void;
   /** Quiet period before `onViewportChange` reports `settled` (default 150). */
   viewportSettleMs?: number;
   /**
@@ -350,6 +353,7 @@ export class OrgHierarchyDiagram {
       this.notifyPromoteSync();
     },
   });
+  private marqueeWired = false;
   private unsubscribeInteractionPaint: (() => void) | null = null;
   /** Theme / LOD / staff focus / expand sets (T76 ViewStateStore). */
   private readonly viewState = new ViewStateStore();
@@ -510,6 +514,31 @@ export class OrgHierarchyDiagram {
           `${cause instanceof Error ? cause.message : String(cause)}`,
         { cause },
       );
+    }
+    if (config.onMarquee) {
+      instance.marqueeWired = true;
+      let warned = false;
+      const warnOnce = (error: unknown) => {
+        if (warned) return;
+        warned = true;
+        console.warn('OrgHierarchyDiagram: onMarquee threw', error);
+      };
+      instance.host.renderer.setMarqueeSink({
+        onRect: (rect) => {
+          if (instance.destroyed) return;
+          instance.callHostCallback(config.onMarquee, [rect], warnOnce);
+        },
+        onSelect: (ids) => {
+          if (instance.destroyed) return;
+          const union = [...instance.interactionStore.list];
+          for (const id of ids) {
+            const ref = resolveNodeRefInData(instance.data, id);
+            if (ref && !union.some((selected) => sameNodeRef(selected, ref))) union.push(ref);
+          }
+          instance.interactionStore.replaceMany(union);
+          instance.repaintSelection();
+        },
+      });
     }
     instance.viewportSettleMs = config.viewportSettleMs ?? 150;
     instance.motionBlur = resolveMotionBlur(config.motionBlur ?? true);
@@ -689,7 +718,8 @@ export class OrgHierarchyDiagram {
 
   private callHostCallback<TArgs extends readonly unknown[]>(
     callback: ((...args: TArgs) => void) | undefined,
-    ...args: TArgs
+    args: TArgs,
+    onError?: (error: unknown) => void,
   ): void {
     if (!callback) return;
     try {
@@ -697,7 +727,8 @@ export class OrgHierarchyDiagram {
     } catch (error) {
       // Do not borrow the host's environment-dependent uncaught-error channel. This stable
       // SDK prefix prevents silence, while the original Error preserves its stack (§12).
-      console.error('OrgHierarchyDiagram: host callback threw', error);
+      if (onError) onError(error);
+      else console.error('OrgHierarchyDiagram: host callback threw', error);
     }
   }
 
@@ -717,11 +748,11 @@ export class OrgHierarchyDiagram {
     const first = changed[0];
     if (!first) return;
     const expanded = !isOrgCollapsed(first);
-    this.callHostCallback(this.callbacks.onOrgExpandChange, {
+    this.callHostCallback(this.callbacks.onOrgExpandChange, [{
       reason,
       changedIds: changed.map((org) => org.id),
       expanded: changed.every((org) => isOrgCollapsed(org) !== expanded) ? expanded : null,
-    });
+    }]);
   }
 
   /** Subscribe to viewport / selection / render changes for HTML promote overlays. */
@@ -1055,7 +1086,7 @@ export class OrgHierarchyDiagram {
           : Promise.resolve(null),
       onCanvasClick: () => {
         if (this.destroyed) return;
-        this.callHostCallback(this.callbacks.onBackgroundClick);
+        this.callHostCallback(this.callbacks.onBackgroundClick, []);
         this.applySelection(null);
         this.repaintSelection();
       },
@@ -1461,11 +1492,11 @@ export class OrgHierarchyDiagram {
     this.callbacks.onOrgModeChange?.(this.getOrgMode());
     // A whole new snapshot has no meaningful delta. Emit the re-read signal directly,
     // deliberately bypassing emitOrgExpandChange instead of manufacturing an empty delta.
-    this.callHostCallback(this.callbacks.onOrgExpandChange, {
+    this.callHostCallback(this.callbacks.onOrgExpandChange, [{
       reason: 'data',
       changedIds: [],
       expanded: null,
-    });
+    }]);
     await this.render('animate');
   }
 
@@ -2624,6 +2655,10 @@ export class OrgHierarchyDiagram {
   destroy(): void {
     this.destroyed = true;
     this.renderCoalesce.stop();
+    if (this.marqueeWired) {
+      this.renderer?.setMarqueeSink(null);
+      this.marqueeWired = false;
+    }
     this.unsubscribeInteractionPaint?.();
     this.unsubscribeInteractionPaint = null;
     this.pendingFramePositionId = null;

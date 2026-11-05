@@ -5,7 +5,8 @@ import type { ResolvedAnimate, TargetBox, TransitionFrame } from './transition/t
 import type { SceneRegistrySnapshot } from './SceneRegistry.js';
 import { reportPath } from '../interaction/reportPath.js';
 import type { DiagramReportLine } from '../data/types.js';
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, type FederatedPointerEvent } from 'pixi.js';
+import { boxesIntersectRect, isDrag, rectFromDrag, type MarqueeRect } from './marquee.js';
 import { LayerManager } from './LayerManager.js';
 import { DropTargetIndex } from './dropTargetIndex.js';
 import { nodeEntityKey, normalizeSelected, parseNodeEntityKey, type NodeRef } from '../core/index.js';
@@ -644,8 +645,83 @@ export class DiagramRenderer {
   /** What the drop preview is currently saying, or null when nothing is drawn. */
   lastDropPreview: { targetId: string; valid: boolean; color: number } | null = null;
 
+  private marqueeSink: {
+    onRect(rect: MarqueeRect | null): void;
+    onSelect(ids: string[]): void;
+  } | null = null;
+  private marqueeDrag: {
+    pointerId: number;
+    startWorld: { x: number; y: number };
+    startScreen: { x: number; y: number };
+    moved: boolean;
+  } | null = null;
+  private marqueeTapAfterDrag = false;
+  private detachMarquee: (() => void) | null = null;
+
+  setMarqueeSink(sink: {
+    onRect(rect: MarqueeRect | null): void;
+    onSelect(ids: string[]): void;
+  } | null): void {
+    if (this.destroyed || this.marqueeSink === sink) return;
+    const previous = this.marqueeSink;
+    const active = this.marqueeDrag !== null;
+    this.marqueeDrag = null;
+    this.marqueeSink = sink;
+    if (active) previous?.onRect(null);
+  }
+
   mount(stage: Container): void {
     stage.addChild(this.layers.root);
+    this.detachMarquee?.();
+    const down = (e: FederatedPointerEvent) => {
+      this.marqueeTapAfterDrag = false;
+      if (!this.marqueeSink || !e.shiftKey || e.button !== 0) return;
+      if (e.target !== stage && e.target !== this.layers.root) return;
+      // Mount precedes PixiHost.bindPan; stop the later stage listener too.
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      this.marqueeDrag = {
+        pointerId: e.pointerId,
+        startWorld: this.layers.root.toLocal(e.global),
+        startScreen: { x: e.global.x, y: e.global.y },
+        moved: false,
+      };
+    };
+    const move = (e: FederatedPointerEvent) => {
+      const drag = this.marqueeDrag;
+      if (!drag || drag.pointerId !== e.pointerId) return;
+      drag.moved ||= isDrag(drag.startScreen, e.global);
+      if (!drag.moved) return;
+      this.marqueeSink?.onRect(rectFromDrag(drag.startWorld, this.layers.root.toLocal(e.global)));
+    };
+    const up = (e: FederatedPointerEvent) => {
+      const drag = this.marqueeDrag;
+      if (!drag || drag.pointerId !== e.pointerId) return;
+      this.marqueeDrag = null;
+      if (drag.moved || isDrag(drag.startScreen, e.global)) {
+        this.marqueeTapAfterDrag = true;
+        const rect = rectFromDrag(drag.startWorld, this.layers.root.toLocal(e.global));
+        this.marqueeSink?.onSelect(boxesIntersectRect(this.scene.listBoxes(), rect));
+      }
+      this.marqueeSink?.onRect(null);
+    };
+    const cancel = (e: FederatedPointerEvent) => {
+      if (this.marqueeDrag?.pointerId !== e.pointerId) return;
+      this.marqueeDrag = null;
+      this.marqueeSink?.onRect(null);
+    };
+    stage.on('pointercancelcapture', cancel);
+    stage.on('pointerdown', down);
+    stage.on('globalpointermove', move);
+    stage.on('pointerupcapture', up);
+    stage.on('pointerupoutside', up);
+    this.detachMarquee = () => {
+      stage.off('pointercancelcapture', cancel);
+      stage.off('pointerdown', down);
+      stage.off('globalpointermove', move);
+      stage.off('pointerupcapture', up);
+      stage.off('pointerupoutside', up);
+    };
   }
 
   getNodeBox(id: string): NodeWorldBox | undefined {
@@ -918,6 +994,10 @@ export class DiagramRenderer {
     this.layers.root.removeAllListeners('pointertap');
     this.layers.root.on('pointertap', () => {
       this.nodeDoubleTap.reset();
+      if (this.marqueeTapAfterDrag) {
+        this.marqueeTapAfterDrag = false;
+        return;
+      }
       options.onCanvasClick?.();
     });
 
@@ -1007,6 +1087,10 @@ export class DiagramRenderer {
     this.releaseTransitionSnapshot();
     this.clearTransitionGhosts();
     this.destroyed = true;
+    this.detachMarquee?.();
+    this.detachMarquee = null;
+    this.marqueeDrag = null;
+    this.marqueeSink = null;
     this.renderEpoch += 1;
     this.contours.reset();
     this.layers.clear();

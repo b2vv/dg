@@ -140,11 +140,30 @@ const mappers = {
 | `motionBlur` | **дефолт on.** Легкий velocity-blur на всю діаграму під час **пану**, знімається на settle. Сила — від екранної швидкості зсуву камери (зум блюриться лише через супутній зсув фокуса, не сам масштаб — v1). `{ maxPx, minSpeed, maxSpeed }` перевизначає пороги; **`false` вимикає**. Dead-zone тримає повільний пан чітким; **завжди вимкнено під `prefers-reduced-motion: reduce`**. SDK **володіє** `filter`/`willChange` на mount-елементі поки увімкнено (не застосовуйте власний CSS-`filter` на той самий mount — його затре; на clear ставиться `''`). Один CSS-фільтр на mount блюрить і canvas, і promote-overlay — але overlay лише якщо його змонтовано на **той самий** mount (`createReactPromoteOverlay({ mount })`) |
 | `staffRefitOnToggle` | **Opt-in, дефолт off.** Після згортання або розгортання через `togglePositionExpand` вписує staff org-бокс у камеру. `true` використовує дефолти `computeStaffFit`; об’єкт `StaffFitOptions` перевизначає їх. Без staff chrome org-боксу лишається звичайний `panToNode`. Не впливає на `revealPath`, `expandToDepth` чи `collapsePositionSubtree`. |
 | `renderer` | **`'auto'` (default) \| `'webgl'` \| `'canvas'`** — який рушій малює сцену (нижче) |
+| `onMarquee` | Opt-in additive Shift+drag selection. `(rect: MarqueeRect \| null) => void`; world-space rectangle for host drawing, emitted per frame during the gesture. |
 | `callbacks` | див. §9 |
 
 `setStyles(partial: NodeThemeOverrides | undefined): Promise<void>` замінює style-overrides
 під час роботи й перемальовує діаграму, симетрично `setTheme()` для зміни активної теми.
 `setStyles(undefined)` прибирає overrides і повертає дефолти активної теми.
+
+### Marquee selection (opt-in)
+
+Set `OrgHierarchyConfig.onMarquee` at creation to enable **Shift + left drag on empty
+canvas**. The callback receives a `MarqueeRect` (`{ x, y, width, height }`, exported
+from `@org-hierarchy/sdk`) in **world coordinates**, on each pointer move during the drag.
+`null` means the rectangle ended or was cancelled. The host draws and removes the
+rubber-band in its own style, projecting world coordinates through the current
+viewport as needed; the SDK owns hit testing and selection.
+
+Marquee selection is always additive: intersecting nodes join the existing selection,
+with duplicates removed and selection order preserved. An empty marquee leaves the
+selection unchanged. Changes use the same `onSelectionChange` callback as other selection
+operations. Plain drag still pans. Without `onMarquee`, marquee is disabled and
+Shift+drag keeps its existing pan behavior: no host behavior changes until opt-in.
+A throwing `onMarquee` is isolated; later frames and selection still run, with one
+`console.warn` per diagram instance. Destroy clears the renderer sink; the host should
+also dispose its rubber-band presentation when disposing the diagram.
 
 ### `renderer` — на чому малювати
 
@@ -581,7 +600,8 @@ callbacks: {
 обробника. Хост, що прочитає гарантію як «після будь-якої події буде кадр», помилиться саме в
 обробці відмови.
 
-Ця гарантія стосується лише `onBackgroundClick` і `onOrgExpandChange`; інші колбеки її поки не мають —
+The error-reporting guarantee below applies to `onBackgroundClick` and `onOrgExpandChange`.
+`onMarquee` also isolates throws, but warns once as documented in §6. Other callbacks do not yet have this guarantee —
 зокрема виняток з `onOrgModeChange` усе ще може скасувати кадр, тому хост не повинен її узагальнювати.
 Помилка йде в `console.error` зі стабільним префіксом `'OrgHierarchyDiagram: '` і з оригінальним
 `Error`. У `getLayoutDiagnostics()` її **немає**: §12 описує інший канал — діагностику розкладки,

@@ -1,3 +1,4 @@
+export type { MarqueeRect } from './render/marquee.js';
 export type { DiagramNode } from './DiagramNode.js';
 /**
  * Public surface of the SDK. Implementation lives in the feature folders —
