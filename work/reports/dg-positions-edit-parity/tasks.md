@@ -7,7 +7,7 @@
 
 Легенда статусу: `[ ]` не почато · `[~]` в роботі · `[x]` готово. `[P]` — можна паралельно.
 
-## T1 [P] — core/subordinateCounts.ts (pure) + unit-тести  — СТАТУС: [ ]
+## T1 [P] — core/subordinateCounts.ts (pure) + unit-тести  — СТАТУС: [x]
 - Файл: `packages/sdk/src/core/subordinateCounts.ts` + `*.test.ts`.
 - `computeSubordinateCounts(positions, reportLines): Map<id,{childrenCount,allDescendantCount}>`.
   Reuse `adminChildrenMap` (positionExpand.ts:15 — уже скіпає self-loop+missing-id). childrenCount=out-degree;
@@ -17,19 +17,19 @@
   (цикл A→B→A, дубль-ребро → кінечно).
 - Done: тести зелені; покриває AC2/AC3/AC4/AC8. Залежності: нема.
 
-## T2 — wiring у setData (overwrite + клобер листа)  — СТАТУС: [ ]  (залежить T1)
+## T2 — wiring у setData (overwrite + клобер листа)  — СТАТУС: [x]  (залежить T1)
 - `OrgHierarchyDiagram.setData`: між epoch-check (:1305) і commit (:1307) — обчислити мапу, пройти ВСІ
   `next.positions`: entry в Map → записати числа; **немає в Map (лист) → ВИДАЛИТИ** childrenCount/
   allDescendantCount (клобер host-переданого, AC5). Синхронно, без await.
 - Тести: S2 лист=undefined (+ футер прихований — contract), S5 overwrite host-числа.
 - Done: AC1/AC5 зелені; картка малює SDK-числа. Залежить: T1.
 
-## T3 — wiring у appendData (recompute на merged)  — СТАТУС: [ ]  (залежить T1)
+## T3 — wiring у appendData (recompute на merged)  — СТАТУС: [x]  (залежить T1)
 - `OrgHierarchyDiagram.appendData`: перерахувати counts на `merged` ПЕРЕД commit (:1374), та сама клобер-логіка.
 - Тест: **S10** appendData з новим підлеглим → counts перераховані; лист→не-лист undefined→число.
 - Done: S10 зелений (stale-шлях закрито). Залежить: T1.
 
-## T4 [P] — DiagramNode accessor + getNode  — СТАТУС: [ ]
+## T4 [P] — DiagramNode accessor + getNode  — СТАТУС: [x]
 - Новий `DiagramNode` + публічний `OrgHierarchyDiagram.getNode(ref: NodeRef): DiagramNode | null`
   (null для невідомого ref). `getData()` → shallow-clone ОДНОГО обʼєкта за ref.kind+id (не сцени);
   `getState()` → {selected (SelectionStore), hovered (viewState.highlightedNode), expanded/collapsed
@@ -37,7 +37,7 @@
 - Тести: S7 getData (вкл. A-числа), S8 getState (position+org+person).
 - Done: AC9/AC10 зелені. Залежність: нема (чистий щодо T1-T3; дані/стор-и наявні). Паралельно з T1-T3.
 
-## T5 — docs/USAGE.md + check:docs  — СТАТУС: [ ]  (залежить T2,T4)
+## T5 — docs/USAGE.md + check:docs  — СТАТУС: [x]  (залежить T2,T4)
 - Описати: SDK обчислює childrenCount/allDescendantCount (хост читає з getData()); новий `getNode`.
   facadeSurface зловить getNode → мусить бути в USAGE.md того ж коміту.
 - Done: S9 — `npm run check:docs` зелений. AC7/AC12.

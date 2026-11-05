@@ -165,9 +165,9 @@ export interface DiagramPosition {
   periodStart?: string;
   periodEnd?: string | null;
   periodLabel?: string;
-  /** GoJS row 2 — direct report count badge. */
+  /** SDK-computed direct admin report count; absent on leaves. */
   childrenCount?: number;
-  /** GoJS row 2 — all descendant count badge. */
+  /** SDK-computed unique admin descendants; absent on leaves. */
   allDescendantCount?: number;
   /** Key position — brand stroke + name color (GoJS). */
   isKeyPosition?: boolean;

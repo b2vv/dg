@@ -1,3 +1,7 @@
+import type { DiagramNode } from './DiagramNode.js';
+import { isPositionExpanded } from './layout/staff/positionExpand.js';
+import { sameNodeRef } from './interaction/selection.js';
+import { computeSubordinateCounts } from './core/subordinateCounts.js';
 import {
   nodeEntityKey,
   parseNodeEntityKey,
@@ -1283,6 +1287,59 @@ export class OrgHierarchyDiagram {
     return structuredClone(this.data);
   }
 
+  /** Access one live entity without cloning the whole scene; unknown refs return null. */
+  getNode(ref: NodeRef): DiagramNode | null {
+    const nodeRef = Object.freeze({ ...ref });
+    const read = (): ReturnType<DiagramNode['getData']> => {
+      const collection = nodeRef.kind === 'position'
+        ? this.data.positions
+        : nodeRef.kind === 'organization' ? this.data.organizations : this.data.persons;
+      return collection.find((entity) => entity.id === nodeRef.id) ?? null;
+    };
+    if (!read()) return null;
+    return {
+      ref: nodeRef,
+      getData: () => {
+        const entity = read();
+        return entity ? { ...entity } : null;
+      },
+      getState: () => {
+        let expanded = false;
+        let collapsed = false;
+        if (nodeRef.kind === 'position') {
+          const position = this.data.positions.find((p) => p.id === nodeRef.id);
+          expanded = position !== undefined
+            && isPositionExpanded(position, this.viewState.staffExpandedPositionIds);
+          collapsed = !expanded
+            && positionHasAdminChildren(nodeRef.id, this.data.positions, this.data.reportLines);
+        } else if (nodeRef.kind === 'organization') {
+          expanded = this.lastDrawnStaffOrgIds?.includes(nodeRef.id) ?? false;
+          collapsed = !expanded;
+        }
+        return {
+          selected: this.selectionStore.list.some((selected) => sameNodeRef(selected, nodeRef)),
+          hovered: this.viewState.highlightedNode === nodeRef.id,
+          expanded,
+          collapsed,
+        };
+      },
+    };
+  }
+
+  private applySubordinateCounts(data: DiagramData): void {
+    const counts = computeSubordinateCounts(data.positions, data.reportLines);
+    for (const position of data.positions) {
+      const count = counts.get(position.id);
+      if (count) {
+        position.childrenCount = count.childrenCount;
+        position.allDescendantCount = count.allDescendantCount;
+      } else {
+        delete position.childrenCount;
+        delete position.allDescendantCount;
+      }
+    }
+  }
+
   /**
    * Replace diagram data (host fetch → map → setData).
    * Rebuilds search index and re-renders. Clears selection.
@@ -1304,6 +1361,7 @@ export class OrgHierarchyDiagram {
     const index = await this.searchService.buildForScale(next);
     if (!this.ingestIsCurrent(epoch)) return;
 
+    this.applySubordinateCounts(next);
     this.data = next;
     this.searchService.adopt(index);
     this.seedExpandedPositionsFromData();
@@ -1371,6 +1429,7 @@ export class OrgHierarchyDiagram {
     // its data with an index built from the roster it replaced.
     if (!this.ingestIsCurrent(epoch)) return;
 
+    this.applySubordinateCounts(merged);
     this.data = merged;
     this.searchService.adopt(index);
     await this.render();

@@ -92,9 +92,14 @@ allDescendantCount (DiagramOrganization теж має ці поля) — у ск
 T1[P] core/subordinateCounts.ts+тести · T2 setData-wiring · T3 appendData-wiring · T4[P] getNode/DiagramNode
 · T5 USAGE.md+check:docs · T6 verify. Порядок: T1∥T4 → T2,T3 → T5 → T6 → сигнал Cass-1.
 
-## БЛОК: owner «no code now» (втрата доступу до PC)
-Увесь пре-імплемент готовий (spec+plan GREEN+tasks). Код НЕ починав. Наступна сесія: зняти блок →
-`codex exec` за tasks.md (TDD) → Claude рев'ю+verify → сигнал Cass-1. Codex доступний (0.163.0).
+## 🔄 IMPLEMENT — owner «Go» (2026-11-05): Codex exec запущено
+Гілка `feat/subordinate-counts-impl` (off main, без worktree). Промпт: scratchpad/codex-prompt.md
+(spec+plan+tasks, TDD, точні анкери, GATE 2 рішення). `codex exec --approve-for-me` у фоні (лог
+scratchpad/codex-run.log). Реалізує T1–T5. Після завершення: Claude рев'ю дифу + `npm test -w @org-hierarchy/sdk`
+самому (не вірю codex-зеленому), typecheck/lint/check:docs, потім merge у main + сигнал Cass-1.
+
+NB: Cass-1 FYI 2026-11-05 — клік-ковтання HTML-картки виправлено в ХОСТІ (не SDK); якщо дійде до
+форвардингу кліків в SDK-оверлеї — скоординуватись (host-маршрутизацію тоді приберуть). Поза цим скоупом.
 
 Після GREEN → код через `codex exec` (сам, не сабагент, не --worktree; Claude рев'юнить+верифікує, не вірить
 чужому зеленому).
