@@ -251,7 +251,7 @@ export class DiagramRenderer {
     const hoveredKey = hovered ? this.interactionViewKey(hovered) : null;
     const positionIds = new Set(views.flatMap(({ key, view }) => {
       const ref = parseNodeEntityKey(key);
-      return view instanceof PersonNodeView && view.lod !== 'far' && ref ? [ref.id] : [];
+      return view instanceof PersonNodeView && ref ? [ref.id] : [];
     }));
     const hoverRef = hoveredKey ? parseNodeEntityKey(hoveredKey) : null;
     const dimmed = staffDimmedIds(hoverRef, this.lastStaffChrome?.lines ?? this.interactionLines, positionIds);

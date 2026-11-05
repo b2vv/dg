@@ -183,7 +183,7 @@ it('success: staff layout binds both seats and subordinate organization cards', 
   expect(a['hoverRing'].visible).toBe(false);
 });
 
-it('failure boundary: LOD crossing and mid marks paint no hover while selection survives', async () => {
+it('failure boundary: LOD crossing preserves related dim and selection without hover rings', async () => {
   const { renderer, store, source, paint } = setup();
   renderer.setInteractionSource(source);
   store.setHovered({ kind: 'position', id: 'a' });
@@ -196,11 +196,94 @@ it('failure boundary: LOD crossing and mid marks paint no hover while selection 
     paint();
     expect(seat(renderer)['hoverRing'].visible).toBe(false);
     expect(renderer.layers.overlay.children).toHaveLength(1);
-    expect(renderer.layers.persons.children.map((v) => v.alpha)).toEqual([1, 1, 1]);
+    // AC4 intentionally dims unrelated c at far, including far views used for React mid marks.
+    expect(renderer.layers.persons.children.map((v) => v.alpha)).toEqual([1, 1, 0.45]);
   }
   await renderer.render(staffData(), defaultNodeTheme, 'light');
   expect(seat(renderer)['hoverRing'].visible).toBe(true);
   await renderer.render(emptyDiagramData(), defaultNodeTheme, 'light');
   expect(() => paint()).not.toThrow();
   expect(renderer.layers.persons.children).toHaveLength(0);
+});
+
+
+describe('far hover dim-only accent', () => {
+  it('failure boundary: null source skips interaction paint and leaves every far seat bright', async () => {
+    const { renderer, source, paint } = setup();
+    const interactionPaint = rstest.fn(renderer['paintInteraction'].bind(renderer));
+    renderer['paintInteraction'] = interactionPaint;
+    await renderer.render(staffData(), defaultNodeTheme, 'light', defaultRenderConfig, { lod: 'far' });
+    over(seat(renderer)); paint();
+    expect(interactionPaint).not.toHaveBeenCalled();
+    expect(source.setHovered).not.toHaveBeenCalled();
+    expect(renderer.layers.persons.children.map((v) => v.alpha)).toEqual([1, 1, 1]);
+    expect(renderer.layers.persons.children.filter((v) => v.alpha < 1)).toHaveLength(0);
+    expect(seat(renderer)['hoverRing'].visible).toBe(false);
+  });
+
+  it('success: far hover without related lines dims all other visible seats', async () => {
+    const { renderer, source, paint } = setup();
+    const data = staffData();
+    data.reportLines = [];
+    renderer.setInteractionSource(source);
+    await renderer.render(data, defaultNodeTheme, 'light', defaultRenderConfig, { lod: 'far' });
+    over(seat(renderer)); paint();
+    expect(renderer.layers.persons.children.map((v) => v.alpha)).toEqual([1, 0.45, 0.45]);
+    expect(seat(renderer)['hoverRing'].visible).toBe(false);
+  });
+
+  it('success: unselected hover keeps related dimming when crossing from near to far', async () => {
+    const { renderer, store, source, paint } = setup();
+    renderer.setInteractionSource(source);
+    await renderer.render(staffData(), defaultNodeTheme, 'light');
+    over(seat(renderer)); paint();
+    expect(renderer.layers.persons.children.map((v) => v.alpha)).toEqual([1, 1, 0.45]);
+    await renderer.render(staffData(), defaultNodeTheme, 'light', defaultRenderConfig, { lod: 'far' });
+    expect(store.state.hovered).toEqual({ kind: 'position', id: 'a' });
+    expect(renderer.layers.persons.children.map((v) => v.alpha)).toEqual([1, 1, 0.45]);
+    expect(renderer.layers.overlay.children).toHaveLength(0);
+    expect(seat(renderer)['hoverRing'].visible).toBe(false);
+    const a = seat(renderer);
+    paint();
+    expect(seat(renderer)).toBe(a);
+    expect(renderer.layers.persons.children.map((v) => v.alpha)).toEqual([1, 1, 0.45]);
+  });
+
+  it('success: selection retains priority over hover at far without dimming the selected hovered seat', async () => {
+    const { renderer, store, source, paint } = setup();
+    renderer.setInteractionSource(source);
+    const selected = { kind: 'position', id: 'a' } as const;
+    await renderer.render(staffData(), defaultNodeTheme, 'light', defaultRenderConfig, { lod: 'far', selected: [selected] });
+    const selection = renderer.layers.overlay.children.slice();
+    expect(selection).toHaveLength(1);
+    store.setHovered(selected); paint();
+    expect(renderer.layers.overlay.children).toEqual(selection);
+    expect(seat(renderer)['hoverRing'].visible).toBe(false);
+    expect(renderer.layers.persons.children.map((v) => v.alpha)).toEqual([1, 1, 0.45]);
+    store.setHovered(null); paint();
+    expect(renderer.layers.overlay.children).toEqual(selection);
+    expect(renderer.layers.persons.children.map((v) => v.alpha)).toEqual([1, 1, 1]);
+  });
+
+  it('success: far hover preserves found focus and highlighted edges', async () => {
+    const { renderer, store, source, paint } = setup();
+    const data = staffData();
+    renderer.setInteractionSource(source);
+    await renderer.render(data, defaultNodeTheme, 'light', defaultRenderConfig, { lod: 'far' });
+    const found = new Set(['position:b']);
+    renderer.repaintHighlight('a', found, data.reportLines, defaultNodeTheme);
+    const edges = renderer.layers.edges.children.slice();
+    // Far LOD omits edge graphics; hover must preserve that highlight rendering.
+    expect(edges).toHaveLength(0);
+    expect(renderer.layers.persons.children.map((v) => v.alpha)).toEqual([0.38, 1, 0.38]);
+    store.setHovered({ kind: 'position', id: 'a' }); paint();
+    expect(seat(renderer).alpha).toBe(0.38);
+    expect(seat(renderer, 1).alpha).toBe(1);
+    expect(seat(renderer, 2).alpha).toBeCloseTo(0.171);
+    expect(renderer.layers.edges.children).toEqual(edges);
+    expect([...found]).toEqual(['position:b']);
+    store.setHovered(null); paint();
+    expect(renderer.layers.persons.children.map((v) => v.alpha)).toEqual([0.38, 1, 0.38]);
+    expect(renderer.layers.edges.children).toEqual(edges);
+  });
 });
