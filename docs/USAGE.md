@@ -756,6 +756,49 @@ await diagram.appendData(nextChunk, { append: async (c) => mapChunk(c) });
 await diagram.setData(newWindow);
 ```
 
+### Лічильники підлеглих і доступ до одного вузла
+
+Після `setData` і `appendData` SDK обчислює `childrenCount` (кількість прямих admin-ребер)
+і `allDescendantCount` (унікальні транзитивні admin-нащадки без самої посади) для **всіх**
+посад, включно з непідпорядкованими коренями. Обидва кінці ребра мають бути у поточному
+наборі positions; matrix/dotted і self-loop ребра не враховуються. Цикли та дубль-ребра
+не зациклюють обхід. Лічильники, передані хостом, завжди перезаписуються; у листів обидва
+поля видаляються (`undefined`), тому футер картки прихований. Сайдбар може читати `?? 0`.
+Організаційні лічильники лишаються даними хоста.
+
+Хост читає результат через `diagram.getData().positions` або через новий
+`diagram.getNode(ref: NodeRef): DiagramNode | null`. Невідомий kind/id повертає `null`.
+Тип `DiagramNode` експортується з `@org-hierarchy/sdk`; сигнатура `onNodeClick` не змінена:
+
+```ts
+callbacks: {
+  onNodeClick(ref) {
+    const node = diagram.getNode(ref);
+    const data = node?.getData();
+    if (ref.kind === 'position' && data && 'title' in data) {
+      showCounts(data.childrenCount ?? 0, data.allDescendantCount ?? 0);
+    }
+    console.log(node?.getState());
+  },
+}
+```
+
+`node.ref` — незмінний ref. `node.getData()` читає поточний об'єкт position/organization/person
+за kind/id та повертає **shallow clone одного об'єкта**, без клонування сцени. Зміни полів
+верхнього рівня копії не змінюють SDK; вкладені масиви й об'єкти спільні, їх не мутуйте.
+Збережений accessor читає нові дані після наступного `setData`; якщо вузол видалено,
+`getData()` поверне `null` — перед читанням стану перевірте наявність даних.
+
+`node.getState()` повертає `{ selected, hovered, expanded, collapsed }`:
+
+- `selected` — входження kind/id у поточний вибір;
+- `hovered` — id збігається з поточним `highlightedNode` (зокрема від `highlightPath`);
+- для посади `expanded` враховує `position.expanded === true` і набір розгорнутих посад;
+  `collapsed` означає наявність admin-дітей при відсутньому розгортанні;
+- для org `expanded` означає розгорнуту tier-3 картку **останнього успішно намальованого
+  кадру**, `collapsed` — протилежне значення; це не org-tree режим;
+- для person `expanded` і `collapsed` завжди `false`.
+
 ### Вікно, що їде за камерою
 
 Щоб вікно рухалось саме, а не лише по явній дії, слухайте камеру:

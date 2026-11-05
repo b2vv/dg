@@ -1,3 +1,4 @@
+export type { DiagramNode } from './DiagramNode.js';
 /**
  * Public surface of the SDK. Implementation lives in the feature folders —
  * this file only re-exports, so «what is public» stays readable in one screen.
