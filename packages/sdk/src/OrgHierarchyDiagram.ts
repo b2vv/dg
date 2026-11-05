@@ -520,16 +520,6 @@ export class OrgHierarchyDiagram {
     const resolvedAnimate = resolveAnimate(config.animate, reducedMotion);
     instance.animate = resolvedAnimate !== null;
     instance.host.renderer.configureTransition(resolvedAnimate);
-    instance.host.renderer.setInteractionSource({
-      getHovered: () => instance.interactionStore.state.hovered,
-      setHovered: (ref: NodeRef | null) => { instance.interactionStore.setHovered(ref); },
-    });
-    let hovered = instance.interactionStore.state.hovered;
-    instance.unsubscribeInteractionPaint = instance.interactionStore.subscribe((state) => {
-      if (hovered === state.hovered || sameNodeRef(hovered, state.hovered)) return;
-      hovered = state.hovered;
-      instance.renderer?.onNeedsPaint?.();
-    });
     instance.host.renderer.onTransitionFrame = () => {
       if (instance.getTransitionFrame()) {
         instance.notifyPromoteSync('transition');
@@ -1798,13 +1788,29 @@ export class OrgHierarchyDiagram {
     };
   }
 
+  private ensureInteractionWired(): void {
+    if (this.destroyed || this.unsubscribeInteractionPaint || !this.renderer) return;
+    this.renderer.setInteractionSource({
+      getHovered: () => this.interactionStore.state.hovered,
+      setHovered: (ref: NodeRef | null) => { this.interactionStore.setHovered(ref); },
+    });
+    let hovered = this.interactionStore.state.hovered;
+    this.unsubscribeInteractionPaint = this.interactionStore.subscribe((state) => {
+      if (hovered === state.hovered || sameNodeRef(hovered, state.hovered)) return;
+      hovered = state.hovered;
+      this.renderer?.onNeedsPaint?.();
+    });
+  }
+
   /** Subscribe to selection and transient hover changes. */
   subscribeInteraction(callback: (state: InteractionState) => void): () => void {
+    this.ensureInteractionWired();
     return this.interactionStore.subscribe(callback);
   }
 
   /** Set transient hover; unknown refs are cleared on data reconciliation. */
   setHovered(node: NodeRef | null): void {
+    this.ensureInteractionWired();
     this.interactionStore.setHovered(node);
   }
 
