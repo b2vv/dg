@@ -39,6 +39,25 @@ describe('subordinate counts ingestion', () => {
     expect(leaf.allDescendantCount).toBeUndefined();
     expect(formatPositionCountsBadge(leaf)).toBeUndefined();
   });
+  it('success: the first scene from create() carries counts without any setData', async () => {
+    const instance = await OrgHierarchyDiagram.create(document.createElement('div'), {
+      data: {
+        ...emptyDiagramData(),
+        organizations: [{ id: 'org', name: 'Org', groupIds: [] }],
+        positions: [
+          { ...position('a'), organizationId: 'org', isHead: true },
+          { ...position('b'), organizationId: 'org' },
+        ],
+        reportLines: [{ fromId: 'a', toId: 'b', kind: 'admin' }],
+      },
+      theme: 'light',
+      useWorker: false,
+    });
+    diagrams.push(instance);
+    const [parent, leaf] = instance.getData().positions;
+    expect(parent).toMatchObject({ childrenCount: 1, allDescendantCount: 1 });
+    expect(leaf.childrenCount).toBeUndefined();
+  });
   it('failure: stale host counts are overwritten, including removal from leaves', async () => {
     const instance = diagram();
     const positions = ['a', 'b'].map((id) => ({

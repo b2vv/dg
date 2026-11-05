@@ -424,6 +424,10 @@ export class OrgHierarchyDiagram {
     }
 
     instance.data = await instance.mapConfig(config);
+    // The first scene arrives through create (host mounts via create(config.data)),
+    // and a later setData often never comes — so counts must be derived here too,
+    // before the first render and before the expand set is seeded from the data.
+    instance.applySubordinateCounts(instance.data);
     instance.seedExpandedPositionsFromData();
 
     // Before the first render, not after it. `revealPath` and `setOrgsCollapsed`
@@ -799,6 +803,9 @@ export class OrgHierarchyDiagram {
    * a frame that drew perfectly well.
    */
   private async commitDataChange(next: DiagramData, patch: LayoutPatch): Promise<void> {
+    // An edit (reparent, seat move) rewrites admin report lines, so the derived
+    // subordinate counts change with it — recompute before the frame, same as setData.
+    this.applySubordinateCounts(next);
     this.data = next;
     // #96: re-derive the role-based expand set from the edited data before the
     // draw. Prune is always on now, so an in-place edit that gives a position a
