@@ -68,7 +68,7 @@ export class TweenAnimator implements Animator {
   retarget(target: number): void {
     this.start = this.current;
     this.target = target;
-    this.elapsedMs = 0;
+    this.elapsedMs = target === this.current ? this.durationMs : 0;
   }
 
   snap(value = this.target): void {

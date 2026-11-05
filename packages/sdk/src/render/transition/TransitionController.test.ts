@@ -1,4 +1,5 @@
 import { describe, expect, it, rs } from '@rstest/core';
+import { createAnimator as realCreateAnimator } from './animators.js';
 import { TransitionController } from './TransitionController.js';
 import { FIXED_DT, MAX_STEPS_PER_FRAME } from './constants.js';
 import type { Animator, AnimatorFactory, FrameClock, TargetBox } from './types.js';
@@ -20,7 +21,7 @@ class LinearAnimator implements Animator {
   }
 }
 
-function setup(options: { maxNodes?: number; settleCapMs?: number; stuck?: boolean } = {}) {
+function setup(options: { maxNodes?: number; settleCapMs?: number; stuck?: boolean; createAnimator?: AnimatorFactory } = {}) {
   let time = 0;
   let id = 0;
   const pending = new Map<number, (t: number) => void>();
@@ -53,7 +54,7 @@ function setup(options: { maxNodes?: number; settleCapMs?: number; stuck?: boole
     controller.prepare(targets, { animate: true });
     controller.confirm();
   };
-  return { controller, pending, made, tick, finish, seed };
+  return { controller, pending, made, tick, finish, seed, requests: () => id };
 }
 
 function box(key: string, x = 0, y = 0, w = 20, h = 10): TargetBox {
@@ -70,6 +71,26 @@ describe('TransitionController', () => {
     c.prepare([box('person:a', 0, 0, 80, 90)], { animate: true }); c.start();
     expect(c.frame().get('person:a')?.w).toBe(80);
     expect(c.isActive()).toBe(false);
+    expect(pending.size).toBe(0);
+  });
+
+  it('success: unchanged targets with real animators request zero frames', () => {
+    const { controller: c, seed, finish, pending, requests } = setup({ createAnimator: realCreateAnimator });
+    seed([box('person:a')]);
+    const targets = [box('person:a', 100), box('person:b', 40)];
+    c.prepare(targets, { animate: true });
+    expect(c.isActive()).toBe(true);
+    c.start();
+    finish();
+    expect(c.isActive()).toBe(false);
+    expect(requests()).toBeGreaterThan(0);
+    c.confirm();
+
+    const before = requests();
+    c.prepare(targets, { animate: true });
+    expect(c.isActive()).toBe(false);
+    c.start();
+    expect(requests() - before).toBe(0);
     expect(pending.size).toBe(0);
   });
 

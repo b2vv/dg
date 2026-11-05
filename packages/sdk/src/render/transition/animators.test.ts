@@ -109,6 +109,16 @@ describe('TweenAnimator and factory', () => {
     expect(createAnimator('tween', 0, physics)).toBeInstanceOf(TweenAnimator);
   });
 
+  it('success: retargeting the current value stays settled without motion', () => {
+    const tween = new TweenAnimator(1, physics);
+    expect(tween.settled).toBe(true);
+    tween.retarget(1);
+    expect(tween.settled).toBe(true);
+    tween.advance(FIXED_DT);
+    expect(tween.value).toBe(1);
+    expect(tween.settled).toBe(true);
+  });
+
   it('success: fade duration uses milliseconds and ease-out-cubic', () => {
     const tween = new TweenAnimator(0, physics);
     expect(tween.settled).toBe(true);
