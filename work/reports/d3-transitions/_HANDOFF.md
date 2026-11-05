@@ -31,8 +31,9 @@ React-оверлея; хост лише вмикає `animate` (opt-in OFF, ан
 - Незакомічене **не моє** (не чіпати): `work/reports/dg-positions-edit-parity/_wip-subordinate-counts.md`,
   untracked `work/reports/{lazy-render-viewport,mockup-expand-prune,staff-link-routing-astar}/_*`,
   `work/reports/library-boundary-audit/_impl-*.md`.
-- **`packages/sdk/dist`** зібрано 14:32 з `7080443` (є `revealPath {select:false}`; **немає** T131 refit `646e58c`
-  і хвилі 1 — хвиля 1 ще не підключена, тож для хоста неважлива). Збірка — лише після «ок» cass-сесії.
+- **`packages/sdk/dist`** ПЕРЕЗІБРАНО з `1c8356c` (хвиля 2, після «ок» cass-13 + дозволу власника) — містить увесь
+  D3 transition-шар зрізу 1. Гілка `feat/d3-transitions` ЗАПУШЕНА (`origin/feat/d3-transitions`). Наступна збірка —
+  знову після «ок» cass-сесії (спільний dist, hot-pick на :4000).
 
 ## 4. Рішення (ким)
 
@@ -77,10 +78,23 @@ React-оверлея; хост лише вмикає `animate` (opt-in OFF, ан
 
 ## 7. Наступний крок (один)
 
-**Писати брифи хвилі 2 і запускати T-C ∥ T-D ∥ T-E** (три Codex-кодери паралельно, неперетинні файли за plan §4,
-шви §5). API контролера — `packages/sdk/src/render/transition/TransitionController.ts` (і `_impl-T-B.md`). Після
-кожного: тести задачі координатором, мутації в одноразовій копії, рев'ю Standards ∥ Spec (`gate-reviewer`),
-коміт. Перед повним `npm test`/root `typecheck`/`build` — «ок» cass-сесії (спільний dist).
+**ХВИЛЯ 2 ЗАКОМІЧЕНА — `1c8356c`** (T-C рендерер / T-D оверлеї / T-E фасад+USAGE + барель + e2e T-F).
+Контрактний фікс аніматора — окремо `4cc6b55` (T-A2). Рев'ю Standards+Spec GREEN (0 блокерів, усі 40 рядків
+приймання → тести «red-if-deleted»). SDK-рівень зелений: повний SDK-сьют 171 файл/1450 тестів/0 падінь,
+`typecheck -w` (noEmit), `lint`, `check:docs`. Деталі — `_ledger.md`, рев'ю — `_review-wave2-*.md`,
+шви/рішення — `_integration-notes.md`.
+
+**Важкі гейти — ПРОЙДЕНІ (ЗЕЛЕНІ):** root typecheck (sdk+demo+e2e), build, повний root npm test
+(sdk 1450/0, demo 132/0). Dist перезібрано з `1c8356c`, cass-13 повідомлено (SHA + зміни). **Зріз 1 ЗАВЕРШЕНО.**
+
+**Наступний крок:** зрізу 1 staff-шляху більше нема що робити. Відкриті напрями (власнику): мерж `feat/d3-transitions`
+у main (не просив); зріз 2 — org-діаграма через той самий контролер, коли хост її мігрує; беклог #98 (Q7 камера),
+#99 (Pixi idle). Решта черги репо — див. `work/AGENDA.md` / cto-agenda.
+
+**Відкрите (не блокує зріз 1, беклог власнику):** (1) Q7 — камера refit стрибає на settle, не їде з нодами
+(рядок #23 виконано); (2) Pixi EventTicker планує rAF у спокої — PixiHost «0 idle» неповний (не стосується D3).
+Мутації хвилі 2 на інтеграційному коді не робились (нові «модулі» = правки великих файлів; ключовий false-green
+ризик закрито T-A2 + наскрізним e2e). Пуш/мерж — власник не просив.
 
 ## 8. Крос-сесія (хост `cassiopeia-admin-ui`)
 

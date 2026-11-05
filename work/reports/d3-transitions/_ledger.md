@@ -85,3 +85,57 @@ review_mode = **independent_subagent** (додаткової сесії-рев'�
 - T-A1: DONE_WITH_CONCERNS (Codex: директива max-classes-per-file НЕ неактивна — правило в pedantic=error; замінено на oxlint-disable; координатор підтвердив: без директиви oxlint exit 1). 59/59; мутації M24, M24b, M22 KILLED. Дельта-рев'ю: standards ∥ spec (ті самі рев'юери).
 - Delta review STANDARDS (T-A1): DONE → GREEN; знахідку (3) рев'юер ВІДКЛИКАВ (сам перезапустив oxlint); (1) CLOSED; (2) data clump — лишається неблокуючим.
 - Delta review SPEC (T-A1): DONE → GREEN; (1) re-entry teeth CLOSED, (2) tick() CLOSED за рішенням власника. **Дельта-рев'ю: 2/2 GREEN.** T-A1: complete.
+
+## Хвиля 2 (нова сесія, 2026-11-05)
+- Брифи написано: briefs/T-C.md (рендерер), T-D.md (оверлеї+PromoteSyncReason), T-E.md (фасад+USAGE). Шви зафіксовані plan §5.1–§5.4; контракт §3 landed.
+- Звірка якорів у коді перед брифами: DiagramRenderer render(:504)/clear(:523-524)/lastLod(:538)/getStaffChromeGeometry(:444)/onNeedsPaint(:213); promoteMath PromoteSyncReason(:85 = camera|structural|prepare-camera); facade notifyPromoteSync(:637 bare loop)/export(:2449)/destroy(:2516)/T131(:1533-1540). OK.
+- T-C ∥ T-D ∥ T-E: dispatched (coder=Codex CLI exec, --approve-for-me, без worktree, 3 паралельно, неперетинні файли) → _impl-T-C.md / _impl-T-D.md / _impl-T-E.md
+
+- **T-C: BLOCKED** (0 змін) — знайшов контрактний баг хвилі 1: `TweenAnimator.retarget(1)` скидає `elapsedMs=0` → `settled=false` навіть при opacity вже=1; `prepare` незмінних даних з animate:true → `isActive()` true → порушення #11 (0 кадрів). Хибно-зелений хвилі 1: тест #11 на фейку `LinearAnimator` (`settled=value===target`) маскував. Координатор підтвердив у коді (animators.ts:66-72, TransitionController.ts:67, test:11). T-C правильно зупинився (бриф: контракт неправильний → QUESTION+stop).
+- **T-D: DONE_WITH_CONCERNS** → _impl-T-D.md (785 рядків). 56 тестів зелені, лише свої файли (react/*, promoteMath.ts). Concern = крос-таск typecheck/lint червоний у файлах T-C/T-E (очікувано), інтеграція Pixi/facade — координатору. На рев'ю.
+- **T-A2 (контрактний фікс): dispatched** (Codex exec, bfj5tgk7k) → _impl-T-A2.md. RED (реальний createAnimator відтворює #11) → idempotent `TweenAnimator.retarget` при target===current → GREEN. Після нього — перезапуск T-C з чистого стану (0 змін T-C).
+- T-E: ще біжить (b09d9pzbp).
+
+- **T-E: DONE_WITH_CONCERNS** → _impl-T-E.md (1317 рядків). 13 boundary-тестів зелені, lint ок. 10 помилок typecheck = рівно посилання на шви T-C (резолвляться після T-C). Нові публічні методи фасаду: `setStaffReactChromeMounted`, `getTransitionFrame`; USAGE оновлено (заявлено). Шви для координатора → `_integration-notes.md`.
+- **Хвиля 2 проход 1: запущено 3 / повернуто 3** (T-C BLOCKED-контракт, T-D+T-E DONE_WITH_CONCERNS). Інтеграційні шви зведено в `_integration-notes.md`. Чекаю T-A2 → перезапуск T-C.
+
+- **T-A2: complete** (commit 4cc6b55, review=gate-reviewer Opus 4.8 GREEN, model=Codex CLI, 74/74 transition). Контракт #11 відновлено на реальному factory.
+- **T-C: re-dispatched** (Codex exec, briefs/T-C-resume.md — адендум: settle-сигнал getTransitionFrame→null, RenderOptions.transition/RenderReason; базовий бриф T-C.md чинний) → продовження в _impl-T-C.md.
+
+## Хвиля 2 — проход 2 (після T-A2)
+- **T-C: DONE** → _impl-T-C.md (resume). 54 owned-тести GREEN, SDK noEmit typecheck + lint PASS. Файли: DiagramRenderer.ts, LayerManager.ts, SceneRegistry.ts, personInteractions.ts + DiagramRenderer.transitions.test.ts.
+- **Інтеграція (координатор):** `typecheck -w @org-hierarchy/sdk` ЧИСТО (резолвить 10 посилань T-E). Повний `npm test -w @org-hierarchy/sdk`: **1451 тестів, 0 падінь, 170 файлів**. `check:docs`: ЗЕЛЕНИЙ (лінки, публічний API вкл. нові методи, барель, брифінг у межах).
+- Дві «дірки» зі швів виявились хибними: (1) promoteMath.ts diff = лише зміна T-D (glob захопив); (2) `setStaffReactChromeMounted` — за дизайном ХОСТОВИЙ API (оновлює renderConfig.staffReactChrome), backdrop хоста, не оверлея; шов §5.3 коректний і задокументований у USAGE.
+- **Рев'ю хвилі 2: dispatched** (gate-reviewer Opus 4.8 ×2, над інтегрованим дифом) → _review-wave2-standards.md ∥ _review-wave2-spec.md. Spec мапить усі 40 рядків приймання на тести (adversarial: true-without-feature?). Standards — KISS/imports/error-isolation/false-green.
+- **Рев'ю Standards (хвиля 2): DONE → GREEN**, 0 блокерів. False-green hunt чисто (новий тест рендерера на реальному engine, #11 реально асертиться; facade-seam звучний — кожен шар на реальній реалізації). Error-isolation §5.4 на 4 шарах. WASM незмінний. Неблокуючі: дубль RenderReason (DRY, OrgHierarchyDiagram:288 vs DiagramRenderer:80 — див. _integration-notes §2); AnimatorFactory single-consumer (не дефект).
+- **Рев'ю Spec (хвиля 2): DONE → GREEN**, 0 блокерів. Усі 40 рядків приймання → тести з «red-if-deleted» (89 тестів у 4 файлах, 0 падінь). Жоден рядок не суперечить Q1–Q8 чи швам §5. Неблокуючі: (1) нема наскрізного e2e — шари ізольовані (та сама форма, що сховала хибно-зелене хвилі 1) → рекомендація тонкого e2e; (2) #40 auto-wiring відсутній (хостовий API — прийнятно); (3) барель без AnimateOption/TransitionFrame/RenderReason; (4) Q7 камера стрибає на settle, не анімується (рядок #23 виконано, відповідає плану; розходиться лише з візією).
+- **Координатор — барель (concern 3): ЗРОБЛЕНО.** index.ts: `export type { AnimateOption, AnimatePreset, TransitionFrame, FrameBox }`. RenderReason/ResolvedAnimate внутрішні — не експортовано (KISS). typecheck ✅, check:docs ✅ (барель-гейт), test:scripts ✅.
+- **Концерн 1 (e2e) — беру:** та сама форма, що вкусила хвилю 1, + dist спільний із живим хостом; план §10 і так визначав integ як «повна діаграма». T-F (e2e): dispatched (Codex bxdo296m4) → _impl-T-F.md. Новий координаторський файл OrgHierarchyDiagram.transitions.e2e.test.ts (real facade+renderer+controller+overlay, лише clock інжектований). Якщо шов не збігається — QUESTION+stop (це і є сенс тесту).
+- Концерн 2 (#40 auto-wiring) і 4 (Q7 візія) — задокументовано як відомі обмеження; не блокери.
+- **T-F (e2e): BLOCKED проход 1** — наскрізний «0 rAF у спокої» не тримається: після settle перехід уже null (D3-спокій ВИКОНАНО), але Pixi EventSystem ticker (EventTicker.mjs:39→Ticker.mjs:128) планує rAF незалежно — ambient event-полінг, прееснуюче, поза скоупом D3. T-F правильно зупинився (не послабив асерт, не чіпав прод). Рендерер-тест не монтує Pixi-події → його 0-rAF валідний на своєму рівні; контролер clock у проді = global rAF (DiagramRenderer.ts:266).
+- **Відома нотатка (поза D3, власнику):** ambient Pixi EventTicker трохи суперечить коментарю PixiHost «idle costs nothing» (autoStart:false+app.ticker.stop зупиняють лише render-ticker, не event-ticker). Беклог-кандидат; НЕ чіпаємо в D3.
+- **T-F: re-dispatched** (Codex, briefs/T-F-resume.md — міряти D3-спокій через відсутність нових 'transition' promote-sync + getTransitionFrame()===null, не сирий rAF) → продовження _impl-T-F.md.
+- **Інцидент T-F resume проход 2:** фоновий `codex exec` без закритого stdin завис ~70 хв на «Reading additional input from stdin...» (nohup-stdin не EOF-иться). Вбито; перезапущено з `< /dev/null` → одразу пішов (лог росте). Урок: фоновий codex завжди з `< /dev/null`.
+- **T-F (e2e): complete** (model=Codex CLI). Один it, 32 асерти, реальний стек (facade+renderer+controller+overlay), лише clock інжектований. Координатор звірив кожен асерт на «red-if-deleted» + прогнав сам.
+- **Координатор — перевірка перед комітом:** e2e GREEN; повний SDK-сьют **171 файл / 1450 тестів / 0 падінь**; `typecheck -w` чисто; `lint` чисто; `check:docs` зелений.
+- **ХВИЛЯ 2 ЗАКОМІЧЕНА: `1c8356c`** (T-C/T-D/T-E + барель + e2e; 15 файлів, +1780/−90). Рев'ю Standards+Spec GREEN, 0 блокерів. T-A2 окремо (4cc6b55).
+- **ЩЕ НЕ ЗРОБЛЕНО:** важкі гейти (root `typecheck`, `build`, повний root `npm test`) — пишуть у СПІЛЬНИЙ dist → лише після «ок» cass-сесії (handoff §8). Мутації хвилі 2 на інтеграційному коді — не робив (нові «модулі» = правки великих файлів, не чисті; ключовий false-green ризик закрито T-A2 + e2e). Пуш/мерж — власник не просив.
+- **Беклог власнику (поза D3-зрізом-1):** (1) Q7 камера їде з нодами (зараз стрибає на settle, рядок #23 виконано); (2) Pixi EventTicker idle-cost (PixiHost «0 idle» неповний).
+
+## Пост-коміт (user: мутації + пуш + беклог)
+- **Пуш:** `origin/feat/d3-transitions @ 1c8356c` (upstream встановлено, 10 комітів поверх origin/main). Мерж — власник.
+- **Беклог-issues:** #98 (Q7 камера їде з нодами, enhancement+ready-for-human), #99 (PixiHost idle EventTicker, enhancement+needs-triage).
+- **Таргетовані мутації хвилі 2** (in-tree mutate→test→`git checkout`, усе закомічено, 3/3 KILLED):
+  - M1 LOD-wins (DiagramRenderer:421, прибрано `lastConfirmedLod===lastLod`) → «LOD change wins over animate» FAIL (очікував null, got frame). KILLED.
+  - M2 getTransitionFrame null-at-settle (DiagramRenderer:360, прибрано `isActive()`-гард) → 11 тестів FAIL. KILLED.
+  - M4 сигнал-ізоляція (OrgHierarchyDiagram:666, `if(true)`) → «one throwing transition subscriber…» (#34) FAIL. KILLED.
+  Дерево відкочено чисто (git status порожній). Інтеграційний код покритий — ключові інваріанти реально вартові.
+- **cass-13:** дав «ок» на dist-build, АЛЕ флаг: на :4000 живе vite власника (pid 15278), hot-pick нового dist → питаю власника перед збіркою. Пояснив cass: feat/d3-transitions не в main = незавершена фіча, мерж = рішення власника (не навмисний пін хоста).
+- **ЧЕКАЄ:** дозвіл власника на збірку (через :4000). Після — root typecheck+build+повний root npm test, тоді SHA+зміни → cass.
+
+## Важкі гейти (дозвіл власника отримано) — ЗЕЛЕНІ
+- root typecheck ✅ (sdk noEmit + build:types→dist + demo + e2e tsc). Демо бачить новий публічний API.
+- build ✅ (tsc + copy-wasm + check-package «every referenced file ships»). **dist перезібрано з 1c8356c.**
+- повний root npm test ✅ — sdk 171 файлів/1450/0, demo 18 файлів/132/0.
+- cass-13 повідомлено: SHA 1c8356c + перелік публічних змін + попередження про 'transition' для власних promote-слухачів. Чекає переміряти baseline меню на новому dist.
+- **D3 transition-шар зріз 1 (staff-шлях): ЗАВЕРШЕНО.** Гілка feat/d3-transitions запушена, dist задеплоєно. Мерж у main — рішення власника (не просив).
