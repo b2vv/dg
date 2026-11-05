@@ -47,6 +47,7 @@ import { worldBoundsForTier } from './staffZoneBounds.js';
 import { unionBoxes } from './staffZoneBounds.js';
 import { OrgEdgesView } from './OrgEdgesView.js';
 import { StaffEdgesView } from './StaffEdgesView.js';
+import { staffDimmedIds } from './staffRelated.js';
 import { PersonNodeView } from './PersonNode.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
 import type {
@@ -76,6 +77,11 @@ import {
   resolveStaffZoneStyle,
 } from './staffLayoutInputs.js';
 import { orgStaffCardOptions, orgTreeOptions } from './organizationNodeOptions.js';
+
+export interface InteractionSource {
+  getHovered(): NodeRef | null;
+  setHovered(ref: NodeRef | null): void;
+}
 
 export type RenderReason = 'animate' | 'snap';
 
@@ -210,6 +216,55 @@ export class DiagramRenderer {
   private renderEpoch = 0;
   private highlightReady = false;
   private highlightApplied = false;
+  private interactionSource: InteractionSource | null = null;
+  private selectedViewKeys = new Set<string>();
+  private interactionLines: readonly DiagramReportLine[] = [];
+  private foundFocus: ReadonlySet<string> | null = null;
+  private foundDimAlpha = 0.38;
+
+  /** Null restores the original local hover path, including already mounted nodes. */
+  setInteractionSource(src: InteractionSource | null): void {
+    if (this.destroyed || this.interactionSource === src) return;
+    if (this.interactionSource && !src) this.paintInteraction(null);
+    this.interactionSource = src;
+    for (const { view } of this.scene.listViews()) this.bindInteraction(view);
+    this.onNeedsPaint?.();
+  }
+
+  private bindInteraction(view: Container): void {
+    if (view instanceof PersonNodeView || view instanceof OrganizationNodeView) {
+      const source = this.interactionSource;
+      view.setHoverHandler(source ? (ref) => source.setHovered(ref) : undefined);
+    }
+  }
+
+  private interactionViewKey(ref: NodeRef): string | null {
+    if (ref.kind !== 'person') return nodeEntityKey(ref.kind, ref.id);
+    const position = this.currentPositions.find((p) =>
+      ref.positionId ? p.id === ref.positionId && p.personId === ref.id : p.personId === ref.id);
+    return position ? nodeEntityKey('position', position.id) : null;
+  }
+
+  /** Read the source at paint time; related sets exist only for this paint. */
+  private paintInteraction(hovered: NodeRef | null): void {
+    const views = this.scene.listViews();
+    const hoveredKey = hovered ? this.interactionViewKey(hovered) : null;
+    const positionIds = new Set(views.flatMap(({ key, view }) => {
+      const ref = parseNodeEntityKey(key);
+      return view instanceof PersonNodeView && view.lod !== 'far' && ref ? [ref.id] : [];
+    }));
+    const hoverRef = hoveredKey ? parseNodeEntityKey(hoveredKey) : null;
+    const dimmed = staffDimmedIds(hoverRef, this.lastStaffChrome?.lines ?? this.interactionLines, positionIds);
+    const frame = this.getTransitionFrame();
+    for (const { key, view, baselineAlpha } of views) {
+      if (!(view instanceof PersonNodeView || view instanceof OrganizationNodeView)) continue;
+      view.setHovered(key === hoveredKey && !this.selectedViewKeys.has(key));
+      const ref = parseNodeEntityKey(key);
+      const emphasisAlpha = this.foundFocus && !this.foundFocus.has(key) ? this.foundDimAlpha : baselineAlpha;
+      const hoverAlpha = view instanceof PersonNodeView && ref && dimmed.has(ref.id) ? 0.45 : 1;
+      view.alpha = emphasisAlpha * hoverAlpha * (frame?.get(key)?.opacity ?? 1);
+    }
+  }
   /** Boxes, views and promote state for what the last render put on screen. */
   private readonly scene = new SceneRegistry();
   private lastCullStats: CullStats = { drawn: 0, culled: 0, passes: 0 };
@@ -707,6 +762,7 @@ export class DiagramRenderer {
 
   private registerView(kind: NodeWorldBox['kind'], id: string, view: Container): void {
     this.scene.registerView(kind, id, view);
+    if (this.interactionSource) this.bindInteraction(view);
   }
 
   private registerMediaView(
@@ -771,6 +827,7 @@ export class DiagramRenderer {
     viewport: ViewportTransform,
     screen: { width: number; height: number },
   ): void {
+    if (this.interactionSource) this.paintInteraction(this.interactionSource.getHovered());
     this.lastCullStats.passes += 1;
     const views = [...this.scene.listViews(), ...[...this.ghostViews].map(([key, value]) => ({ key, ...value }))];
     if (views.length < CULL_MIN_NODES) {
@@ -839,6 +896,8 @@ export class DiagramRenderer {
     }
     this.highlightReady = false;
     this.highlightApplied = false;
+    this.foundFocus = null;
+    this.interactionLines = data.reportLines;
     const epoch = ++this.renderEpoch;
     this.currentPositions = data.positions;
     this.contours.reset();
@@ -925,6 +984,8 @@ export class DiagramRenderer {
     const views = this.scene.listViews();
     if (views.length === 0) return;
     const found = foundFocus && views.some(({ key }) => foundFocus.has(key)) ? foundFocus : null;
+    this.foundFocus = found;
+    this.foundDimAlpha = theme.foundDimAlpha ?? 0.38;
     const path = highlightedNode === null ? null : reportPath(highlightedNode, lines);
     const dim = Boolean(path?.nodeKeys.size || found);
     for (const { key, view, baselineAlpha } of views) {
@@ -936,6 +997,7 @@ export class DiagramRenderer {
       }
     }
     this.highlightApplied = dim;
+    if (this.interactionSource) this.paintInteraction(this.interactionSource.getHovered());
   }
 
   destroy(): void {
@@ -1017,6 +1079,11 @@ export class DiagramRenderer {
   }
 
   private drawSelection(selected: NodeRef | null | readonly NodeRef[]): void {
+    this.selectedViewKeys = new Set(normalizeSelected(selected).flatMap((ref) => {
+      const key = this.interactionViewKey(ref);
+      return key ? [key] : [];
+    }));
+    if (this.interactionSource) this.paintInteraction(this.interactionSource.getHovered());
     for (const node of normalizeSelected(selected)) {
       const box =
         this.getNodeBox(node.id) ??

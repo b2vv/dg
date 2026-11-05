@@ -24,10 +24,7 @@ import {
 } from '@org-hierarchy/sdk/react';
 import { createElement, type ReactElement } from 'react';
 import { makeShpsStaffCard } from './ShpsStaffCard.js';
-import {
-  makeStaffChromeBackdrop,
-  installStaffHoverHighlight,
-} from './StaffChromeBackdrop.js';
+import { makeStaffChromeBackdrop } from './StaffChromeBackdrop.js';
 import {
   computeStaffSearchHits,
   makeStaffSearchDropdown,
@@ -231,7 +228,7 @@ export class App {
    *  can swap it and re-sync in place (no diagram teardown, no flash). */
   /** §8.2 search-hit id (host state; SDK chrome geometry does not carry it). */
   private staffFoundId: string | null = null;
-  /** Teardown for the ШПС alpha hover-highlight + collapse-toggle delegated listeners. */
+  /** Teardown for the ШПС alpha collapse-toggle listener and search. */
   private staffHoverCleanup?: () => void;
   /** ШПС alpha v3 search dropdown (§8.2); null off the alpha tab. */
   private staffSearch: StaffSearchDropdown | null = null;
@@ -669,7 +666,7 @@ export class App {
     this.staffChromeBackdrop = makeStaffChromeBackdrop(() => {
       const g = this.diagram?.getStaffChromeGeometry();
       return g ? { ...g, foundId: this.staffFoundId } : null;
-    });
+    }, () => this.diagram ?? undefined);
     render.staffReactChrome = true;
   }
 
@@ -711,7 +708,7 @@ export class App {
         ? makeShpsStaffCard(() => ({
             foundId: this.tab === 'staff-alpha' ? this.staffFoundId : null,
             expandedPositionIds: diagram.getStaffExpandedPositionIds(),
-          }))
+          }), diagram)
         : this.promoteMode === 'near-visible'
           ? DemoContentModesCard
           : DemoPromoteCard,
@@ -719,12 +716,8 @@ export class App {
       // same camera-synced layer (set only on the alpha path; else Pixi draws chrome).
       backdrop: this.staffChromeBackdrop,
     });
-    // Hover-highlight (§7/§8.2) + collapse toggle (§8.1) only when React owns chrome.
+    // Collapse toggle (§8.1) only when React owns chrome.
     if (this.staffChromeBackdrop) {
-      const disposeHover = installStaffHoverHighlight(
-        this.mountEl,
-        () => this.staffFoundId,
-      );
       const onClick = async (e: Event): Promise<void> => {
         const id = (e.target as Element | null)
           ?.closest?.('[data-staff-toggle]')
@@ -758,7 +751,6 @@ export class App {
       }
 
       this.staffHoverCleanup = () => {
-        disposeHover();
         this.mountEl.removeEventListener('click', onClick);
         this.staffSearch?.destroy();
         this.staffSearch = null;

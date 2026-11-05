@@ -1,6 +1,6 @@
-import { createElement, type ReactElement, type CSSProperties } from 'react';
+import { useLayoutEffect, useState, createElement, type ReactElement, type CSSProperties } from 'react';
 import type { PromoteBackdropProps } from '@org-hierarchy/sdk/react';
-import { roundedPathD, type StaffChromeGeometry } from '@org-hierarchy/sdk';
+import { roundedPathD, type NodeRef, type OrgHierarchyDiagram, type StaffChromeGeometry } from '@org-hierarchy/sdk';
 
 /**
  * React near-view CHROME for ШПС alpha (T129): department frames, the current-org
@@ -39,104 +39,13 @@ export type StaffChromeWithFound = StaffChromeGeometry & { foundId: string | nul
 
 const HOVER_ACCENT = '#ff8d68'; // mockup `.ln.on` / `.card.rel`
 
-/**
- * Pure: the set of position ids highlighted when `hoveredId` is hovered — itself
- * plus every endpoint of a connector line that touches it (parent + direct
- * children + cross-dept counterparts), as the mockup `hl()` computes `rel`.
- */
-export function relatedStaffIds(
-  lines: ReadonlyArray<{ fromId: string; toId: string }>,
-  hoveredId: string,
-): Set<string> {
-  const rel = new Set<string>([hoveredId]);
-  for (const l of lines) {
-    if (l.fromId === hoveredId || l.toId === hoveredId) {
-      rel.add(l.fromId);
-      rel.add(l.toId);
-    }
-  }
-  return rel;
-}
-
-/**
- * ШПС alpha hover highlight (§7/§8.2): hovering a seat card lights its connector
- * lines (accent, thicker) and keeps the related cards full, dimming every other
- * card and line — the mockup `.hl` behaviour. Imperative (toggles inline styles on
- * the already-rendered DOM, like the mockup's class toggles) rather than React
- * state, so it does not force the overlay to re-sync; a camera move re-renders the
- * backdrop and clears the hover, which is the intended end-of-hover. Returns a
- * disposer. `pointerEvents:none` on the backdrop means hover lands on the cards,
- * so one delegated listener on the mount covers enter AND leave.
- */
-export function installStaffHoverHighlight(
-  mount: HTMLElement,
-  getFoundId?: () => string | null,
-): () => void {
-  let current: string | null = null;
-
-  const clear = (): void => {
-    mount.querySelectorAll<SVGElement>('[data-ln]').forEach((l) => {
-      l.style.opacity = '';
-      l.style.stroke = '';
-      l.style.strokeWidth = '';
-      l.style.fill = '';
-    });
-    // Restore the search-focus baseline (§8.2) rather than blanking opacity: the
-    // card dim is a rendered inline style (`opacity:.38` on non-found), so clearing
-    // to '' would wipe it until the next re-render. While a search is focused, put
-    // each card back to its focus value; otherwise clear it.
-    const foundId = getFoundId?.() ?? null;
-    mount.querySelectorAll<HTMLElement>('[data-staff-pos]').forEach((c) => {
-      if (foundId == null) c.style.opacity = '';
-      else c.style.opacity = c.getAttribute('data-staff-pos') === foundId ? '1' : '0.38';
-    });
-  };
-
-  const apply = (id: string | null): void => {
-    if (!id) {
-      clear();
-      return;
-    }
-    const lnEls = [...mount.querySelectorAll<SVGElement>('[data-ln]')];
-    const rel = relatedStaffIds(
-      lnEls.map((l) => ({
-        fromId: l.getAttribute('data-from') ?? '',
-        toId: l.getAttribute('data-to') ?? '',
-      })),
-      id,
-    );
-    for (const l of lnEls) {
-      const on = l.getAttribute('data-from') === id || l.getAttribute('data-to') === id;
-      l.style.opacity = on ? '1' : '0.18';
-      if (l.tagName.toLowerCase() === 'circle') l.style.fill = on ? HOVER_ACCENT : '';
-      else {
-        l.style.stroke = on ? HOVER_ACCENT : '';
-        l.style.strokeWidth = on ? '2.5' : '';
-      }
-    }
-    for (const c of mount.querySelectorAll<HTMLElement>('[data-staff-pos]')) {
-      const isRel = rel.has(c.getAttribute('data-staff-pos') ?? '');
-      // Only dim via opacity (reverts cleanly). We deliberately do NOT recolour the
-      // card border: `borderColor=''` reverts to `currentColor` (--text #e2e8f0),
-      // not the card's own border, which painted a stray light ring on every card
-      // after a hover. Related cards read as related by staying full-opacity.
-      c.style.opacity = isRel ? '1' : '0.45';
-    }
-  };
-
-  const onOver = (e: Event): void => {
-    const target = e.target as Element | null;
-    const id = target?.closest?.('[data-staff-pos]')?.getAttribute('data-staff-pos') ?? null;
-    if (id === current) return;
-    current = id;
-    apply(id);
-  };
-
-  mount.addEventListener('mouseover', onOver);
-  return () => {
-    mount.removeEventListener('mouseover', onOver);
-    clear();
-  };
+/** React owns presentation; the SDK subscription is the sole hover input. */
+export function useStaffHovered(
+  diagram: Pick<OrgHierarchyDiagram, 'subscribeInteraction'> | undefined,
+): NodeRef | null {
+  const [hovered, setHovered] = useState<NodeRef | null>(null);
+  useLayoutEffect(() => diagram?.subscribeInteraction(state => setHovered(state.hovered)), [diagram]);
+  return hovered;
 }
 
 /**
@@ -153,12 +62,23 @@ export function installStaffHoverHighlight(
  */
 export function makeStaffChromeBackdrop(
   getGeom: () => StaffChromeWithFound | null,
+  getDiagram?: () => Pick<OrgHierarchyDiagram, 'subscribeInteraction'> | undefined,
 ): (props: PromoteBackdropProps) => ReactElement | null {
-  return function StaffChromeBackdrop(props: PromoteBackdropProps): ReactElement | null {
+  if (getDiagram) {
+    return function SubscribedStaffChromeBackdrop(props: PromoteBackdropProps): ReactElement | null {
+      const hovered = useStaffHovered(getDiagram());
+      return renderBackdrop(props, hovered);
+    };
+  }
+  return renderBackdrop;
+
+  function renderBackdrop(props: PromoteBackdropProps, hovered: NodeRef | null = null): ReactElement | null {
     const geom = getGeom();
     const { screen, lod, worldTransform } = props;
     // Pixi owns far; the backdrop only paints at detail zoom (and needs geometry).
     if (lod === 'far' || !geom) return null;
+    const hoveredId = hovered?.kind === 'position' && Object.hasOwn(geom.nodeBoxes, hovered.id)
+      ? hovered.id : null;
 
     // One CSS layer in world coords; children carry raw world numbers. Font sizes,
     // paddings and borders scale with zoom (the mockup `px(n)=n*s` behaviour), now
@@ -300,6 +220,8 @@ export function makeStaffChromeBackdrop(
     const paths: ReactElement[] = [];
     geom.lines.forEach((ln, i) => {
       if (ln.points.length < 2) return;
+      const on = hoveredId !== null && (ln.fromId === hoveredId || ln.toId === hoveredId);
+      const opacity = hoveredId === null || on ? 1 : 0.18;
       paths.push(
         createElement('path', {
           key: `ln-${i}`,
@@ -308,10 +230,10 @@ export function makeStaffChromeBackdrop(
           'data-to': ln.toId,
           d: roundedPathD(ln.points, 4),
           fill: 'none',
-          stroke: C.line,
-          strokeWidth: 2,
+          stroke: on ? HOVER_ACCENT : C.line,
+          strokeWidth: on ? 2.5 : 2,
           vectorEffect: 'non-scaling-stroke',
-          style: { transition: 'opacity .15s ease, stroke .15s ease, stroke-width .15s ease' },
+          style: { opacity, transition: 'opacity .15s ease, stroke .15s ease, stroke-width .15s ease' },
         }),
       );
       if (ln.endsOnDeptTop) {
@@ -325,11 +247,11 @@ export function makeStaffChromeBackdrop(
             cx: last.x,
             cy: last.y,
             r: 3.5,
-            fill: C.line,
+            fill: on ? HOVER_ACCENT : C.line,
             stroke: C.entHalo,
             strokeWidth: 2,
             vectorEffect: 'non-scaling-stroke',
-            style: { transition: 'opacity .15s ease, fill .15s ease' },
+            style: { opacity, transition: 'opacity .15s ease, fill .15s ease' },
           }),
         );
       }

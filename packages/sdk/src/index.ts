@@ -308,3 +308,7 @@ export type {
   StaffOrgBlockResult,
   OrgEdgeStyle,
 } from './layout/index.js';
+
+export type { InteractionState } from './interaction/interactionState.js';
+// D1: related/dimming selectors (hosts + demo compute hover-related highlight from interaction state).
+export { relatedStaffIds, staffDimmedIds } from './render/staffRelated.js';

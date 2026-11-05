@@ -1,3 +1,4 @@
+import type { NodeRef } from '../core/index.js';
 import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js';
 import type { DiagramPerson, DiagramPosition } from '../data/types.js';
 import type { LodLevel } from './lod.js';
@@ -55,6 +56,7 @@ export interface PersonNodeExpandChrome {
 }
 
 export interface PersonNodeOptions {
+  onHover?: (ref: NodeRef | null) => void;
   nodeTheme?: Pick<NodeTheme, 'fonts'>;
   onContextMenu?: (pointer: ContextMenuPointer) => void;
   /** Position subtree expand (T66) — shown when hasChildren. */
@@ -74,6 +76,8 @@ export interface PersonNodeOptions {
 }
 
 export class PersonNodeView extends Container {
+  private onHover: ((ref: NodeRef | null) => void) | undefined;
+  private nodeRef: NodeRef = { kind: 'position', id: '' };
   private readonly shadow = new Graphics();
   private readonly card = new Graphics();
   private readonly avatarTile = new Graphics();
@@ -212,8 +216,14 @@ export class PersonNodeView extends Container {
       countExpander: this.countExpander,
     };
 
-    this.on('pointerover', () => this.setHovered(true, style));
-    this.on('pointerout', () => this.setHovered(false, style));
+    this.on('pointerover', () => {
+      if (this.onHover) this.onHover(this.nodeRef);
+      else this.setHovered(true);
+    });
+    this.on('pointerout', () => {
+      if (this.onHover) this.onHover(null);
+      else this.setHovered(false);
+    });
   }
 
   static create(
@@ -233,6 +243,8 @@ export class PersonNodeView extends Container {
     // honest dot, not a stale card (see `markAtMid`). near keeps its card.
     const effectiveLod: LodLevel = options.markAtMid && lod === 'mid' ? 'far' : lod;
     const view = new PersonNodeView(style, effectiveLod, mediaReady, avatarFill, options.nodeTheme ?? defaultNodeTheme);
+    view.nodeRef = { kind: 'position', id: position.id };
+    view.onHover = options.onHover;
     view.loadTexture = options.loadTexture ?? loadNodeTexture;
     view.mediaRevision = person?.media?.revision;
     view.photoUrl = resolvePersonPhotoUrl(person);
@@ -335,7 +347,15 @@ export class PersonNodeView extends Container {
     return { ...metrics, timelineLabel, countsLabel };
   }
 
-  private setHovered(on: boolean, style: PersonNodeStyle): void {
+  /** Switch between controlled hover and the legacy local pointer path. */
+  setHoverHandler(onHover: ((ref: NodeRef | null) => void) | undefined): void {
+    this.onHover = onHover;
+    this.setHovered(false);
+  }
+
+  setHovered(on: boolean): void {
+    const style = this.styleRef;
+    if (!style) return;
     if (this.lod === 'far') {
       this.hoverRing.visible = false;
       return;

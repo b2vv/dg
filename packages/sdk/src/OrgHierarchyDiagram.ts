@@ -60,7 +60,8 @@ import {
   type MotionBlurOptions,
 } from './render/motionBlur.js';
 import { createRenderCoalesce } from './render/renderCoalesce.js';
-import { SelectionStore } from './state/SelectionStore.js';
+import { InteractionStore } from './state/InteractionStore.js';
+import type { InteractionState } from './interaction/interactionState.js';
 import { ViewStateStore } from './state/ViewStateStore.js';
 import { DataStore } from './state/DataStore.js';
 import type { PromoteCandidate, PromoteChrome } from './render/promoteTypes.js';
@@ -342,11 +343,14 @@ export class OrgHierarchyDiagram {
     pool: this.workerPool,
     workerFactory: this.workerFactory,
   }));
-  /** Multi-select set (T67 / T76 SelectionStore). */
-  private readonly selectionStore = new SelectionStore((selections) => {
-    this.callbacks.onSelectionChange?.([...selections]);
-    this.notifyPromoteSync();
+  /** Shared selection and transient hover. */
+  private readonly interactionStore = new InteractionStore({
+    onSelectionChange: (selections) => {
+      this.callbacks.onSelectionChange?.([...selections]);
+      this.notifyPromoteSync();
+    },
   });
+  private unsubscribeInteractionPaint: (() => void) | null = null;
   /** Theme / LOD / staff focus / expand sets (T76 ViewStateStore). */
   private readonly viewState = new ViewStateStore();
   private lodRenderQueued = false;
@@ -377,7 +381,7 @@ export class OrgHierarchyDiagram {
   /** Menu build + dispatch (was an inline switch on this class). */
   private readonly contextMenu = new ContextMenuController({
     data: () => this.data,
-    selection: () => this.selectionStore.list,
+    selection: () => this.interactionStore.list,
     hooks: () => this.callbacks,
     commands: {
       expandOrg: (orgId) => this.expandOrg(orgId),
@@ -396,6 +400,11 @@ export class OrgHierarchyDiagram {
   }
   private set data(next: DiagramData) {
     this.dataStore.replace(next);
+    this.interactionStore.reconcile((ref) => {
+      const entities = ref.kind === 'organization' ? next.organizations
+        : ref.kind === 'position' ? next.positions : next.persons;
+      return entities.some((entity) => entity.id === ref.id);
+    });
   }
 
   static async create<TRaw>(
@@ -511,6 +520,16 @@ export class OrgHierarchyDiagram {
     const resolvedAnimate = resolveAnimate(config.animate, reducedMotion);
     instance.animate = resolvedAnimate !== null;
     instance.host.renderer.configureTransition(resolvedAnimate);
+    instance.host.renderer.setInteractionSource({
+      getHovered: () => instance.interactionStore.state.hovered,
+      setHovered: (ref: NodeRef | null) => { instance.interactionStore.setHovered(ref); },
+    });
+    let hovered = instance.interactionStore.state.hovered;
+    instance.unsubscribeInteractionPaint = instance.interactionStore.subscribe((state) => {
+      if (hovered === state.hovered || sameNodeRef(hovered, state.hovered)) return;
+      hovered = state.hovered;
+      instance.renderer?.onNeedsPaint?.();
+    });
     instance.host.renderer.onTransitionFrame = () => {
       if (instance.getTransitionFrame()) {
         instance.notifyPromoteSync('transition');
@@ -736,22 +755,22 @@ export class OrgHierarchyDiagram {
   }
 
   private applySelection(next: NodeRef | null): void {
-    this.selectionStore.replace(next);
+    this.interactionStore.replace(next);
   }
 
   private applyToggleSelection(node: NodeRef): void {
-    this.selectionStore.toggle(node);
+    this.interactionStore.toggle(node);
   }
 
   private applySelections(next: readonly NodeRef[]): void {
-    this.selectionStore.replaceMany(next);
+    this.interactionStore.replaceMany(next);
   }
 
   private handleNodeSelect(
     node: NodeRef,
     mods?: SelectionPointerMods,
   ): void {
-    this.selectionStore.handlePointerSelect(node, mods);
+    this.interactionStore.handlePointerSelect(node, mods);
   }
 
   /** Invoke a menu action (from React menu item click). */
@@ -1039,7 +1058,7 @@ export class OrgHierarchyDiagram {
             expandedOrgIds: [...this.viewState.staffExpandedOrgIds],
           }
         : undefined,
-      selected: this.selectionStore.list,
+      selected: this.interactionStore.list,
       loadTexture: (url, revision) =>
         this.mediaService
           ? this.mediaService.loadTexture(url, revision)
@@ -1390,7 +1409,7 @@ export class OrgHierarchyDiagram {
           collapsed = !expanded;
         }
         return {
-          selected: this.selectionStore.list.some((selected) => sameNodeRef(selected, nodeRef)),
+          selected: this.interactionStore.list.some((selected) => sameNodeRef(selected, nodeRef)),
           hovered: this.viewState.highlightedNode === nodeRef.id,
           expanded,
           collapsed,
@@ -1779,14 +1798,24 @@ export class OrgHierarchyDiagram {
     };
   }
 
+  /** Subscribe to selection and transient hover changes. */
+  subscribeInteraction(callback: (state: InteractionState) => void): () => void {
+    return this.interactionStore.subscribe(callback);
+  }
+
+  /** Set transient hover; unknown refs are cleared on data reconciliation. */
+  setHovered(node: NodeRef | null): void {
+    this.interactionStore.setHovered(node);
+  }
+
   /** Primary / first selected node (compat). Prefer {@link getSelections}. */
   getSelection(): NodeRef | null {
-    return this.selectionStore.primary;
+    return this.interactionStore.primary;
   }
 
   /** Full multi-select set (T67 Phase 1). Order = selection order. */
   getSelections(): readonly NodeRef[] {
-    return this.selectionStore.list;
+    return this.interactionStore.list;
   }
 
   /** Engine that drew the scene, or `null` before mount / after destroy (T83). */
@@ -1872,7 +1901,7 @@ export class OrgHierarchyDiagram {
   /** T75 D1: selection chrome only — keeps nodeViews alive. */
   private repaintSelection(): void {
     if (!this.host || this.destroyed) return;
-    this.renderer?.repaintSelection(this.selectionStore.list);
+    this.renderer?.repaintSelection(this.interactionStore.list);
     this.notifyPromoteSync();
   }
 
@@ -2589,6 +2618,8 @@ export class OrgHierarchyDiagram {
   destroy(): void {
     this.destroyed = true;
     this.renderCoalesce.stop();
+    this.unsubscribeInteractionPaint?.();
+    this.unsubscribeInteractionPaint = null;
     this.pendingFramePositionId = null;
     if (this.animate) this.renderer?.configureTransition(null);
     if (this.viewportFrame !== null) cancelAnimationFrame(this.viewportFrame);

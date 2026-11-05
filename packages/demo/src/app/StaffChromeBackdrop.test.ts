@@ -1,10 +1,11 @@
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
+import { relatedStaffIds, type InteractionState, type NodeRef } from '@org-hierarchy/sdk';
 import { describe, expect, it } from '@rstest/core';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { PromoteBackdropProps } from '@org-hierarchy/sdk/react';
 import {
-  installStaffHoverHighlight,
   makeStaffChromeBackdrop,
-  relatedStaffIds,
   type StaffChromeWithFound,
 } from './StaffChromeBackdrop.js';
 
@@ -111,32 +112,50 @@ describe('staff host helpers (collapse / search / hover)', () => {
     expect([...relatedStaffIds([], 'x')]).toEqual(['x']);
   });
 
-  it('hover clear restores the §8.2 focus baseline (not blank) while a search is focused', () => {
-    const mount = document.createElement('div');
-    mount.innerHTML =
-      '<div data-staff-pos="ceo" style="opacity:1"></div>' +
-      '<div data-staff-pos="cfo" style="opacity:0.38"></div>' +
-      '<div data-staff-chrome></div>';
-    const dispose = installStaffHoverHighlight(mount, () => 'ceo');
-    const cfo = mount.querySelector<HTMLElement>('[data-staff-pos="cfo"]')!;
-    cfo.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-    mount.querySelector('[data-staff-chrome]')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-    expect(cfo.style.opacity).toBe('0.38');
-    expect(mount.querySelector<HTMLElement>('[data-staff-pos="ceo"]')!.style.opacity).toBe('1');
-    dispose();
-  });
+});
 
-  it('hover clear blanks opacity when no search is focused (foundId null)', () => {
-    const mount = document.createElement('div');
-    mount.innerHTML =
-      '<div data-staff-pos="ceo" style="opacity:1"></div>' +
-      '<div data-staff-pos="cfo" style="opacity:1"></div>' +
-      '<div data-staff-chrome></div>';
-    const dispose = installStaffHoverHighlight(mount, () => null);
-    const cfo = mount.querySelector<HTMLElement>('[data-staff-pos="cfo"]')!;
-    cfo.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-    mount.querySelector('[data-staff-chrome]')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-    expect(cfo.style.opacity).toBe('');
-    dispose();
-  });
+
+describe('store-driven connector hover', () => {
+  for (const invalid of [null, { kind: 'position', id: 'missing' }, { kind: 'organization', id: 'a' }] satisfies (NodeRef | null)[]) {
+    it(`restores connector baseline after ${JSON.stringify(invalid)}`, async () => {
+      const listeners = new Set<(state: InteractionState) => void>();
+      const diagram = {
+        subscribeInteraction(cb: (state: InteractionState) => void) {
+          listeners.add(cb);
+          return () => { listeners.delete(cb); };
+        },
+      };
+      const geom: StaffChromeWithFound = {
+        ...EMPTY,
+        nodeBoxes: { a: { x: 0, y: 0, width: 10, height: 10 } },
+        lines: [
+          { fromId: 'a', toId: 'b', points: [{ x: 0, y: 0 }, { x: 10, y: 10 }], endsOnDeptTop: true },
+          { fromId: 'c', toId: 'd', points: [{ x: 20, y: 0 }, { x: 30, y: 10 }], endsOnDeptTop: true },
+        ],
+      };
+      const Backdrop = makeStaffChromeBackdrop(() => geom, () => diagram);
+      const mount = document.createElement('div');
+      const root = createRoot(mount);
+      const emit = async (hovered: NodeRef | null) => {
+        await act(async () => { for (const cb of listeners) cb({ hovered, primary: null, selected: [] }); });
+      };
+      try {
+        await act(async () => root.render(createElement(Backdrop, props())));
+        await emit({ kind: 'position', id: 'a' });
+        expect(mount.querySelector('path')?.getAttribute('stroke')).toBe('#ff8d68');
+        expect(mount.querySelector('path')?.getAttribute('stroke-width')).toBe('2.5');
+        expect(mount.querySelector('circle')?.getAttribute('fill')).toBe('#ff8d68');
+        expect(mount.querySelector<SVGElement>('path[data-from="c"]')?.style.opacity).toBe('0.18');
+        await emit(invalid);
+        expect(mount.querySelector('path')?.getAttribute('stroke')).toBe('#c2502a');
+        expect(mount.querySelector('path')?.getAttribute('stroke-width')).toBe('2');
+        expect(mount.querySelector('circle')?.getAttribute('fill')).toBe('#c2502a');
+        expect(mount.querySelector<SVGElement>('path[data-from="c"]')?.style.opacity).toBe('1');
+        expect(listeners.size).toBe(1);
+      } finally {
+        await act(async () => root.unmount());
+      }
+      expect(listeners.size).toBe(0);
+    });
+  }
 });

@@ -1404,3 +1404,39 @@ found-focus приглушені. Обидва стани незалежні: с
 Theme-поля в `styles`: `edge.accentColor` (default `0xe5491d`),
 `edge.accentWidth` (`2`), `edge.dimAlpha` (`0.40`), `foundDimAlpha` (`0.38`).
 Found-focus змінює лише canvas-картки; HTML overlay хост стилізує сам.
+
+
+### Interaction state: selection and transient hover
+
+`subscribeInteraction(callback: (state: InteractionState) => void): () => void`
+subscribes to changes in selection or hover and returns an idempotent unsubscribe
+function. It does not emit an initial snapshot or notify for unchanged values.
+`InteractionState` is exported from `@org-hierarchy/sdk`:
+
+```ts
+interface InteractionState {
+  readonly selected: readonly NodeRef[];
+  readonly primary: NodeRef | null;
+  readonly hovered: NodeRef | null;
+}
+
+const unsubscribe = diagram.subscribeInteraction((state) => {
+  // Render host interaction chrome from state.selected, state.primary and state.hovered.
+});
+diagram.setHovered(nodeRef); // setHovered(node: NodeRef | null): void
+diagram.setHovered(null);
+unsubscribe();
+```
+
+This API is additive: existing `onSelectionChange` behavior is unchanged and
+hover changes do not call it. `primary` is the first selected node; `selected`
+keeps selection order. Hover is transient, accepts unknown refs (no visible
+accent for absent nodes), and is cleared when data replacement removes its
+kind/id. Present nodes retain hover across `setData`. Subscriber exceptions are
+isolated and warned once per listener. Hover repaint does not rebuild the scene.
+
+Two pure related-set selectors are also exported for computing hover-related
+emphasis on the host side (both are derived on demand, never stored):
+`relatedStaffIds(lines, hoveredId): Set<string>` — the one-hop staff relation set;
+and `staffDimmedIds(hovered, lines, visiblePositionIds): Set<string>` — the
+positions to dim for a hovered staff position (empty for a non-position hover).
