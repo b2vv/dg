@@ -147,6 +147,15 @@ expand/collapse) + stagger (`stagger?: number | (node)=>delay`). Контрол�
   володіє exit-привидами: diff keyset prev↔new по `kind:id`; новий→enter, зниклий→exit (тримає до fade),
   спільний→retarget.
 
+**Node-події як побічний продукт D3-diff — ВИРІШЕНО (owner 2026-11-05, варіант C).** Хост
+(`cassiopeia-admin-ui`) атомарних мутацій нод НЕ шле: SDK отримує лише повний знімок через `setData`, а
+правки хост реплеїть у себе (стек жестів, host ADR-0067). Тому окреме API `addNode/removeNode/updateNode` —
+YAGNI (варіант B відкинуто). Натомість SDK **сам** віддає події «додано / прибрано / змінено» за `kind:id`,
+обчислені з різниці попереднього й нового знімка — **тим самим** diff-ом keyset, що вже потрібен
+D3-контролеру (див. «Node identity є, D3-diff — ні» нижче). Одна дифузія, дві користі: переходи й події.
+Не будувати окремо до D3. **Revisit-тригер:** хост переходить зі знімків на атомарні правки — тоді
+повертатись до варіанта B. Джерело: аудит межі `work/reports/library-boundary-audit/_wip-review.md`.
+
 **Форма «кадру» (вихід контролера):** `Map<id, { x, y, w, h, scale, opacity, phase }>`,
 `phase ∈ {entering, updating, exiting, idle}`. Джерело підтверджено: `buildStaffChromeGeometry` уже годує
 І Pixi, І React near-view (staffChromeGeometry.ts:65) — контролер інтерполює бокси ДО цього споживача,
