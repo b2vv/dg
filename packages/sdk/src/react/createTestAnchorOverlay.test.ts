@@ -296,3 +296,24 @@ describe('createTestAnchorOverlay expander anchor (T115 K5)', () => {
     expect(after).not.toBe(before);
   });
 });
+
+it('transition signals preserve target anchor positions and DOM identity', () => {
+  const mount = mountEl();
+  let notify: (reason: import('../render/promoteMath.js').PromoteSyncReason) => void = () => undefined;
+  const list = rstest.fn(() => [withExpander()]);
+  const overlay = createTestAnchorOverlay({ mount, diagram: makeDiagram({
+    listTestAnchors: list,
+    subscribePromoteSync: (listener) => { notify = listener; return () => undefined; },
+  }) });
+  try {
+    const anchor = mount.querySelector<HTMLElement>('[data-testid="node-root"]');
+    const calls = list.mock.calls.length;
+    notify('transition');
+    notify('transition');
+    expect(mount.querySelector('[data-testid="node-root"]')).toBe(anchor);
+    expect(anchor?.style.left).toBe('10px');
+    expect(list.mock.calls.length).toBe(calls);
+    notify('structural');
+    expect(mount.querySelector('[data-testid="node-root"]')).not.toBe(anchor);
+  } finally { overlay.dispose(); mount.remove(); }
+});

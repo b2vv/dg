@@ -1,6 +1,6 @@
 import type { ContextMenuPointer } from '../interaction/contextMenuPayload.js';
 import { nodeDomTestId, type NodeRef, type TestAnchorCandidate } from '../core/index.js';
-import { screenRectInView, worldBoxToScreen } from '../render/promoteMath.js';
+import { screenRectInView, worldBoxToScreen, type PromoteSyncReason } from '../render/promoteMath.js';
 import type { ViewportTransform } from '../render/Viewport.js';
 
 /** Diagram surface for test anchor overlay (mirrors promote sync). */
@@ -10,7 +10,7 @@ export interface TestAnchorOverlayDiagram {
   focusByTestId(testId: string): Promise<boolean>;
   toggleOrgExpand(orgId: string): Promise<boolean>;
   openContextMenu(ref: NodeRef, pointer?: Partial<ContextMenuPointer>): void;
-  subscribePromoteSync(listener: () => void): () => void;
+  subscribePromoteSync(listener: (reason?: PromoteSyncReason) => void): () => void;
 }
 
 export interface TestAnchorOverlayOptions {
@@ -163,7 +163,9 @@ export function createTestAnchorOverlay(options: TestAnchorOverlayOptions): Test
     }
   };
 
-  const unsubscribe = diagram.subscribePromoteSync(sync);
+  const unsubscribe = diagram.subscribePromoteSync((reason) => {
+    if (reason !== 'transition') sync();
+  });
   sync();
 
   return {

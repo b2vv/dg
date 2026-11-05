@@ -82,7 +82,7 @@ export type PromoteMode = 'off' | 'selection' | 'near-selection' | 'near-visible
  * `'prepare-camera'` — the viewport temporarily holds the animation target.
  * Build and commit its cards synchronously before the camera returns to start.
  */
-export type PromoteSyncReason = 'camera' | 'structural' | 'prepare-camera';
+export type PromoteSyncReason = 'camera' | 'structural' | 'prepare-camera' | 'transition';
 
 /**
  * The detail-band gate. It answers only "is this a zoom band where cards

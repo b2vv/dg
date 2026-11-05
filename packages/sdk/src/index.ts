@@ -4,6 +4,8 @@ export type { DiagramNode } from './DiagramNode.js';
  * this file only re-exports, so «what is public» stays readable in one screen.
  */
 export { OrgHierarchyDiagram, type OrgHierarchyConfig, type RevealPathOptions } from './OrgHierarchyDiagram.js';
+// Staff transition layer (D3): host types its `animate` config and reads `getTransitionFrame()`.
+export type { AnimateOption, AnimatePreset, TransitionFrame, FrameBox } from './render/transition/types.js';
 
 export type {
   DiagramData,

@@ -136,6 +136,7 @@ const mappers = {
 | `staffCurrentOrgId` | яка org у центрі (ярус 2) |
 | `useWorker`, `workerPoolSize`, `workerFactory` | воркери під contour/search/map |
 | `lodThresholds` | межі far/mid/near |
+| `animate` | Opt-in переходи ШПС; дефолт `false`. `AnimateOption`: `true` / `false`, `smooth`, `snappy`, `gentle`, `instant`, `{ duration, bounce? }` (секунди) або `{ stiffness, damping, mass? }`. `true` = `smooth`. `instant`, reduced-motion та невалідна опція вимикають анімацію; невалідна опція дає попередження. |
 | `motionBlur` | **дефолт on.** Легкий velocity-blur на всю діаграму під час **пану**, знімається на settle. Сила — від екранної швидкості зсуву камери (зум блюриться лише через супутній зсув фокуса, не сам масштаб — v1). `{ maxPx, minSpeed, maxSpeed }` перевизначає пороги; **`false` вимикає**. Dead-zone тримає повільний пан чітким; **завжди вимкнено під `prefers-reduced-motion: reduce`**. SDK **володіє** `filter`/`willChange` на mount-елементі поки увімкнено (не застосовуйте власний CSS-`filter` на той самий mount — його затре; на clear ставиться `''`). Один CSS-фільтр на mount блюрить і canvas, і promote-overlay — але overlay лише якщо його змонтовано на **той самий** mount (`createReactPromoteOverlay({ mount })`) |
 | `staffRefitOnToggle` | **Opt-in, дефолт off.** Після згортання або розгортання через `togglePositionExpand` вписує staff org-бокс у камеру. `true` використовує дефолти `computeStaffFit`; об’єкт `StaffFitOptions` перевизначає їх. Без staff chrome org-боксу лишається звичайний `panToNode`. Не впливає на `revealPath`, `expandToDepth` чи `collapsePositionSubtree`. |
 | `renderer` | **`'auto'` (default) \| `'webgl'` \| `'canvas'`** — який рушій малює сцену (нижче) |
@@ -979,14 +980,41 @@ const promote = createReactPromoteOverlay({
 
 ### Підготовка promote-оверлея до руху камери
 
-`subscribePromoteSync` передає `PromoteSyncReason`: `camera`, `structural` або
-`prepare-camera`. Новий сигнал `prepare-camera` надходить під час opt-in refit після
-`togglePositionExpand`, коли камера вже тимчасово стоїть у цільовому кадрі.
+`subscribePromoteSync` передає `PromoteSyncReason`: `camera`, `structural`,
+`prepare-camera` або `transition`. Сигнал `prepare-camera` надходить під час opt-in refit після
+`togglePositionExpand`, **якщо переходи `animate` вимкнені**, коли камера вже тимчасово стоїть
+у цільовому кадрі.
 `createReactPromoteOverlay` синхронно будує й комітить картки цього кадру через
 `flushSync`, після чого SDK повертає камеру на старт і запускає штатну анімацію.
 Звичайний `structural` зберігає попередній режим React commit; `camera` переносить
 шар CSS-трансформом і перебудовує після settle. Власні слухачі можуть ігнорувати
 невідомі причини; наявні `camera` та `structural` залишаються без змін.
+
+### Переходи ШПС (`animate`)
+
+`animate` задається при `OrgHierarchyDiagram.create`. Reduced-motion
+(`prefers-reduced-motion: reduce`) читається **лише при створенні**, як у `motionBlur`:
+зміна налаштування ОС посеред сесії не змінює вже створену діаграму.
+Без `animate` зберігається попередній шлях рендера без анімаційного циклу.
+
+Переходи застосовуються до `togglePositionExpand`, `revealPath`, `expandToDepth`,
+`collapsePositionSubtree`, `setData` та редагувань даних. Перший рендер, зміна LOD,
+теми, стилів і resize завершують рух одразу. При `staffRefitOnToggle` разом з
+увімкненими переходами `prepare-camera` не надсилається: камера фітиться без
+окремого твіна після settle, за кінцевою геометрією хрому.
+
+**Увага для власних слухачів `subscribePromoteSync`:** `transition` надходить
+**щокадру всім підписникам**. Ігноруйте його або обробляйте дешево; не перебудовуйте
+весь DOM/React-дерево на кожному кадрі. Вбудований promote-оверлей рухає наявні
+картки CSS-трансформами. Виняток одного слухача на `transition` дає одне
+`console.warn` для цього слухача й не блокує інших слухачів та наступні кадри.
+Після завершення переходу надходить `structural`.
+
+`diagram.getTransitionFrame()` повертає `TransitionFrame | null`: поточні світові
+бокси за ключем `kind:id`, з `x`, `y`, `w`, `h`, `scale`, `opacity`, `phase`;
+`null` означає відсутність активного переходу. `nodeCenter` та тестові якорі
+залишаються в **кінцевих** позиціях. Експорт спочатку миттєво завершує перехід,
+тому PNG/PDF знімають кінцеву сцену; `destroy()` зупиняє анімаційний цикл.
 
 ### Геометрія хрому ШПС для хоста (Б2)
 
@@ -997,13 +1025,24 @@ React-оверлеєм замість Pixi, він **не повинен рах�
 const geom = diagram.getStaffChromeGeometry();   // StaffChromeGeometry | null
 // geom.org    — рамка поточної організації (AABB + відступи), світові координати
 // geom.depts  — рамки відділів з name/count
-// geom.lines  — лінії звʼязків (points у світових координатах, endsOnDeptTop)
+// geom.lines  — лінії звʼязків; під час руху []
+// geom.linesOpacity — опційна прозорість ліній (для fade; за відсутності — 1)
 // geom.nodeBoxes — бокси посад за id (хост малює навколо знайденої картки)
 ```
 
-Повертає геометрію **останнього** рендеру, що намалював цей хром; `null` до першого рендеру і
+Під час переходу рамки відповідають поточному кадру, `lines: []` ховає звʼязки,
+а після settle повертаються кінцеві лінії. Адитивне опційне поле `linesOpacity`
+дозволяє хосту врахувати fade. У спокої повертає геометрію **останнього** рендеру, що намалював цей хром; `null` до першого рендеру і
 коли хром не малювався (org-view, grid, оверлей не змонтовано). Це **той самий** розрахунок, що
 й Pixi-сцена (єдине джерело — розкладка Rust), тож рамки й лінії не розходяться.
+
+**Контракт backdrop:** `render.staffReactChrome: true` означає **реально змонтований**
+backdrop хоста, який малює цей хром замість Pixi. Не залишайте прапорець увімкненим
+після демонтажу backdrop. Для власного життєвого циклу викликайте
+`await diagram.setStaffReactChromeMounted(true)` після монтування та
+`await diagram.setStaffReactChromeMounted(false)` під час демонтажу. Метод
+миттєво завершує поточний перехід і перемальовує сцену з відповідним власником
+хрому; при демонтажі лінії знову малює Pixi. Після `destroy()` це no-op.
 
 Відступ навколо рамки організації — set-once стан діаграми `render.staffChromePad`
 (`{ x, top, bottom? }`, дефолт `{x:20, top:44}`, `bottom` дефолтиться на `x`): числа —

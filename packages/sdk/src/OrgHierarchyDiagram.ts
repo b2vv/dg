@@ -1,3 +1,5 @@
+import { resolveAnimate } from './render/transition/resolveAnimate.js';
+import type { AnimateOption, TransitionFrame } from './render/transition/types.js';
 import type { DiagramNode } from './DiagramNode.js';
 import { adminAncestorIds, isPositionExpanded } from './layout/staff/positionExpand.js';
 import { sameNodeRef } from './interaction/selection.js';
@@ -159,6 +161,8 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
    * Default **on**. Always disabled under `prefers-reduced-motion: reduce`.
    */
   motionBlur?: boolean | Partial<MotionBlurOptions>;
+  /** Opt-in staff transitions; reduced motion is sampled only at creation. */
+  animate?: AnimateOption;
   /** Re-frame the staff org box after `togglePositionExpand` (collapse or expand). Off by default.
    * `true` = the `computeStaffFit` defaults; an object overrides them. */
   staffRefitOnToggle?: boolean | StaffFitOptions;
@@ -281,6 +285,8 @@ function parseHostSearchPage(value: unknown): HostSearchPage | null {
   return page as HostSearchPage;
 }
 
+type RenderReason = 'animate' | 'snap';
+
 export class OrgHierarchyDiagram {
   private readonly dataStore = new DataStore();
   private host: PixiHost | null = null;
@@ -344,6 +350,7 @@ export class OrgHierarchyDiagram {
   /** Theme / LOD / staff focus / expand sets (T76 ViewStateStore). */
   private readonly viewState = new ViewStateStore();
   private lodRenderQueued = false;
+  private pendingReason: RenderReason = 'snap';
   /** T75 D2: coalesce overlapping render() so layers.clear never races. */
   private readonly renderCoalesce = createRenderCoalesce(() => this.renderNow());
   private destroyed = false;
@@ -360,6 +367,9 @@ export class OrgHierarchyDiagram {
   private viewportSettleTimer: ReturnType<typeof setTimeout> | null = null;
   /** Resolved motion-blur options, or null when off / reduced-motion. */
   private motionBlur: MotionBlurOptions | null = null;
+  private animate = false;
+  private pendingFramePositionId: string | null = null;
+  private readonly warnedTransitionListeners = new WeakSet<(reason: PromoteSyncReason) => void>();
   private staffRefitOnToggle: boolean | StaffFitOptions = false;
   private motionBlurLast: { x: number; y: number; t: number } | null = null;
   private motionBlurClearTimer: ReturnType<typeof setTimeout> | null = null;
@@ -495,6 +505,22 @@ export class OrgHierarchyDiagram {
     instance.viewportSettleMs = config.viewportSettleMs ?? 150;
     instance.motionBlur = resolveMotionBlur(config.motionBlur ?? true);
     instance.staffRefitOnToggle = config.staffRefitOnToggle ?? false;
+    const reducedMotion = typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const resolvedAnimate = resolveAnimate(config.animate, reducedMotion);
+    instance.animate = resolvedAnimate !== null;
+    instance.host.renderer.configureTransition(resolvedAnimate);
+    instance.host.renderer.onTransitionFrame = () => {
+      if (instance.getTransitionFrame()) {
+        instance.notifyPromoteSync('transition');
+        return;
+      }
+      const positionId = instance.pendingFramePositionId;
+      instance.pendingFramePositionId = null;
+      if (positionId !== null) instance.framePositionToggle(positionId);
+      instance.notifyPromoteSync('structural');
+    };
     instance.host.setOnViewportChange((t) => {
       instance.onViewportTransform(t.scale);
       // Camera moved — the overlay rides a CSS catch-up and rebuilds on settle.
@@ -508,6 +534,7 @@ export class OrgHierarchyDiagram {
     // it changes the answer to "which nodes are visible" — and nothing else
     // would tell the promote layer that.
     instance.host.setOnResize(() => {
+      if (instance.animate) instance.renderer?.settleNow();
       instance.notifyPromoteSync();
       // The transform is unchanged by design — only how much of it fits is.
       instance.notifyViewportChange(instance.getViewport(), 'resize');
@@ -635,7 +662,20 @@ export class OrgHierarchyDiagram {
   }
 
   private notifyPromoteSync(reason: PromoteSyncReason = 'structural'): void {
-    for (const listener of this.promoteSyncListeners) listener(reason);
+    for (const listener of this.promoteSyncListeners) {
+      if (reason !== 'transition') {
+        listener(reason);
+        continue;
+      }
+      try {
+        listener(reason);
+      } catch (error) {
+        if (!this.warnedTransitionListeners.has(listener)) {
+          this.warnedTransitionListeners.add(listener);
+          console.warn('OrgHierarchyDiagram: transition subscriber threw', error);
+        }
+      }
+    }
   }
 
   private callHostCallback<TArgs extends readonly unknown[]>(
@@ -824,7 +864,7 @@ export class OrgHierarchyDiagram {
     // a manual collapse lives in `position.expanded === false` on `next` and
     // survives the re-seed (mirrors `setData` and the `drawOrRestore` rollback).
     this.seedExpandedPositionsFromData();
-    await this.drawOrRestore(next);
+    await this.drawOrRestore(next, 'animate');
     if (this.lastDrawnData !== next) {
       // Our frame resolved, but the state on screen is not ours. Either a
       // neighbour's rollback took our edit with it, or nothing drew at all
@@ -850,9 +890,9 @@ export class OrgHierarchyDiagram {
    * wrote on top and its frame is what the screen will show, so restoring our
    * target there would replace a drawn state with an older one.
    */
-  private async drawOrRestore(next: DiagramData): Promise<void> {
+  private async drawOrRestore(next: DiagramData, reason: RenderReason = 'snap'): Promise<void> {
     try {
-      await this.render();
+      await this.render(reason, next);
     } catch (err) {
       if (this.data === next && this.lastDrawnData) {
         this.data = this.lastDrawnData;
@@ -871,55 +911,71 @@ export class OrgHierarchyDiagram {
     }
   }
 
-  private async render(): Promise<void> {
+  private async render(reason: RenderReason = 'snap', expectedData?: DiagramData): Promise<void> {
     if (!this.host || this.destroyed) return;
+    if (reason === 'animate') this.pendingReason = 'animate';
     await this.renderCoalesce.schedule();
+    if (this.animate && !this.destroyed
+      && (expectedData === undefined || this.lastDrawnData === expectedData)) {
+      this.renderer?.startTransition();
+    }
   }
 
   private async renderNow(): Promise<void> {
+    const reason = this.pendingReason;
+    this.pendingReason = 'snap';
     if (!this.host || this.destroyed) return;
     const host = this.host;
-    const { nodeTheme, resolved } = this.applyRenderTheme(host);
-    this.bindCanReparent(host);
-    // #4 owns the layout compute now (split T2a): for the org branch, place the
-    // nodes here and hand the result to the renderer, so `render()` draws
-    // already-positioned nodes instead of computing them. Computed from the
-    // captured `drawing` — the same snapshot the renderer is handed (T104) — and
-    // with the same view state. Compute and render go through ONE promise so a
-    // layout throw (`validateOrgHierarchy` on a bad hierarchy) still routes
-    // through `reportIfRenderFails` → onRenderFailed / getLastRenderFailure, as
-    // it did when the compute lived inside `render()` (T97). The staff branch
-    // still computes inside the renderer until T2b; the mode test mirrors
-    // `render()`'s own dispatch (positions ⇒ staff, else orgs).
-    const { drawing, drawingStaffOrgIds } = this.captureDrawingState();
-    await this.reportIfRenderFails(
-      (async () => {
-        const orgLayoutResult =
-          drawing.positions.length === 0 && drawing.organizations.length > 0
-            ? await computeOrgLayout(
-                drawing.organizations,
-                drawing.orgLinks ?? [],
-                this.viewState.orgLayout,
-              )
-            : undefined;
-        const options = this.buildRenderOptions();
-        // Staff geometry is computed by the renderer per-LOD from the Rust bridge
-        // (A4.2b/FORK2): no pre-computed canvas is passed, so there is a single
-        // geometry path and nothing can drift. A `StaffLayoutError` still surfaces
-        // through this awaited `reportIfRenderFails`, like the org throw.
-        await host.renderer.render(
-          drawing,
-          nodeTheme,
-          resolved,
-          this.renderConfig,
-          options,
-          orgLayoutResult,
-        );
-      })(),
-      drawing,
-      drawingStaffOrgIds,
-    );
-    this.afterRender(host);
+    try {
+      const { nodeTheme, resolved } = this.applyRenderTheme(host);
+      this.bindCanReparent(host);
+      // #4 owns the layout compute now (split T2a): for the org branch, place the
+      // nodes here and hand the result to the renderer, so `render()` draws
+      // already-positioned nodes instead of computing them. Computed from the
+      // captured `drawing` — the same snapshot the renderer is handed (T104) — and
+      // with the same view state. Compute and render go through ONE promise so a
+      // layout throw (`validateOrgHierarchy` on a bad hierarchy) still routes
+      // through `reportIfRenderFails` → onRenderFailed / getLastRenderFailure, as
+      // it did when the compute lived inside `render()` (T97). The staff branch
+      // still computes inside the renderer until T2b; the mode test mirrors
+      // `render()`'s own dispatch (positions ⇒ staff, else orgs).
+      const { drawing, drawingStaffOrgIds } = this.captureDrawingState();
+      await this.reportIfRenderFails(
+        (async () => {
+          const orgLayoutResult =
+            drawing.positions.length === 0 && drawing.organizations.length > 0
+              ? await computeOrgLayout(
+                  drawing.organizations,
+                  drawing.orgLinks ?? [],
+                  this.viewState.orgLayout,
+                )
+              : undefined;
+          const options = this.buildRenderOptions();
+          if (this.animate) options.transition = reason;
+          // Staff geometry is computed by the renderer per-LOD from the Rust bridge
+          // (A4.2b/FORK2): no pre-computed canvas is passed, so there is a single
+          // geometry path and nothing can drift. A `StaffLayoutError` still surfaces
+          // through this awaited `reportIfRenderFails`, like the org throw.
+          await host.renderer.render(
+            drawing,
+            nodeTheme,
+            resolved,
+            this.renderConfig,
+            options,
+            orgLayoutResult,
+          );
+        })(),
+        drawing,
+        drawingStaffOrgIds,
+      );
+      this.afterRender(host);
+    } catch (error) {
+      if (this.animate) {
+        this.pendingFramePositionId = null;
+        host.renderer.abortTransition();
+      }
+      throw error;
+    }
   }
 
   /**
@@ -1401,7 +1457,7 @@ export class OrgHierarchyDiagram {
       changedIds: [],
       expanded: null,
     });
-    await this.render();
+    await this.render('animate');
   }
 
   getCanvas(): HTMLCanvasElement | null {
@@ -1508,7 +1564,7 @@ export class OrgHierarchyDiagram {
       // Announced after the frame, like every other edit path (T104): a host
       // told about a collapse the render then refused had no way to hear it
       // taken back.
-      await this.drawOrRestore(this.data);
+      await this.drawOrRestore(this.data, 'animate');
       this.emitPositionExpand(positionId, false, [positionId]);
       this.framePositionToggle(positionId);
       return false;
@@ -1522,7 +1578,7 @@ export class OrgHierarchyDiagram {
     for (const id of evicted) this.setPositionExpandedFlag(id, false);
     this.setPositionExpandedFlag(positionId, true);
 
-    await this.drawOrRestore(this.data);
+    await this.drawOrRestore(this.data, 'animate');
     for (const id of evicted) this.emitPositionExpand(id, false, [id]);
     this.emitPositionExpand(positionId, true, [positionId, ...evicted]);
     this.framePositionToggle(positionId);
@@ -1531,10 +1587,15 @@ export class OrgHierarchyDiagram {
 
   private framePositionToggle(positionId: string): void {
     if (this.staffRefitOnToggle) {
+      if (this.animate && this.getTransitionFrame()) {
+        this.pendingFramePositionId = positionId;
+        return;
+      }
       const from = this.getViewport();
       const options = this.staffRefitOnToggle === true ? {} : this.staffRefitOnToggle;
       const target = this.fitStaffChrome({ ...options, animate: false });
       if (target) {
+        if (this.animate) return;
         // Commit target-frame cards before returning to the start frame. During
         // the animation the overlay carries these cards with one CSS transform.
         this.notifyPromoteSync('prepare-camera');
@@ -1593,7 +1654,7 @@ export class OrgHierarchyDiagram {
       expanded: changedIds.length > 0,
       changedIds,
     });
-    await this.render();
+    await this.render('animate');
     const head = this.data.positions.find(
       (p) => p.organizationId === organizationId && p.isHead,
     );
@@ -1614,7 +1675,7 @@ export class OrgHierarchyDiagram {
       expanded: false,
       changedIds: ids,
     });
-    await this.render();
+    await this.render('animate');
     this.panToNode(positionId, { animate: true });
   }
 
@@ -1853,7 +1914,7 @@ export class OrgHierarchyDiagram {
       }
       try {
         // Org and admin paths must both be visible before focusing the target.
-        await this.render();
+        await this.render('animate');
       } catch (error) {
         // Rolled back rather than left half-applied. The data said «expanded»
         // and the scene did not, so the next caller read a tree that was never
@@ -2067,6 +2128,19 @@ export class OrgHierarchyDiagram {
    */
   listPromoteBoxes(): readonly NodeWorldBox[] {
     return this.renderer?.listNodeBoxes() ?? [];
+  }
+
+  /** Notify the SDK when a host staff backdrop mounts or unmounts. */
+  async setStaffReactChromeMounted(mounted: boolean): Promise<void> {
+    if (this.destroyed || this.renderConfig.staffReactChrome === mounted) return;
+    if (this.animate) this.renderer?.settleNow();
+    this.renderConfig = { ...this.renderConfig, staffReactChrome: mounted };
+    await this.render();
+  }
+
+  /** Current animated world boxes; null when settled or animation is disabled. */
+  getTransitionFrame(): TransitionFrame | null {
+    return this.animate ? this.renderer?.getTransitionFrame() ?? null : null;
   }
 
   /**
@@ -2466,6 +2540,7 @@ export class OrgHierarchyDiagram {
     //
     // SVG цього не потребує — він будується з моделі, не зі сцени (виміряно:
     // байт у байт однаковий в обох станах).
+    if (this.animate) this.renderer?.settleNow();
     const promoted = [...(this.renderer?.getPromotedNodeIds() ?? [])];
     if (promoted.length > 0) this.renderer?.setPromotedNodeIds([]);
     this.renderer?.resetCull();
@@ -2514,6 +2589,8 @@ export class OrgHierarchyDiagram {
   destroy(): void {
     this.destroyed = true;
     this.renderCoalesce.stop();
+    this.pendingFramePositionId = null;
+    if (this.animate) this.renderer?.configureTransition(null);
     if (this.viewportFrame !== null) cancelAnimationFrame(this.viewportFrame);
     if (this.viewportSettleTimer !== null) clearTimeout(this.viewportSettleTimer);
     this.viewportFrame = null;

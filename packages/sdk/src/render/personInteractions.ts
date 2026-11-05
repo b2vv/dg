@@ -79,6 +79,8 @@ export interface PersonInteractionDeps {
   dragGrid(): DragGrid | null;
   /** Band the scene is drawn at — see the drag gate in `bind`. */
   currentLod(): LodLevel;
+  /** Settle layout motion before the drag reads its origin. */
+  onDragStart?(): void;
   previewDrag(positionId: string, col: number, row: number): void;
   restoreContours(): void;
   /** Put back any neighbour card the drag preview moved aside (T111-K4b). */
@@ -192,6 +194,7 @@ export class PersonInteractions {
       if (this.deps.currentLod() !== 'near') return;
       // Shown, not owned — see `SeatDragMode`.
       if (dragMode === 'none') return;
+      this.deps.onDragStart?.();
       const local = this.deps.personLayer.toLocal(e.global);
       const grid = this.deps.dragGrid();
       // T78-L1: origin from THIS card's world + gridCell, not the first staff tier.
