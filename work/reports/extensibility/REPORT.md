@@ -1,6 +1,6 @@
 # Ship-report — Extensibility R1–R5 + R11 (SDK розширюваність)
 
-> **СТАТУС: КОД-ПОВНО (6/6 закомічено на `feat/extensibility`).** Чекає важких гейтів (спільний dist, після «ок» cass) + owner-review §6 + пуш у main. Шість секцій + post-deploy, дельта від роадмапу/планів.
+> **СТАТУС: ЗАВЕРШЕНО ✅** — 6/6 злито в main `b31f39a`, запушено. Важкі гейти зелені, dist перезібрано, cass повідомлено, 6 owner-рішень затверджено власником. Шість секцій + post-deploy, дельта від роадмапу/планів.
 
 **Мандат власника (2026-11-06):** зробити ВЕСЬ названий реєстр роадмапу (R1–R5, R11) автономно, multi-agent за AI
 Factory (spec-flow → гейти → Codex-кодери + gate-reviewer), максимальна паралель; **пуш у main — коли весь план готовий**.
@@ -87,8 +87,8 @@ Factory (spec-flow → гейти → Codex-кодери + gate-reviewer), ма�
 ## Post-deploy
 - [x] Усі 6 закомічені (SHA вище). SDK-рівень зелений: SDK 1587/0, demo 135/0, cargo 218+9, typecheck -w + lint + check:docs.
 - [x] **build:wasm НЕ потрібен** — R11 не чіпав types.rs (WASM-межа недоторкана).
-- [ ] Важкі гейти (пишуть у СПІЛЬНИЙ dist): root typecheck + build + повний root `npm test` — ПІСЛЯ «ок» cass.
-- [ ] dist перезібрано; cass повідомлено фінальний SHA + перелік публічних змін.
-- [ ] **Owner-review §6** (6 рішень) пройдено.
-- [ ] Мерж `feat/extensibility` → main (ff) + push.
+- [x] Важкі гейти ЗЕЛЕНІ: root typecheck + build + повний root `npm test` (sdk 1587/0, demo 135/0). cass «ок» отримано (зріз-8 e2e завершено).
+- [x] dist перезібрано з коду; cass повідомлено фінальний SHA b31f39a + публічну поверхню.
+- [x] **Owner-review §6** — власник затвердив усі 6 рішень (go на мерж+пуш).
+- [x] **Мерж `feat/extensibility` → main (ff `da0e184..b31f39a`) + push — ВИКОНАНО.**
 - [ ] Стенд: ручні сценарії під opt-in (+ A* для R11).
