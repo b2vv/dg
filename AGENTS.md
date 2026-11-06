@@ -7,6 +7,14 @@ Guidance for coding agents working in **Org Hierarchy SDK** (`b2vv/dg`).
 > local and git-ignored; this repo works without it. Local project norms here always take
 > precedence over that tooling.
 
+## Plan spine (read first — головне vs похідне)
+
+**[`work/ROADMAP-4lib.md`](./work/ROADMAP-4lib.md) is the primary plan** — the owner's 4-library vision
+(#1 layout · #2 React-near · #3 Pixi-far · #4 orchestrator; source `work/reports/library-split-4/_recovered-vision.md`
++ ADR-0079). Everything else is **derived/feeder**: `work/ROADMAP-extensibility.md` (R1–R5/D1/D3 fill #2/#3),
+`work/ROADMAP.md` (Ф0–Ф4 host migration), the routing track. The unclosed backbone is **#4 orchestrator + T3
+(RendererPort + camera lift + §9 interaction inversion)** — pick the next move from there, not from the feeders.
+
 ## Stack (short)
 
 - `packages/core` — Rust → WASM (contours + Ploeg row-tree; canvas paint is TS)
