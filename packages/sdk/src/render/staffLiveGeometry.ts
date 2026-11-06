@@ -185,6 +185,7 @@ export async function computeStaffLiveGeometry(
   // lone authored-grid seat (head-resolvable but matrix) off the tree path that
   // would break its drag contract. Routing by scene shape, NOT an error-catch of
   // the Rust call.
+  // DEPRECATED(dg41): LIVE default legacy dispatch; do not extend; remove once the gates below are met.
   const useRust =
     staffHeadResolvable(data, currentOrgId) && isGenuineTreeScene(data, currentOrgId);
   return useRust
@@ -204,6 +205,14 @@ interface BranchInput {
 }
 
 /** Tree scenes: the single Rust source (T66 V2a). */
+// DEPRECATED(dg41): superseded by the tidy engine (staff_tidy_layout.rs; owner decision
+// 2026-11-06, see work/reports/staff-link-routing-astar/_decision-routing-direction-dg41.md).
+// Do not extend. Still the LIVE default until the tidy path becomes default.
+// Removal = one step, blocked on: (1) tidy path default + enabled in the host,
+// (2) matrix/headless scenes covered on the tidy path (today served by computeViaTs),
+// (3) golden rebaseline, (4) host (cassiopeia) coordination.
+// The tidy engine imports only crate::types inputs, not the legacy Rust modules;
+// removing those modules will not break it.
 async function computeViaRust(input: BranchInput): Promise<StaffLiveGeometry> {
   const { data, currentOrgId, theme, config, staffOptions, zoneLabelBand, contentPadding, lod } = input;
   const metrics = resolveMetrics(staffOptions, contentPadding);
@@ -259,6 +268,15 @@ async function computeViaRust(input: BranchInput): Promise<StaffLiveGeometry> {
  * until Rust gains matrix (A4.4+). Same single routing seam (`resolveStaffRouting`)
  * as the SVG export, so link points cannot drift.
  */
+// DEPRECATED(dg41): superseded by the tidy engine (staff_tidy_layout.rs; owner decision
+// 2026-11-06, see work/reports/staff-link-routing-astar/_decision-routing-direction-dg41.md).
+// Do not extend. Still the LIVE default until the tidy path becomes default.
+// Removal = one step, blocked on: (1) tidy path default + enabled in the host,
+// (2) matrix/headless scenes covered on the tidy path (today served by computeViaTs),
+// (3) golden rebaseline, (4) host (cassiopeia) coordination.
+// The tidy engine imports only crate::types inputs, not the legacy Rust modules;
+// removing those modules will not break it.
+// Matrix/headless scenes must be proven on the tidy path before this function can go.
 async function computeViaTs(input: BranchInput): Promise<StaffLiveGeometry> {
   const { data, currentOrgId, theme, config, staffOptions, zoneLabelBand, contentPadding, lod } = input;
 

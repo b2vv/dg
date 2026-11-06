@@ -20,6 +20,17 @@
 //!     trunk/bus is one drawn structure). The crossing exemption is GEOMETRIC, not a blanket
 //!     same-manager skip: two siblings can still cross perpendicularly away from the bus, and that
 //!     is a real defect that must be counted (dg32 T1 critic, blocker 1).
+//!
+//! DEPRECATED(dg41): superseded by the tidy engine (staff_tidy_layout.rs; owner decision
+//! 2026-11-06, see work/reports/staff-link-routing-astar/_decision-routing-direction-dg41.md).
+//! Do not extend. Still the LIVE default until the tidy path becomes default.
+//! Removal = one step, blocked on: (1) tidy path default + enabled in the host,
+//! (2) matrix/headless scenes covered on the tidy path (today served by computeViaTs),
+//! (3) golden rebaseline, (4) host (cassiopeia) coordination.
+//! The tidy engine does not import this module (only crate::types inputs),
+//! so removal will not break it.
+//! route_stats here is a second §10.4 detector alongside the tidy engine's stats_core;
+//! it goes away with this module.
 
 use crate::staff_edge_box::EdgeRect;
 use crate::staff_geom::{

@@ -15,6 +15,15 @@
 //! **Паритет:** `layout_connected_tree` викликає ТОЙ САМИЙ ploeg, що TS через WASM, тож
 //! raw-координати ідентичні за конструкцією; порт відтворює лише wrapper-логіку
 //! (reparent, recenter, side-column pack, dept region-pack, pin, tier-stack).
+//!
+//! DEPRECATED(dg41): superseded by the tidy engine (staff_tidy_layout.rs; owner decision
+//! 2026-11-06, see work/reports/staff-link-routing-astar/_decision-routing-direction-dg41.md).
+//! Do not extend. Still the LIVE default until the tidy path becomes default.
+//! Removal = one step, blocked on: (1) tidy path default + enabled in the host,
+//! (2) matrix/headless scenes covered on the tidy path (today served by computeViaTs),
+//! (3) golden rebaseline, (4) host (cassiopeia) coordination.
+//! The tidy engine does not import this module (only crate::types inputs),
+//! so removal will not break it.
 
 use std::collections::{HashMap, HashSet};
 
