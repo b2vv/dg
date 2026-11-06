@@ -220,6 +220,13 @@ drive Pixi-far because `kind` resolves to both renderers.
 
 ## 5. Open questions for the owner
 
+> ✅ **RESOLVED 2026-11-06** (owner) — записано в `work/ROADMAP-4lib.md` §«Рішення власника — #2 API»:
+> Q1 **Ні** (uncontrolled, position readonly) · Q2 **explicit `invalidateSize`** (рек.) · Q3 **#4 володіє, #2/#3 підписники** ·
+> Q4 **малий підмножинний instance** (рек.) · Q5 **мінімальний edge label-slot** (контент хоста, позиція від SDK) ·
+> Q6 **content-driven**, user-resize → беклог (принцип+механізм у roadmap) · Q7 **перевірка v13** лишається за агентом.
+> Нижче — оригінальні формулювання (для контексту).
+
+
 1. **Controlled positions — in or out?** RF's headline feature is controlled `nodes`. We said
    uncontrolled-only because geometry is Rust-owned. Do we ever want the host to *pin* a node's
    position (manual override that survives re-layout)? If yes, that is the one place a controlled

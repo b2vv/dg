@@ -122,6 +122,26 @@ canvas↔DOM перемикаються за зумом. Усе міряєтьс
 **Чому не інше:** фіче-треки (#2/#3 полиск) нічого в кістяку не закривають; роутинг-трек гейтиться виміром і
 впирається в незавершений T128; справжній спліт на пакети передчасний, поки #4/RendererPort не існують.
 
+## Рішення власника — #2 API (RF-референс, 2026-11-06)
+
+| # | Питання | Рішення |
+|---|---|---|
+| Q3 | Хто володіє selection/hover | **#4 оркестратор володіє; #2/#3 — підписники.** Крос-рендерний вибір переживає LOD-перемикання. Перенести SDK SelectionStore у #4 разом із T3/#4. |
+| Q1 | Controlled positions (host pin) | **Ні — позиції лише з Rust-layout (uncontrolled).** `position` у публічному типі — readonly. Тримає Б2-інваріант. |
+| Q6 | Resize картки #2 | **Лише content-driven** (вимір → годує #1). User-initiated (тягнути кут) — **у беклог** (принцип+механізм нижче). |
+| Q5 | Edge label-slot | **Так — мінімальний edge label-slot:** хост малює контент мітки, SDK дає позицію на Rust-роутованому шляху. НЕ авторинг шляху. |
+| Q2 | Re-measure trigger (рек.) | **Explicit** `invalidateSize` (вимір на mount + явна інвалідація), НЕ auto-remeasure — уникаємо RF-шторму на сотнях нод. |
+| Q4 | Обсяг публічного instance (рек.) | **Малий підмножинний** набір (ескіз §4 deliverable): `updateNodeData`, `getNodesBounds`, `screenToFlowPosition`, `fitView`… — під docs/USAGE-гейт. Решта internal. |
+| Q7 | RF v13 | **Моя перевірка** (не власникова): `13.0.0-next.2` недокументований — звірити, чи реформує node/measuring-контракт, ПЕРЕД фіксацією RF-форми. Синтез наразі валідний для 12.x. |
+
+### Беклог-принцип — user-initiated node resize (Q6, варіант 2, opt-in)
+**Принцип:** ручний resize (тягнути кут) воює з Rust-owned layout; когерентний ЛИШЕ якщо новий розмір стає
+**pinned-override**, що вертається у #1 як обмеження й тригерить re-layout. Не пряма мутація сцени.
+**Механізм:** (a) #2 емітить `onNodeResize(id,{w,h})` (подія, не мутація); (b) хост вирішує прийняти →
+`sizeOverride(id,{w,h})` входить у measure→layout-петлю як pinned measured-size; (c) #1 перераховує layout із ним;
+(d) потрібен re-layout request path + конфлікт-політика з content-driven виміром (pinned виграє до очищення);
+(e) #2 дає `<NodeResizer>`-подібний хендл (opt-in). Споріднено з Q1 — той самий pin-канал, якби controlled-позиції колись додавали.
+
 ## Першоджерела
 - Vision: `work/reports/library-split-4/_recovered-vision.md` · Handoff: `_HANDOFF-T3-to-dg-13.md` · T3-spec: `T3-renderer-port.md`
 - RF API-референс для #2: `work/reports/reactflow-uiux/api-contract-for-no2.md` (+ інвентаризація 2026-08-28 там же).
