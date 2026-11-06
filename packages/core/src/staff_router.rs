@@ -5,9 +5,9 @@
 //! on the nine §10.1 schemas (AC10 = `0/0/0/0/0`). Q4: the same code runs as a runtime `/debug`
 //! overlay and as the `cargo test` gate — one detector, no second truth.
 //!
-//! Geometry is reused, not re-derived: card distance / interior-hit / foreign-frame intrusion all
-//! come from the prod `staff_geom` primitives shared with the router (`seg_rect_distance`,
-//! `polyline_hits_box_interior`, `frame_intrusion_count`). Only the two LINE-vs-LINE metrics
+//! Geometry is reused, not re-derived: card/frame distance and interior-hit checks use the
+//! `staff_geom` primitives (`seg_rect_distance`, `polyline_hits_box_interior`). Frame checks
+//! share the router's validation and endpoint-containment exemption. Only the two LINE-vs-LINE metrics
 //! (crossings, overlaps) are new here — and each carries the exemption that the per-edge polyline
 //! contract (`StaffEdgeRoute.points`, one polyline per edge) makes mandatory:
 //!
@@ -23,8 +23,7 @@
 
 use crate::staff_edge_box::EdgeRect;
 use crate::staff_geom::{
-    frame_intrusion_count, obstacle_rect, polyline_hits_box_interior, seg_rect_distance, DeptPart,
-    FrameRect, INTERIOR_EPS,
+    obstacle_rect, polyline_hits_box_interior, seg_rect_distance, DeptPart, FrameRect, INTERIOR_EPS,
 };
 use crate::staff_routes::route_ortho;
 use crate::types::{StaffEdgeRoute, StaffRoutePoint};
@@ -47,7 +46,7 @@ pub struct RouteStats {
     pub through_card: usize,
     /// §10.4.2 — a line is nearer than 8px to a foreign card (but not under it).
     pub near_card: usize,
-    /// §10.4.3 — a line penetrates a foreign department frame.
+    /// A line penetrates a foreign frame or violates its minimum clearance.
     pub through_foreign: usize,
 }
 
@@ -225,12 +224,25 @@ pub fn route_stats_detailed(
         }
     }
 
-    // --- line-vs-frame: foreign department-frame intrusion (prod primitive, one source) ---
+    // Wrappers use the same containment exemption and clearance as A*. Including proximity
+    // here makes an internal elbow near a foreign wrapper eligible for rip-up.
     for (idx, edge) in routes.iter().enumerate() {
-        let n = frame_intrusion_count(&edge.points, &edge.from_id, &edge.to_id, frames, member_of);
-        stats.through_foreign += n;
-        if n > 0 {
-            bad[idx] = true;
+        let from_key = member_of(&edge.from_id);
+        let to_key = member_of(&edge.to_id);
+        for f in frames.iter().filter(|f| valid_frame(f)) {
+            let key = (f.department_id.clone(), f.part_index);
+            if from_key.as_ref() == Some(&key)
+                || to_key.as_ref() == Some(&key)
+                || contains_endpoint(f, boxes, &edge.from_id, &edge.to_id)
+            {
+                continue;
+            }
+            if edge.points.windows(2).any(|s| {
+                seg_rect_distance(&s[0], &s[1], f.x, f.y, f.width, f.height) < MIN_CLEARANCE_PX
+            }) {
+                stats.through_foreign += 1;
+                bad[idx] = true;
+            }
         }
     }
 
@@ -338,6 +350,29 @@ fn edge_hits(vert: bool, fixed: f32, lo: f32, hi: f32, r: &Rect4) -> bool {
     }
 }
 
+/// Reject malformed wrappers before they can seed wall coordinates or block a route.
+/// Check derived/quantized bounds too: finite inputs can overflow when added or quantized.
+fn valid_frame(f: &FrameRect) -> bool {
+    f.width > 0.0
+        && f.height > 0.0
+        && f.x + f.width > f.x
+        && f.y + f.height > f.y
+        && [f.x, f.y, f.width, f.height, f.x + f.width, f.y + f.height]
+            .iter()
+            .all(|v| v.is_finite() && v.abs() < f32::MAX / 4.0)
+}
+
+/// Full endpoint containment, before padding: every containing ancestor is exempt.
+fn contains_endpoint(f: &FrameRect, cards: &[EdgeRect], from: &str, to: &str) -> bool {
+    cards.iter().any(|c| {
+        (c.id == from || c.id == to)
+            && c.x >= f.x
+            && c.y >= f.y
+            && c.x + c.width <= f.x + f.width
+            && c.y + c.height <= f.y + f.height
+    })
+}
+
 /// Seed coordinate lines from a set of obstacle coordinates: each coordinate itself, plus — in every
 /// gap of ≥2px between adjacent coordinates — a middle line and a ±`LANE` pair, so a corridor always
 /// carries a routable line down its centre (mockup `wall`, :116). Appends to `out` (deduped later).
@@ -395,9 +430,13 @@ pub fn build_corridor_grid(
         wy.push(y - pad);
         wy.push(y + h + pad);
     }
-    for d in frames {
+    for d in frames.iter().filter(|f| valid_frame(f)) {
         wx.push(d.x);
         wx.push(d.x + d.width);
+        wx.push(d.x - MIN_CLEARANCE_PX);
+        wx.push(d.x + d.width + MIN_CLEARANCE_PX);
+        wy.push(d.y - MIN_CLEARANCE_PX);
+        wy.push(d.y + d.height + MIN_CLEARANCE_PX);
         wx.push(d.x - FRAME_MARGIN);
         wx.push(d.x + d.width + FRAME_MARGIN);
         wx.push(d.x + FRAME_INSET);
@@ -424,7 +463,7 @@ pub fn build_corridor_grid(
         ys.push(quant(y));
         ys.push(quant(y + h));
     }
-    for d in frames {
+    for d in frames.iter().filter(|f| valid_frame(f)) {
         ys.push(quant(d.y));
     }
     for &by in det_bus_ys {
@@ -488,7 +527,8 @@ pub fn build_corridor_grid(
 //   * ROLE IS PER-(dept, part), not per-dept. The mockup has one frame per department, so it keys a
 //     frame's role on the bare department id. Here frames are per-part (`FrameRect.part_index`), and
 //     the acceptance detector `frame_intrusion_count` exempts a frame only when its `(dept, part)`
-//     key equals `member_of(from)`/`member_of(to)`. Keying the router's deptOK role on the bare dept
+//     key equals `member_of(from)`/`member_of(to)`. R11 additionally exempts every frame that
+//     geometrically contains an endpoint. Keying the router's deptOK role on the bare dept
 //     would let a line cross a SIBLING part-frame of its own department while the detector still
 //     counts that as an intrusion — router and gate would disagree and AC10 could never close. So
 //     role mirrors the detector: full-key match → Source/Target, else foreign.
@@ -1038,7 +1078,7 @@ pub fn astar_route(
         padded: Rect4,
     }
     let pad = MIN_CLEARANCE_PX;
-    let pc: Vec<Pc> = cards
+    let mut pc: Vec<Pc> = cards
         .iter()
         .map(|c| {
             let (x, y, w, h) = obstacle_rect(c);
@@ -1051,27 +1091,39 @@ pub fn astar_route(
         })
         .collect();
 
-    // Per-frame role, mirroring the acceptance detector's `(dept, part)` exemption (critic B1).
+    // One flat obstacle list for cards and foreign wrappers. Membership-based own-frame
+    // rules remain for docks whose endpoint rect is not contained (e.g. a header port).
     let from_key = member_of(from_id);
     let to_key = member_of(to_id);
-    let frame_roles: Vec<(Rect4, Option<Role>)> = frames
-        .iter()
-        .map(|f| {
-            let key = (f.department_id.clone(), f.part_index);
-            let role = if from_key.as_ref() == Some(&key) {
-                Some(Role::Source)
-            } else if to_key.as_ref() == Some(&key) {
-                Some(Role::Target)
-            } else {
-                None
-            };
-            ((f.x, f.y, f.x + f.width, f.y + f.height), role)
-        })
-        .collect();
+    let mut frame_roles = Vec::new();
+    for f in frames.iter().filter(|f| valid_frame(f)) {
+        if contains_endpoint(f, cards, from_id, to_id) {
+            continue;
+        }
+        let key = (f.department_id.clone(), f.part_index);
+        let role = if from_key.as_ref() == Some(&key) {
+            Some(Role::Source)
+        } else if to_key.as_ref() == Some(&key) {
+            Some(Role::Target)
+        } else {
+            None
+        };
+        let raw = (f.x, f.y, f.x + f.width, f.y + f.height);
+        if role.is_some() {
+            frame_roles.push((raw, role));
+        } else {
+            pc.push(Pc {
+                endpoint: false,
+                cx: 0.0,
+                raw,
+                padded: (raw.0 - pad, raw.1 - pad, raw.2 + pad, raw.3 + pad),
+            });
+        }
+    }
 
     let xs = &grid.xs;
     let ys = &grid.ys;
-    // Passability of a grid edge for THIS edge: matrix block relaxed on own ports, then every frame.
+    // Passability for THIS edge: unified obstacles, then remaining own-frame docking rules.
     let ok = |ei: usize, ej: usize, h: bool| -> bool {
         let seg: Rect4 = if h {
             (xs[ei], ys[ej], xs[ei + 1], ys[ej])
@@ -1084,18 +1136,21 @@ pub fn astar_route(
         } else {
             grid.mv[ej * nx + ei] != 0
         };
-        if matrix_blocked {
-            let hits_card = pc.iter().any(|c| {
-                // Own-endpoint port column — the primary centre OR the secondary offset (mockup :136).
-                let on_port = (seg.0 - c.cx).abs() <= COINCIDE_EPS
-                    || (seg.0 - (c.cx + SECONDARY_PORT_DX)).abs() <= COINCIDE_EPS;
-                let exempt = c.endpoint && vert && on_port;
-                let rect = if exempt { c.raw } else { c.padded };
-                seg_hits_rect(seg, vert, rect)
-            });
-            if hits_card {
-                return false;
-            }
+        // Static matrices already prove clear card corridors. Wrappers are per-edge,
+        // so always check the appended slice even when the card matrix is clear.
+        let obstacles = if matrix_blocked {
+            &pc[..]
+        } else {
+            &pc[cards.len()..]
+        };
+        if obstacles.iter().any(|c| {
+            // Own-endpoint port column — primary centre or secondary offset.
+            let on_port = (seg.0 - c.cx).abs() <= COINCIDE_EPS
+                || (seg.0 - (c.cx + SECONDARY_PORT_DX)).abs() <= COINCIDE_EPS;
+            let exempt = c.endpoint && vert && on_port;
+            seg_hits_rect(seg, vert, if exempt { c.raw } else { c.padded })
+        }) {
+            return false;
         }
         frame_roles.iter().all(|&(d, role)| dept_ok(seg, d, role))
     };
@@ -1993,6 +2048,131 @@ mod tests {
             routes[0].failed,
             "the off-grid edge degrades to best-effort"
         );
+    }
+
+    // R11: frame wrappers in the existing staff coordinate system.
+    fn coords(points: &[StaffRoutePoint]) -> Vec<(f32, f32)> {
+        points.iter().map(|p| (p.x, p.y)).collect()
+    }
+
+    fn wrapper_scene(frames: &[FrameRect]) -> Vec<AStarRoute> {
+        let cards = [
+            ebox("a", 180.0, 40.0, 40.0, 40.0),
+            ebox("b", 180.0, 400.0, 40.0, 40.0),
+        ];
+        route_scene(
+            500.0,
+            500.0,
+            &cards,
+            frames,
+            &[spec("a", "b", (200.0, 80.0), (200.0, 400.0))],
+            &no_member,
+        )
+    }
+
+    #[test]
+    fn wrappers_single_and_nested_ancestors_are_excluded() {
+        let cards = [
+            ebox("a", 180.0, 40.0, 40.0, 40.0),
+            ebox("b", 180.0, 400.0, 40.0, 40.0),
+        ];
+        let frames = [
+            frame("outer", 100.0, 10.0, 200.0, 180.0),
+            frame("inner", 150.0, 20.0, 100.0, 100.0),
+            frame("target", 140.0, 350.0, 120.0, 120.0),
+        ];
+        for count in 1..=3 {
+            let routes = wrapper_scene(&frames[..count]);
+            assert!(!routes[0].failed, "ancestor count {count}");
+            assert_eq!(
+                coords(&routes[0].points),
+                vec![(200.0, 80.0), (200.0, 400.0)]
+            );
+            let sr = route("a", "b", routes[0].points.clone());
+            assert_eq!(
+                route_stats(&[sr], &cards, &frames[..count], &no_member),
+                RouteStats::default()
+            );
+        }
+    }
+
+    #[test]
+    fn wrappers_foreign_container_detour_has_clearance() {
+        let foreign = frame("foreign", 150.0, 180.0, 100.0, 100.0);
+        let routes = wrapper_scene(&[foreign]);
+        assert!(!routes[0].failed);
+        assert!(all_ortho(&routes[0].points));
+        assert_ne!(
+            coords(&routes[0].points),
+            coords(&wrapper_scene(&[])[0].points)
+        );
+        for segment in routes[0].points.windows(2) {
+            assert!(seg_rect_distance(&segment[0], &segment[1], 150.0, 180.0, 100.0, 100.0) >= 8.0);
+        }
+    }
+
+    #[test]
+    fn wrappers_invalid_geometry_is_skipped_with_exact_parity() {
+        let baseline = wrapper_scene(&[]);
+        for (x, y, w, h) in [
+            (f32::NAN, 180.0, 100.0, 100.0),
+            (150.0, f32::NAN, 100.0, 100.0),
+            (150.0, 180.0, f32::INFINITY, 100.0),
+            (150.0, 180.0, 100.0, f32::NEG_INFINITY),
+            (150.0, 180.0, 0.0, 100.0),
+            (150.0, 180.0, 100.0, -100.0),
+            (f32::MAX, 180.0, f32::MAX, 100.0),
+        ] {
+            let routes = wrapper_scene(&[frame("invalid", x, y, w, h)]);
+            assert_eq!(coords(&routes[0].points), coords(&baseline[0].points));
+            assert_eq!(routes[0].failed, baseline[0].failed);
+        }
+    }
+
+    #[test]
+    fn wrappers_no_frames_preserves_straight_route() {
+        let routes = wrapper_scene(&[]);
+        assert!(!routes[0].failed);
+        assert_eq!(
+            coords(&routes[0].points),
+            vec![(200.0, 80.0), (200.0, 400.0)]
+        );
+    }
+
+    #[test]
+    fn wrappers_straddling_endpoint_keeps_no_path_residual() {
+        // Contains the start port, but NOT the full source card: cannot self-exclude.
+        let routes = wrapper_scene(&[frame("foreign", 190.0, 60.0, 40.0, 80.0)]);
+        assert!(routes[0].failed);
+        assert_eq!(coords(&routes[0].points).first(), Some(&(200.0, 80.0)));
+        assert_eq!(coords(&routes[0].points).last(), Some(&(200.0, 400.0)));
+    }
+
+    #[test]
+    fn wrappers_internal_elbow_near_foreign_frame_is_rerouted() {
+        let cards = [
+            ebox("a", 80.0, 40.0, 40.0, 40.0),
+            ebox("b", 280.0, 400.0, 40.0, 40.0),
+        ];
+        // The elbow bus is y=240, only 4px above the wrapper.
+        let frames = [frame("foreign", 180.0, 244.0, 40.0, 50.0)];
+        let member = |_: &str| Some(("own".to_string(), None));
+        let routes = route_scene(
+            500.0,
+            500.0,
+            &cards,
+            &frames,
+            &[spec("a", "b", (100.0, 80.0), (300.0, 400.0))],
+            &member,
+        );
+        assert!(!routes[0].failed);
+        assert_ne!(
+            coords(&routes[0].points),
+            coords(&route_ortho(&cards[0], &cards[1]))
+        );
+        for segment in routes[0].points.windows(2) {
+            assert!(seg_rect_distance(&segment[0], &segment[1], 180.0, 244.0, 40.0, 50.0) >= 8.0);
+        }
     }
 
     // --- T6: rip-up + bad-edge detector ---

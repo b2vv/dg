@@ -18,9 +18,9 @@ fn crossings(out: &StaffGeometryResult) -> usize {
 #[test]
 fn multi_source_parent_chooses_clean_attachment_deterministically() {
     let baseline = compute_staff_geometry(&input(None)).unwrap();
-    // dg38 layout: declaration-earliest head ah puts ana under fin (cross 6 → 1).
-    // Parent evaluation still improves the remaining crossing to zero.
-    assert_eq!(crossings(&baseline), 1);
+    // The declaration-earliest head ah puts ana under fin; frame-aware A*
+    // now routes this baseline with zero crossings, as does parent evaluation.
+    assert_eq!(crossings(&baseline), 0);
     assert_eq!(
         serde_json::to_value(&baseline).unwrap(),
         serde_json::to_value(compute_staff_geometry(&input(Some(false))).unwrap()).unwrap()
@@ -63,8 +63,8 @@ fn tree_block_default_mock3_head_is_ah_under_fin_deterministically() {
     assert!(frame("ana").y >= frame("fin").y + frame("fin").height);
     assert_eq!(
         crossings(&out),
-        1,
-        "dg38: declaration-earliest head reduces cross 6 → 1"
+        0,
+        "dg38: declaration-earliest head with frame-aware A* reduces cross 6 → 0"
     );
     // S1 probe baseline: singleton assistant keeps its absolute placement.
     assert_eq!(node("asst").x + node("asst").width / 2.0, 4438.0);
@@ -166,12 +166,14 @@ fn multi_source_parent_requires_tree_blocks_and_grouping() {
 }
 
 #[test]
-fn multi_source_parent_prefers_fewer_turns_before_lexicographic_order() {
+fn multi_source_parent_astar_converges_on_lexicographic_tie() {
+    // Both routers now tie on turns. Unequal-turn coverage lives in
+    // multi_source_parent_prefers_fewer_turns_before_lexicographic_order.
     let mut enabled = synthetic(&[2], false);
     let first = compute_staff_geometry(&enabled).unwrap();
     assert_eq!(
         first.diagnostics.last().unwrap(),
-        "Multi-source parents: d0=h01"
+        "Multi-source parents: d0=h00"
     );
     enabled.positions.reverse();
     let reversed = compute_staff_geometry(&enabled).unwrap();
@@ -187,4 +189,77 @@ fn multi_source_parent_breaks_equal_scores_lexicographically() {
         out.diagnostics.last().unwrap(),
         "Multi-source parents: d0=h00"
     );
+}
+
+fn turns(out: &StaffGeometryResult) -> usize {
+    out.routes
+        .segments
+        .iter()
+        .map(|route| {
+            let directions: Vec<_> = route
+                .points
+                .windows(2)
+                .filter_map(|pair| {
+                    let dx = pair[1].x - pair[0].x;
+                    let dy = pair[1].y - pair[0].y;
+                    assert!(dx == 0.0 || dy == 0.0, "route must be orthogonal");
+                    if dx == 0.0 && dy == 0.0 {
+                        None
+                    } else {
+                        Some((dx != 0.0, (dx + dy).is_sign_positive()))
+                    }
+                })
+                .collect();
+            directions
+                .windows(2)
+                .filter(|pair| pair[0] != pair[1])
+                .count()
+        })
+        .sum()
+}
+
+#[test]
+fn multi_source_parent_prefers_fewer_turns_before_lexicographic_order() {
+    let mut value = serde_json::to_value(synthetic(&[2], false)).unwrap();
+    // A sibling department under m00 makes the two attachments asymmetric.
+    // Only h00 and h01 are candidates for d0; both extra heads report to m00.
+    value["departments"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({"id":"extra"}));
+    for id in ["extra0", "extra1"] {
+        value["positions"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({
+            "id":id,"organizationId":"o","isHead":false,"departmentId":"extra"
+        }));
+        value["reports"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({
+            "fromId":"m00","toId":id,"kind":"admin"
+        }));
+    }
+    let mut scene: StaffLayoutInput = serde_json::from_value(value).unwrap();
+    scene.multi_source_parent_eval = None;
+    // Without evaluation, the first declared external-parent head wins.
+    let h00 = compute_staff_geometry(&scene).unwrap();
+    let i = scene.positions.iter().position(|p| p.id == "h00").unwrap();
+    let j = scene.positions.iter().position(|p| p.id == "h01").unwrap();
+    scene.positions.swap(i, j);
+    let h01 = compute_staff_geometry(&scene).unwrap();
+    assert_eq!((crossings(&h00), crossings(&h01)), (0, 0));
+    assert_eq!((turns(&h00), turns(&h01)), (16, 14));
+
+    scene.multi_source_parent_eval = Some(true);
+    for _ in 0..2 {
+        scene.positions.swap(i, j);
+        let selected = compute_staff_geometry(&scene).unwrap();
+        assert_eq!(
+            selected.diagnostics.last().unwrap(),
+            "Multi-source parents: d0=h01"
+        );
+        assert_eq!((crossings(&selected), turns(&selected)), (0, 14));
+    }
 }
