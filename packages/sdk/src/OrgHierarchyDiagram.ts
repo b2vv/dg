@@ -63,6 +63,7 @@ import {
 } from './render/motionBlur.js';
 import { createRenderCoalesce } from './render/renderCoalesce.js';
 import { InteractionStore } from './state/InteractionStore.js';
+import { EmphasisStore } from './state/EmphasisStore.js';
 import type { InteractionState } from './interaction/interactionState.js';
 import { ViewStateStore } from './state/ViewStateStore.js';
 import { DataStore } from './state/DataStore.js';
@@ -352,6 +353,7 @@ export class OrgHierarchyDiagram {
     pool: this.workerPool,
     workerFactory: this.workerFactory,
   }));
+  private readonly emphasis = new EmphasisStore();
   /** Shared selection and transient hover. */
   private readonly interactionStore = new InteractionStore({
     onSelectionChange: (selections) => {
@@ -1438,7 +1440,7 @@ export class OrgHierarchyDiagram {
         }
         return {
           selected: this.interactionStore.list.some((selected) => sameNodeRef(selected, nodeRef)),
-          hovered: this.viewState.highlightedNode === nodeRef.id,
+          hovered: this.emphasis.highlight === nodeRef.id,
           expanded,
           collapsed,
         };
@@ -1486,8 +1488,7 @@ export class OrgHierarchyDiagram {
     this.searchService.adopt(index);
     this.seedExpandedPositionsFromData();
     this.applySelection(null);
-    this.viewState.highlightedNode = null;
-    this.viewState.foundFocus = null;
+    this.emphasis.clearEmphasis();
     const ms =
       (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()) - t0;
     this.callbacks.onDataMapped?.({
@@ -1929,7 +1930,7 @@ export class OrgHierarchyDiagram {
   /** Accent the admin reporting path and direct reports using raw position ids. */
   highlightPath(nodeId: string | null): void {
     if (this.destroyed) return;
-    this.viewState.highlightedNode = nodeId || null;
+    this.emphasis.setHighlight(nodeId);
     this.repaintHighlight();
   }
 
@@ -1946,14 +1947,14 @@ export class OrgHierarchyDiagram {
         }
       }
     }
-    this.viewState.foundFocus = keys.size > 0 ? keys : null;
+    this.emphasis.setFound(keys.size > 0 ? keys : null);
     this.repaintHighlight();
   }
 
   private repaintHighlight(): void {
     if (this.destroyed) return;
     this.renderer?.repaintHighlight(
-      this.viewState.highlightedNode, this.viewState.foundFocus, this.data.reportLines, this.nodeTheme,
+      this.emphasis.highlight, this.emphasis.found, this.data.reportLines, this.nodeTheme,
     );
     this.host?.requestPaint();
   }

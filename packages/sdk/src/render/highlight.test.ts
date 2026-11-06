@@ -45,12 +45,12 @@ describe('highlight facade', () => {
     const diagram = new OrgHierarchyDiagram();
     diagram.highlightPath('a');
     diagram.setFoundFocus(['a', 'person:b']);
-    expect(diagram['viewState'].highlightedNode).toBe('a');
-    expect(diagram['viewState'].foundFocus).toEqual(new Set(['position:a', 'organization:a', 'person:a', 'person:b']));
+    expect(diagram['emphasis'].highlight).toBe('a');
+    expect(diagram['emphasis'].found).toEqual(new Set(['position:a', 'organization:a', 'person:a', 'person:b']));
     diagram.setFoundFocus([]);
     diagram.highlightPath(null);
-    expect(diagram['viewState'].foundFocus).toBeNull();
-    expect(diagram['viewState'].highlightedNode).toBeNull();
+    expect(diagram['emphasis'].found).toBeNull();
+    expect(diagram['emphasis'].highlight).toBeNull();
     diagram.destroy();
   });
   it('success: node focus resets to captured external baseline, including no-match', async () => {
@@ -106,8 +106,8 @@ it('success: facade reapplies after rebuild, clears on setData, and selection do
   expect(renderer['scene'].getView('organization', 'child')?.alpha).toBe(0.38);
   diagram.highlightPath('root');
   await diagram.setData(data);
-  expect(diagram['viewState'].highlightedNode).toBeNull();
-  expect(diagram['viewState'].foundFocus).toBeNull();
+  expect(diagram['emphasis'].highlight).toBeNull();
+  expect(diagram['emphasis'].found).toBeNull();
   expect(renderer['scene'].getView('organization', 'child')?.alpha).toBe(1);
   for (const reset of [[], null, ['missing']]) {
     diagram.setFoundFocus('root');
@@ -156,7 +156,7 @@ it('success: a facade request during render is deferred and applied at renderNow
     await build.apply(renderer, args);
     const child = renderer['scene'].getView('organization', 'c');
     diagram.setFoundFocus('r');
-    expect(diagram['viewState'].foundFocus?.has('organization:r')).toBe(true);
+    expect(diagram['emphasis'].found?.has('organization:r')).toBe(true);
     expect(child?.alpha).toBe(1);
   };
   await diagram.setTheme('light');
