@@ -1636,3 +1636,110 @@ it('mount promotes a currently visible card even when its final target is offscr
     expect(diagram.setPromotedNodeIds).toHaveBeenLastCalledWith(['pos1']);
   } finally { act(() => overlay?.dispose()); mount.remove(); }
 });
+
+describe('per-slot interaction', () => {
+  it('reads interaction, forwards actions, refreshes only changed cards and releases subscriptions', () => {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    const selected = new Set(['pos1']);
+    let hovered: string | null = 'pos2';
+    const listeners = new Set<() => void>();
+    const interaction = {
+      isSelected: (id: string) => selected.has(id),
+      isHovered: (id: string) => hovered === id,
+      subscribe: (listener: () => void) => {
+        listeners.add(listener);
+        return () => { listeners.delete(listener); };
+      },
+      select: rstest.fn(),
+      hover: rstest.fn(),
+    };
+    const base = makeDiagram();
+    const first = base.listPromoteCandidates()[0]!;
+    const second: PromoteCandidate = {
+      ...first, id: 'pos2', world: { ...first.world, x: 150 },
+      node: { ...first.node, ref: { id: 'pos2', kind: 'position', positionId: 'pos2' } },
+    };
+    const resolve = rstest.fn(() => [first, second]);
+    const diagram = makeDiagram({
+      listPromoteBoxes: () => [first, second].map((c) => ({ id: c.id, kind: c.kind, ...c.world })),
+      listPromoteCandidates: resolve,
+    });
+    const seen = new Map<string, PromoteSlotProps>();
+    const renders = new Map<string, number>();
+    const Card = (props: PromoteSlotProps) => {
+      seen.set(props.id, props);
+      renders.set(props.id, (renders.get(props.id) ?? 0) + 1);
+      return createElement(DefaultPromoteCard, props);
+    };
+    let overlay: ReactPromoteOverlay | undefined;
+    try {
+      act(() => { overlay = createReactPromoteOverlay({ diagram, mount, component: Card, mode: 'near-visible', interaction }); });
+      expect(seen.get('pos1')?.selected).toBe(true);
+      expect(seen.get('pos1')?.hovered).toBe(false);
+      expect(seen.get('pos2')?.selected).toBe(false);
+      expect(seen.get('pos2')?.hovered).toBe(true);
+      expect(listeners.size).toBe(2);
+      const mods = { ctrlKey: true, metaKey: false, shiftKey: false };
+      seen.get('pos1')!.onSelect(mods);
+      seen.get('pos2')!.onSelect();
+      seen.get('pos2')!.onHover(true);
+      seen.get('pos2')!.onHover(false);
+      expect(interaction.select.mock.calls).toEqual([['pos1', mods], ['pos2', undefined]]);
+      expect(interaction.hover.mock.calls).toEqual([['pos2', true], ['pos2', false]]);
+      const before = new Map(renders);
+      resolve.mockClear();
+      rstest.mocked(diagram.setPromotedNodeIds).mockClear();
+      const emit = () => { for (const listener of listeners) listener(); };
+      act(() => { selected.delete('pos1'); emit(); });
+      expect(seen.get('pos1')?.selected).toBe(false);
+      expect(renders.get('pos1')).toBe(before.get('pos1')! + 1);
+      expect(renders.get('pos2')).toBe(before.get('pos2'));
+      act(() => { hovered = null; emit(); });
+      expect(seen.get('pos2')?.hovered).toBe(false);
+      expect(renders.get('pos1')).toBe(before.get('pos1')! + 1);
+      expect(renders.get('pos2')).toBe(before.get('pos2')! + 1);
+      act(emit);
+      expect(renders.get('pos2')).toBe(before.get('pos2')! + 1);
+      expect(resolve).not.toHaveBeenCalled();
+      expect(diagram.setPromotedNodeIds).not.toHaveBeenCalled();
+      act(() => overlay?.setMaxPromoted(1));
+      expect(listeners.size).toBe(1);
+      act(() => overlay?.dispose());
+      expect(listeners.size).toBe(0);
+      act(emit);
+    } finally { act(() => overlay?.dispose()); mount.remove(); }
+  });
+});
+
+for (const interaction of [undefined, null]) {
+  it(`keeps the default card unchanged and actions passive with ${interaction} interaction`, () => {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    const diagram = makeDiagram();
+    let slot: PromoteSlotProps | undefined;
+    const Card = (props: PromoteSlotProps) => {
+      slot = props;
+      return createElement(DefaultPromoteCard, props);
+    };
+    let overlay: ReactPromoteOverlay | undefined;
+    try {
+      act(() => { overlay = createReactPromoteOverlay({ diagram, mount, component: Card, interaction }); });
+      const before = mount.innerHTML;
+      expect(slot?.selected).toBe(false);
+      expect(slot?.hovered).toBe(false);
+      expect(mount.querySelector('[data-promote-card]')?.textContent).toBe('AliceEng×');
+      act(() => {
+        slot!.onSelect();
+        slot!.onSelect({ ctrlKey: false, metaKey: true, shiftKey: true });
+        slot!.onHover(true);
+        slot!.onHover(false);
+      });
+      expect(diagram.select).not.toHaveBeenCalled();
+      expect(mount.innerHTML).toBe(before);
+      act(() => overlay?.dispose());
+      act(() => { overlay = createReactPromoteOverlay({ diagram, mount, component: DefaultPromoteCard }); });
+      expect(mount.innerHTML).toBe(before);
+    } finally { act(() => overlay?.dispose()); mount.remove(); }
+  });
+}

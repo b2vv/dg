@@ -698,9 +698,17 @@ export class App {
     // `near-visible` with the mockup card, regardless of the `?promote=` flag.
     // `staff-alpha` shares the same near-view face (mockup-calc geometry + v3 card).
     const shps = this.tab === 'staff-shps' || this.tab === 'staff-alpha';
+    const positionRef = (id: string) => ({ kind: 'position' as const, id });
     this.promote = createReactPromoteOverlay({
       diagram,
       mount: this.mountEl,
+      interaction: {
+        isSelected: (id) => diagram.isSelected(positionRef(id)),
+        isHovered: (id) => diagram.isHovered(positionRef(id)),
+        subscribe: (callback) => diagram.subscribeInteraction(callback),
+        select: (id, mods) => diagram.selectNode(positionRef(id), mods),
+        hover: (id, on) => diagram.setHovered(on ? positionRef(id) : null),
+      },
       // Opt-in, like `?renderer=`: the default stays the selection card so the
       // existing behaviour — and the e2e that pins it — keeps its meaning.
       mode: shps ? 'near-visible' : this.promoteMode,

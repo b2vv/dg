@@ -3,6 +3,8 @@ import {
   createElement,
   createRef,
   useImperativeHandle,
+  useLayoutEffect,
+  useRef,
   useReducer,
   type RefObject,
   type ComponentType,
@@ -11,6 +13,7 @@ import {
 } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
+import type { SelectionPointerMods } from '../interaction/selection.js';
 import type { ContextMenuNodeData } from '../interaction/contextMenuPayload.js';
 import type { NodeKind, NodeRef } from '../core/index.js';
 import type { TransitionFrame } from '../render/transition/types.js';
@@ -92,6 +95,10 @@ export interface PromoteSlotProps {
   viewport: ViewportTransform;
   /** Demote / clear selection helper from the host card. */
   onDemote: () => void;
+  selected: boolean;
+  hovered: boolean;
+  onSelect(mods?: SelectionPointerMods): void;
+  onHover(on: boolean): void;
 }
 
 /**
@@ -132,6 +139,14 @@ export interface ReactPromoteOverlayOptions {
    * host it is NOT assumed — the host decides what to show per lod.
    */
   backdrop?: ComponentType<PromoteBackdropProps>;
+  /** Opt-in interaction state and actions; absent/null keeps cards passive. */
+  interaction?: {
+    isSelected(id: string): boolean;
+    isHovered(id: string): boolean;
+    subscribe(callback: () => void): () => void;
+    select(id: string, mods?: SelectionPointerMods): void;
+    hover(id: string, on: boolean): void;
+  } | null;
   mode?: PromoteMode;
   maxPromoted?: number;
   /**
@@ -180,8 +195,41 @@ function FrameBackdrop(props: {
   return createElement(props.component, props.backdropProps);
 }
 
+/** Interaction refresh stays inside one card, preserving geometry and resolved data. */
+function InteractionSlot(props: {
+  component: ComponentType<PromoteSlotProps>;
+  slot: PromoteSlotProps;
+  interaction: NonNullable<ReactPromoteOverlayOptions['interaction']>;
+}): ReactElement {
+  const { slot, interaction } = props;
+  const refreshRef = useRef<{ refresh(): void } | null>(null);
+  const [, refresh] = useReducer((version: number) => version + 1, 0);
+  useImperativeHandle(refreshRef, () => ({ refresh }), [refresh]);
+  const selected = interaction.isSelected(slot.id);
+  const hovered = interaction.isHovered(slot.id);
+  useLayoutEffect(() => {
+    let previousSelected = selected;
+    let previousHovered = hovered;
+    const check = (): void => {
+      const nextSelected = interaction.isSelected(slot.id);
+      const nextHovered = interaction.isHovered(slot.id);
+      if (nextSelected === previousSelected && nextHovered === previousHovered) return;
+      previousSelected = nextSelected;
+      previousHovered = nextHovered;
+      refreshRef.current?.refresh();
+    };
+    const unsubscribe = interaction.subscribe(check);
+    // Cover changes between render and subscription. Unmount (including dispose)
+    // releases this slot's subscription even when its error boundary drops it.
+    check();
+    return unsubscribe;
+  }, [interaction, slot.id, selected, hovered]);
+  return createElement(props.component, { ...slot, selected, hovered });
+}
+
 function OverlayRoot(props: {
   slots: PromoteSlotProps[];
+  interaction?: ReactPromoteOverlayOptions['interaction'];
   backdropRef: RefObject<{ refresh(): void } | null>;
   component: ComponentType<PromoteSlotProps>;
   onSlotError(id: string, error: unknown): void;
@@ -237,7 +285,9 @@ function OverlayRoot(props: {
         createElement(
           SlotBoundary,
           { id: slot.id, onError: props.onSlotError },
-          createElement(props.component, { ...slot }),
+          props.interaction
+            ? createElement(InteractionSlot, { component: props.component, slot, interaction: props.interaction })
+            : createElement(props.component, { ...slot }),
         ),
       ),
     ),
@@ -482,6 +532,10 @@ export function createReactPromoteOverlay(
         chrome: scaleChrome(options.diagram.getPromoteChrome(candidate.kind), viewport.scale),
         viewport,
         onDemote: demote,
+        selected: false,
+        hovered: false,
+        onSelect: (mods) => { options.interaction?.select(candidate.id, mods); },
+        onHover: (on) => { options.interaction?.hover(candidate.id, on); },
       });
     }
     return slots;
@@ -535,6 +589,7 @@ export function createReactPromoteOverlay(
       createElement(OverlayRoot, {
         backdropRef,
         slots: capped,
+        interaction: options.interaction,
         component: options.component,
         onSlotError: handleSlotError,
         className: options.className,
