@@ -1855,13 +1855,7 @@ mod tests {
         assert_eq!(dept, 0, "department violations: {dept}");
     }
 
-    /// Manual native measurement for coverage §8.4 (≤50 ms / 500 positions).
-    /// The loose debug ceiling catches catastrophic regressions, not budget compliance.
-    #[test]
-    #[ignore = "wall-clock measurement; run explicitly with --ignored --nocapture"]
-    fn staff_astar_500_positions_wall_clock() {
-        use std::time::{Duration, Instant};
-
+    fn tidy_large_det_only() -> StaffTidyInput {
         let mut input = StaffTidyInput {
             positions: vec![pos("ceo", None)],
             reports: Vec::new(),
@@ -1895,24 +1889,7 @@ mod tests {
         assert_eq!(input.reports.len(), 499);
         assert_eq!(input.params.routing, StaffTidyRouting::Astar);
 
-        let start = Instant::now();
-        let result = compute_staff_tidy_layout(&input);
-        let elapsed = start.elapsed();
-        let budget_ms = 50.0;
-        let ceiling = Duration::from_secs(60);
-        println!(
-            "A* 500 positions / 10 departments / 499 reports: {:.3} ms; \
-             §8.4 budget {budget_ms} ms ({:.2}× budget); regression ceiling {} ms; debug={}",
-            elapsed.as_secs_f64() * 1000.0,
-            elapsed.as_secs_f64() * 1000.0 / budget_ms,
-            ceiling.as_millis(),
-            cfg!(debug_assertions),
-        );
-        let out = result.unwrap();
-        assert_eq!(out.nodes.len(), 500);
-        assert_eq!(out.frames.len(), 10);
-        assert_eq!(out.edges.len(), 499);
-        assert!(elapsed < ceiling, "A* 500-position regression: {elapsed:?}");
+        input
     }
 
     #[test]
@@ -1921,5 +1898,651 @@ mod tests {
         let a = serde_json::to_string(&compute_staff_tidy_layout(&input).unwrap()).unwrap();
         let b = serde_json::to_string(&compute_staff_tidy_layout(&input).unwrap()).unwrap();
         assert_eq!(a, b, "два прогони A* → ідентичний вивід");
+    }
+
+    // S1 frozen characterization: regenerate ONLY with DG_TIDY_GOLDEN_WRITE=1.
+    // S2–S4 MUST NOT regenerate or edit these fixtures. Compact JSON, no newline.
+    fn golden(name: &str, result: &StaffTidyResult) {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/staff_tidy_golden")
+            .join(format!("{name}.json"));
+        let actual = serde_json::to_string(result).unwrap();
+        if std::env::var("DG_TIDY_GOLDEN_WRITE").as_deref() == Ok("1") {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, &actual).unwrap();
+        }
+        assert_eq!(
+            actual,
+            std::fs::read_to_string(path).unwrap(),
+            "golden {name}"
+        );
+    }
+
+    fn tidy_large_realistic() -> StaffTidyInput {
+        let template = mock3_scene();
+        let mut input = StaffTidyInput {
+            positions: vec![pos("ceo", None)],
+            reports: vec![],
+            departments: template.departments.clone(),
+            params: template.params.clone(),
+        };
+        // Ten copies of each department's internal mock3 shape, in the SAME ten
+        // departments and organization, sharing ONE CEO. Keep all mock3 cross
+        // links (acc→aud, cfo→ah, cto→bi, tlb→qh, cco→cmo/lgh, cto→ib)
+        // and the secondary CEO→da link in each cohort: 80 genuine A* edges.
+        for cohort in 0..10 {
+            let rename = |id: &str| {
+                if id == "ceo" {
+                    id.to_string()
+                } else {
+                    format!("{id}-{cohort}")
+                }
+            };
+            for position in template.positions.iter().filter(|p| p.id != "ceo") {
+                input.positions.push(pos(
+                    &rename(&position.id),
+                    position.department_id.as_deref(),
+                ));
+            }
+            for edge in &template.reports {
+                input
+                    .reports
+                    .push(admin(&rename(&edge.from_id), &rename(&edge.to_id)));
+            }
+        }
+        assert_eq!(input.positions.len(), 491);
+        input
+    }
+
+    // Reconstruct routing metadata from the public geometry (Simple mode avoids
+    // routing twice). Cross-check observed routes against the real A* result.
+    fn routing_input(input: &StaffTidyInput) -> RouteInput {
+        let mut simple = input.clone();
+        simple.params.routing = StaffTidyRouting::Simple;
+        let out = compute_staff_tidy_layout(&simple).unwrap();
+        let mut parent = HashMap::new();
+        let mut parents: HashMap<String, Vec<String>> = HashMap::new();
+        for e in &input.reports {
+            if e.kind == "admin" && e.from_id != e.to_id {
+                parent.entry(e.to_id.clone()).or_insert(e.from_id.clone());
+                let ps = parents.entry(e.to_id.clone()).or_default();
+                if !ps.contains(&e.from_id) {
+                    ps.push(e.from_id.clone());
+                }
+            }
+        }
+        let block_of: HashMap<String, String> = input
+            .positions
+            .iter()
+            .map(|p| {
+                (
+                    p.id.clone(),
+                    p.department_id
+                        .clone()
+                        .unwrap_or_else(|| format!("p:{}", p.id)),
+                )
+            })
+            .collect();
+        let mut roots: HashMap<String, Vec<String>> = HashMap::new();
+        for p in &input.positions {
+            let b = &block_of[&p.id];
+            if parent.get(&p.id).is_none_or(|m| block_of[m] != *b) {
+                roots.entry(b.clone()).or_default().push(p.id.clone());
+            }
+        }
+        let block_parent = roots
+            .iter()
+            .map(|(b, rs)| (b.clone(), parent.get(&rs[0]).map(|m| block_of[m].clone())))
+            .collect();
+        let depts: Vec<DeptRect> = out
+            .frames
+            .iter()
+            .map(|f| DeptRect {
+                id: f.department_id.clone(),
+                x1: f.x as f64,
+                y1: f.y as f64,
+                x2: (f.x + f.width) as f64,
+                y2: (f.y + f.height) as f64,
+                head: roots[&f.department_id][0].clone(),
+            })
+            .collect();
+        let p = &input.params;
+        RouteInput {
+            cards: out
+                .nodes
+                .iter()
+                .map(|n| (n.id.clone(), (n.x as f64, n.y as f64)))
+                .collect(),
+            cw: p.card_width as f64,
+            ch: p.card_height as f64,
+            dept_by_id: depts
+                .iter()
+                .enumerate()
+                .map(|(i, d)| (d.id.clone(), i))
+                .collect(),
+            depts,
+            dept_of: input
+                .positions
+                .iter()
+                .map(|p| (p.id.clone(), p.department_id.clone()))
+                .collect(),
+            primary_parent: parent,
+            sec_parents: input
+                .positions
+                .iter()
+                .flat_map(|p| {
+                    parents
+                        .get(&p.id)
+                        .into_iter()
+                        .flatten()
+                        .skip(1)
+                        .map(|m| (p.id.clone(), m.clone()))
+                })
+                .collect(),
+            block_of,
+            block_parent,
+            block_roots: roots,
+            pos_order: input.positions.iter().map(|p| p.id.clone()).collect(),
+            lv: ev(f32::max(56.0, 2.0 * p.pad + 4.0 * p.lane)) as f64,
+            bv: ev(f32::max(96.0, 2.0 * p.pad + 8.0 * p.lane)) as f64,
+            pad: p.pad as f64,
+            lane: p.lane as f64,
+            w: out.width as f64,
+            h: out.height as f64,
+        }
+    }
+
+    #[derive(Default, Debug)]
+    struct SearchObservation {
+        pops: usize,
+        capped: bool,
+        no_goal: bool,
+    }
+    #[derive(Default, Debug)]
+    struct RouteObservation {
+        nx: usize,
+        ny: usize,
+        det: usize,
+        ast: usize,
+        pass0_bad: usize,
+        reroutes: usize,
+        searches: Vec<SearchObservation>,
+    }
+    fn check_search(
+        grid: &Grid,
+        l: &RouteInput,
+        occ: &Occ,
+        mkey: u32,
+        e: &REdge,
+        o: &mut RouteObservation,
+    ) -> (Vec<(f64, f64)>, bool) {
+        let mut search = SearchObservation::default();
+        let observed = observed_astar(grid, l, occ, mkey, e, &mut search);
+        let actual = astar(grid, l, occ, mkey, e);
+        assert_eq!(
+            actual, observed,
+            "frozen S1 observer disagrees with production search"
+        );
+        o.searches.push(search);
+        actual
+    }
+    fn characterize(name: &str, input: &StaffTidyInput) -> RouteObservation {
+        let out = compute_staff_tidy_layout(input).unwrap();
+        let mut o = RouteObservation::default();
+        let edges = observed_routes(&routing_input(input), &mut o);
+        assert_eq!(
+            serde_json::to_string(&edges).unwrap(),
+            serde_json::to_string(&out.edges).unwrap()
+        );
+        println!(
+            "{name}: nx={} ny={} det={} ast={} calls={} pops={} pass0_bad={} reroutes={} caps={}",
+            o.nx,
+            o.ny,
+            o.det,
+            o.ast,
+            o.searches.len(),
+            o.searches.iter().map(|s| s.pops).sum::<usize>(),
+            o.pass0_bad,
+            o.reroutes,
+            o.searches.iter().filter(|s| s.capped).count()
+        );
+        golden(name, &out);
+        o
+    }
+    #[test]
+    #[ignore = "combined large goldens exceed 3s in debug; run in release on every S2–S4 slice"]
+    fn golden_large_det_only() {
+        golden(
+            "det_only_500",
+            &compute_staff_tidy_layout(&tidy_large_det_only()).unwrap(),
+        );
+    }
+    #[test]
+    #[ignore = "combined large goldens exceed 3s in debug; run in release on every S2–S4 slice"]
+    fn golden_large_realistic() {
+        golden(
+            "realistic",
+            &compute_staff_tidy_layout(&tidy_large_realistic()).unwrap(),
+        );
+    }
+    #[test]
+    #[ignore = "expensive frozen-observer coverage; run in release for each slice"]
+    fn realistic_routing_coverage() {
+        let o = characterize("realistic", &tidy_large_realistic());
+        assert!(o.ast >= 50);
+        assert!(o.nx >= 2000);
+    }
+    #[test]
+    fn golden_small_scenes() {
+        characterize("mock3", &mock3_scene());
+        let mut input = sample();
+        input.positions.clear();
+        input.reports.clear();
+        characterize("empty_departments", &input);
+        input.positions.push(pos("ceo", None));
+        characterize("single_position", &input);
+        input.positions = vec![pos("a", Some("a")), pos("b", Some("b"))];
+        input.departments = vec![dept("a"), dept("b")];
+        characterize("two_departments", &input);
+    }
+    #[test]
+    #[ignore = "release timing only; N=7 min; run without competing cargo builds"]
+    fn staff_tidy_perf_baseline() {
+        for (name, input) in [
+            ("det_only_500", tidy_large_det_only()),
+            ("realistic", tidy_large_realistic()),
+            ("mock3", mock3_scene()),
+        ] {
+            let mut best = f64::INFINITY;
+            for _ in 0..7 {
+                let start = std::time::Instant::now();
+                std::hint::black_box(compute_staff_tidy_layout(&input).unwrap());
+                best = best.min(start.elapsed().as_secs_f64() * 1000.0);
+            }
+            println!("{name}: min_of_7={best:.3} ms");
+        }
+    }
+
+    // Frozen S1 observer: same search order and helper calls as baseline 0a2b1a8.
+    fn observed_astar(
+        grid: &Grid,
+        l: &RouteInput,
+        occ: &Occ,
+        mkey: u32,
+        e: &REdge,
+        observation: &mut SearchObservation,
+    ) -> (Vec<(f64, f64)>, bool) {
+        let mc = l.cards[&e.m];
+        let a_dept = dept_of(l, &e.m)
+            .filter(|d| l.dept_by_id.contains_key(*d))
+            .map(|s| s.to_string());
+        let b_dept = dept_of(l, &e.c)
+            .filter(|d| l.dept_by_id.contains_key(*d))
+            .map(|s| s.to_string());
+        let s = (mc.0 + l.cw / 2.0, mc.1 + l.ch);
+        let t = edge_target(l, &e.c, e.sec);
+        let fallback = || {
+            let my = (s.1 + t.1) / 2.0;
+            vec![s, (s.0, my), (t.0, my), (t.0, t.1)]
+        };
+        let (Some(&si), Some(&sj), Some(&ti), Some(&tj)) = (
+            grid.xi.get(&key2(s.0)),
+            grid.yi.get(&key2(s.1)),
+            grid.xi.get(&key2(t.0)),
+            grid.yi.get(&key2(t.1)),
+        ) else {
+            return (fallback(), true);
+        };
+
+        let nx = grid.nx;
+        let ny = grid.ny;
+        let n = nx * ny;
+        let mut g = vec![f64::INFINITY; n * 3];
+        let mut pv = vec![-1i64; n * 3];
+        let mut cache: HashMap<(bool, usize, usize), bool> = HashMap::new();
+        let hz = |i: usize, j: usize| (grid.xs[i] - t.0).abs() + (grid.ys[j] - t.1).abs();
+
+        let st = (sj * nx + si) * 3;
+        g[st] = 0.0;
+        let mut heap = BinaryHeap::new();
+        heap.push(HeapItem {
+            f: hz(si, sj),
+            g: 0.0,
+            k: st,
+        });
+        let mut goal: i64 = -1;
+        let mut it = 0u32;
+        while let Some(item) = heap.pop() {
+            it += 1;
+            observation.pops += 1;
+            if it > 250_000 {
+                observation.capped = true;
+                break;
+            }
+            let k = item.k;
+            let dir = k % 3;
+            let nidx = (k - dir) / 3;
+            let i = nidx % nx;
+            let j = (nidx - i) / nx;
+            if item.g > g[k] + 1e-6 {
+                continue;
+            }
+            if i == ti && j == tj && dir == 2 {
+                goal = k as i64;
+                break;
+            }
+            for (di, dj) in [(1i64, 0i64), (-1, 0), (0, 1), (0, -1)] {
+                let ni = i as i64 + di;
+                let nj = j as i64 + dj;
+                if ni < 0 || nj < 0 || ni >= nx as i64 || nj >= ny as i64 {
+                    continue;
+                }
+                let (ni, nj) = (ni as usize, nj as usize);
+                if dir == 0 && dj != 1 {
+                    continue;
+                }
+                if ni == ti && nj == tj && dj != 1 {
+                    continue;
+                }
+                let h = dj == 0;
+                let ei = if h { i.min(ni) } else { i };
+                let ej = if h { j } else { j.min(nj) };
+                let okv = *cache.entry((h, ei, ej)).or_insert_with(|| {
+                    seg_usable(grid, l, ei, ej, h, &e.m, &e.c, &a_dept, &b_dept)
+                });
+                if !okv {
+                    continue;
+                }
+                let nd = if h { 1usize } else { 2usize };
+                let nn = nj * nx + ni;
+                let len = if h {
+                    (grid.xs[ni] - grid.xs[i]).abs()
+                } else {
+                    (grid.ys[nj] - grid.ys[j]).abs()
+                };
+                let ea = if h {
+                    occ.eh.get(&(ej * (nx - 1) + ei))
+                } else {
+                    occ.ev.get(&(ej * nx + ei))
+                };
+                let own = ea.map(|v| v.contains(&mkey)).unwrap_or(false);
+                let foreign_e = ea.map(|v| v.iter().any(|&x| x != mkey)).unwrap_or(false);
+                let fo_nv = occ
+                    .nv
+                    .get(&nn)
+                    .map(|v| v.iter().any(|&x| x != mkey))
+                    .unwrap_or(false);
+                let fo_nh = occ
+                    .nh
+                    .get(&nn)
+                    .map(|v| v.iter().any(|&x| x != mkey))
+                    .unwrap_or(false);
+                let mut c = len * (if own { 0.15 } else { 1.0 });
+                if foreign_e {
+                    c += 6000.0;
+                }
+                if fo_nv || fo_nh {
+                    c += 4000.0;
+                }
+                if dir != 0 && nd != dir {
+                    c += 30.0;
+                }
+                let nk = nn * 3 + nd;
+                let ng = g[k] + c;
+                if ng < g[nk] {
+                    g[nk] = ng;
+                    pv[nk] = k as i64;
+                    heap.push(HeapItem {
+                        f: ng + hz(ni, nj),
+                        g: ng,
+                        k: nk,
+                    });
+                }
+            }
+        }
+
+        if goal < 0 {
+            observation.no_goal = true;
+            return (simp(&fallback()), true);
+        }
+        let mut pts = Vec::new();
+        let mut k = goal;
+        while k >= 0 {
+            let ku = k as usize;
+            let nidx = (ku - ku % 3) / 3;
+            let i = nidx % nx;
+            let j = (nidx - i) / nx;
+            pts.push((grid.xs[i], grid.ys[j]));
+            k = pv[ku];
+        }
+        pts.reverse();
+        (simp(&pts), false)
+    }
+
+    fn observed_routes(l: &RouteInput, observation: &mut RouteObservation) -> Vec<StaffTidyEdge> {
+        let (mut det, mut ast) = build_edges(l);
+
+        for e in det.iter_mut() {
+            let m = l.cards[&e.m];
+            let mcx = m.0 + l.cw / 2.0;
+            let mbot = m.1 + l.ch;
+            let by = e.by.unwrap();
+            let (tx, ty, edt) = edge_target(l, &e.c, false);
+            e.pts = simp(&[(mcx, mbot), (mcx, by), (tx, by), (tx, ty)]);
+            e.ends_top = edt;
+        }
+
+        let grid = build_grid(l, &det);
+        observation.nx = grid.nx;
+        observation.ny = grid.ny;
+        observation.det = det.len();
+        observation.ast = ast.len();
+
+        // Інтернування id батька-джерела у u32 для occ.
+        let mut ids: Vec<&String> = l.cards.keys().collect();
+        ids.sort();
+        let cid: HashMap<String, u32> = ids
+            .iter()
+            .enumerate()
+            .map(|(i, s)| ((*s).clone(), i as u32))
+            .collect();
+
+        let mut occ = Occ::default();
+        for e in &det {
+            occ_edit(&mut occ, &grid, &e.pts, cid[&e.m], true);
+        }
+
+        ast.sort_by(|a, b| {
+            (a.sec as u8)
+                .cmp(&(b.sec as u8))
+                .then(
+                    l.cards[&a.m]
+                        .1
+                        .partial_cmp(&l.cards[&b.m].1)
+                        .unwrap_or(Ordering::Equal),
+                )
+                .then(
+                    l.cards[&a.m]
+                        .0
+                        .partial_cmp(&l.cards[&b.m].0)
+                        .unwrap_or(Ordering::Equal),
+                )
+                .then(a.c.cmp(&b.c))
+        });
+        for e in ast.iter_mut() {
+            let mkey = cid[&e.m];
+            let (pts, failed) = check_search(&grid, l, &occ, mkey, e, observation);
+            e.pts = pts;
+            e.fail = failed;
+            e.ends_top = edge_target(l, &e.c, e.sec).2;
+            occ_edit(&mut occ, &grid, &e.pts, mkey, true);
+        }
+
+        for pass in 0..4 {
+            let bad = {
+                let views: Vec<EdgeView> = det
+                    .iter()
+                    .chain(ast.iter())
+                    .map(|e| EdgeView {
+                        m: &e.m,
+                        c: &e.c,
+                        pts: &e.pts,
+                    })
+                    .collect();
+                let (_, _, _, _, _, bad) =
+                    stats_core(&views, &l.cards, l.cw, l.ch, &l.depts, &l.dept_of, l.pad);
+                bad
+            };
+            if pass == 0 {
+                observation.pass0_bad = bad.len();
+            }
+            if bad.is_empty() {
+                break;
+            }
+            let det_n = det.len();
+            let mut bad_ast: Vec<usize> = (0..ast.len())
+                .filter(|&ai| bad.contains(&(det_n + ai)))
+                .collect();
+            if pass % 2 == 1 {
+                bad_ast.reverse();
+            }
+            for ai in bad_ast {
+                observation.reroutes += 1;
+                let mkey = cid[&ast[ai].m];
+                let old = ast[ai].pts.clone();
+                occ_edit(&mut occ, &grid, &old, mkey, false);
+                ast[ai].fail = false;
+                let (pts, failed) = check_search(&grid, l, &occ, mkey, &ast[ai], observation);
+                occ_edit(&mut occ, &grid, &pts, mkey, true);
+                ast[ai].pts = pts;
+                ast[ai].fail = failed;
+            }
+        }
+
+        let mut out: Vec<StaffTidyEdge> = det
+            .iter()
+            .chain(ast.iter())
+            .map(|e| StaffTidyEdge {
+                from_id: e.m.clone(),
+                to_id: e.c.clone(),
+                kind: e.kind.as_str().to_string(),
+                ends_on_dept_top: e.ends_top,
+                points: e
+                    .pts
+                    .iter()
+                    .map(|&(x, y)| StaffTidyPoint {
+                        x: x as f32,
+                        y: y as f32,
+                    })
+                    .collect(),
+            })
+            .collect();
+        out.sort_by(|a, b| a.from_id.cmp(&b.from_id).then(a.to_id.cmp(&b.to_id)));
+        out
+    }
+    #[test]
+    fn golden_repair() {
+        let mut input = mock3_scene();
+        // Secondary acc→s1 competes with the existing cco→s1 route.
+        input.reports.push(admin("acc", "s1"));
+        let o = characterize("repair", &input);
+        assert!(o.pass0_bad > 0, "A6 requires bad edges at pass zero");
+        assert!(
+            o.reroutes > 0,
+            "A6 requires an A* edge to be removed/re-routed/re-added"
+        );
+        assert_eq!(o.searches.len(), o.ast + o.reroutes);
+    }
+    // Router-level adversarial geometry: target on the top grid row cannot be
+    // entered downward. All coordinates exist, so this is goal<0, NOT the early
+    // missing-coordinate fallback. A 501² open grid exceeds the pop budget.
+    fn cap_fallback_result(side: usize) -> StaffTidyResult {
+        let mut l = routing_input(&sample());
+        l.cw = 2.0;
+        l.ch = 2.0;
+        l.depts.clear();
+        l.dept_by_id.clear();
+        l.cards = [
+            ("source".to_string(), (-1.0, -2.0)),
+            ("unreachable".to_string(), ((side - 2) as f64, 0.0)),
+            ("reachable".to_string(), (1.0, 2.0)),
+        ]
+        .into_iter()
+        .collect();
+        l.dept_of.clear();
+        let xs: Vec<f64> = (0..side).map(|i| i as f64).collect();
+        let grid = Grid {
+            xi: xs.iter().enumerate().map(|(i, &x)| (key2(x), i)).collect(),
+            yi: xs.iter().enumerate().map(|(i, &x)| (key2(x), i)).collect(),
+            xs: xs.clone(),
+            ys: xs,
+            nx: side,
+            ny: side,
+            mh: vec![false; (side - 1) * side],
+            mv: vec![false; side * (side - 1)],
+            pc: vec![],
+        };
+        let mut o = RouteObservation::default();
+        let mut edges = Vec::new();
+        let mut occ = Occ::default();
+        for target in ["reachable", "unreachable", "reachable"] {
+            let e = REdge {
+                m: "source".into(),
+                c: target.into(),
+                kind: EKind::Ext,
+                sec: false,
+                by: None,
+                pts: vec![],
+                fail: false,
+                ends_top: false,
+            };
+            let (pts, failed) = check_search(&grid, &l, &occ, 0, &e, &mut o);
+            assert_eq!(failed, target == "unreachable");
+            occ_edit(&mut occ, &grid, &pts, 0, true);
+            edges.push(StaffTidyEdge {
+                from_id: e.m,
+                to_id: e.c,
+                kind: "ext".into(),
+                ends_on_dept_top: false,
+                points: pts
+                    .into_iter()
+                    .map(|(x, y)| StaffTidyPoint {
+                        x: x as f32,
+                        y: y as f32,
+                    })
+                    .collect(),
+            });
+        }
+        assert!(!o.searches[0].no_goal && !o.searches[2].no_goal);
+        assert!(o.searches[1].no_goal);
+        assert_eq!(o.searches[1].capped, side == 501);
+        if side == 501 {
+            assert_eq!(o.searches[1].pops, 250_001);
+        }
+        println!("synthetic side={side}: {:?}", o.searches);
+        let mut nodes: Vec<_> = l
+            .cards
+            .iter()
+            .map(|(id, &(x, y))| StaffTidyNode {
+                id: id.clone(),
+                x: x as f32,
+                y: y as f32,
+                width: 2.0,
+                height: 2.0,
+            })
+            .collect();
+        nodes.sort_by(|a, b| a.id.cmp(&b.id));
+        StaffTidyResult {
+            nodes,
+            frames: vec![],
+            edges,
+            width: side as f32,
+            height: side as f32,
+        }
+    }
+    #[test]
+    fn golden_cap_and_fallback() {
+        golden("cap_sequence", &cap_fallback_result(501));
+        golden("goal_fallback_sequence", &cap_fallback_result(5));
     }
 }
