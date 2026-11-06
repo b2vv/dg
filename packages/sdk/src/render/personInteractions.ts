@@ -9,7 +9,6 @@ import {
   type SelectionPointerMods,
 } from '../interaction/selection.js';
 import type { ContextMenuPointer } from '../interaction/contextMenuPayload.js';
-import type { PersonNodeView } from './PersonNode.js';
 import { bindCardContextMenu } from './cardContextMenu.js';
 import type { NodeWorldBox } from './SceneRegistry.js';
 import type { RenderConfig } from './types.js';
@@ -98,7 +97,7 @@ export interface PersonInteractionDeps {
 
 interface DragState {
   positionId: string;
-  node: PersonNodeView;
+  node: Container;
   originX: number;
   originY: number;
   grabOffsetX: number;
@@ -144,7 +143,7 @@ export class PersonInteractions {
   }
 
   /** Wire click, double-tap, context menu and drag for one seat card. */
-  bind(node: PersonNodeView, args: PersonBindArgs): void {
+  bind(node: Container, args: PersonBindArgs): void {
     const { personId, positionId, box, config, options, gridCell } = args;
     const dragMode: SeatDragMode = args.dragMode ?? 'move';
     this.deps.rememberBox(box);

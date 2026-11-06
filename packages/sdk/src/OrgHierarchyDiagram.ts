@@ -1,3 +1,4 @@
+import type { NodeView } from './render/nodeViewFactory.js';
 import type { MarqueeRect } from './render/marquee.js';
 import { resolveAnimate } from './render/transition/resolveAnimate.js';
 import type { AnimateOption, TransitionFrame } from './render/transition/types.js';
@@ -147,6 +148,8 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
   theme?: 'light' | 'dark' | 'auto';
   styles?: NodeThemeOverrides;
   render?: Partial<RenderConfig>;
+  /** Optional staff-position visual in local coordinates; SDK owns placement. */
+  nodeView?: NodeView;
   /** Contour + WASM compute у Web Worker (default: true у browser) */
   useWorker?: boolean;
   /** Worker pool для паралельних map chunks (flatRowsToDiagram тощо) */
@@ -518,6 +521,7 @@ export class OrgHierarchyDiagram {
         { cause },
       );
     }
+    instance.host.renderer.setNodeViewFactory(config.nodeView ?? null);
     if (config.onMarquee) {
       instance.marqueeWired = true;
       let warned = false;
@@ -1848,6 +1852,16 @@ export class OrgHierarchyDiagram {
     this.interactionStore.setHovered(node);
   }
 
+  /** Whether the shared selection contains this kind/id. Does not opt in to hover wiring. */
+  isSelected(ref: NodeRef): boolean {
+    return this.interactionStore.list.some((selected) => sameNodeRef(selected, ref));
+  }
+
+  /** Whether this kind/id is hovered in the shared interaction state. */
+  isHovered(ref: NodeRef): boolean {
+    return sameNodeRef(this.interactionStore.state.hovered, ref);
+  }
+
   /** Primary / first selected node (compat). Prefer {@link getSelections}. */
   getSelection(): NodeRef | null {
     return this.interactionStore.primary;
@@ -1885,6 +1899,12 @@ export class OrgHierarchyDiagram {
   /** Replace selection with one node (or clear). */
   async select(node: NodeRef | null): Promise<void> {
     this.applySelection(node);
+    this.repaintSelection();
+  }
+
+  /** Select like a pointer click: Ctrl/Cmd/Shift toggle; otherwise replace. */
+  selectNode(ref: NodeRef, mods?: SelectionPointerMods): void {
+    this.handleNodeSelect(ref, mods);
     this.repaintSelection();
   }
 

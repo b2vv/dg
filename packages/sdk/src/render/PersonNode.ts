@@ -1,3 +1,4 @@
+import type { InteractiveNodeView } from './interactiveNodeView.js';
 import type { NodeRef } from '../core/index.js';
 import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js';
 import type { DiagramPerson, DiagramPosition } from '../data/types.js';
@@ -75,7 +76,7 @@ export interface PersonNodeOptions {
   markAtMid?: boolean;
 }
 
-export class PersonNodeView extends Container {
+export class PersonNodeView extends Container implements InteractiveNodeView {
   private onHover: ((ref: NodeRef | null) => void) | undefined;
   private nodeRef: NodeRef = { kind: 'position', id: '' };
   private readonly shadow = new Graphics();

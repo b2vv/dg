@@ -1,3 +1,5 @@
+import { HostNodeView, isInteractiveNodeView } from './interactiveNodeView.js';
+import { NodeViewPool, type NodeView } from './nodeViewFactory.js';
 import { TransitionController } from './transition/TransitionController.js';
 import { FADE_MS } from './transition/constants.js';
 import { createAnimator } from './transition/animators.js';
@@ -212,6 +214,31 @@ interface TransitionSnapshot {
 
 export class DiagramRenderer {
   readonly layers = new LayerManager();
+  private nodeViewPool: NodeViewPool | null = null;
+
+  setNodeViewFactory(factory: NodeView | null): void {
+    if (this.destroyed) return;
+    this.nodeViewPool?.clearAll();
+    this.nodeViewPool = factory ? new NodeViewPool(factory) : null;
+  }
+
+  private createHostNode(
+    person: DiagramData['persons'][number] | undefined,
+    position: DiagramPosition,
+    theme: NodeTheme,
+    lod: LodLevel,
+    width: number,
+    height: number,
+  ): HostNodeView | null {
+    if (!this.nodeViewPool) return null;
+    const key = nodeEntityKey('position', position.id);
+    // The pool contains host exceptions and warns once before returning null.
+    const root = this.nodeViewPool.obtain(key,
+      { kind: 'position', id: position.id, data: person, position }, { lod, theme });
+    this.nodeViewPool.markSeen(key);
+    return root ? new HostNodeView(root, lod, { kind: 'position', id: position.id }, width, height) : null;
+  }
+
   private destroyed = false;
   /** Bumped at each render entry; stale async passes bail after await (T75 D2). */
   private renderEpoch = 0;
@@ -233,7 +260,7 @@ export class DiagramRenderer {
   }
 
   private bindInteraction(view: Container): void {
-    if (view instanceof PersonNodeView || view instanceof OrganizationNodeView) {
+    if (isInteractiveNodeView(view)) {
       const source = this.interactionSource;
       view.setHoverHandler(source ? (ref) => source.setHovered(ref) : undefined);
     }
@@ -252,17 +279,17 @@ export class DiagramRenderer {
     const hoveredKey = hovered ? this.interactionViewKey(hovered) : null;
     const positionIds = new Set(views.flatMap(({ key, view }) => {
       const ref = parseNodeEntityKey(key);
-      return view instanceof PersonNodeView && ref ? [ref.id] : [];
+      return isInteractiveNodeView(view) && ref?.kind === 'position' ? [ref.id] : [];
     }));
     const hoverRef = hoveredKey ? parseNodeEntityKey(hoveredKey) : null;
     const dimmed = staffDimmedIds(hoverRef, this.lastStaffChrome?.lines ?? this.interactionLines, positionIds);
     const frame = this.getTransitionFrame();
     for (const { key, view, baselineAlpha } of views) {
-      if (!(view instanceof PersonNodeView || view instanceof OrganizationNodeView)) continue;
+      if (!isInteractiveNodeView(view)) continue;
       view.setHovered(key === hoveredKey && !this.selectedViewKeys.has(key));
       const ref = parseNodeEntityKey(key);
       const emphasisAlpha = this.foundFocus && !this.foundFocus.has(key) ? this.foundDimAlpha : baselineAlpha;
-      const hoverAlpha = view instanceof PersonNodeView && ref && dimmed.has(ref.id) ? 0.45 : 1;
+      const hoverAlpha = ref?.kind === 'position' && dimmed.has(ref.id) ? 0.45 : 1;
       view.alpha = emphasisAlpha * hoverAlpha * (frame?.get(key)?.opacity ?? 1);
     }
   }
@@ -984,6 +1011,7 @@ export class DiagramRenderer {
     this.personInteractions.reset();
     this.layers.clear();
     this.scene.clear();
+    this.nodeViewPool?.beginPass();
     this.lastDiagnostics = [];
     // Reset here — not inside renderStaffCanvas — because org-view and grid renders
     // never enter it, and would otherwise leave the previous alpha box cached.
@@ -1010,6 +1038,7 @@ export class DiagramRenderer {
       await this.renderOrganizations(data, theme, resolvedTheme, config, { ...options, lod }, epoch, orgLayoutResult);
     }
     if (!this.isRenderCurrent(epoch)) return;
+    this.nodeViewPool?.endPass();
 
     if (this.transition) {
       if (this.transitionPreparedEpoch !== epoch) {
@@ -1094,6 +1123,7 @@ export class DiagramRenderer {
     this.renderEpoch += 1;
     this.contours.reset();
     this.layers.clear();
+    this.nodeViewPool?.clearAll();
     this.layers.root.destroy({ children: true });
   }
 
@@ -1448,7 +1478,7 @@ export class DiagramRenderer {
       // #96: prune is always on, so the chevron shows for any node with admin
       // children and a toggle handler (no gate term).
       const showExpand = kids.length > 0 && !!options.onPositionExpandToggle;
-      const node = PersonNodeView.create(
+      const node = this.createHostNode(person, position, theme, lod, n.width, n.height) ?? PersonNodeView.create(
         person,
         position,
         { ...theme.person, width: n.width, height: n.height },
@@ -1492,7 +1522,7 @@ export class DiagramRenderer {
       });
       this.layers.persons.addChild(node);
       this.registerView('position', position.id, node);
-      this.registerMediaView(node.resolvedPhotoUrl, node);
+      if (node instanceof PersonNodeView) this.registerMediaView(node.resolvedPhotoUrl, node);
     }
   }
 
@@ -1595,7 +1625,7 @@ export class DiagramRenderer {
     for (const position of data.positions) {
       if (!position.gridCell) continue;
       const person = position.personId ? personById.get(position.personId) : undefined;
-      const node = PersonNodeView.create(person, position, theme.person, options.lod ?? 'near', {
+      const node = this.createHostNode(person, position, theme, options.lod ?? 'near', theme.person.width, theme.person.height) ?? PersonNodeView.create(person, position, theme.person, options.lod ?? 'near', {
         nodeTheme: theme,
         loadTexture: options.loadTexture,
         onContextMenu: options.onPersonContextMenu
@@ -1634,7 +1664,7 @@ export class DiagramRenderer {
       });
       this.layers.persons.addChild(node);
       this.registerView('position', position.id, node);
-      this.registerMediaView(node.resolvedPhotoUrl, node);
+      if (node instanceof PersonNodeView) this.registerMediaView(node.resolvedPhotoUrl, node);
     }
   }
 

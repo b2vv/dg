@@ -1,3 +1,4 @@
+import type { InteractiveNodeView } from './interactiveNodeView.js';
 import type { NodeRef } from '../core/index.js';
 import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js';
 import type { DiagramGroup, DiagramOrganization } from '../data/types.js';
@@ -32,7 +33,7 @@ export interface OrganizationNodeOptions {
   loadTexture?: NodeTextureLoader;
 }
 
-export class OrganizationNodeView extends Container {
+export class OrganizationNodeView extends Container implements InteractiveNodeView {
   private onHover: ((ref: NodeRef | null) => void) | undefined;
   private nodeRef: NodeRef = { kind: 'organization', id: '' };
   readonly resolvedSymbolUrl: string | undefined;

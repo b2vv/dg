@@ -129,6 +129,7 @@ const mappers = {
 | Ключ | Навіщо |
 |---|---|
 | `theme` | `'light' \| 'dark' \| 'auto'` |
+| `nodeView` | Optional `NodeView` factory for staff-position visuals; omitted uses the built-in card unchanged (see below). |
 | `styles` | часткове перевизначення `NodeTheme` (кольори, розміри карток, edge-стиль) |
 | `render` | `RenderConfig`: `cellWidth/cellHeight`, `paddingCells`, `smoothIterations`, `magnetRadius`, `minContourMembers`, `corridorCells`, `departmentStyle`, `staffZoneChrome` |
 | `staffLayout` | геометрія штатки: `nodeWidth/Height`, `refCellWidth/Height`, `horizontalGap`, `verticalGap`, `tierGap`, `margin`, `maxExpandedPositions` |
@@ -147,6 +148,39 @@ const mappers = {
 `setStyles(partial: NodeThemeOverrides | undefined): Promise<void>` замінює style-overrides
 під час роботи й перемальовує діаграму, симетрично `setTheme()` для зміни активної теми.
 `setStyles(undefined)` прибирає overrides і повертає дефолти активної теми.
+
+### Custom staff-position visuals (`nodeView`)
+
+`OrgHierarchyConfig.nodeView` is opt-in. Without it, the renderer uses the built-in
+`PersonNodeView` card unchanged. `NodeView`, `NodeViewInput`, `NodeViewContext`,
+`SimpleNodeView`, and `RetainedNodeView` are exported from `@org-hierarchy/sdk`.
+
+Two forms are supported:
+
+- **Simple:** `(node, ctx) => Container`. Return a fresh Pixi `Container`; on an
+  update, the SDK destroys the previous visual and invokes the function again.
+- **Retained:** `{ create(node, ctx) { return { root, update(node, ctx), destroy() }; } }`.
+  `root` is a Pixi `Container`. The retained pool reuses entries by position id and
+  calls `update` with current inputs; `destroy` releases the visual when its entry
+  leaves the pool or the pool is cleared.
+
+The host returns a visual in **local coordinates**, around `(0, 0)`. The SDK owns
+scene placement and transforms; do not compute world coordinates in the factory.
+`node` provides `kind: 'position'`, `id`, the `position`, and optional person `data`
+(undefined for a vacancy). `ctx` provides the current `lod` and read-only theme context.
+
+```ts
+import { Container, Text } from 'pixi.js';
+import type { SimpleNodeView } from '@org-hierarchy/sdk';
+
+const nodeView: SimpleNodeView = (node, ctx) => {
+  const root = new Container();
+  root.addChild(new Text({ text: node.position.title }));
+  root.label = `${node.id}:${ctx.lod}`;
+  return root;
+};
+const diagram = await OrgHierarchyDiagram.create(container, { data, nodeView });
+```
 
 ### Wheel gestures and keyboard zoom
 
@@ -1501,3 +1535,52 @@ emphasis on the host side (both are derived on demand, never stored):
 `relatedStaffIds(lines, hoveredId): Set<string>` — the one-hop staff relation set;
 and `staffDimmedIds(hovered, lines, visiblePositionIds): Set<string>` — the
 positions to dim for a hovered staff position (empty for a non-position hover).
+
+### Host-created React overlay interaction
+
+`isSelected(ref: NodeRef): boolean` and `isHovered(ref: NodeRef): boolean` read
+selection and transient hover from the shared interaction store. Both compare
+kind and id, return false for nonmatching refs, and do not enable interaction
+wiring by themselves.
+
+`selectNode(ref: NodeRef, mods?: SelectionPointerMods): void` uses the same
+pointer-selection semantics as Pixi and repaints selection: Ctrl, Cmd, or Shift
+toggles membership (including removing an already selected node); without those
+modifiers it replaces the selection. Shift does not select a range. The existing
+`select(ref | null)` remains replace-only. `NodeRef` and `SelectionPointerMods`
+are exported from `@org-hierarchy/sdk`.
+
+The host creates the overlay and explicitly supplies its interaction adapter.
+For an overlay promoting position cards:
+
+```ts
+import type { NodeRef } from '@org-hierarchy/sdk';
+import {
+  createReactPromoteOverlay,
+  DefaultPromoteCard,
+  type ReactPromoteOverlayOptions,
+} from '@org-hierarchy/sdk/react';
+
+const posRef = (id: string): NodeRef => ({ kind: 'position', id });
+const interaction = {
+  isSelected: (id) => diagram.isSelected(posRef(id)),
+  isHovered: (id) => diagram.isHovered(posRef(id)),
+  subscribe: (callback) => diagram.subscribeInteraction(callback),
+  select: (id, mods) => diagram.selectNode(posRef(id), mods),
+  hover: (id, on) => diagram.setHovered(on ? posRef(id) : null),
+} satisfies NonNullable<ReactPromoteOverlayOptions['interaction']>;
+
+const overlay = createReactPromoteOverlay({
+  diagram, mount: el, component: DefaultPromoteCard, interaction,
+});
+// When the host unmounts:
+// overlay.dispose();
+```
+
+The adapter reflects and drives the **same interaction state as Pixi**, with no
+second selection or hover store. Keep the subscription wrapper so the diagram
+method retains its receiver. Map ids to the appropriate NodeRef kind for the
+cards your host promotes. Without the `interaction` opt-in (omitted or null),
+overlay interaction is inert: `selected`/`hovered` are false and
+`onSelect`/`onHover` are no-ops. Hover updates refresh affected slots without a
+full overlay sync; selection retains the existing structural promotion sync.

@@ -1,3 +1,4 @@
+export type { NodeView, NodeViewInput, NodeViewContext, SimpleNodeView, RetainedNodeView } from './render/nodeViewFactory.js';
 export type { WheelConfig, WheelBehavior } from './render/wheelConfig.js';
 export type { MarqueeRect } from './render/marquee.js';
 export type { DiagramNode } from './DiagramNode.js';
