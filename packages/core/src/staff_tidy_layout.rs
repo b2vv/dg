@@ -1850,6 +1850,69 @@ mod tests {
             "перетини лінія-лінія: {cross} (over={over} near={near} dept={dept})"
         );
         assert_eq!(card, 0, "ліній крізь чужі картки: {card}");
+        assert_eq!(over, 0, "overlapping lines: {over}");
+        assert_eq!(near, 0, "lines below minimum clearance: {near}");
+        assert_eq!(dept, 0, "department violations: {dept}");
+    }
+
+    /// Manual native measurement for coverage §8.4 (≤50 ms / 500 positions).
+    /// The loose debug ceiling catches catastrophic regressions, not budget compliance.
+    #[test]
+    #[ignore = "wall-clock measurement; run explicitly with --ignored --nocapture"]
+    fn staff_astar_500_positions_wall_clock() {
+        use std::time::{Duration, Instant};
+
+        let mut input = StaffTidyInput {
+            positions: vec![pos("ceo", None)],
+            reports: Vec::new(),
+            departments: Vec::new(),
+            params: mock3_scene().params,
+        };
+        // Central staff plus ten departments, each with four teams of eleven staff.
+        for i in 0..9 {
+            let id = format!("central-{i}");
+            input.positions.push(pos(&id, None));
+            input.reports.push(admin("ceo", &id));
+        }
+        for d in 0..10 {
+            let department = format!("department-{d}");
+            let head = format!("head-{d}");
+            input.departments.push(dept(&department));
+            input.positions.push(pos(&head, Some(&department)));
+            input.reports.push(admin("ceo", &head));
+            for t in 0..4 {
+                let lead = format!("lead-{d}-{t}");
+                input.positions.push(pos(&lead, Some(&department)));
+                input.reports.push(admin(&head, &lead));
+                for m in 0..11 {
+                    let member = format!("member-{d}-{t}-{m}");
+                    input.positions.push(pos(&member, Some(&department)));
+                    input.reports.push(admin(&lead, &member));
+                }
+            }
+        }
+        assert_eq!(input.positions.len(), 500);
+        assert_eq!(input.reports.len(), 499);
+        assert_eq!(input.params.routing, StaffTidyRouting::Astar);
+
+        let start = Instant::now();
+        let result = compute_staff_tidy_layout(&input);
+        let elapsed = start.elapsed();
+        let budget_ms = 50.0;
+        let ceiling = Duration::from_secs(60);
+        println!(
+            "A* 500 positions / 10 departments / 499 reports: {:.3} ms; \
+             §8.4 budget {budget_ms} ms ({:.2}× budget); regression ceiling {} ms; debug={}",
+            elapsed.as_secs_f64() * 1000.0,
+            elapsed.as_secs_f64() * 1000.0 / budget_ms,
+            ceiling.as_millis(),
+            cfg!(debug_assertions),
+        );
+        let out = result.unwrap();
+        assert_eq!(out.nodes.len(), 500);
+        assert_eq!(out.frames.len(), 10);
+        assert_eq!(out.edges.len(), 499);
+        assert!(elapsed < ceiling, "A* 500-position regression: {elapsed:?}");
     }
 
     #[test]
