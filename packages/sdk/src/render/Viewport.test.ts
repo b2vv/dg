@@ -308,3 +308,108 @@ describe('Viewport', () => {
     expect(xAfterCancel).toBeLessThan(200);
   });
 });
+
+describe('Viewport configured wheel', () => {
+  it('leaves disabled Shift events unconsumed and opts into horizontal pan', () => {
+    for (const enabled of [false, true]) {
+      const vp = new Viewport(fakeWorld(), { wheel: { gestures: { panHorizontal: enabled ? 'shift' : false } } });
+      const canvas = document.createElement('canvas');
+      vp.attachWheel(canvas);
+      const event = new WheelEvent('wheel', { deltaY: 40, shiftKey: true, cancelable: true });
+      canvas.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(enabled);
+      expect(vp.getTransform()).toEqual({ x: enabled ? -40 : 0, y: 0, scale: 1 });
+      vp.destroy();
+    }
+  });
+
+  it('routes configured zoom and pan, preserving pointer focus in and out', () => {
+    const vp = new Viewport(fakeWorld(), { wheel: { behavior: 'zoom' } });
+    const canvas = document.createElement('canvas');
+    vp.attachWheel(canvas);
+    for (const deltaY of [-100, 100]) {
+      const event = new WheelEvent('wheel', { deltaY, clientX: 60, clientY: 40, cancelable: true });
+      canvas.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+      const t = vp.getTransform();
+      expect((60 - t.x) / t.scale).toBeCloseTo(60);
+      expect((40 - t.y) / t.scale).toBeCloseTo(40);
+      if (deltaY < 0) expect(t.scale).toBeGreaterThan(1);
+    }
+    expect(vp.getZoom()).toBeCloseTo(1);
+    vp.destroy();
+    const pan = new Viewport(fakeWorld(), { wheel: { behavior: 'pan' } });
+    pan.attachWheel(canvas);
+    canvas.dispatchEvent(new WheelEvent('wheel', { deltaY: 40, ctrlKey: true }));
+    expect(pan.getTransform()).toEqual({ x: 0, y: -40, scale: 1 });
+    pan.destroy();
+  });
+
+  it('makes canvas focusable and consumes only keyboard zoom combinations', () => {
+    const vp = new Viewport(fakeWorld(), { minScale: 0.5, maxScale: 2 });
+    const canvas = document.createElement('canvas');
+    vp.attachWheel(canvas);
+    expect(canvas.tabIndex).toBe(0);
+    for (const modifier of ['ctrlKey', 'metaKey']) {
+      for (const key of ['+', '=', '-']) {
+        vp.setZoom(1);
+        const event = new KeyboardEvent('keydown', { key, [modifier]: true, cancelable: true });
+        canvas.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(true);
+        expect(vp.getZoom()).toBeCloseTo(key === '-' ? 1 / 1.2 : 1.2);
+      }
+    }
+    for (const init of [{ key: '+' }, { key: 'a', ctrlKey: true }, { key: '-', altKey: true }]) {
+      const event = new KeyboardEvent('keydown', { ...init, cancelable: true });
+      canvas.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+    }
+    vp.setZoom(2);
+    canvas.dispatchEvent(new KeyboardEvent('keydown', { key: '+', ctrlKey: true }));
+    expect(vp.getZoom()).toBe(2);
+    vp.setZoom(0.5);
+    canvas.dispatchEvent(new KeyboardEvent('keydown', { key: '-', metaKey: true }));
+    expect(vp.getZoom()).toBe(0.5);
+    vp.destroy();
+    const detached = new KeyboardEvent('keydown', { key: '+', ctrlKey: true, cancelable: true });
+    canvas.dispatchEvent(detached);
+    expect(detached.defaultPrevented).toBe(false);
+  });
+
+  it('animates zoomBy visually while immediately reporting and accumulating the target', () => {
+    const world = fakeWorld();
+    const vp = new Viewport(world, { minScale: 0.5, maxScale: 4 });
+    vp.setScreenSize(200, 200);
+    let time = 0;
+    const frames: Array<FrameRequestCallback> = [];
+    const clock = rstest.spyOn(performance, 'now').mockImplementation(() => time);
+    const request = rstest.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((cb) => { frames.push(cb); return frames.length; });
+    const cancel = rstest.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => { frames.length = 0; });
+    try {
+      vp.zoomBy(2);
+      expect(vp.getZoom()).toBe(2);
+      expect(world.scale.x).toBe(1);
+      expect(frames.length).toBe(1);
+      time = 140;
+      frames.shift()?.(time);
+      expect(world.scale.x).toBeGreaterThan(1);
+      expect(world.scale.x).toBeLessThan(2);
+      expect(vp.getZoom()).toBe(2);
+      vp.zoomBy(2);
+      expect(vp.getZoom()).toBe(4);
+      time = 420;
+      frames.shift()?.(time);
+      expect(vp.getTransform()).toEqual({ x: -300, y: -300, scale: 4 });
+      vp.zoomBy(0.01);
+      expect(vp.getZoom()).toBe(0.5);
+      vp.setZoom(1);
+      expect(vp.getZoom()).toBe(1);
+      expect(frames.length).toBe(0);
+    } finally {
+      vp.destroy();
+      clock.mockRestore();
+      request.mockRestore();
+      cancel.mockRestore();
+    }
+  });
+});

@@ -106,6 +106,7 @@ import type {
   SeatDropChoice,
 } from './callbacks.js';
 import type { ViewportTransform } from './render/Viewport.js';
+import type { WheelConfig } from './render/wheelConfig.js';
 import { createTransformWorker, WorkerPool } from './worker/index.js';
 import {
   transferChildren,
@@ -157,6 +158,8 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
   onMarquee?: (rect: MarqueeRect | null) => void;
   /** Quiet period before `onViewportChange` reports `settled` (default 150). */
   viewportSettleMs?: number;
+  /** Wheel gestures; defaults to modifier zoom with Shift+wheel left to the host. */
+  wheel?: WheelConfig;
   /**
    * Light velocity-driven blur on the whole diagram while the camera pans,
    * cleared when it settles. Strength tracks on-screen pan speed; a zoom blurs
@@ -504,7 +507,7 @@ export class OrgHierarchyDiagram {
     instance.rendererPreference = config.renderer ?? 'auto';
     instance.rendererDiagnostic = resolveRendererPreference(config.renderer).diagnostic ?? null;
     try {
-      instance.host = await PixiHost.create(container, { renderer: config.renderer });
+      instance.host = await PixiHost.create(container, { renderer: config.renderer, wheel: config.wheel });
     } catch (cause) {
       // The workers and the search index are already alive by now, and the
       // caller never receives the instance — so nobody else can release them.

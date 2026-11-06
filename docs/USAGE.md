@@ -141,11 +141,52 @@ const mappers = {
 | `staffRefitOnToggle` | **Opt-in, дефолт off.** Після згортання або розгортання через `togglePositionExpand` вписує staff org-бокс у камеру. `true` використовує дефолти `computeStaffFit`; об’єкт `StaffFitOptions` перевизначає їх. Без staff chrome org-боксу лишається звичайний `panToNode`. Не впливає на `revealPath`, `expandToDepth` чи `collapsePositionSubtree`. |
 | `renderer` | **`'auto'` (default) \| `'webgl'` \| `'canvas'`** — який рушій малює сцену (нижче) |
 | `onMarquee` | Opt-in additive Shift+drag selection. `(rect: MarqueeRect \| null) => void`; world-space rectangle for host drawing, emitted per frame during the gesture. |
+| `wheel` | `WheelConfig`: wheel behavior and gestures; defaults to modifier zoom and no Shift+wheel interception (below). |
 | `callbacks` | див. §9 |
 
 `setStyles(partial: NodeThemeOverrides | undefined): Promise<void>` замінює style-overrides
 під час роботи й перемальовує діаграму, симетрично `setTheme()` для зміни активної теми.
 `setStyles(undefined)` прибирає overrides і повертає дефолти активної теми.
+
+### Wheel gestures and keyboard zoom
+
+Set `OrgHierarchyConfig.wheel` at creation. `WheelConfig` and `WheelBehavior` are
+exported types from `@org-hierarchy/sdk`:
+
+```ts
+const diagram = await OrgHierarchyDiagram.create(container, {
+  data,
+  wheel: {
+    behavior: 'zoom-modifier',
+    gestures: { zoom: 'ctrl', panHorizontal: false },
+  },
+});
+```
+
+Omitting `wheel` uses the values shown above. `behavior` accepts:
+
+- `'zoom-modifier'` (default): ordinary wheel pans; the zoom modifier zooms at the pointer.
+- `'zoom'`: ordinary wheel zooms at the pointer without a modifier.
+- `'pan'`: wheel only pans; use buttons or keyboard for zoom.
+
+`gestures.zoom` accepts `'ctrl'` (default), `'meta'`, or `'none'`. On non-Mac
+platforms, `'ctrl'` and `'meta'` select the modifier for `'zoom-modifier'` mode.
+On **Mac, both Ctrl and ⌘ zoom**, preserving trackpad pinch (synthetic Ctrl+wheel);
+**⌘ is recommended** for explicit wheel zoom. This is not an exclusive remap:
+choosing `'meta'` on Mac does not disable Ctrl/pinch. `'none'` disables wheel zoom,
+including in `'zoom'` mode. `'pan'` ignores the zoom modifier setting.
+
+Shift takes precedence: `gestures.panHorizontal` defaults to `false`, so the SDK
+leaves Shift+wheel unhandled, without preventing its default action. **Default
+behavior change: Shift+wheel no longer pans horizontally.** Restore the previous
+behavior by opting out of this default with `gestures: { panHorizontal: 'shift' }`.
+
+With the canvas focused, **Ctrl/⌘ + `+`, `-`, or `=`** zooms around its center.
+Keyboard zoom remains available regardless of the wheel configuration.
+
+The SDK exposes this **stable gesture contract** so a host's on-screen legend or
+hint can accurately describe the active configuration and platform. Drawing the
+hint overlay is the host's responsibility.
 
 ### Marquee selection (opt-in)
 

@@ -49,3 +49,15 @@ GATE-1-рішення беру з роадмапу (там багато вирі
 - R5-A: DONE (31 тести GREEN, pure render/marquee.ts). → R5-B ∥ R5-C dispatched (Codex, неперетинні: B=DiagramRenderer, C=facade/USAGE/barrel).
 - R5-B: DONE (68/68). R5-C: implemented (5 тестів+typecheck ok; «lint-блок» був timing-артефактом — R5-B-файл писався паралельно; тепер lint exit 0). Інтеграція: pkg typecheck+lint чисто, повний сьют 180/1550/0. check:docs ↓.
 - Рев'ю R5 Standards: **GREEN**, 0 блокерів. Opt-in byte-for-byte підтверджено; 3 гарди (pan-suppress/union/tap-suppress) red-if-deleted з реальним dispatch; фейків нема; lint 0. Non-blocking: USAGE «every frame»→«per pointermove» (виправлено). Чекаю Spec.
+- Рев'ю R5 Spec: **GREEN** (14/14 red-if-deleted, owner-рішення відповідають, emphasis/hover не чіпано). **R5 DONE (commit 0c78c32).** 2/6. Owner-review (F1/F1b) накопичено.
+## R5 — DONE 0c78c32. Наступна: R4 (зум конфіг).
+
+## R4 (у роботі) — зум конфіг (дизайн вирішено в роадмапі)
+- spec+plan: WheelConfig {behavior, gestures{zoom,panHorizontal}}, Mac ctrl→meta, клавіатурний зум, анімована zoomBy. Нарізка R4-A(Viewport+wheelConfig.ts pure)→R4-B(facade). Owner-review: деф panHorizontal:false прибирає Shift+wheel горизонт-пан (grounded R5).
+- GATE 2 (combined): dispatched → r4/_gate2.md
+- R4 GATE 2: RED (B1 Mac ctrl→meta remap ламає trackpad-pinch=ctrl+wheel → регресія; N1 zoomBy sync→async stale getZoom; N2 keyboard focus/tabindex; N3 resolveWheelConfig fallback) → spec+plan рев.2: Mac PRIORITY не remap (ctrl+wheel лишається зумом=pinch, ⌘ рекоменд.); zoomBy комітить target синхронно; tabindex+keydown; resolveWheelConfig fallback/precedence; +рядки 5b/13/14/15. Re-check: dispatched.
+- R4 GATE 2 re-check: **GREEN** (B1 closed, N1/N2/N3 folded, 5 defense CLOSED). Non-blocking для R4-A: doc-drift «Mac→meta» виправлено до priority; N1 getZoom під tween вертає pending-target (одна scale); platform-detection+SSR→non-Mac. → R4-A→R4-B.
+- R4-A: dispatched (Codex, Viewport+wheelConfig.ts, N1 getZoom pending-target, N2 tabindex, Mac priority) → r4/_impl-R4-A.md
+- R4-A: DONE (31 тести, Viewport+wheelConfig.ts). Повний сьют 181/1559/0, lint ok. → R4-B dispatched (facade+USAGE+barrel).
+- R4-B: BLOCKED (QUESTION) — відсутній seam PixiHostOptions.wheel→new Viewport (R4-A дав Viewport-вхід, не PixiHost-forwarding). Правильно зупинився. Координатор: ДОЗВОЛЕНО додати PixiHost.ts (лише wheel-forwarding). Перезапуск.
+- Рев'ю R4 Spec: **GREEN** (15/15 red-if-deleted; B1-фікс Mac-pinch підтверджено; getZoom=pendingZoom??scale #15; owner-рішення+USAGE ок). Non-blocking: row9 unit-only, scenario-1 phrasing. Чекаю Standards.

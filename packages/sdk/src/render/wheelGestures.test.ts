@@ -1,16 +1,7 @@
 import { describe, expect, it } from '@rstest/core';
-import { isZoomWheel, wheelPanDelta } from './Viewport.js';
+import { wheelPanDelta } from './Viewport.js';
 
-describe('isZoomWheel', () => {
-  it('success: ctrl or meta means zoom (trackpad pinch arrives as ctrl+wheel)', () => {
-    expect(isZoomWheel({ ctrlKey: true, metaKey: false })).toBe(true);
-    expect(isZoomWheel({ ctrlKey: false, metaKey: true })).toBe(true);
-  });
-
-  it('failure: a bare wheel is a pan, not a zoom', () => {
-    expect(isZoomWheel({ ctrlKey: false, metaKey: false })).toBe(false);
-  });
-});
+// isZoomWheel removed in R4 (replaced by wheelConfig.wheelAction, which is tested in wheelConfig.test.ts).
 
 describe('wheelPanDelta', () => {
   it('success: content follows the wheel, so the camera moves the other way', () => {

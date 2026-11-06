@@ -1,6 +1,7 @@
 import { Application, Rectangle, RendererType } from 'pixi.js';
 import { DiagramRenderer } from './DiagramRenderer.js';
 import { Viewport, type ViewportTransform, type CameraMotionOptions } from './Viewport.js';
+import type { WheelConfig } from './wheelConfig.js';
 import {
   createSoftwareRendererDetector,
   readUnmaskedRendererFromDom,
@@ -104,6 +105,7 @@ function resolveAuto(
 }
 
 export interface PixiHostOptions {
+  wheel?: WheelConfig;
   background?: number;
   minScale?: number;
   maxScale?: number;
@@ -336,6 +338,7 @@ export class PixiHost {
     this.viewport = new Viewport(this.renderer.layers.root, {
       minScale: options.minScale,
       maxScale: options.maxScale,
+      wheel: options.wheel,
     });
     this.viewport.setScreenSize(width, height);
     // Anything inside the scene that moves pixels without a rebuild — a dragged
