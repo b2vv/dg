@@ -29,6 +29,7 @@ export interface WasmContourModule {
    */
   computeStaffGeometry: (input: unknown) => unknown;
   /** Alpha staff-layout — окрема версія ліби (порт алгоритму мокапа `shps-links.js`). */
+  // TODO(dg41): rename to computeStaffTidyLayout at the coordinated build:wasm
   computeStaffMockupLayout: (input: unknown) => unknown;
 }
 

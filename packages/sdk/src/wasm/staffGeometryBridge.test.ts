@@ -71,6 +71,7 @@ describe('computeStaffGeometryWasm', () => {
         received = arg;
         return canned;
       },
+      // TODO(dg41): rename to computeStaffTidyLayout at the coordinated build:wasm
       computeStaffMockupLayout: () => {
         throw new Error('computeStaffMockupLayout must not be called by the staff geometry bridge');
       },

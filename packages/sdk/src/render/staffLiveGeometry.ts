@@ -33,8 +33,8 @@ import { resolveStaffHead } from '../layout/staff/resolveHead.js';
 import { resolveDeptHeads } from '../layout/staff/resolveDeptHeads.js';
 import {
   computeStaffGeometryWasm,
-  computeStaffMockupLayoutWasm,
-  type StaffMockupInput,
+  computeStaffTidyLayoutWasm,
+  type StaffTidyInput,
 } from '../wasm/layoutBridge.js';
 import { adaptStaffGeometry } from './adaptStaffGeometry.js';
 import {
@@ -324,7 +324,7 @@ async function computeViaTs(input: BranchInput): Promise<StaffLiveGeometry> {
  * caller can't drift. Internal (not exported): the demo near-view chrome gets the
  * same geometry through `computeStaffLiveGeometry`, not by re-building the input.
  */
-function buildStaffMockupInput(data: DiagramData, currentOrgId: string): StaffMockupInput {
+function buildStaffTidyInput(data: DiagramData, currentOrgId: string): StaffTidyInput {
   const inOrg = data.positions.filter((p) => p.organizationId === currentOrgId);
   const ids = new Set(inOrg.map((p) => p.id));
   const seatW = inOrg[0]?.width ?? 300;
@@ -353,7 +353,7 @@ function buildStaffMockupInput(data: DiagramData, currentOrgId: string): StaffMo
 
 /**
  * T129 alpha: staff geometry from ONLY the mockup-ported layout
- * (`computeStaffMockupLayout`, two-level tidy-tree + A* line routing). The old calc
+ * (`computeStaffTidyLayoutWasm`, two-level tidy-tree + A* line routing). The old calc
  * is not used on this path. Node coords feed the same `StaffCanvasResult` the
  * surfaces consume; `frames`/`routes` come straight from the Rust result (the single
  * geometry source for both the Pixi-far scene and the React-near chrome).
@@ -361,8 +361,8 @@ function buildStaffMockupInput(data: DiagramData, currentOrgId: string): StaffMo
 async function computeViaMockup(input: BranchInput): Promise<StaffLiveGeometry> {
   const { data, currentOrgId, staffOptions, zoneLabelBand, contentPadding } = input;
 
-  const mockInput = buildStaffMockupInput(data, currentOrgId);
-  const result = await computeStaffMockupLayoutWasm(mockInput);
+  const mockInput = buildStaffTidyInput(data, currentOrgId);
+  const result = await computeStaffTidyLayoutWasm(mockInput);
 
   const positionNodes: StaffNodeBox[] = result.nodes.map((n) => ({
     id: n.id,

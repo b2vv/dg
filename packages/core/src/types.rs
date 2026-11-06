@@ -706,14 +706,14 @@ mod ts_export {
         StaffGeometryResult::export().expect("StaffGeometryResult");
 
         // Alpha staff-layout (окрема версія ліби, порт алгоритму мокапа).
-        crate::staff_mockup_layout::StaffMockupParams::export().expect("StaffMockupParams");
-        crate::staff_mockup_layout::StaffMockupInput::export().expect("StaffMockupInput");
-        crate::staff_mockup_layout::StaffMockupNode::export().expect("StaffMockupNode");
-        crate::staff_mockup_layout::StaffMockupFrame::export().expect("StaffMockupFrame");
-        crate::staff_mockup_layout::StaffMockupRouting::export().expect("StaffMockupRouting");
-        crate::staff_mockup_layout::StaffMockupPoint::export().expect("StaffMockupPoint");
-        crate::staff_mockup_layout::StaffMockupEdge::export().expect("StaffMockupEdge");
-        crate::staff_mockup_layout::StaffMockupResult::export().expect("StaffMockupResult");
+        crate::staff_tidy_layout::StaffTidyParams::export().expect("StaffTidyParams");
+        crate::staff_tidy_layout::StaffTidyInput::export().expect("StaffTidyInput");
+        crate::staff_tidy_layout::StaffTidyNode::export().expect("StaffTidyNode");
+        crate::staff_tidy_layout::StaffTidyFrame::export().expect("StaffTidyFrame");
+        crate::staff_tidy_layout::StaffTidyRouting::export().expect("StaffTidyRouting");
+        crate::staff_tidy_layout::StaffTidyPoint::export().expect("StaffTidyPoint");
+        crate::staff_tidy_layout::StaffTidyEdge::export().expect("StaffTidyEdge");
+        crate::staff_tidy_layout::StaffTidyResult::export().expect("StaffTidyResult");
     }
 }
 

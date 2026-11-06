@@ -318,7 +318,7 @@ export interface RenderConfig {
   staffDeptGrouping?: boolean;
   /**
    * T129 (alpha): compute staff geometry ONLY via the mockup-ported layout
-   * (`computeStaffMockupLayout`, two-level tidy-tree) — the previous calculation
+   * (`computeStaffTidyLayoutWasm`, two-level tidy-tree) — the previous calculation
    * (`computeStaffLiveGeometry` Rust/TS path) is NOT used on this path. Coords
    * feed the same surfaces (Pixi far, React mid/near). Default false.
    */

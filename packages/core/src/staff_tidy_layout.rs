@@ -36,7 +36,7 @@ fn ev(n: f32) -> f32 {
     ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
 )]
 #[serde(rename_all = "lowercase")]
-pub enum StaffMockupRouting {
+pub enum StaffTidyRouting {
     Simple,
     #[default]
     Astar,
@@ -50,7 +50,7 @@ pub enum StaffMockupRouting {
     feature = "ts-export",
     ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
 )]
-pub struct StaffMockupParams {
+pub struct StaffTidyParams {
     #[serde(default = "default_pad")]
     pub pad: f32,
     #[serde(default = "default_lane")]
@@ -62,7 +62,7 @@ pub struct StaffMockupParams {
     #[serde(rename = "headerHeight", default = "default_header_height")]
     pub header_height: f32,
     #[serde(default)]
-    pub routing: StaffMockupRouting,
+    pub routing: StaffTidyRouting,
 }
 
 fn default_pad() -> f32 {
@@ -81,7 +81,7 @@ fn default_header_height() -> f32 {
     34.0
 }
 
-impl Default for StaffMockupParams {
+impl Default for StaffTidyParams {
     fn default() -> Self {
         Self {
             pad: default_pad(),
@@ -89,7 +89,7 @@ impl Default for StaffMockupParams {
             card_width: default_card_width(),
             card_height: default_card_height(),
             header_height: default_header_height(),
-            routing: StaffMockupRouting::default(),
+            routing: StaffTidyRouting::default(),
         }
     }
 }
@@ -102,12 +102,12 @@ impl Default for StaffMockupParams {
     feature = "ts-export",
     ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
 )]
-pub struct StaffMockupInput {
+pub struct StaffTidyInput {
     pub positions: Vec<StaffPositionInput>,
     pub reports: Vec<StaffEdgeInput>,
     pub departments: Vec<StaffDepartmentInput>,
     #[serde(default)]
-    pub params: StaffMockupParams,
+    pub params: StaffTidyParams,
 }
 
 /// Картка посади у світових координатах.
@@ -117,7 +117,7 @@ pub struct StaffMockupInput {
     feature = "ts-export",
     ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
 )]
-pub struct StaffMockupNode {
+pub struct StaffTidyNode {
     pub id: String,
     pub x: f32,
     pub y: f32,
@@ -132,7 +132,7 @@ pub struct StaffMockupNode {
     feature = "ts-export",
     ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
 )]
-pub struct StaffMockupFrame {
+pub struct StaffTidyFrame {
     #[serde(rename = "departmentId")]
     pub department_id: String,
     pub x: f32,
@@ -148,7 +148,7 @@ pub struct StaffMockupFrame {
     feature = "ts-export",
     ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
 )]
-pub struct StaffMockupPoint {
+pub struct StaffTidyPoint {
     pub x: f32,
     pub y: f32,
 }
@@ -163,7 +163,7 @@ pub struct StaffMockupPoint {
     feature = "ts-export",
     ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
 )]
-pub struct StaffMockupEdge {
+pub struct StaffTidyEdge {
     #[serde(rename = "fromId")]
     pub from_id: String,
     #[serde(rename = "toId")]
@@ -171,7 +171,7 @@ pub struct StaffMockupEdge {
     pub kind: String,
     #[serde(rename = "endsOnDeptTop")]
     pub ends_on_dept_top: bool,
-    pub points: Vec<StaffMockupPoint>,
+    pub points: Vec<StaffTidyPoint>,
 }
 
 /// Результат alpha-розкладки.
@@ -181,10 +181,10 @@ pub struct StaffMockupEdge {
     feature = "ts-export",
     ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
 )]
-pub struct StaffMockupResult {
-    pub nodes: Vec<StaffMockupNode>,
-    pub frames: Vec<StaffMockupFrame>,
-    pub edges: Vec<StaffMockupEdge>,
+pub struct StaffTidyResult {
+    pub nodes: Vec<StaffTidyNode>,
+    pub frames: Vec<StaffTidyFrame>,
+    pub edges: Vec<StaffTidyEdge>,
     pub width: f32,
     pub height: f32,
 }
@@ -1082,8 +1082,8 @@ fn stats_core(
 }
 
 /// Простий елбоу card→card (варіант Simple): низ-центр батька → шина midY → верх дитини.
-fn route_simple(l: &RouteInput) -> Vec<StaffMockupEdge> {
-    let mut out: Vec<StaffMockupEdge> = Vec::new();
+fn route_simple(l: &RouteInput) -> Vec<StaffTidyEdge> {
+    let mut out: Vec<StaffTidyEdge> = Vec::new();
     for c in &l.pos_order {
         let Some(m) = l.primary_parent.get(c) else {
             continue;
@@ -1100,14 +1100,14 @@ fn route_simple(l: &RouteInput) -> Vec<StaffMockupEdge> {
             let mid = ((y1 + cy) / 2.0).round();
             vec![(pcx, y1), (pcx, mid), (ccx, mid), (ccx, cy)]
         };
-        out.push(StaffMockupEdge {
+        out.push(StaffTidyEdge {
             from_id: m.clone(),
             to_id: c.clone(),
             kind: classify(l, m, c).as_str().to_string(),
             ends_on_dept_top: false,
             points: pts
                 .iter()
-                .map(|&(x, y)| StaffMockupPoint {
+                .map(|&(x, y)| StaffTidyPoint {
                     x: x as f32,
                     y: y as f32,
                 })
@@ -1120,7 +1120,7 @@ fn route_simple(l: &RouteInput) -> Vec<StaffMockupEdge> {
 
 /// A*-маршрутизація (варіант Astar, дефолт): докінг на рамки, обхід карток/чужих рамок,
 /// repair-паси до усунення bad-ребер (мокап `route`). 0 перетинів — ціль.
-fn route_astar(l: &RouteInput) -> Vec<StaffMockupEdge> {
+fn route_astar(l: &RouteInput) -> Vec<StaffTidyEdge> {
     let (mut det, mut ast) = build_edges(l);
 
     for e in det.iter_mut() {
@@ -1212,10 +1212,10 @@ fn route_astar(l: &RouteInput) -> Vec<StaffMockupEdge> {
         }
     }
 
-    let mut out: Vec<StaffMockupEdge> = det
+    let mut out: Vec<StaffTidyEdge> = det
         .iter()
         .chain(ast.iter())
-        .map(|e| StaffMockupEdge {
+        .map(|e| StaffTidyEdge {
             from_id: e.m.clone(),
             to_id: e.c.clone(),
             kind: e.kind.as_str().to_string(),
@@ -1223,7 +1223,7 @@ fn route_astar(l: &RouteInput) -> Vec<StaffMockupEdge> {
             points: e
                 .pts
                 .iter()
-                .map(|&(x, y)| StaffMockupPoint {
+                .map(|&(x, y)| StaffTidyPoint {
                     x: x as f32,
                     y: y as f32,
                 })
@@ -1234,11 +1234,11 @@ fn route_astar(l: &RouteInput) -> Vec<StaffMockupEdge> {
     out
 }
 
-/// Stats на результаті (для тестів-гейтів): рахує cross/card з готового StaffMockupResult.
+/// Stats на результаті (для тестів-гейтів): рахує cross/card з готового StaffTidyResult.
 #[cfg(test)]
-fn mockup_stats(
-    input: &StaffMockupInput,
-    result: &StaffMockupResult,
+fn tidy_stats(
+    input: &StaffTidyInput,
+    result: &StaffTidyResult,
 ) -> (usize, usize, usize, usize, usize) {
     let cards: HashMap<String, (f64, f64)> = result
         .nodes
@@ -1292,7 +1292,7 @@ fn mockup_stats(
 }
 
 /// Alpha staff-геометрія за алгоритмом мокапа. Детермінований вивід (ноди/рамки сортовані за id).
-pub fn compute_staff_mockup_layout(input: &StaffMockupInput) -> Result<StaffMockupResult, String> {
+pub fn compute_staff_tidy_layout(input: &StaffTidyInput) -> Result<StaffTidyResult, String> {
     let p = &input.params;
     let (pad, lane) = (p.pad, p.lane);
     let cw = p.card_width;
@@ -1508,7 +1508,7 @@ pub fn compute_staff_mockup_layout(input: &StaffMockupInput) -> Result<StaffMock
     }
 
     // Світові координати карток і рамок.
-    let mut nodes: Vec<StaffMockupNode> = Vec::new();
+    let mut nodes: Vec<StaffTidyNode> = Vec::new();
     // Координати ноди за id — для побудови ліній зв'язку (card-to-card елбоу).
     let mut coords: HashMap<String, (f32, f32)> = HashMap::new();
     for b in &block_order {
@@ -1518,7 +1518,7 @@ pub fn compute_staff_mockup_layout(input: &StaffMockupInput) -> Result<StaffMock
         for (id, (rx, ry)) in &block_rel[b] {
             let (x, y) = ((ox + rx).round(), (oy + ry).round());
             coords.insert(id.clone(), (x, y));
-            nodes.push(StaffMockupNode {
+            nodes.push(StaffTidyNode {
                 id: id.clone(),
                 x,
                 y,
@@ -1530,7 +1530,7 @@ pub fn compute_staff_mockup_layout(input: &StaffMockupInput) -> Result<StaffMock
     nodes.sort_by(|a, b| a.id.cmp(&b.id));
 
     // Рамки департаментів (будуємо ДО ліній — роутер докає ребра на їхній верх).
-    let mut frames: Vec<StaffMockupFrame> = Vec::new();
+    let mut frames: Vec<StaffTidyFrame> = Vec::new();
     for b in &block_order {
         if block_dept[b].is_none() {
             continue;
@@ -1538,7 +1538,7 @@ pub fn compute_staff_mockup_layout(input: &StaffMockupInput) -> Result<StaffMock
         let (Some(&ox), Some(&oy)) = (bx.get(b), by.get(b)) else {
             continue;
         };
-        frames.push(StaffMockupFrame {
+        frames.push(StaffTidyFrame {
             department_id: b.clone(),
             x: ox,
             y: oy,
@@ -1636,11 +1636,11 @@ pub fn compute_staff_mockup_layout(input: &StaffMockupInput) -> Result<StaffMock
     };
 
     let edges = match p.routing {
-        StaffMockupRouting::Simple => route_simple(&route_input),
-        StaffMockupRouting::Astar => route_astar(&route_input),
+        StaffTidyRouting::Simple => route_simple(&route_input),
+        StaffTidyRouting::Astar => route_astar(&route_input),
     };
 
-    Ok(StaffMockupResult {
+    Ok(StaffTidyResult {
         nodes,
         frames,
         edges,
@@ -1676,8 +1676,8 @@ mod tests {
         }
     }
 
-    fn sample() -> StaffMockupInput {
-        StaffMockupInput {
+    fn sample() -> StaffTidyInput {
+        StaffTidyInput {
             positions: vec![
                 pos("ceo", None),
                 pos("asst", None),
@@ -1690,13 +1690,13 @@ mod tests {
                 admin("cfo", "acc"),
             ],
             departments: vec![dept("fin")],
-            params: StaffMockupParams::default(),
+            params: StaffTidyParams::default(),
         }
     }
 
     #[test]
     fn places_all_nodes_and_dept_frame() {
-        let out = compute_staff_mockup_layout(&sample()).unwrap();
+        let out = compute_staff_tidy_layout(&sample()).unwrap();
         assert_eq!(out.nodes.len(), 4, "усі 4 посади розміщені");
         assert_eq!(out.frames.len(), 1, "одна рамка департаменту (fin)");
         assert_eq!(out.frames[0].department_id, "fin");
@@ -1707,7 +1707,7 @@ mod tests {
     #[test]
     fn within_dept_uses_lv_between_levels() {
         // cfo→acc — один департамент: вертикальний крок = CH + LV (118 + 56 = 174).
-        let out = compute_staff_mockup_layout(&sample()).unwrap();
+        let out = compute_staff_tidy_layout(&sample()).unwrap();
         let cfo = out.nodes.iter().find(|n| n.id == "cfo").unwrap();
         let acc = out.nodes.iter().find(|n| n.id == "acc").unwrap();
         assert_eq!(acc.y - cfo.y, 118.0 + 56.0);
@@ -1717,7 +1717,7 @@ mod tests {
     fn between_blocks_uses_bv_not_lv() {
         // ceo(singleton) → asst(singleton): між-блок верт-крок = CH + BV (118 + 96 = 214),
         // а НЕ LV — підтверджує розчеплення LV≠BV алгоритму мокапа.
-        let out = compute_staff_mockup_layout(&sample()).unwrap();
+        let out = compute_staff_tidy_layout(&sample()).unwrap();
         let ceo = out.nodes.iter().find(|n| n.id == "ceo").unwrap();
         let asst = out.nodes.iter().find(|n| n.id == "asst").unwrap();
         assert_eq!(asst.y - ceo.y, 118.0 + 96.0);
@@ -1727,7 +1727,7 @@ mod tests {
     fn emits_parent_child_edges() {
         // 3 admin-ребра → 3 лінії; кожна починається на низу батька й кінчається
         // на верху дитини (card-to-card елбоу).
-        let out = compute_staff_mockup_layout(&sample()).unwrap();
+        let out = compute_staff_tidy_layout(&sample()).unwrap();
         assert_eq!(out.edges.len(), 3, "по лінії на кожне parent→child");
         let cfo = out.nodes.iter().find(|n| n.id == "cfo").unwrap();
         let acc = out.nodes.iter().find(|n| n.id == "acc").unwrap();
@@ -1745,13 +1745,13 @@ mod tests {
     #[test]
     fn output_is_deterministic() {
         let inp = sample();
-        let a = serde_json::to_string(&compute_staff_mockup_layout(&inp).unwrap()).unwrap();
-        let b = serde_json::to_string(&compute_staff_mockup_layout(&inp).unwrap()).unwrap();
+        let a = serde_json::to_string(&compute_staff_tidy_layout(&inp).unwrap()).unwrap();
+        let b = serde_json::to_string(&compute_staff_tidy_layout(&inp).unwrap()).unwrap();
         assert_eq!(a, b);
     }
 
     /// Повна сцена мокапа (`shps-links.js` POS/DEPTS) з мокап-параметрами (236×118, pad8/lane8).
-    fn mock3_scene() -> StaffMockupInput {
+    fn mock3_scene() -> StaffTidyInput {
         // (id, primary-parent, dept)
         let rows: &[(&str, Option<&str>, Option<&str>)] = &[
             ("ceo", None, None),
@@ -1823,17 +1823,17 @@ mod tests {
                 order: Some(i as f64),
             })
             .collect();
-        StaffMockupInput {
+        StaffTidyInput {
             positions,
             reports,
             departments,
-            params: StaffMockupParams {
+            params: StaffTidyParams {
                 pad: 8.0,
                 lane: 8.0,
                 card_width: 236.0,
                 card_height: 118.0,
                 header_height: 34.0,
-                routing: StaffMockupRouting::Astar,
+                routing: StaffTidyRouting::Astar,
             },
         }
     }
@@ -1843,8 +1843,8 @@ mod tests {
         // Гейт вірності порту: на повній сцені мокап-роутер дає 0 перетинів ліній
         // і 0 ліній крізь чужі картки (саме це гарантує `shps-links.js`).
         let input = mock3_scene();
-        let out = compute_staff_mockup_layout(&input).unwrap();
-        let (cross, over, card, near, dept) = mockup_stats(&input, &out);
+        let out = compute_staff_tidy_layout(&input).unwrap();
+        let (cross, over, card, near, dept) = tidy_stats(&input, &out);
         assert_eq!(
             cross, 0,
             "перетини лінія-лінія: {cross} (over={over} near={near} dept={dept})"
@@ -1855,8 +1855,8 @@ mod tests {
     #[test]
     fn mock3_astar_deterministic() {
         let input = mock3_scene();
-        let a = serde_json::to_string(&compute_staff_mockup_layout(&input).unwrap()).unwrap();
-        let b = serde_json::to_string(&compute_staff_mockup_layout(&input).unwrap()).unwrap();
+        let a = serde_json::to_string(&compute_staff_tidy_layout(&input).unwrap()).unwrap();
+        let b = serde_json::to_string(&compute_staff_tidy_layout(&input).unwrap()).unwrap();
         assert_eq!(a, b, "два прогони A* → ідентичний вивід");
     }
 }
