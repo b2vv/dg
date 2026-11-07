@@ -334,3 +334,30 @@ ADR-0002). Канальний роутер — вторинне поліпшен
   §10 matrix, golden-rebaseline, cassiopeia-координація. = substantial feature під T126 (spec-flow + owner go).
 - Scope-doc: `_1b-matrix-tidy-scope-dg41.md`. R1 відкрите: matrix-роль = контракт движка чи SDK-деривація?
 - ДАЛІ: owner go на spec-flow + рішення R1, тоді spec→plan→GATE2→TDD→review→rebaseline→enable+remove.
+
+## 1b spec-flow запущено (власник: go, 2026-11-07)
+- R1 робоче рішення (МОЯ рекомендація, не підтверджено дослівно власником): matrix-роль = SDK-деривація;
+  движок рахує лише координати (мандат T126 «Rust рахує координати»). Переглядабельно в spec.
+- ДАЛІ: spec-flow SDD-цикл для 1b (spec/acceptance → GATE1 → plan → GATE2 critique+defense → tasks → TDD → verify).
+
+- ФАКТ (2026-11-07): Codex-ліміт скинуто → implement 1b пише CODEX (codex exec --approve-for-me < /dev/null,
+  не агент-обгортка/не --worktree), Claude планує+рев'юнить, не вірю чужому «зелено». Тимчасовий виняток
+  «Claude пише код» для цього треку СКАСОВАНО. spec/plan/gates — лишаються за Claude.
+- spec-flow 1b: spec.md написано → `work/reports/staff-tidy-matrix/spec.md`. ДАЛІ: GATE 1 (grilling/підтвердження).
+
+- [x] GATE 1 пройдено: R1 вирішено власником (SDK-деривація; matrix=staff-сцена, НЕ org-grid). spec.md оновлено.
+- [x] plan.md написано → `work/reports/staff-tidy-matrix/plan.md` (placement, reuse-first, side-effects/migration/
+  rollback, constitution, acceptance A1–A7, tasks T1–T6; implement = Codex). ДАЛІ: GATE 2 critique+defense.
+
+- GATE 2 (1b): запущено plan-critique (_critique-plan-dg41.md) + plan-defense (_defense-plan-dg41.md) паралельно.
+  Constitution (inline) = PASS: геометрія в Rust (ADR-0002), additive grid_cell, детермінізм, Rust по CI-гейтах.
+  Чекаю 2 вердикти. Коміт spec+plan — після GATE 2 GREEN.
+
+## 1b DEFERRED — зміна передумови (власник, 2026-11-07)
+- «Staff don't have user coordinates. This will happen in the future.» ⇒ matrix/headless staff = лише
+  interaction/contract ФІКСТУРИ, не реальні дані; реальна staff завжди tree → tidy вже покриває. 1b = YAGNI зараз.
+- spec.md/plan.md позначено DEFERRED (валідні, коли координати з'являться). GATE 2 зупинено (премса змінилась).
+- Наслідок: legacy-removal (яку 1b розблоковувала) теж відкладено — computeViaTs лишається для фікстур до появи координат.
+- ПЕРЕОСМИСЛЕННЯ треку: доставлена цінність сесії = D2 adaptive reserve-space (staff <100 якість, деплой cass-13).
+  Решта staff-geometry: 1b/legacy-removal = future (координати); T126-міграція/T129 L2 = owner-gated. Агент-готового
+  staff-обсягу без майбутніх координат або owner-рішення НЕМАЄ.
