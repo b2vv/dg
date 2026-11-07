@@ -119,6 +119,8 @@ treeBlockLayout?: boolean,
 /**
  * DEV: оцінити до 12 комбінацій голів мульті-джерельних відділів на LOD near.
  * Лише для treeBlockLayout + deptGrouping; відсутній/false зберігає лекс-дефолт.
+ * DEPRECATED(dg41): brute-force path rejected by the owner at dg37; disabled on mock3.
+ * Do not extend; remove with the legacy path under the staff_layout.rs removal gates.
  */
 multiSourceParentEval?: boolean, };
 

@@ -14,7 +14,7 @@ export function computeStaffGeometry(input: any): any;
 
 /**
  * Alpha staff-геометрія за алгоритмом мокапа (окрема версія ліби).
- * Приймає `StaffMockupInput`, повертає `StaffMockupResult`.
+ * Приймає `StaffTidyInput`, повертає `StaffTidyResult`.
  */
 export function computeStaffMockupLayout(input: any): any;
 
