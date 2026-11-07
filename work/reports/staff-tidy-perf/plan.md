@@ -175,6 +175,15 @@ not readily reachable by placement on the synthetic scene. Escalation options fo
 ((1) deem the synthetic scene unrepresentative → pause until real <100 data; (2) re-agree A3; (3) exact solver —
 disproportionate). **Not an autonomous decision; the track is paused on this scope call.**
 
+**P0c — owner's reserve-space idea (`_design §5e`) is the BEST lever found.** Giving routing more reserved space
+(params pad=24 / lane=24) drops 99 from 4→**1** and keeps 50 at **0** — beating placement-reorder (floor 2) and
+routing (≥4, harmful), and it is the cheapest (a layout-param change, no extra A*). The single residual at 99 is
+`cto-0→ib-0 × cto-1→bi-1` — from `cto`'s cross-dept children (ana+sec), NOT a dual parent (dup edges=0; the 2
+dual-parent nodes da-0/da-1 were resolved by the space). Real ШПС has 0 dual parents → the da-type crossings are a
+synthetic artifact; at the real ~11–50 scale the engine already gives 0. **Quality ranking (99): reserve-space 1 >
+placement-reorder 2 > baseline 4 > routing 4/7/12.** D2 mechanism candidate = reserve-space; the residual-1 is a
+synthetic cto-pattern (owner to decide: accept real→0, or targeted cto-lane reservation to crack the last one).
+
 **D2 — PLACEMENT redesign (rev.4 primary track; GATED on P0 reaching 0; first product mutation → pre-code checkpoint).**
 Goal: a **principled crossing-minimizing sibling/column ordering** in the Rust layout calculation so cross-dept
 and secondary edges (`ceo→da`, `cto→bi`/`ib`, `cfo→ah`) do not end up interleaved. Grounded in A/B evidence
