@@ -320,3 +320,17 @@ ADR-0002). Канальний роутер — вторинне поліпшен
   N3 (беклог): 5-кортежний селектор недотестований (лише cross ненульовий). cargo test adaptive зелено; fmt чисто.
 - СТАН: D2 завершено (імплементація + незалежний рев'ю GREEN). Лишилось DELIVERY (WASM-білд → cass-13) =
   окремий анонсований крок, НЕ автономно. Чекаю анонс/дозвіл власника на білд.
+
+## DELIVERY виконано (2026-11-07, власник: Build+deploy into cass-13)
+- `npm run build:wasm` + `npm run build` → dist/wasm/pkg (лінк cass-13) оновлено адаптивним движком = ДЕПЛОЙ.
+- Трековані артефакти закомічено `68de88b` (pkg .wasm/.js/.d.ts + rust-types.ts +2 doc-sync). SDK check-package ✅.
+- Інтеграційна перевірка на живому cass-13 — за власником (пост-деплой на живому стенді; не автономно).
+- ⇒ ТРЕК staff-tidy <100 D2 ПОВНІСТЮ ЗАКРИТО: investigate→design→critic→TDD→review→deploy. 7 комітів, без пушу.
+
+## 1b — matrix/headless на tidy (власник: 1b) — SCOPE, код не почато (T126-гейт)
+- Research: tidy повністю tree-only (нема координат/gridCell/matrix-ролі); matrix/headless = авторські координати
+  без ієрархії, роль drag=move, сьогодні лише computeViaTs. FORK2 вже ламала (tree-only→«cannot resolve head»).
+- Обсяг: вхідний контракт (+координати StaffPositionInput), movement-placement шлях у движку, SDK-маршрутизація,
+  §10 matrix, golden-rebaseline, cassiopeia-координація. = substantial feature під T126 (spec-flow + owner go).
+- Scope-doc: `_1b-matrix-tidy-scope-dg41.md`. R1 відкрите: matrix-роль = контракт движка чи SDK-деривація?
+- ДАЛІ: owner go на spec-flow + рішення R1, тоді spec→plan→GATE2→TDD→review→rebaseline→enable+remove.
