@@ -1934,20 +1934,23 @@ mod tests {
     // D2 (dg41) adaptive reserve-space acceptance.
     #[test]
     fn adaptive_byte_identical_on_clean() {
-        // A1: a scene with 0 crossings must return the single pass UNCHANGED.
+        // A1: a scene whose FULL quality tuple is zero must return the single pass
+        // UNCHANGED. The precondition asserts the full tuple (not just cross), since
+        // that is exactly the short-circuit condition in compute_staff_tidy_adaptive
+        // — so byte-identity here is reached via the short-circuit, not by accident.
         for input in [mock3_scene(), tidy_cohorts(1)] {
             let single =
                 serde_json::to_string(&compute_staff_tidy_layout(&input).unwrap()).unwrap();
             let adaptive =
                 serde_json::to_string(&compute_staff_tidy_adaptive(&input).unwrap()).unwrap();
             assert_eq!(
-                tidy_stats(&input, &compute_staff_tidy_layout(&input).unwrap()).0,
-                0,
-                "precondition: clean scene"
+                tidy_stats(&input, &compute_staff_tidy_layout(&input).unwrap()),
+                (0, 0, 0, 0, 0),
+                "precondition: fully clean scene (short-circuit path)"
             );
             assert_eq!(
                 single, adaptive,
-                "adaptive must be a no-op on a 0-crossing scene"
+                "adaptive must be a no-op on a fully-clean scene"
             );
         }
     }

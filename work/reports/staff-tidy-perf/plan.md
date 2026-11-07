@@ -24,6 +24,17 @@ Owner picked **B (adaptive)** after the impact finding that a *global* pad incre
 - **Edit-mode reflow risk (critic #4):** if denser future real data or live-edit flips a scene 0→1 crossing, the
   whole diagram would jump 2–3× in spacing (discrete reflow). Host does not consume the Tidy path yet and edit-mode
   is a separate feature → non-blocking, recorded as a risk for whoever wires edit-mode.
+- **D2 independent code review (`_review-d2-code-dg41.md`): GREEN, 0 blocking.** All 8 correctness points hold;
+  tests truthful. Backlog (non-blocking, for when the host consumes the Tidy path / edit-mode):
+  - **N1 (addressed):** the clean-scene test precondition was strengthened from `cross==0` to the full tuple
+    `(0,0,0,0,0)` — matching the actual short-circuit condition, so byte-identity is pinned to the short-circuit path.
+    (The compute-count claim "real=1 compute" is still only pinned by the ignored `tidy_scale_row`, not the default
+    suite — acceptable; counting computes would need instrumentation.)
+  - **N2:** `near` is the only pad-dependent quality component; base and candidate measure it at different pad
+    thresholds. Moot in fixtures (near always 0); conservative. Watch when real data yields `cross=0, near>0` (would
+    trigger a 3× reflow) — same surface as the edit-mode risk.
+  - **N3:** the 5-tuple lexicographic selector is logically correct but undertested (every fixture has only `cross`
+    non-zero); add a scene exercising over/card/near/dept when one exists.
 - **A1 holds for free:** clean scenes (mock3, ≤~75, all real data) have 0 crossings at base → no retry → output
   byte-identical → mock3/small goldens unchanged. This is the key safety property.
 - **Determinism (A10):** bounded deterministic spacing set + deterministic tie-break. **Perf:** real = 1 compute
