@@ -1954,6 +1954,91 @@ mod tests {
         input
     }
 
+    // Scale-row generator: `cohorts` copies of mock3's internal shape under ONE
+    // CEO, same ten departments, keeping every mock3 cross link + the secondary
+    // CEO->da link per cohort. Positions = 1 + 49*cohorts (1->50, 2->99, 3->148).
+    // Same construction as `tidy_large_realistic` (which is cohorts==10 -> 491).
+    fn tidy_cohorts(cohorts: usize) -> StaffTidyInput {
+        let template = mock3_scene();
+        let mut input = StaffTidyInput {
+            positions: vec![pos("ceo", None)],
+            reports: vec![],
+            departments: template.departments.clone(),
+            params: template.params.clone(),
+        };
+        for cohort in 0..cohorts {
+            let rename = |id: &str| {
+                if id == "ceo" {
+                    id.to_string()
+                } else {
+                    format!("{id}-{cohort}")
+                }
+            };
+            for position in template.positions.iter().filter(|p| p.id != "ceo") {
+                input.positions.push(pos(
+                    &rename(&position.id),
+                    position.department_id.as_deref(),
+                ));
+            }
+            for edge in &template.reports {
+                input
+                    .reports
+                    .push(admin(&rename(&edge.from_id), &rename(&edge.to_id)));
+            }
+        }
+        assert_eq!(input.positions.len(), 1 + 49 * cohorts);
+        input
+    }
+
+    // MEASUREMENT ONLY (no optimization). Scale row 50/100/150 positions:
+    // positions, #ast (frozen observer), grid nx/ny, quality via tidy_stats
+    // (cross/over/card/near/dept), and release wall-clock min-of-7. Writes each
+    // scene's input JSON to $DG_SCALE_OUT (for the WASM cross-check) when set.
+    // Goldens are NOT touched: counting uses observed_routes, not characterize.
+    #[test]
+    #[ignore = "release timing + scale row; N=7 min; run without competing cargo builds"]
+    fn tidy_scale_row() {
+        let out_dir = std::env::var("DG_SCALE_OUT").ok();
+        if let Some(dir) = &out_dir {
+            std::fs::create_dir_all(dir).unwrap();
+        }
+        for cohorts in [1usize, 2, 3] {
+            let input = tidy_cohorts(cohorts);
+            let positions = input.positions.len();
+            // #ast + grid dims via the frozen S1 observer (no golden assertion).
+            let mut o = RouteObservation::default();
+            let _ = observed_routes(&routing_input(&input), &mut o);
+            let result = compute_staff_tidy_layout(&input).unwrap();
+            let (cross, over, card, near, dept) = tidy_stats(&input, &result);
+            let mut best = f64::INFINITY;
+            for _ in 0..7 {
+                let start = std::time::Instant::now();
+                std::hint::black_box(compute_staff_tidy_layout(&input).unwrap());
+                best = best.min(start.elapsed().as_secs_f64() * 1000.0);
+            }
+            if let Some(dir) = &out_dir {
+                let base = std::path::Path::new(dir);
+                std::fs::write(
+                    base.join(format!("scale_{cohorts}.json")),
+                    serde_json::to_string(&input).unwrap(),
+                )
+                .unwrap();
+                // Native serialized output for the WASM byte-equality cross-check.
+                std::fs::write(
+                    base.join(format!("scale_{cohorts}_native.json")),
+                    serde_json::to_string(&result).unwrap(),
+                )
+                .unwrap();
+            }
+            println!(
+                "scale cohorts={cohorts}: positions={positions} ast={} nx={} ny={} \
+                 quality(cross/over/card/near/dept)={cross}/{over}/{card}/{near}/{dept} \
+                 native_min7={best:.3}ms",
+                o.ast, o.nx, o.ny
+            );
+        }
+    }
+
     // Reconstruct routing metadata from the public geometry (Simple mode avoids
     // routing twice). Cross-check observed routes against the real A* result.
     fn routing_input(input: &StaffTidyInput) -> RouteInput {
