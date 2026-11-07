@@ -9,10 +9,10 @@ mod staff_compose;
 mod staff_edge_box;
 mod staff_geom;
 mod staff_layout;
-mod staff_tidy_layout;
 mod staff_packing;
 mod staff_router;
 mod staff_routes;
+mod staff_tidy_layout;
 mod types;
 
 use serde_wasm_bindgen::{from_value, to_value};
@@ -30,10 +30,6 @@ pub use staff_edge_box::{
     visual_org_edge_box, visual_person_edge_box, EdgeRect, PersonEdgeHints, Rect,
 };
 pub use staff_layout::{compute_staff_geometry, layout_staff_org_block, Geom, StaffBlock};
-pub use staff_tidy_layout::{
-    compute_staff_tidy_layout, StaffTidyEdge, StaffTidyFrame, StaffTidyInput,
-    StaffTidyNode, StaffTidyParams, StaffTidyPoint, StaffTidyResult, StaffTidyRouting,
-};
 pub use staff_packing::{pack_departments, DepartmentMembers, StaffPackResult};
 pub use staff_router::{
     astar_route, build_corridor_grid, diagonal_segments, occupy, release, route_edges,
@@ -41,6 +37,11 @@ pub use staff_router::{
     EdgeSpec, Occupancy, RouteStats, SECONDARY_PORT_DX,
 };
 pub use staff_routes::{staff_routes, RouteInputs};
+pub use staff_tidy_layout::{
+    compute_staff_tidy_adaptive, compute_staff_tidy_layout, StaffTidyEdge, StaffTidyFrame,
+    StaffTidyInput, StaffTidyNode, StaffTidyParams, StaffTidyPoint, StaffTidyResult,
+    StaffTidyRouting,
+};
 pub use types::*;
 
 /// Row-tree layout для org: validate → subtree → Ploeg layered tidy
@@ -102,7 +103,9 @@ pub fn wasm_compute_staff_geometry(input: JsValue) -> Result<JsValue, JsValue> {
 pub fn wasm_compute_staff_tidy_layout(input: JsValue) -> Result<JsValue, JsValue> {
     let parsed: StaffTidyInput =
         from_value(input).map_err(|e| JsValue::from_str(&format!("parse error: {e}")))?;
-    let result = compute_staff_tidy_layout(&parsed).map_err(|e| JsValue::from_str(&e))?;
+    // dg41 D2: adaptive reserve-space — self-heals spacing only when the layout has
+    // crossings; clean scenes are byte-identical to the single pass.
+    let result = compute_staff_tidy_adaptive(&parsed).map_err(|e| JsValue::from_str(&e))?;
     to_value(&result).map_err(|e| JsValue::from_str(&format!("serialize error: {e}")))
 }
 

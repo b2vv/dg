@@ -289,3 +289,27 @@ ADR-0002). Канальний роутер — вторинне поліпшен
   checkpoint+scope. Синтетичний артефакт. Зонд прибрано.
 - СТАН: дешеві варіанти вичерпано. reserve-space = найкращий механізм (99→1, 50→0). Останній перетин — синтетичний
   cto-патерн, незводимий без продакшн-роботи. Пауза на scope-рішення власника (accept real→0 vs targeted-lane D2).
+
+## D2 = адаптивний reserve-space (власник: B, 2026-11-07) — plan rev.5
+- Impact-знахідка (винесена власнику, не мовчки): глобальний pad=24 — net-negative (реал ≤75 уже 0 при pad=8;
+  розсунув би всі реальні діаграми ×3 задарма). Власник обрав B (адаптивний).
+- Дизайн: движок-внутрішній self-heal — порахувати cross; 0 → віддати як є (реал компактний, байт-ідентичний);
+  >0 → перерахувати по обмеженому spacing-набору ×{1,2,3}, віддати min-cross (нічия → найменший spacing).
+  Best-effort (НЕ 0; spacing немонотонний). A1 тримається задарма (чисті сцени не тригерять ретрай).
+  stats_core → продакшн (було test-only); спостерігачі в lockstep (A7). Delivery = анонсований cass-13 деплой (пізніше).
+- Pre-code checkpoint у plan.md rev.5: READY після GREEN критика.
+- ДАЛІ: сліпий критик D2-дизайну (R6 перед кодом).
+
+## D2 ІМПЛЕМЕНТОВАНО (адаптивний reserve-space, TDD, 2026-11-07)
+- Критик D2-дизайну → `_critique-d2-adaptive-dg41.md`: **GREEN, 0 blocking**; 5 non-blocking складено в rev.5
+  (A4-perf явно, селектор за повним 5-кортежем, spacing-набір ×{1,2,3} зафіксовано, edit-mode reflow risk,
+  виправлено: stats_core вже продакшн — новим лише тонка обгортка).
+- Рішення дизайну (безпечніше за «загорнути compute»): окрема `compute_staff_tidy_adaptive`; WASM-біндинг (lib.rs)
+  → неї. Заморожені goldens/спостерігачі тестують single-pass `compute_staff_tidy_layout` → ЦІЛІ, без регенерації.
+- Імплементація: `tidy_stats` промотовано в продакшн; `compute_staff_tidy_adaptive` = base; якщо кортеж≠0 → ретрай
+  pad/lane ×{2,3}, віддати лексикографічно-мінімальний кортеж (нічия→менший spacing). Best-effort, не 0.
+- TDD-тести: adaptive_byte_identical_on_clean (A1: mock3 + 50 → no-op), adaptive_reduces_dense_crossings (99: <baseline),
+  adaptive_deterministic. **cargo test 211 passed / 0 failed / 5 ignored; clippy -D warnings чисто; fmt чисто;
+  check:docs ✅.** Заморожені фікстури незмінні.
+- ⚠️ Delivery: WASM-білд → cass-13 = ОКРЕМИЙ анонсований крок (handoff забороняє білд у спільний dist без анонсу).
+  Я НЕ білдив. Коміт — лише джерело (без пуша).

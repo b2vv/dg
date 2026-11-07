@@ -1234,8 +1234,9 @@ fn route_astar(l: &RouteInput) -> Vec<StaffTidyEdge> {
     out
 }
 
-/// Stats на результаті (для тестів-гейтів): рахує cross/card з готового StaffTidyResult.
-#[cfg(test)]
+/// Quality tuple (cross/over/card/near/dept) of a finished StaffTidyResult.
+/// Production (used by the adaptive wrapper to decide whether to reserve space)
+/// and by test gates. Runs the already-production `stats_core` over the result.
 fn tidy_stats(
     input: &StaffTidyInput,
     result: &StaffTidyResult,
@@ -1649,6 +1650,36 @@ pub fn compute_staff_tidy_layout(input: &StaffTidyInput) -> Result<StaffTidyResu
     })
 }
 
+/// Adaptive reserve-space (dg41 D2). A single pass at the caller's spacing; if its
+/// quality tuple is non-zero, retry at pad/lane ×2 and ×3 and return the layout
+/// whose quality tuple (cross, over, card, near, dept) is lexicographically
+/// smallest — tie → smallest spacing (compactness). Clean scenes (all-zero, which
+/// covers every real ≤~75-position ШПС and mock3) return the base pass UNCHANGED,
+/// byte-identical to `compute_staff_tidy_layout`. Best-effort, NOT guaranteed zero
+/// (spacing is non-monotonic); bounded to 3 computes. Real data (0 crossings) pays
+/// exactly one compute — no perf regression; only crossing scenes pay up to 3×.
+pub fn compute_staff_tidy_adaptive(input: &StaffTidyInput) -> Result<StaffTidyResult, String> {
+    let base = compute_staff_tidy_layout(input)?;
+    let base_q = tidy_stats(input, &base);
+    if base_q == (0, 0, 0, 0, 0) {
+        return Ok(base);
+    }
+    let mut best = base;
+    let mut best_q = base_q;
+    for mult in [2.0f32, 3.0] {
+        let mut scaled = input.clone();
+        scaled.params.pad *= mult;
+        scaled.params.lane *= mult;
+        let candidate = compute_staff_tidy_layout(&scaled)?;
+        let q = tidy_stats(&scaled, &candidate);
+        if q < best_q {
+            best_q = q;
+            best = candidate;
+        }
+    }
+    Ok(best)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1898,6 +1929,52 @@ mod tests {
         let a = serde_json::to_string(&compute_staff_tidy_layout(&input).unwrap()).unwrap();
         let b = serde_json::to_string(&compute_staff_tidy_layout(&input).unwrap()).unwrap();
         assert_eq!(a, b, "два прогони A* → ідентичний вивід");
+    }
+
+    // D2 (dg41) adaptive reserve-space acceptance.
+    #[test]
+    fn adaptive_byte_identical_on_clean() {
+        // A1: a scene with 0 crossings must return the single pass UNCHANGED.
+        for input in [mock3_scene(), tidy_cohorts(1)] {
+            let single =
+                serde_json::to_string(&compute_staff_tidy_layout(&input).unwrap()).unwrap();
+            let adaptive =
+                serde_json::to_string(&compute_staff_tidy_adaptive(&input).unwrap()).unwrap();
+            assert_eq!(
+                tidy_stats(&input, &compute_staff_tidy_layout(&input).unwrap()).0,
+                0,
+                "precondition: clean scene"
+            );
+            assert_eq!(
+                single, adaptive,
+                "adaptive must be a no-op on a 0-crossing scene"
+            );
+        }
+    }
+
+    #[test]
+    fn adaptive_reduces_dense_crossings() {
+        // Dense synthetic 99: single pass crosses; adaptive must do strictly better
+        // (guarantee: quality tuple <= baseline; here cross drops below baseline).
+        let input = tidy_cohorts(2);
+        let single_cross = tidy_stats(&input, &compute_staff_tidy_layout(&input).unwrap()).0;
+        let adaptive_cross = tidy_stats(&input, &compute_staff_tidy_adaptive(&input).unwrap()).0;
+        assert!(
+            single_cross > 0,
+            "precondition: dense scene crosses at base spacing"
+        );
+        assert!(
+            adaptive_cross < single_cross,
+            "adaptive cross {adaptive_cross} must beat baseline {single_cross}"
+        );
+    }
+
+    #[test]
+    fn adaptive_deterministic() {
+        let input = tidy_cohorts(2);
+        let a = serde_json::to_string(&compute_staff_tidy_adaptive(&input).unwrap()).unwrap();
+        let b = serde_json::to_string(&compute_staff_tidy_adaptive(&input).unwrap()).unwrap();
+        assert_eq!(a, b, "adaptive is deterministic");
     }
 
     // S1 frozen characterization: regenerate ONLY with DG_TIDY_GOLDEN_WRITE=1.

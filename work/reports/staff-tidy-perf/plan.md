@@ -1,4 +1,48 @@
-# plan — staff tidy <100 zero-crossing redesign (dg41, rev.4)
+# plan — staff tidy <100 zero-crossing redesign (dg41, rev.5)
+
+## rev.5 (2026-11-07) — D2 = ADAPTIVE reserve-space (owner choice B); pre-code checkpoint
+Owner picked **B (adaptive)** after the impact finding that a *global* pad increase would spread every real diagram
+3× for no real benefit (real data ≤~75 is already 0 crossings at pad=8; crossings only appear ≥~80 on synthetic
+10×mock3). Adaptive = add space ONLY when crossings are detected.
+
+**D2 design (adaptive reserve-space, engine-internal, no API change):**
+- In `compute_staff_tidy_layout`: produce the layout at base spacing, **count the quality tuple** on the final
+  `StaffTidyResult`. (Correction per critic: `stats_core` is ALREADY production — called in the repair pass at
+  `:1190`; the **test-only** piece is the `tidy_stats` wrapper `:1238`. D2 adds only a thin production wrapper that
+  runs the same `stats_core` over the final result. Router signature unchanged → A7 observer-lockstep risk is low.)
+  If the base tuple is **all-zero → return as-is** (real data, compact, byte-identical to today). If **any component
+  >0 → recompute over the fixed deterministic spacing set pad/lane ×{1, 2, 3}** (exactly three, no more) and return
+  the layout whose quality tuple is **lexicographically smallest (cross, over, card, near, dept); tie → smallest
+  spacing** (compactness). **Select on the full 5-tuple, not cross alone** (critic #2: a larger spacing could cut
+  cross while worsening another component; the acceptance is 5-dimensional).
+- **Honest bound:** best-effort, NOT guaranteed 0 — spacing is non-monotonic (pad=64 was worse) and synthetic-99
+  floors at 1. Guarantee is "quality tuple ≤ baseline lexicographically, and clean scenes unchanged", not "0".
+- **Perf (critic #1 — A4 not hidden):** adaptive does NOT fix perf. Clean scenes (all real data ≤~75) = 0 crossings
+  = **1 compute → no perf regression**. Only scenes that already have crossings (synthetic ≥~80) pay ≤3 full computes
+  (~2.5 s at synthetic 99). A4 (WASM ≤50 ms) is therefore unaffected for real data and **not gated by D2**; the
+  @500 perf item stays a separate backlog item. This is stated, not silently dropped.
+- **Edit-mode reflow risk (critic #4):** if denser future real data or live-edit flips a scene 0→1 crossing, the
+  whole diagram would jump 2–3× in spacing (discrete reflow). Host does not consume the Tidy path yet and edit-mode
+  is a separate feature → non-blocking, recorded as a risk for whoever wires edit-mode.
+- **A1 holds for free:** clean scenes (mock3, ≤~75, all real data) have 0 crossings at base → no retry → output
+  byte-identical → mock3/small goldens unchanged. This is the key safety property.
+- **Determinism (A10):** bounded deterministic spacing set + deterministic tie-break. **Perf:** real = 1 compute
+  (unchanged); dense = ≤3 computes, only when crossings exist (rare, synthetic). **No-panic (A9)** preserved.
+- **Blast radius:** `stats_core` becomes production (was test-only); frozen S1 observers must stay in lockstep (A7).
+- **Delivery:** Rust change → WASM rebuild needed to reach the host = an **announced cass-13 deploy** (later step,
+  not unilateral; handoff forbids building into the shared dist without announcing). Tests do not deploy.
+
+### Pre-code checkpoint (AI Factory Full, before first product mutation) — READY pending critic
+| Field | Content |
+|---|---|
+| Scope/acceptance | Engine self-heals spacing when it detects its own crossings; clean scenes byte-identical; dense scenes ≤ baseline. Acceptance A1/A8/A9/A10 + "dense cross ≤ baseline"; A3's "0 at 99" is **dropped** (best-effort, per owner B + evidence). |
+| Grilling/decisions | Owner decisions logged: Б over А (A/B matrix), then B (adaptive) over A′ (no-op) / global-pad (net-negative, disputed and corrected). Author inference: engine-internal vs SDK-retry → engine (one place, no API change, deterministic). |
+| Dependencies/writers | Task branch `feat/t126-staff-rust-geometry`, one writer (this session), Codex at limit until 2026-11-11 → Claude writes. No foreign WIP touched. |
+| Scoped impact | `compute_staff_tidy_layout` (`staff_tidy_layout.rs:1295`): add a thin production wrapper that runs the already-production `stats_core` (:1190/:983) over the final result + the ×{1,2,3} retry/select loop. `tidy_stats` (:1238) is the test-only wrapper, unaffected. Frozen observers (A7) low-risk (router signature unchanged). SDK default pad/lane (`staffLiveGeometry.ts:368`) UNCHANGED. |
+| Planning gate | Blind `plan-critique` on this D2 design BEFORE code (R6) → **GREEN, 0 blocking** (`_critique-d2-adaptive-dg41.md`); 5 non-blocking folded into the design above. |
+| Readiness | **READY.** Delivery (WASM build → cass-13) is a separate announced step, not part of this checkpoint. Implementation is test-first (TDD): tests do not deploy. |
+
+---
 
 ## rev.4 (2026-11-07) — PIVOT to placement after D0/D1 evidence
 D0/D1 are **done** (test-only, revert-proven; findings in `_redesign-spike-dg41.md`, `_design-d1-model-dg41.md`).
