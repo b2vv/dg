@@ -168,6 +168,13 @@ dense cross-dept topologies → re-agree A3 (`min < baseline`, exact solver, or 
 BLOCKED until the owner picks a scope.** (BN1/BN2 above are now moot for this cycle — P0 ran and refuted existence —
 but kept as the rule if the track revives on real data.)
 
+**P0b follow-up (hill-climb, `_design §5d`):** a stronger search than barycenter/80-perm (hill-climb, 120×2) still
+floors at **2** at both 85 and 99 — the random 85→0 was a one-off fluke, not reproduced. Three independent methods
+(barycenter / random / hill-climb) converge on a crossing-floor ~2 at 99. This strengthens the BLOCKED verdict: 0 is
+not readily reachable by placement on the synthetic scene. Escalation options for the owner are in `_design §5d`
+((1) deem the synthetic scene unrepresentative → pause until real <100 data; (2) re-agree A3; (3) exact solver —
+disproportionate). **Not an autonomous decision; the track is paused on this scope call.**
+
 **D2 — PLACEMENT redesign (rev.4 primary track; GATED on P0 reaching 0; first product mutation → pre-code checkpoint).**
 Goal: a **principled crossing-minimizing sibling/column ordering** in the Rust layout calculation so cross-dept
 and secondary edges (`ceo→da`, `cto→bi`/`ib`, `cfo→ah`) do not end up interleaved. Grounded in A/B evidence
