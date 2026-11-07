@@ -1,5 +1,12 @@
 # T128 — staff link-routing: повний A*-орто-роутер ліній ШПС із §10-гарантіями в Rust
 
+> 🧭 **dg41 (2026-11-06) — РОЗКОЛ ЗНЯТО, читати першим.** Власник обрав напрям **A**: канонічний двигун —
+> **`staff_tidy_layout.rs`** (alpha-порт, перейменовано з `staff_mockup_layout.rs`, `bb2c956`); старий шлях
+> (`staff_layout`/`staff_routes`/`staff_router` + `multiSourceParentEval`, TS `computeViaRust`/`computeViaTs`)
+> позначено `DEPRECATED(dg41)` і видаляється ОДНИМ кроком після enable tidy-шляху. Старий T0–T13 нижче описує
+> СТАРИЙ шлях — історія, не план. §10.4 повний гейт на tidy = `dcd9d88`. Відкрито: perf @500 = 7.41× над §8.4
+> (`work/reports/staff-tidy-perf/`). Рішення й залишок: `work/reports/staff-link-routing-astar/_decision-routing-direction-dg41.md`.
+
 **Пріоритет:** P2 · **Статус:** 🟢 implement РОЗПОЧАТО (dg32: «го» власника + Q2 закрито Комітом B `a60e79f`) ·
 **Під парасолькою:** [T126](T126-staff-layout-anchors-spacing-into-rust.md)
 **Гілка:** `feat/t126-staff-rust-geometry` (та сама, рішення власника dg31).

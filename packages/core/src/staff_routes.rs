@@ -17,6 +17,15 @@
 //! **Lookup (P1):** два РОЗДІЛЬНІ лінійні find, precedence person→org. **member_of (PIN-3):**
 //! `(department_id, part_index)` зі StaffNodeGeo; вузол без депу й org-кінці → None (не член рамок).
 //! **Паритет:** card_pad<=0 і/або без рамок → чистий R6-3a/R6-3b; near без hints = повний бокс.
+//!
+//! DEPRECATED(dg41): superseded by the tidy engine (staff_tidy_layout.rs; owner decision
+//! 2026-11-06, see work/reports/staff-link-routing-astar/_decision-routing-direction-dg41.md).
+//! Do not extend. Still the LIVE default until the tidy path becomes default.
+//! Removal = one step, blocked on: (1) tidy path default + enabled in the host,
+//! (2) matrix/headless scenes covered on the tidy path (today served by computeViaTs),
+//! (3) golden rebaseline, (4) host (cassiopeia) coordination.
+//! The tidy engine does not import this module (only crate::types inputs),
+//! so removal will not break it.
 
 use crate::staff_edge_box::{
     visual_org_edge_box, visual_person_edge_box, EdgeRect, PersonEdgeHints,
@@ -488,6 +497,7 @@ fn detour_edge(
 /// unchanged; the A* pipeline (`route_scene`, T4–T7) is reachable for bring-up and tests. Flipping
 /// the default to A* is T8 step C — it changes routed coordinates, so it waits on the manual R3
 /// visual gate + golden rebaseline (T10). Removed with the detour at T12.
+// DEPRECATED(dg41): this flag dies with the legacy module under the removal gates above.
 pub(crate) const DEFAULT_STAFF_ASTAR: bool = false;
 
 /// Route the staff scene — the single seam the production path and the acceptance harness share.

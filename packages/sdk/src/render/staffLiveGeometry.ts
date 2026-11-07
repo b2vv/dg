@@ -34,8 +34,8 @@ import { visiblePositions } from '../layout/staff/positionExpand.js';
 import { resolveDeptHeads } from '../layout/staff/resolveDeptHeads.js';
 import {
   computeStaffGeometryWasm,
-  computeStaffMockupLayoutWasm,
-  type StaffMockupInput,
+  computeStaffTidyLayoutWasm,
+  type StaffTidyInput,
 } from '../wasm/layoutBridge.js';
 import { adaptStaffGeometry } from './adaptStaffGeometry.js';
 import {
@@ -186,6 +186,7 @@ export async function computeStaffLiveGeometry(
   // lone authored-grid seat (head-resolvable but matrix) off the tree path that
   // would break its drag contract. Routing by scene shape, NOT an error-catch of
   // the Rust call.
+  // DEPRECATED(dg41): LIVE default legacy dispatch; do not extend; remove once the gates below are met.
   const useRust =
     staffHeadResolvable(data, currentOrgId) && isGenuineTreeScene(data, currentOrgId);
   return useRust
@@ -205,6 +206,14 @@ interface BranchInput {
 }
 
 /** Tree scenes: the single Rust source (T66 V2a). */
+// DEPRECATED(dg41): superseded by the tidy engine (staff_tidy_layout.rs; owner decision
+// 2026-11-06, see work/reports/staff-link-routing-astar/_decision-routing-direction-dg41.md).
+// Do not extend. Still the LIVE default until the tidy path becomes default.
+// Removal = one step, blocked on: (1) tidy path default + enabled in the host,
+// (2) matrix/headless scenes covered on the tidy path (today served by computeViaTs),
+// (3) golden rebaseline, (4) host (cassiopeia) coordination.
+// The tidy engine imports only crate::types inputs, not the legacy Rust modules;
+// removing those modules will not break it.
 async function computeViaRust(input: BranchInput): Promise<StaffLiveGeometry> {
   const { data, currentOrgId, theme, config, staffOptions, zoneLabelBand, contentPadding, lod } = input;
   const metrics = resolveMetrics(staffOptions, contentPadding);
@@ -260,6 +269,15 @@ async function computeViaRust(input: BranchInput): Promise<StaffLiveGeometry> {
  * until Rust gains matrix (A4.4+). Same single routing seam (`resolveStaffRouting`)
  * as the SVG export, so link points cannot drift.
  */
+// DEPRECATED(dg41): superseded by the tidy engine (staff_tidy_layout.rs; owner decision
+// 2026-11-06, see work/reports/staff-link-routing-astar/_decision-routing-direction-dg41.md).
+// Do not extend. Still the LIVE default until the tidy path becomes default.
+// Removal = one step, blocked on: (1) tidy path default + enabled in the host,
+// (2) matrix/headless scenes covered on the tidy path (today served by computeViaTs),
+// (3) golden rebaseline, (4) host (cassiopeia) coordination.
+// The tidy engine imports only crate::types inputs, not the legacy Rust modules;
+// removing those modules will not break it.
+// Matrix/headless scenes must be proven on the tidy path before this function can go.
 async function computeViaTs(input: BranchInput): Promise<StaffLiveGeometry> {
   const { data, currentOrgId, theme, config, staffOptions, zoneLabelBand, contentPadding, lod } = input;
 
@@ -325,11 +343,11 @@ async function computeViaTs(input: BranchInput): Promise<StaffLiveGeometry> {
  * caller can't drift. Internal (not exported): the demo near-view chrome gets the
  * same geometry through `computeStaffLiveGeometry`, not by re-building the input.
  */
-function buildStaffMockupInput(
+function buildStaffTidyInput(
   data: DiagramData,
   currentOrgId: string,
   expandedPositionIds: readonly string[],
-): StaffMockupInput {
+): StaffTidyInput {
   // #96: prune the current org's admin tree to the visible set — the role-based
   // default (SPEC §2.2 current org = all unless collapsed) is seeded into
   // `expandedPositionIds` by OrgHierarchyDiagram, and `togglePositionExpand`
@@ -368,7 +386,7 @@ function buildStaffMockupInput(
 
 /**
  * T129 alpha: staff geometry from ONLY the mockup-ported layout
- * (`computeStaffMockupLayout`, two-level tidy-tree + A* line routing). The old calc
+ * (`computeStaffTidyLayoutWasm`, two-level tidy-tree + A* line routing). The old calc
  * is not used on this path. Node coords feed the same `StaffCanvasResult` the
  * surfaces consume; `frames`/`routes` come straight from the Rust result (the single
  * geometry source for both the Pixi-far scene and the React-near chrome).
@@ -376,12 +394,12 @@ function buildStaffMockupInput(
 async function computeViaMockup(input: BranchInput): Promise<StaffLiveGeometry> {
   const { data, currentOrgId, staffOptions, zoneLabelBand, contentPadding } = input;
 
-  const mockInput = buildStaffMockupInput(
+  const mockInput = buildStaffTidyInput(
     data,
     currentOrgId,
     staffOptions.expandedPositionIds ?? [],
   );
-  const result = await computeStaffMockupLayoutWasm(mockInput);
+  const result = await computeStaffTidyLayoutWasm(mockInput);
 
   const positionNodes: StaffNodeBox[] = result.nodes.map((n) => ({
     id: n.id,

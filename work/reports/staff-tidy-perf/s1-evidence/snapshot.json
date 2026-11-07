@@ -1,0 +1,27 @@
+{
+  "head": "0a2b1a8af8ca177c78d754ded70c42eebe27de73",
+  "module_lines": [
+    1652,
+    2548
+  ],
+  "production_prefix_bytes": 55373,
+  "production_prefix_sha256": "7dab55c4da4e110297ebf8e88fe926d0f7d9490f9d546b3269536e76be0d91ba",
+  "all_hunks_test_only": true,
+  "hunks": [
+    "@@ -1858,7 +1858 @@ mod tests {",
+    "@@ -1898,18 +1892 @@ mod tests {",
+    "@@ -1924,0 +1902,646 @@ mod tests {"
+  ],
+  "source_sha256": "716d28499f36eda3abacb8135fca0498170e9cb554b8370a58f8252afb207b3f",
+  "goldens": {
+    "cap_sequence.json": "8029a66f94a05f5463bd7119897bc882cc340c9fe1359a12f7c4be209b6e4719",
+    "det_only_500.json": "b56b4e1649aa0ca67bcc90e95cd10e876eabbc52bdfba7bdcaeef878ba53a0a8",
+    "empty_departments.json": "2b4d254b3903f85c481aaa176c4eccecb8a8c0c93b63f71e97b1083ea80df582",
+    "goal_fallback_sequence.json": "c7f9b69167c4323e779c7d41b59ed77e350b3cfdcd086c44b81db3ef3886bf8a",
+    "mock3.json": "bcba72160ff69ca42902f5d566351c8d8110b677a0f6ccf8b16635e86020b8c3",
+    "realistic.json": "14ca5cae4381a241609a1bab1edfd78ef3fdd48fc2d9237ce3ba90f7af1593c6",
+    "repair.json": "4009e36ae9e64ef3d63820d937a198af7b869282b687b08933d47a5292f086bd",
+    "single_position.json": "d83bd92a4fd01a9c24b69ff723b1e2efce38ad0c20d4e6e753612a377c09a89c",
+    "two_departments.json": "7d5a4f01a330dfd9053d3c05e1da5f7959a3c3a45409e59f4799235af964da3d"
+  }
+}

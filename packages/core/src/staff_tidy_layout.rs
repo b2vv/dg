@@ -36,7 +36,7 @@ fn ev(n: f32) -> f32 {
     ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
 )]
 #[serde(rename_all = "lowercase")]
-pub enum StaffMockupRouting {
+pub enum StaffTidyRouting {
     Simple,
     #[default]
     Astar,
@@ -50,7 +50,7 @@ pub enum StaffMockupRouting {
     feature = "ts-export",
     ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
 )]
-pub struct StaffMockupParams {
+pub struct StaffTidyParams {
     #[serde(default = "default_pad")]
     pub pad: f32,
     #[serde(default = "default_lane")]
@@ -62,7 +62,7 @@ pub struct StaffMockupParams {
     #[serde(rename = "headerHeight", default = "default_header_height")]
     pub header_height: f32,
     #[serde(default)]
-    pub routing: StaffMockupRouting,
+    pub routing: StaffTidyRouting,
 }
 
 fn default_pad() -> f32 {
@@ -81,7 +81,7 @@ fn default_header_height() -> f32 {
     34.0
 }
 
-impl Default for StaffMockupParams {
+impl Default for StaffTidyParams {
     fn default() -> Self {
         Self {
             pad: default_pad(),
@@ -89,7 +89,7 @@ impl Default for StaffMockupParams {
             card_width: default_card_width(),
             card_height: default_card_height(),
             header_height: default_header_height(),
-            routing: StaffMockupRouting::default(),
+            routing: StaffTidyRouting::default(),
         }
     }
 }
@@ -102,12 +102,12 @@ impl Default for StaffMockupParams {
     feature = "ts-export",
     ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
 )]
-pub struct StaffMockupInput {
+pub struct StaffTidyInput {
     pub positions: Vec<StaffPositionInput>,
     pub reports: Vec<StaffEdgeInput>,
     pub departments: Vec<StaffDepartmentInput>,
     #[serde(default)]
-    pub params: StaffMockupParams,
+    pub params: StaffTidyParams,
     /// Розмір **на картку** (калібрує хост). Картка без запису бере `params.card_width/height`.
     #[serde(default)]
     pub sizes: Vec<StaffNodeSize>,
@@ -120,7 +120,7 @@ pub struct StaffMockupInput {
     feature = "ts-export",
     ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
 )]
-pub struct StaffMockupNode {
+pub struct StaffTidyNode {
     pub id: String,
     pub x: f32,
     pub y: f32,
@@ -135,7 +135,7 @@ pub struct StaffMockupNode {
     feature = "ts-export",
     ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
 )]
-pub struct StaffMockupFrame {
+pub struct StaffTidyFrame {
     #[serde(rename = "departmentId")]
     pub department_id: String,
     pub x: f32,
@@ -151,7 +151,7 @@ pub struct StaffMockupFrame {
     feature = "ts-export",
     ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
 )]
-pub struct StaffMockupPoint {
+pub struct StaffTidyPoint {
     pub x: f32,
     pub y: f32,
 }
@@ -166,7 +166,7 @@ pub struct StaffMockupPoint {
     feature = "ts-export",
     ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
 )]
-pub struct StaffMockupEdge {
+pub struct StaffTidyEdge {
     #[serde(rename = "fromId")]
     pub from_id: String,
     #[serde(rename = "toId")]
@@ -174,7 +174,7 @@ pub struct StaffMockupEdge {
     pub kind: String,
     #[serde(rename = "endsOnDeptTop")]
     pub ends_on_dept_top: bool,
-    pub points: Vec<StaffMockupPoint>,
+    pub points: Vec<StaffTidyPoint>,
 }
 
 /// Результат alpha-розкладки.
@@ -184,10 +184,10 @@ pub struct StaffMockupEdge {
     feature = "ts-export",
     ts(export, export_to = "../../sdk/src/wasm/generated/rust-types.ts")
 )]
-pub struct StaffMockupResult {
-    pub nodes: Vec<StaffMockupNode>,
-    pub frames: Vec<StaffMockupFrame>,
-    pub edges: Vec<StaffMockupEdge>,
+pub struct StaffTidyResult {
+    pub nodes: Vec<StaffTidyNode>,
+    pub frames: Vec<StaffTidyFrame>,
+    pub edges: Vec<StaffTidyEdge>,
     pub width: f32,
     pub height: f32,
 }
@@ -1122,8 +1122,8 @@ fn stats_core(
 }
 
 /// Простий елбоу card→card (варіант Simple): низ-центр батька → шина midY → верх дитини.
-fn route_simple(l: &RouteInput) -> Vec<StaffMockupEdge> {
-    let mut out: Vec<StaffMockupEdge> = Vec::new();
+fn route_simple(l: &RouteInput) -> Vec<StaffTidyEdge> {
+    let mut out: Vec<StaffTidyEdge> = Vec::new();
     for c in &l.pos_order {
         let Some(m) = l.primary_parent.get(c) else {
             continue;
@@ -1140,14 +1140,14 @@ fn route_simple(l: &RouteInput) -> Vec<StaffMockupEdge> {
             let mid = ((y1 + cy) / 2.0).round();
             vec![(pcx, y1), (pcx, mid), (ccx, mid), (ccx, cy)]
         };
-        out.push(StaffMockupEdge {
+        out.push(StaffTidyEdge {
             from_id: m.clone(),
             to_id: c.clone(),
             kind: classify(l, m, c).as_str().to_string(),
             ends_on_dept_top: false,
             points: pts
                 .iter()
-                .map(|&(x, y)| StaffMockupPoint {
+                .map(|&(x, y)| StaffTidyPoint {
                     x: x as f32,
                     y: y as f32,
                 })
@@ -1160,7 +1160,7 @@ fn route_simple(l: &RouteInput) -> Vec<StaffMockupEdge> {
 
 /// A*-маршрутизація (варіант Astar, дефолт): докінг на рамки, обхід карток/чужих рамок,
 /// repair-паси до усунення bad-ребер (мокап `route`). 0 перетинів — ціль.
-fn route_astar(l: &RouteInput) -> Vec<StaffMockupEdge> {
+fn route_astar(l: &RouteInput) -> Vec<StaffTidyEdge> {
     let (mut det, mut ast) = build_edges(l);
 
     for e in det.iter_mut() {
@@ -1252,10 +1252,10 @@ fn route_astar(l: &RouteInput) -> Vec<StaffMockupEdge> {
         }
     }
 
-    let mut out: Vec<StaffMockupEdge> = det
+    let mut out: Vec<StaffTidyEdge> = det
         .iter()
         .chain(ast.iter())
-        .map(|e| StaffMockupEdge {
+        .map(|e| StaffTidyEdge {
             from_id: e.m.clone(),
             to_id: e.c.clone(),
             kind: e.kind.as_str().to_string(),
@@ -1263,7 +1263,7 @@ fn route_astar(l: &RouteInput) -> Vec<StaffMockupEdge> {
             points: e
                 .pts
                 .iter()
-                .map(|&(x, y)| StaffMockupPoint {
+                .map(|&(x, y)| StaffTidyPoint {
                     x: x as f32,
                     y: y as f32,
                 })
@@ -1274,11 +1274,12 @@ fn route_astar(l: &RouteInput) -> Vec<StaffMockupEdge> {
     out
 }
 
-/// Stats на результаті (для тестів-гейтів): рахує cross/card з готового StaffMockupResult.
-#[cfg(test)]
-fn mockup_stats(
-    input: &StaffMockupInput,
-    result: &StaffMockupResult,
+/// Quality tuple (cross/over/card/near/dept) of a finished StaffTidyResult.
+/// Production (used by the adaptive wrapper to decide whether to reserve space)
+/// and by test gates. Runs the already-production `stats_core` over the result.
+fn tidy_stats(
+    input: &StaffTidyInput,
+    result: &StaffTidyResult,
 ) -> (usize, usize, usize, usize, usize) {
     let cards: HashMap<String, (f64, f64)> = result
         .nodes
@@ -1334,7 +1335,7 @@ fn mockup_stats(
 }
 
 /// Alpha staff-геометрія за алгоритмом мокапа. Детермінований вивід (ноди/рамки сортовані за id).
-pub fn compute_staff_mockup_layout(input: &StaffMockupInput) -> Result<StaffMockupResult, String> {
+pub fn compute_staff_tidy_layout(input: &StaffTidyInput) -> Result<StaffTidyResult, String> {
     let p = &input.params;
     let (pad, lane) = (p.pad, p.lane);
     let cw = p.card_width;
@@ -1587,7 +1588,7 @@ pub fn compute_staff_mockup_layout(input: &StaffMockupInput) -> Result<StaffMock
     }
 
     // Світові координати карток і рамок.
-    let mut nodes: Vec<StaffMockupNode> = Vec::new();
+    let mut nodes: Vec<StaffTidyNode> = Vec::new();
     // Координати ноди за id — для побудови ліній зв'язку (card-to-card елбоу).
     let mut coords: HashMap<String, (f32, f32)> = HashMap::new();
     for b in &block_order {
@@ -1597,7 +1598,7 @@ pub fn compute_staff_mockup_layout(input: &StaffMockupInput) -> Result<StaffMock
         for (id, (rx, ry)) in &block_rel[b] {
             let (x, y) = ((ox + rx).round(), (oy + ry).round());
             coords.insert(id.clone(), (x, y));
-            nodes.push(StaffMockupNode {
+            nodes.push(StaffTidyNode {
                 id: id.clone(),
                 x,
                 y,
@@ -1609,7 +1610,7 @@ pub fn compute_staff_mockup_layout(input: &StaffMockupInput) -> Result<StaffMock
     nodes.sort_by(|a, b| a.id.cmp(&b.id));
 
     // Рамки департаментів (будуємо ДО ліній — роутер докає ребра на їхній верх).
-    let mut frames: Vec<StaffMockupFrame> = Vec::new();
+    let mut frames: Vec<StaffTidyFrame> = Vec::new();
     for b in &block_order {
         if block_dept[b].is_none() {
             continue;
@@ -1617,7 +1618,7 @@ pub fn compute_staff_mockup_layout(input: &StaffMockupInput) -> Result<StaffMock
         let (Some(&ox), Some(&oy)) = (bx.get(b), by.get(b)) else {
             continue;
         };
-        frames.push(StaffMockupFrame {
+        frames.push(StaffTidyFrame {
             department_id: b.clone(),
             x: ox,
             y: oy,
@@ -1717,17 +1718,47 @@ pub fn compute_staff_mockup_layout(input: &StaffMockupInput) -> Result<StaffMock
     };
 
     let edges = match p.routing {
-        StaffMockupRouting::Simple => route_simple(&route_input),
-        StaffMockupRouting::Astar => route_astar(&route_input),
+        StaffTidyRouting::Simple => route_simple(&route_input),
+        StaffTidyRouting::Astar => route_astar(&route_input),
     };
 
-    Ok(StaffMockupResult {
+    Ok(StaffTidyResult {
         nodes,
         frames,
         edges,
         width: scene_w,
         height: scene_h,
     })
+}
+
+/// Adaptive reserve-space (dg41 D2). A single pass at the caller's spacing; if its
+/// quality tuple is non-zero, retry at pad/lane ×2 and ×3 and return the layout
+/// whose quality tuple (cross, over, card, near, dept) is lexicographically
+/// smallest — tie → smallest spacing (compactness). Clean scenes (all-zero, which
+/// covers every real ≤~75-position ШПС and mock3) return the base pass UNCHANGED,
+/// byte-identical to `compute_staff_tidy_layout`. Best-effort, NOT guaranteed zero
+/// (spacing is non-monotonic); bounded to 3 computes. Real data (0 crossings) pays
+/// exactly one compute — no perf regression; only crossing scenes pay up to 3×.
+pub fn compute_staff_tidy_adaptive(input: &StaffTidyInput) -> Result<StaffTidyResult, String> {
+    let base = compute_staff_tidy_layout(input)?;
+    let base_q = tidy_stats(input, &base);
+    if base_q == (0, 0, 0, 0, 0) {
+        return Ok(base);
+    }
+    let mut best = base;
+    let mut best_q = base_q;
+    for mult in [2.0f32, 3.0] {
+        let mut scaled = input.clone();
+        scaled.params.pad *= mult;
+        scaled.params.lane *= mult;
+        let candidate = compute_staff_tidy_layout(&scaled)?;
+        let q = tidy_stats(&scaled, &candidate);
+        if q < best_q {
+            best_q = q;
+            best = candidate;
+        }
+    }
+    Ok(best)
 }
 
 #[cfg(test)]
@@ -1757,8 +1788,8 @@ mod tests {
         }
     }
 
-    fn sample() -> StaffMockupInput {
-        StaffMockupInput {
+    fn sample() -> StaffTidyInput {
+        StaffTidyInput {
             positions: vec![
                 pos("ceo", None),
                 pos("asst", None),
@@ -1771,14 +1802,14 @@ mod tests {
                 admin("cfo", "acc"),
             ],
             departments: vec![dept("fin")],
-            params: StaffMockupParams::default(),
+            params: StaffTidyParams::default(),
             sizes: Vec::new(),
         }
     }
 
     #[test]
     fn places_all_nodes_and_dept_frame() {
-        let out = compute_staff_mockup_layout(&sample()).unwrap();
+        let out = compute_staff_tidy_layout(&sample()).unwrap();
         assert_eq!(out.nodes.len(), 4, "усі 4 посади розміщені");
         assert_eq!(out.frames.len(), 1, "одна рамка департаменту (fin)");
         assert_eq!(out.frames[0].department_id, "fin");
@@ -1789,7 +1820,7 @@ mod tests {
     #[test]
     fn within_dept_uses_lv_between_levels() {
         // cfo→acc — один департамент: вертикальний крок = CH + LV (118 + 56 = 174).
-        let out = compute_staff_mockup_layout(&sample()).unwrap();
+        let out = compute_staff_tidy_layout(&sample()).unwrap();
         let cfo = out.nodes.iter().find(|n| n.id == "cfo").unwrap();
         let acc = out.nodes.iter().find(|n| n.id == "acc").unwrap();
         assert_eq!(acc.y - cfo.y, 118.0 + 56.0);
@@ -1799,7 +1830,7 @@ mod tests {
     fn between_blocks_uses_bv_not_lv() {
         // ceo(singleton) → asst(singleton): між-блок верт-крок = CH + BV (118 + 96 = 214),
         // а НЕ LV — підтверджує розчеплення LV≠BV алгоритму мокапа.
-        let out = compute_staff_mockup_layout(&sample()).unwrap();
+        let out = compute_staff_tidy_layout(&sample()).unwrap();
         let ceo = out.nodes.iter().find(|n| n.id == "ceo").unwrap();
         let asst = out.nodes.iter().find(|n| n.id == "asst").unwrap();
         assert_eq!(asst.y - ceo.y, 118.0 + 96.0);
@@ -1809,7 +1840,7 @@ mod tests {
     fn emits_parent_child_edges() {
         // 3 admin-ребра → 3 лінії; кожна починається на низу батька й кінчається
         // на верху дитини (card-to-card елбоу).
-        let out = compute_staff_mockup_layout(&sample()).unwrap();
+        let out = compute_staff_tidy_layout(&sample()).unwrap();
         assert_eq!(out.edges.len(), 3, "по лінії на кожне parent→child");
         let cfo = out.nodes.iter().find(|n| n.id == "cfo").unwrap();
         let acc = out.nodes.iter().find(|n| n.id == "acc").unwrap();
@@ -1827,13 +1858,13 @@ mod tests {
     #[test]
     fn output_is_deterministic() {
         let inp = sample();
-        let a = serde_json::to_string(&compute_staff_mockup_layout(&inp).unwrap()).unwrap();
-        let b = serde_json::to_string(&compute_staff_mockup_layout(&inp).unwrap()).unwrap();
+        let a = serde_json::to_string(&compute_staff_tidy_layout(&inp).unwrap()).unwrap();
+        let b = serde_json::to_string(&compute_staff_tidy_layout(&inp).unwrap()).unwrap();
         assert_eq!(a, b);
     }
 
     /// Повна сцена мокапа (`shps-links.js` POS/DEPTS) з мокап-параметрами (236×118, pad8/lane8).
-    fn mock3_scene() -> StaffMockupInput {
+    fn mock3_scene() -> StaffTidyInput {
         // (id, primary-parent, dept)
         let rows: &[(&str, Option<&str>, Option<&str>)] = &[
             ("ceo", None, None),
@@ -1905,24 +1936,24 @@ mod tests {
                 order: Some(i as f64),
             })
             .collect();
-        StaffMockupInput {
+        StaffTidyInput {
             positions,
             reports,
             departments,
-            params: StaffMockupParams {
+            params: StaffTidyParams {
                 pad: 8.0,
                 lane: 8.0,
                 card_width: 236.0,
                 card_height: 118.0,
                 header_height: 34.0,
-                routing: StaffMockupRouting::Astar,
+                routing: StaffTidyRouting::Astar,
             },
             sizes: Vec::new(),
         }
     }
 
     /// Та сама сцена на DG-розмірі картки (300×112) — параметри шляху alpha в SDK.
-    fn mock3_dg() -> StaffMockupInput {
+    fn mock3_dg() -> StaffTidyInput {
         let mut inp = mock3_scene();
         inp.params.card_width = 300.0;
         inp.params.card_height = 112.0;
@@ -1934,13 +1965,54 @@ mod tests {
         // Гейт вірності порту: на повній сцені мокап-роутер дає 0 перетинів ліній
         // і 0 ліній крізь чужі картки (саме це гарантує `shps-links.js`).
         let input = mock3_scene();
-        let out = compute_staff_mockup_layout(&input).unwrap();
-        let (cross, over, card, near, dept) = mockup_stats(&input, &out);
+        let out = compute_staff_tidy_layout(&input).unwrap();
+        let (cross, over, card, near, dept) = tidy_stats(&input, &out);
         assert_eq!(
             cross, 0,
             "перетини лінія-лінія: {cross} (over={over} near={near} dept={dept})"
         );
         assert_eq!(card, 0, "ліній крізь чужі картки: {card}");
+        assert_eq!(over, 0, "overlapping lines: {over}");
+        assert_eq!(near, 0, "lines below minimum clearance: {near}");
+        assert_eq!(dept, 0, "department violations: {dept}");
+    }
+
+    fn tidy_large_det_only() -> StaffTidyInput {
+        let mut input = StaffTidyInput {
+            sizes: Vec::new(),
+            positions: vec![pos("ceo", None)],
+            reports: Vec::new(),
+            departments: Vec::new(),
+            params: mock3_scene().params,
+        };
+        // Central staff plus ten departments, each with four teams of eleven staff.
+        for i in 0..9 {
+            let id = format!("central-{i}");
+            input.positions.push(pos(&id, None));
+            input.reports.push(admin("ceo", &id));
+        }
+        for d in 0..10 {
+            let department = format!("department-{d}");
+            let head = format!("head-{d}");
+            input.departments.push(dept(&department));
+            input.positions.push(pos(&head, Some(&department)));
+            input.reports.push(admin("ceo", &head));
+            for t in 0..4 {
+                let lead = format!("lead-{d}-{t}");
+                input.positions.push(pos(&lead, Some(&department)));
+                input.reports.push(admin(&head, &lead));
+                for m in 0..11 {
+                    let member = format!("member-{d}-{t}-{m}");
+                    input.positions.push(pos(&member, Some(&department)));
+                    input.reports.push(admin(&lead, &member));
+                }
+            }
+        }
+        assert_eq!(input.positions.len(), 500);
+        assert_eq!(input.reports.len(), 499);
+        assert_eq!(input.params.routing, StaffTidyRouting::Astar);
+
+        input
     }
 
     /// Знімає еталон «до» для регресії розміру на картку: `cargo test dump_mockup_golden -- --ignored`.
@@ -1953,7 +2025,7 @@ mod tests {
             ("mock3", mock3_scene()),
             ("mock3-dg", mock3_dg()),
         ] {
-            let out = compute_staff_mockup_layout(&inp).unwrap();
+            let out = compute_staff_tidy_layout(&inp).unwrap();
             std::fs::write(
                 format!("{dir}/mockup-golden-{name}.json"),
                 serde_json::to_string_pretty(&out).unwrap(),
@@ -1971,23 +2043,23 @@ mod tests {
             height: h,
         }
     }
-    fn node<'a>(out: &'a StaffMockupResult, id: &str) -> &'a StaffMockupNode {
+    fn node<'a>(out: &'a StaffTidyResult, id: &str) -> &'a StaffTidyNode {
         out.nodes.iter().find(|n| n.id == id).unwrap()
     }
-    fn golden(name: &str) -> String {
+    fn per_card_golden(name: &str) -> String {
         std::fs::read_to_string(format!(
             "{}/tests/fixtures/mockup-golden-{name}.json",
             env!("CARGO_MANIFEST_DIR")
         ))
         .unwrap()
     }
-    fn pretty(inp: &StaffMockupInput) -> String {
-        serde_json::to_string_pretty(&compute_staff_mockup_layout(inp).unwrap()).unwrap()
+    fn pretty(inp: &StaffTidyInput) -> String {
+        serde_json::to_string_pretty(&compute_staff_tidy_layout(inp).unwrap()).unwrap()
     }
 
     /// Відділ fin: cfo → {acc, trs}; acc → {bk, bz}. Розміри задає тест.
-    fn fin_tree(sizes: Vec<StaffNodeSize>) -> StaffMockupInput {
-        StaffMockupInput {
+    fn fin_tree(sizes: Vec<StaffNodeSize>) -> StaffTidyInput {
+        StaffTidyInput {
             positions: ["cfo", "acc", "trs", "bk", "bz"]
                 .iter()
                 .map(|id| pos(id, Some("fin")))
@@ -1999,10 +2071,10 @@ mod tests {
                 admin("acc", "bz"),
             ],
             departments: vec![dept("fin")],
-            params: StaffMockupParams {
+            params: StaffTidyParams {
                 card_width: 300.0,
                 card_height: 112.0,
-                ..StaffMockupParams::default()
+                ..StaffTidyParams::default()
             },
             sizes,
         }
@@ -2016,20 +2088,24 @@ mod tests {
             ("mock3", mock3_scene()),
             ("mock3-dg", mock3_dg()),
         ] {
-            assert_eq!(pretty(&inp), golden(name), "{name}: без sizes");
+            assert_eq!(pretty(&inp), per_card_golden(name), "{name}: без sizes");
             let mut with_sizes = inp.clone();
             with_sizes.sizes = inp
                 .positions
                 .iter()
                 .map(|p| size(&p.id, inp.params.card_width, inp.params.card_height))
                 .collect();
-            assert_eq!(pretty(&with_sizes), golden(name), "{name}: sizes = params");
+            assert_eq!(
+                pretty(&with_sizes),
+                per_card_golden(name),
+                "{name}: sizes = params"
+            );
         }
     }
 
     #[test]
     fn a_row_is_top_aligned_and_the_next_row_clears_its_tallest_card() {
-        let out = compute_staff_mockup_layout(&fin_tree(vec![size("trs", 300.0, 250.0)])).unwrap();
+        let out = compute_staff_tidy_layout(&fin_tree(vec![size("trs", 300.0, 250.0)])).unwrap();
         let (acc, trs, bk) = (node(&out, "acc"), node(&out, "trs"), node(&out, "bk"));
         assert_eq!(acc.y, trs.y, "один рівень — один верх");
         assert_eq!(trs.height, 250.0, "нода несе свій розмір");
@@ -2041,16 +2117,16 @@ mod tests {
 
     #[test]
     fn a_taller_card_grows_its_department_frame() {
-        let base = compute_staff_mockup_layout(&fin_tree(vec![])).unwrap();
-        let tall = compute_staff_mockup_layout(&fin_tree(vec![size("bz", 300.0, 200.0)])).unwrap();
+        let base = compute_staff_tidy_layout(&fin_tree(vec![])).unwrap();
+        let tall = compute_staff_tidy_layout(&fin_tree(vec![size("bz", 300.0, 200.0)])).unwrap();
         assert_eq!(tall.frames[0].height - base.frames[0].height, 200.0 - 112.0);
     }
 
     #[test]
     fn a_wider_card_pushes_its_siblings_apart() {
-        let base = compute_staff_mockup_layout(&fin_tree(vec![])).unwrap();
-        let wide = compute_staff_mockup_layout(&fin_tree(vec![size("bk", 500.0, 112.0)])).unwrap();
-        let gap = |o: &StaffMockupResult| node(o, "bz").x - (node(o, "bk").x + node(o, "bk").width);
+        let base = compute_staff_tidy_layout(&fin_tree(vec![])).unwrap();
+        let wide = compute_staff_tidy_layout(&fin_tree(vec![size("bk", 500.0, 112.0)])).unwrap();
+        let gap = |o: &StaffTidyResult| node(o, "bz").x - (node(o, "bk").x + node(o, "bk").width);
         assert_eq!(node(&wide, "bk").width, 500.0);
         assert_eq!(
             gap(&wide),
@@ -2064,7 +2140,7 @@ mod tests {
     fn the_bus_runs_below_the_row_not_below_a_shorter_manager() {
         // acc (112) строго нижчий за сусіда по рядку trs (250): шина acc→{bk,bz} мусить іти під
         // низом РЯДКА, інакше горизонталь проходить крізь trs.
-        let out = compute_staff_mockup_layout(&fin_tree(vec![size("trs", 300.0, 250.0)])).unwrap();
+        let out = compute_staff_tidy_layout(&fin_tree(vec![size("trs", 300.0, 250.0)])).unwrap();
         let (acc, trs) = (node(&out, "acc"), node(&out, "trs"));
         // Передумова: без неї тест зелений і без фічі (обидві картки 112, шини збігаються).
         assert!(
@@ -2103,12 +2179,12 @@ mod tests {
             .enumerate()
             .map(|(i, p)| size(&p.id, 300.0, [112.0, 160.0, 136.0][i % 3]))
             .collect();
-        let out = compute_staff_mockup_layout(&inp).unwrap();
+        let out = compute_staff_tidy_layout(&inp).unwrap();
         assert!(
             out.nodes.iter().any(|n| n.height == 160.0),
             "фікстура справді змішана"
         );
-        let (cross, over, card, near, dept) = mockup_stats(&inp, &out);
+        let (cross, over, card, near, dept) = tidy_stats(&inp, &out);
         assert_eq!(
             cross, 0,
             "перетини: {cross} (over={over} near={near} dept={dept})"
@@ -2120,25 +2196,809 @@ mod tests {
     fn invalid_or_duplicate_sizes_are_errors_not_fallbacks() {
         for bad in [0.0, -5.0, f32::NAN, f32::INFINITY] {
             assert!(
-                compute_staff_mockup_layout(&fin_tree(vec![size("acc", 300.0, bad)])).is_err(),
+                compute_staff_tidy_layout(&fin_tree(vec![size("acc", 300.0, bad)])).is_err(),
                 "h={bad}"
             );
             assert!(
-                compute_staff_mockup_layout(&fin_tree(vec![size("acc", bad, 112.0)])).is_err(),
+                compute_staff_tidy_layout(&fin_tree(vec![size("acc", bad, 112.0)])).is_err(),
                 "w={bad}"
             );
         }
         let dup = fin_tree(vec![size("acc", 300.0, 120.0), size("acc", 300.0, 140.0)]);
-        assert!(compute_staff_mockup_layout(&dup).is_err(), "дублікат id");
+        assert!(compute_staff_tidy_layout(&dup).is_err(), "дублікат id");
         // Запис для посади поза входом — не помилка, просто не використовується.
-        assert!(compute_staff_mockup_layout(&fin_tree(vec![size("ghost", 300.0, 120.0)])).is_ok());
+        assert!(compute_staff_tidy_layout(&fin_tree(vec![size("ghost", 300.0, 120.0)])).is_ok());
     }
 
     #[test]
     fn mock3_astar_deterministic() {
         let input = mock3_scene();
-        let a = serde_json::to_string(&compute_staff_mockup_layout(&input).unwrap()).unwrap();
-        let b = serde_json::to_string(&compute_staff_mockup_layout(&input).unwrap()).unwrap();
+        let a = serde_json::to_string(&compute_staff_tidy_layout(&input).unwrap()).unwrap();
+        let b = serde_json::to_string(&compute_staff_tidy_layout(&input).unwrap()).unwrap();
         assert_eq!(a, b, "два прогони A* → ідентичний вивід");
+    }
+
+    // D2 (dg41) adaptive reserve-space acceptance.
+    #[test]
+    fn adaptive_byte_identical_on_clean() {
+        // A1: a scene whose FULL quality tuple is zero must return the single pass
+        // UNCHANGED. The precondition asserts the full tuple (not just cross), since
+        // that is exactly the short-circuit condition in compute_staff_tidy_adaptive
+        // — so byte-identity here is reached via the short-circuit, not by accident.
+        for input in [mock3_scene(), tidy_cohorts(1)] {
+            let single =
+                serde_json::to_string(&compute_staff_tidy_layout(&input).unwrap()).unwrap();
+            let adaptive =
+                serde_json::to_string(&compute_staff_tidy_adaptive(&input).unwrap()).unwrap();
+            assert_eq!(
+                tidy_stats(&input, &compute_staff_tidy_layout(&input).unwrap()),
+                (0, 0, 0, 0, 0),
+                "precondition: fully clean scene (short-circuit path)"
+            );
+            assert_eq!(
+                single, adaptive,
+                "adaptive must be a no-op on a fully-clean scene"
+            );
+        }
+    }
+
+    #[test]
+    fn adaptive_reduces_dense_crossings() {
+        // Dense synthetic 99: single pass crosses; adaptive must do strictly better
+        // (guarantee: quality tuple <= baseline; here cross drops below baseline).
+        let input = tidy_cohorts(2);
+        let single_cross = tidy_stats(&input, &compute_staff_tidy_layout(&input).unwrap()).0;
+        let adaptive_cross = tidy_stats(&input, &compute_staff_tidy_adaptive(&input).unwrap()).0;
+        assert!(
+            single_cross > 0,
+            "precondition: dense scene crosses at base spacing"
+        );
+        assert!(
+            adaptive_cross < single_cross,
+            "adaptive cross {adaptive_cross} must beat baseline {single_cross}"
+        );
+    }
+
+    #[test]
+    fn adaptive_deterministic() {
+        let input = tidy_cohorts(2);
+        let a = serde_json::to_string(&compute_staff_tidy_adaptive(&input).unwrap()).unwrap();
+        let b = serde_json::to_string(&compute_staff_tidy_adaptive(&input).unwrap()).unwrap();
+        assert_eq!(a, b, "adaptive is deterministic");
+    }
+
+    // S1 frozen characterization: regenerate ONLY with DG_TIDY_GOLDEN_WRITE=1.
+    // S2–S4 MUST NOT regenerate or edit these fixtures. Compact JSON, no newline.
+    fn golden(name: &str, result: &StaffTidyResult) {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/staff_tidy_golden")
+            .join(format!("{name}.json"));
+        let actual = serde_json::to_string(result).unwrap();
+        if std::env::var("DG_TIDY_GOLDEN_WRITE").as_deref() == Ok("1") {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, &actual).unwrap();
+        }
+        assert_eq!(
+            actual,
+            std::fs::read_to_string(path).unwrap(),
+            "golden {name}"
+        );
+    }
+
+    fn tidy_large_realistic() -> StaffTidyInput {
+        let template = mock3_scene();
+        let mut input = StaffTidyInput {
+            sizes: Vec::new(),
+            positions: vec![pos("ceo", None)],
+            reports: vec![],
+            departments: template.departments.clone(),
+            params: template.params.clone(),
+        };
+        // Ten copies of each department's internal mock3 shape, in the SAME ten
+        // departments and organization, sharing ONE CEO. Keep all mock3 cross
+        // links (acc→aud, cfo→ah, cto→bi, tlb→qh, cco→cmo/lgh, cto→ib)
+        // and the secondary CEO→da link in each cohort: 80 genuine A* edges.
+        for cohort in 0..10 {
+            let rename = |id: &str| {
+                if id == "ceo" {
+                    id.to_string()
+                } else {
+                    format!("{id}-{cohort}")
+                }
+            };
+            for position in template.positions.iter().filter(|p| p.id != "ceo") {
+                input.positions.push(pos(
+                    &rename(&position.id),
+                    position.department_id.as_deref(),
+                ));
+            }
+            for edge in &template.reports {
+                input
+                    .reports
+                    .push(admin(&rename(&edge.from_id), &rename(&edge.to_id)));
+            }
+        }
+        assert_eq!(input.positions.len(), 491);
+        input
+    }
+
+    // Scale-row generator: `cohorts` copies of mock3's internal shape under ONE
+    // CEO, same ten departments, keeping every mock3 cross link + the secondary
+    // CEO->da link per cohort. Positions = 1 + 49*cohorts (1->50, 2->99, 3->148).
+    // Same construction as `tidy_large_realistic` (which is cohorts==10 -> 491).
+    fn tidy_cohorts(cohorts: usize) -> StaffTidyInput {
+        let template = mock3_scene();
+        let mut input = StaffTidyInput {
+            sizes: Vec::new(),
+            positions: vec![pos("ceo", None)],
+            reports: vec![],
+            departments: template.departments.clone(),
+            params: template.params.clone(),
+        };
+        for cohort in 0..cohorts {
+            let rename = |id: &str| {
+                if id == "ceo" {
+                    id.to_string()
+                } else {
+                    format!("{id}-{cohort}")
+                }
+            };
+            for position in template.positions.iter().filter(|p| p.id != "ceo") {
+                input.positions.push(pos(
+                    &rename(&position.id),
+                    position.department_id.as_deref(),
+                ));
+            }
+            for edge in &template.reports {
+                input
+                    .reports
+                    .push(admin(&rename(&edge.from_id), &rename(&edge.to_id)));
+            }
+        }
+        assert_eq!(input.positions.len(), 1 + 49 * cohorts);
+        input
+    }
+
+    // MEASUREMENT ONLY (no optimization). Scale row 50/100/150 positions:
+    // positions, #ast (frozen observer), grid nx/ny, quality via tidy_stats
+    // (cross/over/card/near/dept), and release wall-clock min-of-7. Writes each
+    // scene's input JSON to $DG_SCALE_OUT (for the WASM cross-check) when set.
+    // Goldens are NOT touched: counting uses observed_routes, not characterize.
+    #[test]
+    #[ignore = "release timing + scale row; N=7 min; run without competing cargo builds"]
+    fn tidy_scale_row() {
+        let out_dir = std::env::var("DG_SCALE_OUT").ok();
+        if let Some(dir) = &out_dir {
+            std::fs::create_dir_all(dir).unwrap();
+        }
+        for cohorts in [1usize, 2, 3] {
+            let input = tidy_cohorts(cohorts);
+            let positions = input.positions.len();
+            // #ast + grid dims via the frozen S1 observer (no golden assertion).
+            let mut o = RouteObservation::default();
+            let _ = observed_routes(&routing_input(&input), &mut o);
+            let result = compute_staff_tidy_layout(&input).unwrap();
+            let (cross, over, card, near, dept) = tidy_stats(&input, &result);
+            let mut best = f64::INFINITY;
+            for _ in 0..7 {
+                let start = std::time::Instant::now();
+                std::hint::black_box(compute_staff_tidy_layout(&input).unwrap());
+                best = best.min(start.elapsed().as_secs_f64() * 1000.0);
+            }
+            if let Some(dir) = &out_dir {
+                let base = std::path::Path::new(dir);
+                std::fs::write(
+                    base.join(format!("scale_{cohorts}.json")),
+                    serde_json::to_string(&input).unwrap(),
+                )
+                .unwrap();
+                // Native serialized output for the WASM byte-equality cross-check.
+                std::fs::write(
+                    base.join(format!("scale_{cohorts}_native.json")),
+                    serde_json::to_string(&result).unwrap(),
+                )
+                .unwrap();
+            }
+            println!(
+                "scale cohorts={cohorts}: positions={positions} ast={} nx={} ny={} \
+                 quality(cross/over/card/near/dept)={cross}/{over}/{card}/{near}/{dept} \
+                 native_min7={best:.3}ms",
+                o.ast, o.nx, o.ny
+            );
+        }
+    }
+
+    // Reconstruct routing metadata from the public geometry (Simple mode avoids
+    // routing twice). Cross-check observed routes against the real A* result.
+    fn routing_input(input: &StaffTidyInput) -> RouteInput {
+        let mut simple = input.clone();
+        simple.params.routing = StaffTidyRouting::Simple;
+        let out = compute_staff_tidy_layout(&simple).unwrap();
+        let mut parent = HashMap::new();
+        let mut parents: HashMap<String, Vec<String>> = HashMap::new();
+        for e in &input.reports {
+            if e.kind == "admin" && e.from_id != e.to_id {
+                parent.entry(e.to_id.clone()).or_insert(e.from_id.clone());
+                let ps = parents.entry(e.to_id.clone()).or_default();
+                if !ps.contains(&e.from_id) {
+                    ps.push(e.from_id.clone());
+                }
+            }
+        }
+        let block_of: HashMap<String, String> = input
+            .positions
+            .iter()
+            .map(|p| {
+                (
+                    p.id.clone(),
+                    p.department_id
+                        .clone()
+                        .unwrap_or_else(|| format!("p:{}", p.id)),
+                )
+            })
+            .collect();
+        let mut roots: HashMap<String, Vec<String>> = HashMap::new();
+        for p in &input.positions {
+            let b = &block_of[&p.id];
+            if parent.get(&p.id).is_none_or(|m| block_of[m] != *b) {
+                roots.entry(b.clone()).or_default().push(p.id.clone());
+            }
+        }
+        let block_parent = roots
+            .iter()
+            .map(|(b, rs)| (b.clone(), parent.get(&rs[0]).map(|m| block_of[m].clone())))
+            .collect();
+        let depts: Vec<DeptRect> = out
+            .frames
+            .iter()
+            .map(|f| DeptRect {
+                id: f.department_id.clone(),
+                x1: f.x as f64,
+                y1: f.y as f64,
+                x2: (f.x + f.width) as f64,
+                y2: (f.y + f.height) as f64,
+                head: roots[&f.department_id][0].clone(),
+            })
+            .collect();
+        let p = &input.params;
+        RouteInput {
+            cards: out
+                .nodes
+                .iter()
+                .map(|n| (n.id.clone(), (n.x as f64, n.y as f64)))
+                .collect(),
+            dims: out
+                .nodes
+                .iter()
+                .map(|n| (n.id.clone(), (n.width as f64, n.height as f64)))
+                .collect(),
+            dept_by_id: depts
+                .iter()
+                .enumerate()
+                .map(|(i, d)| (d.id.clone(), i))
+                .collect(),
+            depts,
+            dept_of: input
+                .positions
+                .iter()
+                .map(|p| (p.id.clone(), p.department_id.clone()))
+                .collect(),
+            primary_parent: parent,
+            sec_parents: input
+                .positions
+                .iter()
+                .flat_map(|p| {
+                    parents
+                        .get(&p.id)
+                        .into_iter()
+                        .flatten()
+                        .skip(1)
+                        .map(|m| (p.id.clone(), m.clone()))
+                })
+                .collect(),
+            block_of,
+            block_parent,
+            block_roots: roots,
+            pos_order: input.positions.iter().map(|p| p.id.clone()).collect(),
+            lv: ev(f32::max(56.0, 2.0 * p.pad + 4.0 * p.lane)) as f64,
+            bv: ev(f32::max(96.0, 2.0 * p.pad + 8.0 * p.lane)) as f64,
+            pad: p.pad as f64,
+            lane: p.lane as f64,
+            w: out.width as f64,
+            h: out.height as f64,
+        }
+    }
+
+    #[derive(Default, Debug)]
+    struct SearchObservation {
+        pops: usize,
+        capped: bool,
+        no_goal: bool,
+    }
+    #[derive(Default, Debug)]
+    struct RouteObservation {
+        nx: usize,
+        ny: usize,
+        det: usize,
+        ast: usize,
+        pass0_bad: usize,
+        reroutes: usize,
+        searches: Vec<SearchObservation>,
+    }
+    fn check_search(
+        grid: &Grid,
+        l: &RouteInput,
+        occ: &Occ,
+        mkey: u32,
+        e: &REdge,
+        o: &mut RouteObservation,
+    ) -> (Vec<(f64, f64)>, bool) {
+        let mut search = SearchObservation::default();
+        let observed = observed_astar(grid, l, occ, mkey, e, &mut search);
+        let actual = astar(grid, l, occ, mkey, e);
+        assert_eq!(
+            actual, observed,
+            "frozen S1 observer disagrees with production search"
+        );
+        o.searches.push(search);
+        actual
+    }
+    fn characterize(name: &str, input: &StaffTidyInput) -> RouteObservation {
+        let out = compute_staff_tidy_layout(input).unwrap();
+        let mut o = RouteObservation::default();
+        let edges = observed_routes(&routing_input(input), &mut o);
+        assert_eq!(
+            serde_json::to_string(&edges).unwrap(),
+            serde_json::to_string(&out.edges).unwrap()
+        );
+        println!(
+            "{name}: nx={} ny={} det={} ast={} calls={} pops={} pass0_bad={} reroutes={} caps={}",
+            o.nx,
+            o.ny,
+            o.det,
+            o.ast,
+            o.searches.len(),
+            o.searches.iter().map(|s| s.pops).sum::<usize>(),
+            o.pass0_bad,
+            o.reroutes,
+            o.searches.iter().filter(|s| s.capped).count()
+        );
+        golden(name, &out);
+        o
+    }
+    #[test]
+    #[ignore = "combined large goldens exceed 3s in debug; run in release on every S2–S4 slice"]
+    fn golden_large_det_only() {
+        golden(
+            "det_only_500",
+            &compute_staff_tidy_layout(&tidy_large_det_only()).unwrap(),
+        );
+    }
+    #[test]
+    #[ignore = "combined large goldens exceed 3s in debug; run in release on every S2–S4 slice"]
+    fn golden_large_realistic() {
+        golden(
+            "realistic",
+            &compute_staff_tidy_layout(&tidy_large_realistic()).unwrap(),
+        );
+    }
+    #[test]
+    #[ignore = "expensive frozen-observer coverage; run in release for each slice"]
+    fn realistic_routing_coverage() {
+        let o = characterize("realistic", &tidy_large_realistic());
+        assert!(o.ast >= 50);
+        assert!(o.nx >= 2000);
+    }
+    #[test]
+    fn golden_small_scenes() {
+        characterize("mock3", &mock3_scene());
+        let mut input = sample();
+        input.positions.clear();
+        input.reports.clear();
+        characterize("empty_departments", &input);
+        input.positions.push(pos("ceo", None));
+        characterize("single_position", &input);
+        input.positions = vec![pos("a", Some("a")), pos("b", Some("b"))];
+        input.departments = vec![dept("a"), dept("b")];
+        characterize("two_departments", &input);
+    }
+    #[test]
+    #[ignore = "release timing only; N=7 min; run without competing cargo builds"]
+    fn staff_tidy_perf_baseline() {
+        for (name, input) in [
+            ("det_only_500", tidy_large_det_only()),
+            ("realistic", tidy_large_realistic()),
+            ("mock3", mock3_scene()),
+        ] {
+            let mut best = f64::INFINITY;
+            for _ in 0..7 {
+                let start = std::time::Instant::now();
+                std::hint::black_box(compute_staff_tidy_layout(&input).unwrap());
+                best = best.min(start.elapsed().as_secs_f64() * 1000.0);
+            }
+            println!("{name}: min_of_7={best:.3} ms");
+        }
+    }
+
+    // Frozen S1 observer: same search order and helper calls as baseline 0a2b1a8.
+    fn observed_astar(
+        grid: &Grid,
+        l: &RouteInput,
+        occ: &Occ,
+        mkey: u32,
+        e: &REdge,
+        observation: &mut SearchObservation,
+    ) -> (Vec<(f64, f64)>, bool) {
+        let mc = l.cards[&e.m];
+        let a_dept = dept_of(l, &e.m)
+            .filter(|d| l.dept_by_id.contains_key(*d))
+            .map(|s| s.to_string());
+        let b_dept = dept_of(l, &e.c)
+            .filter(|d| l.dept_by_id.contains_key(*d))
+            .map(|s| s.to_string());
+        let s = (mc.0 + l.wof(&e.m) / 2.0, mc.1 + l.hof(&e.m));
+        let t = edge_target(l, &e.c, e.sec);
+        let fallback = || {
+            let my = (s.1 + t.1) / 2.0;
+            vec![s, (s.0, my), (t.0, my), (t.0, t.1)]
+        };
+        let (Some(&si), Some(&sj), Some(&ti), Some(&tj)) = (
+            grid.xi.get(&key2(s.0)),
+            grid.yi.get(&key2(s.1)),
+            grid.xi.get(&key2(t.0)),
+            grid.yi.get(&key2(t.1)),
+        ) else {
+            return (fallback(), true);
+        };
+
+        let nx = grid.nx;
+        let ny = grid.ny;
+        let n = nx * ny;
+        let mut g = vec![f64::INFINITY; n * 3];
+        let mut pv = vec![-1i64; n * 3];
+        let mut cache: HashMap<(bool, usize, usize), bool> = HashMap::new();
+        let hz = |i: usize, j: usize| (grid.xs[i] - t.0).abs() + (grid.ys[j] - t.1).abs();
+
+        let st = (sj * nx + si) * 3;
+        g[st] = 0.0;
+        let mut heap = BinaryHeap::new();
+        heap.push(HeapItem {
+            f: hz(si, sj),
+            g: 0.0,
+            k: st,
+        });
+        let mut goal: i64 = -1;
+        let mut it = 0u32;
+        while let Some(item) = heap.pop() {
+            it += 1;
+            observation.pops += 1;
+            if it > 250_000 {
+                observation.capped = true;
+                break;
+            }
+            let k = item.k;
+            let dir = k % 3;
+            let nidx = (k - dir) / 3;
+            let i = nidx % nx;
+            let j = (nidx - i) / nx;
+            if item.g > g[k] + 1e-6 {
+                continue;
+            }
+            if i == ti && j == tj && dir == 2 {
+                goal = k as i64;
+                break;
+            }
+            for (di, dj) in [(1i64, 0i64), (-1, 0), (0, 1), (0, -1)] {
+                let ni = i as i64 + di;
+                let nj = j as i64 + dj;
+                if ni < 0 || nj < 0 || ni >= nx as i64 || nj >= ny as i64 {
+                    continue;
+                }
+                let (ni, nj) = (ni as usize, nj as usize);
+                if dir == 0 && dj != 1 {
+                    continue;
+                }
+                if ni == ti && nj == tj && dj != 1 {
+                    continue;
+                }
+                let h = dj == 0;
+                let ei = if h { i.min(ni) } else { i };
+                let ej = if h { j } else { j.min(nj) };
+                let okv = *cache.entry((h, ei, ej)).or_insert_with(|| {
+                    seg_usable(grid, l, ei, ej, h, &e.m, &e.c, &a_dept, &b_dept)
+                });
+                if !okv {
+                    continue;
+                }
+                let nd = if h { 1usize } else { 2usize };
+                let nn = nj * nx + ni;
+                let len = if h {
+                    (grid.xs[ni] - grid.xs[i]).abs()
+                } else {
+                    (grid.ys[nj] - grid.ys[j]).abs()
+                };
+                let ea = if h {
+                    occ.eh.get(&(ej * (nx - 1) + ei))
+                } else {
+                    occ.ev.get(&(ej * nx + ei))
+                };
+                let own = ea.map(|v| v.contains(&mkey)).unwrap_or(false);
+                let foreign_e = ea.map(|v| v.iter().any(|&x| x != mkey)).unwrap_or(false);
+                let fo_nv = occ
+                    .nv
+                    .get(&nn)
+                    .map(|v| v.iter().any(|&x| x != mkey))
+                    .unwrap_or(false);
+                let fo_nh = occ
+                    .nh
+                    .get(&nn)
+                    .map(|v| v.iter().any(|&x| x != mkey))
+                    .unwrap_or(false);
+                let mut c = len * (if own { 0.15 } else { 1.0 });
+                if foreign_e {
+                    c += 6000.0;
+                }
+                if fo_nv || fo_nh {
+                    c += 4000.0;
+                }
+                if dir != 0 && nd != dir {
+                    c += 30.0;
+                }
+                let nk = nn * 3 + nd;
+                let ng = g[k] + c;
+                if ng < g[nk] {
+                    g[nk] = ng;
+                    pv[nk] = k as i64;
+                    heap.push(HeapItem {
+                        f: ng + hz(ni, nj),
+                        g: ng,
+                        k: nk,
+                    });
+                }
+            }
+        }
+
+        if goal < 0 {
+            observation.no_goal = true;
+            return (simp(&fallback()), true);
+        }
+        let mut pts = Vec::new();
+        let mut k = goal;
+        while k >= 0 {
+            let ku = k as usize;
+            let nidx = (ku - ku % 3) / 3;
+            let i = nidx % nx;
+            let j = (nidx - i) / nx;
+            pts.push((grid.xs[i], grid.ys[j]));
+            k = pv[ku];
+        }
+        pts.reverse();
+        (simp(&pts), false)
+    }
+
+    fn observed_routes(l: &RouteInput, observation: &mut RouteObservation) -> Vec<StaffTidyEdge> {
+        let (mut det, mut ast) = build_edges(l);
+
+        for e in det.iter_mut() {
+            let m = l.cards[&e.m];
+            let mcx = m.0 + l.wof(&e.m) / 2.0;
+            let mbot = m.1 + l.hof(&e.m);
+            let by = e.by.unwrap();
+            let (tx, ty, edt) = edge_target(l, &e.c, false);
+            e.pts = simp(&[(mcx, mbot), (mcx, by), (tx, by), (tx, ty)]);
+            e.ends_top = edt;
+        }
+
+        let grid = build_grid(l, &det);
+        observation.nx = grid.nx;
+        observation.ny = grid.ny;
+        observation.det = det.len();
+        observation.ast = ast.len();
+
+        // Інтернування id батька-джерела у u32 для occ.
+        let mut ids: Vec<&String> = l.cards.keys().collect();
+        ids.sort();
+        let cid: HashMap<String, u32> = ids
+            .iter()
+            .enumerate()
+            .map(|(i, s)| ((*s).clone(), i as u32))
+            .collect();
+
+        let mut occ = Occ::default();
+        for e in &det {
+            occ_edit(&mut occ, &grid, &e.pts, cid[&e.m], true);
+        }
+
+        ast.sort_by(|a, b| {
+            (a.sec as u8)
+                .cmp(&(b.sec as u8))
+                .then(
+                    l.cards[&a.m]
+                        .1
+                        .partial_cmp(&l.cards[&b.m].1)
+                        .unwrap_or(Ordering::Equal),
+                )
+                .then(
+                    l.cards[&a.m]
+                        .0
+                        .partial_cmp(&l.cards[&b.m].0)
+                        .unwrap_or(Ordering::Equal),
+                )
+                .then(a.c.cmp(&b.c))
+        });
+        for e in ast.iter_mut() {
+            let mkey = cid[&e.m];
+            let (pts, failed) = check_search(&grid, l, &occ, mkey, e, observation);
+            e.pts = pts;
+            e.fail = failed;
+            e.ends_top = edge_target(l, &e.c, e.sec).2;
+            occ_edit(&mut occ, &grid, &e.pts, mkey, true);
+        }
+
+        for pass in 0..4 {
+            let bad = {
+                let views: Vec<EdgeView> = det
+                    .iter()
+                    .chain(ast.iter())
+                    .map(|e| EdgeView {
+                        m: &e.m,
+                        c: &e.c,
+                        pts: &e.pts,
+                    })
+                    .collect();
+                let (_, _, _, _, _, bad) =
+                    stats_core(&views, &l.cards, &l.dims, &l.depts, &l.dept_of, l.pad);
+                bad
+            };
+            if pass == 0 {
+                observation.pass0_bad = bad.len();
+            }
+            if bad.is_empty() {
+                break;
+            }
+            let det_n = det.len();
+            let mut bad_ast: Vec<usize> = (0..ast.len())
+                .filter(|&ai| bad.contains(&(det_n + ai)))
+                .collect();
+            if pass % 2 == 1 {
+                bad_ast.reverse();
+            }
+            for ai in bad_ast {
+                observation.reroutes += 1;
+                let mkey = cid[&ast[ai].m];
+                let old = ast[ai].pts.clone();
+                occ_edit(&mut occ, &grid, &old, mkey, false);
+                ast[ai].fail = false;
+                let (pts, failed) = check_search(&grid, l, &occ, mkey, &ast[ai], observation);
+                occ_edit(&mut occ, &grid, &pts, mkey, true);
+                ast[ai].pts = pts;
+                ast[ai].fail = failed;
+            }
+        }
+
+        let mut out: Vec<StaffTidyEdge> = det
+            .iter()
+            .chain(ast.iter())
+            .map(|e| StaffTidyEdge {
+                from_id: e.m.clone(),
+                to_id: e.c.clone(),
+                kind: e.kind.as_str().to_string(),
+                ends_on_dept_top: e.ends_top,
+                points: e
+                    .pts
+                    .iter()
+                    .map(|&(x, y)| StaffTidyPoint {
+                        x: x as f32,
+                        y: y as f32,
+                    })
+                    .collect(),
+            })
+            .collect();
+        out.sort_by(|a, b| a.from_id.cmp(&b.from_id).then(a.to_id.cmp(&b.to_id)));
+        out
+    }
+    #[test]
+    fn golden_repair() {
+        let mut input = mock3_scene();
+        // Secondary acc→s1 competes with the existing cco→s1 route.
+        input.reports.push(admin("acc", "s1"));
+        let o = characterize("repair", &input);
+        assert!(o.pass0_bad > 0, "A6 requires bad edges at pass zero");
+        assert!(
+            o.reroutes > 0,
+            "A6 requires an A* edge to be removed/re-routed/re-added"
+        );
+        assert_eq!(o.searches.len(), o.ast + o.reroutes);
+    }
+    // Router-level adversarial geometry: target on the top grid row cannot be
+    // entered downward. All coordinates exist, so this is goal<0, NOT the early
+    // missing-coordinate fallback. A 501² open grid exceeds the pop budget.
+    fn cap_fallback_result(side: usize) -> StaffTidyResult {
+        let mut l = routing_input(&sample());
+        l.depts.clear();
+        l.dept_by_id.clear();
+        l.cards = [
+            ("source".to_string(), (-1.0, -2.0)),
+            ("unreachable".to_string(), ((side - 2) as f64, 0.0)),
+            ("reachable".to_string(), (1.0, 2.0)),
+        ]
+        .into_iter()
+        .collect();
+        l.dims = l.cards.keys().map(|id| (id.clone(), (2.0, 2.0))).collect();
+        l.dept_of.clear();
+        let xs: Vec<f64> = (0..side).map(|i| i as f64).collect();
+        let grid = Grid {
+            xi: xs.iter().enumerate().map(|(i, &x)| (key2(x), i)).collect(),
+            yi: xs.iter().enumerate().map(|(i, &x)| (key2(x), i)).collect(),
+            xs: xs.clone(),
+            ys: xs,
+            nx: side,
+            ny: side,
+            mh: vec![false; (side - 1) * side],
+            mv: vec![false; side * (side - 1)],
+            pc: vec![],
+        };
+        let mut o = RouteObservation::default();
+        let mut edges = Vec::new();
+        let mut occ = Occ::default();
+        for target in ["reachable", "unreachable", "reachable"] {
+            let e = REdge {
+                m: "source".into(),
+                c: target.into(),
+                kind: EKind::Ext,
+                sec: false,
+                by: None,
+                pts: vec![],
+                fail: false,
+                ends_top: false,
+            };
+            let (pts, failed) = check_search(&grid, &l, &occ, 0, &e, &mut o);
+            assert_eq!(failed, target == "unreachable");
+            occ_edit(&mut occ, &grid, &pts, 0, true);
+            edges.push(StaffTidyEdge {
+                from_id: e.m,
+                to_id: e.c,
+                kind: "ext".into(),
+                ends_on_dept_top: false,
+                points: pts
+                    .into_iter()
+                    .map(|(x, y)| StaffTidyPoint {
+                        x: x as f32,
+                        y: y as f32,
+                    })
+                    .collect(),
+            });
+        }
+        assert!(!o.searches[0].no_goal && !o.searches[2].no_goal);
+        assert!(o.searches[1].no_goal);
+        assert_eq!(o.searches[1].capped, side == 501);
+        if side == 501 {
+            assert_eq!(o.searches[1].pops, 250_001);
+        }
+        println!("synthetic side={side}: {:?}", o.searches);
+        let mut nodes: Vec<_> = l
+            .cards
+            .iter()
+            .map(|(id, &(x, y))| StaffTidyNode {
+                id: id.clone(),
+                x: x as f32,
+                y: y as f32,
+                width: 2.0,
+                height: 2.0,
+            })
+            .collect();
+        nodes.sort_by(|a, b| a.id.cmp(&b.id));
+        StaffTidyResult {
+            nodes,
+            frames: vec![],
+            edges,
+            width: side as f32,
+            height: side as f32,
+        }
+    }
+    #[test]
+    fn golden_cap_and_fallback() {
+        golden("cap_sequence", &cap_fallback_result(501));
+        golden("goal_fallback_sequence", &cap_fallback_result(5));
     }
 }

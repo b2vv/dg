@@ -232,14 +232,14 @@ fn multi_source_parent_prefers_fewer_turns_before_lexicographic_order() {
             .as_array_mut()
             .unwrap()
             .push(serde_json::json!({
-            "id":id,"organizationId":"o","isHead":false,"departmentId":"extra"
-        }));
+                "id":id,"organizationId":"o","isHead":false,"departmentId":"extra"
+            }));
         value["reports"]
             .as_array_mut()
             .unwrap()
             .push(serde_json::json!({
-            "fromId":"m00","toId":id,"kind":"admin"
-        }));
+                "fromId":"m00","toId":id,"kind":"admin"
+            }));
     }
     let mut scene: StaffLayoutInput = serde_json::from_value(value).unwrap();
     scene.multi_source_parent_eval = None;
