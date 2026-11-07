@@ -62,7 +62,10 @@ describe('groupStaffByDepartment', () => {
     ];
     const reports = [admin('a1', 'b1'), admin('b1', 'a2'), admin('a2', 'b2')];
     const departments = [department('a', 0), department('b', 1), department('empty')];
-    const legacy = await layoutStaffOrgBlock(positions, reports, orgId);
+    // #96: prune is always on; expand the full chain so the legacy overlap holds.
+    const legacy = await layoutStaffOrgBlock(positions, reports, orgId, {
+      expandedPositionIds: positions.map((p) => p.id),
+    });
     const legacyA = bounds(legacy.nodes.filter((node) => node.id.startsWith('a')));
     const legacyB = bounds(legacy.nodes.filter((node) => node.id.startsWith('b')));
     expect(aabbOverlap(legacyA, legacyB, 0, 0)).toBe(true);

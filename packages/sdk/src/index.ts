@@ -1,8 +1,14 @@
+export type { NodeView, NodeViewInput, NodeViewContext, SimpleNodeView, RetainedNodeView } from './render/nodeViewFactory.js';
+export type { WheelConfig, WheelBehavior } from './render/wheelConfig.js';
+export type { MarqueeRect } from './render/marquee.js';
+export type { DiagramNode } from './DiagramNode.js';
 /**
  * Public surface of the SDK. Implementation lives in the feature folders —
  * this file only re-exports, so «what is public» stays readable in one screen.
  */
-export { OrgHierarchyDiagram, type OrgHierarchyConfig } from './OrgHierarchyDiagram.js';
+export { OrgHierarchyDiagram, type OrgHierarchyConfig, type RevealPathOptions } from './OrgHierarchyDiagram.js';
+// Staff transition layer (D3): host types its `animate` config and reads `getTransitionFrame()`.
+export type { AnimateOption, AnimatePreset, TransitionFrame, FrameBox } from './render/transition/types.js';
 
 export type {
   DiagramData,
@@ -64,6 +70,8 @@ export {
   resolveLodLevel,
   simplifyPolyline,
   defaultLodThresholds,
+  motionBlurPx,
+  defaultMotionBlurOptions,
   parseSvgPath,
   resampleClosedRing,
   lerpClosedRings,
@@ -123,6 +131,9 @@ export {
   computeStaffLiveGeometry,
   worldPointToScreen,
   roundedPathD,
+  buildStaffChromeGeometry,
+  computeStaffFit,
+  DEFAULT_STAFF_CHROME_PAD,
 } from './render/index.js';
 export {
   MediaService,
@@ -152,9 +163,11 @@ export type {
   CameraMotionOptions,
   LodLevel,
   LodThresholds,
+  MotionBlurOptions,
   NodeTextureLoader,
   PromoteCandidate,
   PromoteMode,
+  PromoteSyncReason,
   ScreenRect,
   WorldBox,
   DepartmentPaintStyle,
@@ -171,12 +184,20 @@ export type {
   StaffLiveGeometryInput,
   StaffFrameBox,
   ScreenPoint,
+  WorldPoint,
+  StaffChromeGeometry,
+  StaffChromePad,
+  StaffFitOptions,
+  ChromeDeptFrame,
+  ChromeLine,
+  NodeBox,
 } from './render/index.js';
 export { SEARCH_PAGE_SIZE } from './callbacks.js';
 export type {
   LayoutPatch,
   OrgHierarchyCallbacks,
   OrgExpandChange,
+  NodeClickMeta,
   ViewportChangeMeta,
   ViewportChangeReason,
   HostSearchHit,
@@ -290,3 +311,7 @@ export type {
   StaffOrgBlockResult,
   OrgEdgeStyle,
 } from './layout/index.js';
+
+export type { InteractionState } from './interaction/interactionState.js';
+// D1: related/dimming selectors (hosts + demo compute hover-related highlight from interaction state).
+export { relatedStaffIds, staffDimmedIds } from './render/staffRelated.js';

@@ -16,7 +16,7 @@ let grand=0;
 for(const s of Object.keys(old)){
   const acc=[];
   // compare live fields except bands (expected FORK1 change)
-  const o={...old[s].live}, n={...neu[s].live};
+  const n={...neu[s].live}, o={...old[s].live};
   delete o.bands; delete n.bands;
   diffs(o,n,null,null,acc);
   const by={}; acc.forEach(f=>by[f]=(by[f]||0)+1);

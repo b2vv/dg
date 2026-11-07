@@ -191,6 +191,12 @@ describe('mockup style tokens (approved)', () => {
       'region',
       {
         expandedOrgIds: ['unit-current'],
+        // #96: prune is always on; the current org (region) renders fully per the
+        // role default, so pos-1z stays visible and its dotted link to the tier-3
+        // head survives. Tier 3 (unit-current) keeps its head-only default.
+        expandedPositionIds: data.positions
+          .filter((p) => p.organizationId === 'region')
+          .map((p) => p.id),
         nodeWidth: 200,
         nodeHeight: 98,
         orgCardWidth: 220,

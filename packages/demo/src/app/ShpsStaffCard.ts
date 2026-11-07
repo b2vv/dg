@@ -1,3 +1,5 @@
+import { relatedStaffIds, type OrgHierarchyDiagram } from '@org-hierarchy/sdk';
+import { useStaffHovered } from './StaffChromeBackdrop.js';
 import { createElement, type ReactElement, type CSSProperties } from 'react';
 import type { PromoteSlotProps } from '@org-hierarchy/sdk/react';
 
@@ -58,8 +60,8 @@ export interface StaffCardFocusState {
    * poke, which a camera-move re-render would wipe.
    */
   foundId: string | null;
-  /** Heads whose subtree is collapsed (§8.1) — drives the v3 `.card.closed .tg` chip. */
-  collapsed?: ReadonlySet<string>;
+  /** Current SDK expand state, read again whenever the overlay syncs. */
+  expandedPositionIds?: readonly string[];
 }
 
 /**
@@ -69,8 +71,16 @@ export interface StaffCardFocusState {
  */
 export function makeShpsStaffCard(
   getFocus?: () => StaffCardFocusState | null,
+  diagram?: Pick<OrgHierarchyDiagram, 'setHovered' | 'subscribeInteraction' | 'getStaffChromeGeometry'>,
 ): (props: PromoteSlotProps) => ReactElement {
-  return (props: PromoteSlotProps) => renderShpsStaffCard(props, getFocus?.() ?? null);
+  if (!diagram) return (props: PromoteSlotProps) => renderShpsStaffCard(props, getFocus?.() ?? null);
+  return function SubscribedStaffCard(props: PromoteSlotProps): ReactElement {
+    const hovered = useStaffHovered(diagram);
+    const geom = diagram.getStaffChromeGeometry();
+    const related = hovered?.kind === 'position' && geom && Object.hasOwn(geom.nodeBoxes, hovered.id)
+      ? relatedStaffIds(geom.lines, hovered.id) : null;
+    return renderShpsStaffCard(props, getFocus?.() ?? null, diagram, related);
+  };
 }
 
 /** Plain card (no search-focus dim) — the shape shared by both ШПС tabs. */
@@ -79,6 +89,8 @@ export const ShpsStaffCard: (props: PromoteSlotProps) => ReactElement = makeShps
 function renderShpsStaffCard(
   props: PromoteSlotProps,
   focus: StaffCardFocusState | null,
+  diagram?: Pick<OrgHierarchyDiagram, 'setHovered'>,
+  related: ReadonlySet<string> | null = null,
 ): ReactElement {
   const { screenRect, node, viewport } = props;
   const s = viewport.scale;
@@ -120,7 +132,7 @@ function renderShpsStaffCard(
     overflow: 'hidden',
     pointerEvents: 'auto',
     fontFamily: 'Onest, system-ui, sans-serif',
-    opacity: dimmed ? 0.38 : 1,
+    opacity: related ? (related.has(posId) ? 1 : 0.45) : dimmed ? 0.38 : 1,
     // Smooth hover dim/accent (mockup `.card{transition:opacity .25s}` + border).
     transition: 'opacity .2s ease, border-color .15s ease',
   };
@@ -271,7 +283,7 @@ function renderShpsStaffCard(
     ];
     // Chevron-чіп лише коли є підлеглі (мокап: `.tg` рендериться if k.length).
     if (hasChildren) {
-      const closed = focus?.collapsed?.has(posId) === true;
+      const closed = pos?.expanded !== true && !focus?.expandedPositionIds?.includes(posId);
       footChildren.push(
         createElement(
           'span',
@@ -354,6 +366,8 @@ function renderShpsStaffCard(
       // Position id (matches connector-line fromId/toId) for the hover highlight —
       // ref.id can be the person id for a filled seat, which lines don't key on.
       'data-staff-pos': posId,
+      onPointerEnter: () => diagram?.setHovered(pos ? { kind: 'position', id: pos.id } : node.ref),
+      onPointerLeave: () => diagram?.setHovered(null),
       style: root,
     },
     ...childNodes,

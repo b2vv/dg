@@ -7,13 +7,21 @@ Guidance for coding agents working in **Org Hierarchy SDK** (`b2vv/dg`).
 > local and git-ignored; this repo works without it. Local project norms here always take
 > precedence over that tooling.
 
+## Plan spine (read first — головне vs похідне)
+
+**[`work/ROADMAP-4lib.md`](./work/ROADMAP-4lib.md) is the primary plan** — the owner's 4-library vision
+(#1 layout · #2 React-near · #3 Pixi-far · #4 orchestrator; source `work/reports/library-split-4/_recovered-vision.md`
++ ADR-0079). Everything else is **derived/feeder**: `work/ROADMAP-extensibility.md` (R1–R5/D1/D3 fill #2/#3),
+`work/ROADMAP.md` (Ф0–Ф4 host migration), the routing track. The unclosed backbone is **#4 orchestrator + T3
+(RendererPort + camera lift + §9 interaction inversion)** — pick the next move from there, not from the feeders.
+
 ## Stack (short)
 
 - `packages/core` — Rust → WASM (contours + Ploeg row-tree; canvas paint is TS)
 - `packages/sdk` — `@org-hierarchy/sdk` (Pixi render, workers, export, React context menu)
 - `packages/demo` — Rsbuild demo (`npm run dev`)
 - Spec / TDD / standards: `work/SPEC.md`, `work/TDD.md`, `work/CODING_STANDARDS.md`
-- Before implement: [`work/CTO-RESEARCH.md`](./work/CTO-RESEARCH.md) (product, seams, infra, risks). No live P0. The open queue has **shifted in kind, not just in length**: agent-ready work is down to three items (T80's removal, T102 block Б, T109), while the rest now waits on decisions that are the product's to make, not an agent's — T116's seven forks, T117 gap 2, T115's remaining two (an expander anchor is new public surface; the environment gate is a contract), T119's whole point (splitting the facade breaks the public API, and the measurement does not refute keeping it flat), T112's tabs, T56. Expect the next cycle to start with a decision rather than with code; see the briefing §7 and [`work/AGENDA.md`](./work/AGENDA.md) for the recommended next move. Read §5 of the briefing's verdict before assuming the host consumes this SDK — it does not.
+- Before implement: [`work/CTO-RESEARCH.md`](./work/CTO-RESEARCH.md) (product, seams, infra, risks). No live P0. The open queue has **shifted in kind, not just in length**: agent-ready work is down to three items (T80's removal, T102 block Б, T109), while the rest now waits on decisions that are the product's to make, not an agent's — T116's seven forks, T117 gap 2, T115's remaining two (an expander anchor is new public surface; the environment gate is a contract), T119's whole point (splitting the facade breaks the public API, and the measurement does not refute keeping it flat), T112's tabs, T56. Expect the next cycle to start with a decision rather than with code; see the briefing §7 and [`work/AGENDA.md`](./work/AGENDA.md) for the recommended next move. Read fact №5 of the briefing (updates №5 and №5б) before reasoning about the host: since 2026-11-03 its live ШПС (staff) controller runs on this SDK through a local link, while its organization diagram is still GoJS. Anything the demo implements on top of the SDK does not reach the host — put host-visible behaviour in the library.
 - Public API in use: [`docs/USAGE.md`](./docs/USAGE.md) — what hosts call and what they get back.
 
 ## Commands
@@ -41,7 +49,7 @@ It checks six things, each because that drift already happened here and nothing 
   merely documentation: the threshold below defines the public API as *what `docs/USAGE.md`
   describes*, so a method absent from it cannot be seen by the rule that decides how carefully it
   may be changed. Twenty-one were missing when the check went in — a named baseline that may shrink
-  and never grow. **Seven now** (eight until this commit): T104 documented the five mutators, which it had to, since the
+  and never grow. **Six now** (seven until T131 documented `subscribePromoteSync` together with its new `prepare-camera` reason; eight before that): T104 documented the five mutators, which it had to, since the
   three with the worst failure semantics in the tree were formally below the threshold until then;
   T105 then dropped `getData`, which the script had been reporting as documented for a day; T119
   took one off by the other route — `getLastContextMenu` was **deleted**, not documented, being a

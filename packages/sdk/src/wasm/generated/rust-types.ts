@@ -207,7 +207,11 @@ export type StaffTidyFrame = { departmentId: string, x: number, y: number, width
  * Вхід alpha-розкладки. Батьківство береться з admin-ребер (перше admin-ребро на дитину =
  * первинний батько, як `p.p` у мокапі; `p2` — вторинне, ігнорується для розміщення блоків).
  */
-export type StaffTidyInput = { positions: Array<StaffPositionInput>, reports: Array<StaffEdgeInput>, departments: Array<StaffDepartmentInput>, params: StaffTidyParams, };
+export type StaffTidyInput = { positions: Array<StaffPositionInput>, reports: Array<StaffEdgeInput>, departments: Array<StaffDepartmentInput>, params: StaffTidyParams, 
+/**
+ * Розмір **на картку** (калібрує хост). Картка без запису бере `params.card_width/height`.
+ */
+sizes: Array<StaffNodeSize>, };
 
 /**
  * Картка посади у світових координатах.

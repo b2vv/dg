@@ -20,7 +20,6 @@ export const SHPS_STAFF_LAYOUT = {
   orgCardHeight: 64,
   refCellWidth: SHPS_SEAT.width,
   refCellHeight: SHPS_SEAT.height,
-  collapseUnexpandedPositions: false,
 } as const;
 
 /**

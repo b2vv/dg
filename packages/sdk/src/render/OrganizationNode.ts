@@ -1,3 +1,5 @@
+import type { InteractiveNodeView } from './interactiveNodeView.js';
+import type { NodeRef } from '../core/index.js';
 import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js';
 import type { DiagramGroup, DiagramOrganization } from '../data/types.js';
 import { loadNodeTexture, type NodeTextureLoader } from '../media/nodeMedia.js';
@@ -21,6 +23,7 @@ import {
 } from './orgSymbolBox.js';
 
 export interface OrganizationNodeOptions {
+  onHover?: (ref: NodeRef | null) => void;
   nodeTheme?: Pick<NodeTheme, 'fonts'>;
   chrome?: OrgNodeChrome;
   onContextMenu?: (pointer: ContextMenuPointer) => void;
@@ -30,7 +33,9 @@ export interface OrganizationNodeOptions {
   loadTexture?: NodeTextureLoader;
 }
 
-export class OrganizationNodeView extends Container {
+export class OrganizationNodeView extends Container implements InteractiveNodeView {
+  private onHover: ((ref: NodeRef | null) => void) | undefined;
+  private nodeRef: NodeRef = { kind: 'organization', id: '' };
   readonly resolvedSymbolUrl: string | undefined;
   readonly lod: LodLevel;
   /** Settles when optional symbol load finishes (or immediately if none). */
@@ -171,8 +176,14 @@ export class OrganizationNodeView extends Container {
     this.layoutChromeBadges(style, lod);
     this.layoutTexts(style, lod);
 
-    this.on('pointerover', () => this.setHovered(true));
-    this.on('pointerout', () => this.setHovered(false));
+    this.on('pointerover', () => {
+      if (this.onHover) this.onHover(this.nodeRef);
+      else this.setHovered(true);
+    });
+    this.on('pointerout', () => {
+      if (this.onHover) this.onHover(null);
+      else this.setHovered(false);
+    });
   }
 
   static create(
@@ -188,6 +199,8 @@ export class OrganizationNodeView extends Container {
       resolveMedia = resolve;
     });
     const view = new OrganizationNodeView(org, group, theme, style, lod, mediaReady, options.nodeTheme ?? defaultNodeTheme);
+    view.nodeRef = { kind: 'organization', id: org.id };
+    view.onHover = options.onHover;
     view.loadTexture = options.loadTexture ?? loadNodeTexture;
     view.mediaRevision = org.media?.revision;
     view.applyChrome(style, lod, options);
@@ -579,7 +592,13 @@ export class OrganizationNodeView extends Container {
     }
   }
 
-  private setHovered(on: boolean): void {
+  /** Switch between controlled hover and the legacy local pointer path. */
+  setHoverHandler(onHover: ((ref: NodeRef | null) => void) | undefined): void {
+    this.onHover = onHover;
+    this.setHovered(false);
+  }
+
+  setHovered(on: boolean): void {
     if (this.lod === 'far') {
       this.hoverRing.visible = false;
       return;

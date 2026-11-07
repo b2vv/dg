@@ -1,6 +1,7 @@
 import { Application, Rectangle, RendererType } from 'pixi.js';
 import { DiagramRenderer } from './DiagramRenderer.js';
 import { Viewport, type ViewportTransform, type CameraMotionOptions } from './Viewport.js';
+import type { WheelConfig } from './wheelConfig.js';
 import {
   createSoftwareRendererDetector,
   readUnmaskedRendererFromDom,
@@ -104,6 +105,7 @@ function resolveAuto(
 }
 
 export interface PixiHostOptions {
+  wheel?: WheelConfig;
   background?: number;
   minScale?: number;
   maxScale?: number;
@@ -167,6 +169,15 @@ export class PixiHost {
     return this.app?.canvas ?? null;
   }
 
+  /**
+   * The mount element — the common parent of the WebGL canvas and any HTML
+   * overlay layer. A single CSS filter here (e.g. motion blur) blurs both
+   * together.
+   */
+  getContainer(): HTMLElement | null {
+    return this.container;
+  }
+
   getApplication(): Application | null {
     return this.app;
   }
@@ -207,6 +218,12 @@ export class PixiHost {
   /** Pan world so (worldX, worldY) is near viewport center. */
   panTo(worldX: number, worldY: number, motion?: CameraMotionOptions): void {
     this.viewport?.panTo(worldX, worldY, motion);
+  }
+
+  /** Tween (or jump) the camera to an explicit transform — used by fitStaffChrome,
+   *  which computes its own target rather than fitting content bounds. */
+  animateViewport(target: ViewportTransform, motion?: CameraMotionOptions): void {
+    this.viewport?.animateTo(target, motion);
   }
 
   /** Fit content bounds into the screen. Returns false if nothing to fit. */
@@ -257,7 +274,10 @@ export class PixiHost {
     this.paintHandle = requestAnimationFrame(() => {
       this.paintHandle = 0;
       this.paintRequested = false;
-      if (!this.destroyed) this.app?.render();
+      if (!this.destroyed) {
+        this.renderer.cullToViewport(this.getViewport(), this.getScreenSize());
+        this.app?.render();
+      }
     });
   }
 
@@ -318,6 +338,7 @@ export class PixiHost {
     this.viewport = new Viewport(this.renderer.layers.root, {
       minScale: options.minScale,
       maxScale: options.maxScale,
+      wheel: options.wheel,
     });
     this.viewport.setScreenSize(width, height);
     // Anything inside the scene that moves pixels without a rebuild — a dragged

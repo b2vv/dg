@@ -3,6 +3,12 @@ import type { OrgDisplayMode } from './layout/index.js';
 import type { MenuItem, NodeRef } from './core/index.js';
 import type { ContextMenuRequest } from './interaction/contextMenuPayload.js';
 import type { ViewportTransform } from './render/Viewport.js';
+import type { SelectionPointerMods } from './interaction/selection.js';
+
+/** Second argument of {@link OrgHierarchyCallbacks.onNodeClick}. */
+export interface NodeClickMeta {
+  modifiers: SelectionPointerMods;
+}
 
 export type LayoutPatch =
   /**
@@ -109,7 +115,8 @@ export interface OrgHierarchyCallbacks {
    * leave a bare strip along the new edge and never fill it.
    */
   onViewportChange?(transform: ViewportTransform, meta: ViewportChangeMeta): void;
-  onNodeClick?(node: NodeRef): void;
+  /** `click.modifiers` — the keys held during the click, all `false` for a plain one. */
+  onNodeClick?(node: NodeRef, click: NodeClickMeta): void;
   /** Double-click → host sidebar (T69 / D5). */
   onNodeDoubleClick?(node: NodeRef): void;
   /**

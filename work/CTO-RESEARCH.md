@@ -1,7 +1,7 @@
 # CTO research — Org Hierarchy SDK (`b2vv/dg`)
 
-**Дата:** 2026-09-11 · фокусні рефреші 2026-10-21 (host-інтеграція ШПС), 2026-10-26 (4311 перед мержем у `main`), 2026-10-29 (T126 — staff-геометрія в Rust, R0→R6-7b) і **2026-11-02** (T126 R7 на прод, T128 A*-роутер, T129 ШПС alpha near-view)
-**Базис:** `feat/t126-staff-rust-geometry` @ `d9890fc` (гілка T126, ще НЕ мержена в `main`; піде merge-комітом → SHA переживе. Попередній базис `9f5d4fa` = хендоф Dg25 перед R7; ще раніший `c810489` = 4311 перед мержем PR #95 — див. блоки T126/T128/T129 нижче про те, що з того часу змінилось)
+**Дата:** 2026-09-11 · фокусні рефреші 2026-10-21 (host-інтеграція ШПС), 2026-10-26 (4311 перед мержем у `main`), 2026-10-29 (T126 — staff-геометрія в Rust, R0→R6-7b), **2026-11-02** (T126 R7 на прод, T128 A*-роутер, T129 ШПС alpha near-view) і **2026-11-05** (аудит межі SDK↔host: хост ШПС уже на dg — факт №5б; `revealPath` + `{select:false}`; T131 refit; діаграма взаємодії `work/reports/library-boundary-audit/`), **2026-11-06** (рефреш №6: D3 transition-зріз-1, D1 interaction-store, R1–R5+R11 розширюваність — усе злито в `main` `a173c21`; A*-enable-ґрунт), **2026-11-04** (SDK **1.0.0** стабільна, Б1/Б2 alpha-геометрія ШПС як SDK-шов, #96 вроджений прунінг + рольовий дефолт + zoom-floor, host-anchors roadmap; **host перейшов від «читання коду» до активної інтеграційної гілки** — див. факт №5)
+**Базис:** `main` @ `a173c21` (рефреш **2026-11-06** — у `main`, SHA стабільний після ff-мержів цієї сесії; скидає freshness-гейт). **Оновлення №6 нижче** (D3-зріз-1 + D1 + R1–R5+R11 злито в main; A*-enable-ґрунт). Попередній базис `feat/t132-devtools-panel` @ `646e58c` (фокусний рефреш 2026-11-05; гілка стекована на `chore/library-boundary-housekeeping`, ще НЕ в `main` — при мержі через merge-commit SHA переживе, при squash/rebase базис треба переписати. Між `c7da0de` і `646e58c`: `945069b` revealPath розкриває згорнутих посад-предків + `{ select: false }`, `7080443` аудит межі SDK↔host + брифінг №5б, `646e58c` T131 opt-in refit. Попередній базис `c7da0de` = merge #96 «вроджений прунінг + рольовий дефолт ШПС», уже в `main`/`origin/main` → SHA переживе. Попередній базис `d9890fc` = гілка T126 перед мержем у `main`; ще раніші `9f5d4fa` = хендоф Dg25 перед R7, `c810489` = 4311 перед мержем PR #95 — див. блоки нижче про те, що з того часу змінилось)
 
 ⚠️ **Базис переписано 2026-09-05, і причина варта запису.** Тут стояв `613acb8` — коміт, який
 **перестав існувати**: PR #78 злився через `rebase`, і той переписав усі SHA гілки. Локально гейт
@@ -13,8 +13,28 @@ SHA, записаний у документі репо, переживе `merge`
 
 Кожна теза нижче веде в первинне джерело (код, workflow, `work/tasks/`, `docs/`). Якщо джерело і цей файл розходяться — править джерело, не цей кеш.
 
+**Що змінилось із `d9890fc` (SDK 1.0.0 + alpha-геометрія ШПС + #96, 2026-11-02→11-04):** 21 коміт,
+уже **в `main`** (гілка T126 злита). Три зрізи плюс roadmap:
+- **SDK `1.0.0` — перша стабільна версія, явно «під заміну GoJS у хості, ШПС першим»** (`0e737de`,
+  `packages/sdk/package.json`), і до неї — **шов під адаптер рушія хоста**: точки геометрії,
+  модифікатори кліку, `incomingLink` (`1150ae6`). Це не косметика версії: реліз синхронний із тим,
+  що хост **почав реально імпортувати SDK** (факт №5 оновлено).
+- **Б1/Б2 — alpha-розкладка ШПС «розмір на картку» + SDK-шов геометрії для хоста** (`b601cba`,
+  еталон до неї `8daa0a5`; шов `a560636` — getter, `worldTransform`, `fitStaffChrome`; кламп
+  `staffChromePad`≥0 `5b6cd10`). Демо-хром ШПС-alpha перероблено **через цей шов** як доказ
+  «хост без математики» (`4830cb2`); шестисекційний звіт — `work/reports/` (Б2). TD07 завів
+  передіснуючі oxlint-помилки в чергу (`e02221b`).
+- **#96 — вроджений прунінг + рольовий дефолт + zoom-floor** (мерж `c7da0de`; **breaking**
+  `8819327` `feat(staff)!`): прунінг завжди ввімкнений, дефолт expand визначається **роллю**,
+  alpha/mockup-шлях тепер шанує expand/collapse (`2229437`), нижня межа зуму `0.36` (`2ddc7a3`),
+  collapse-гейт прибрано зі штатних табів/фікстур (`8d4230a`). Доки — `docs/usage` (`00e29f3`),
+  spec/plan/report — `work/reports/mockup-expand-prune/` (`0d91279`).
+- **Roadmap-доки (не код):** анкери доставки до host A0–A3 (`a1c194b`, Тема A, мерж `4b5847e`),
+  поглиблення D3 spring + консолідація роутингу (`5afa5c1`), чернетка дискусії розширюваності SDK
+  R1–R5 / D1–D4 (`0558296`) — усі в `work/` roadmap, не в коді.
+
 **Що змінилось із `9f5d4fa` (T126 R7 → T128 → T129, 2026-10-29→11-02):** 59 комітів на гілці
-`feat/t126-staff-rust-geometry` (ще НЕ в `main`). Три зрізи:
+`feat/t126-staff-rust-geometry` (**тепер у `main`**). Три зрізи:
 - **T126 R7 частково закрито** (`79def2d`→`a60e79f`; R6-4b — `2571377`): staff-**ГЕОМЕТРІЯ** (пакування,
   композиція, межі, зони) тепер рахується в Rust через `computeStaffGeometryWasm` (`wasm/layoutBridge.ts`)
   і стоїть на **прод-шляху** рендера (`render/staffLiveGeometry.ts:8-13,234` ← `DiagramRenderer`); старий
@@ -108,6 +128,18 @@ host-контракт — `cassiopeia-admin-ui:work/queue/2026-10-12-sprint-13/4
 - Піновані поля контракту: `isHead`, `status:'acting'`, vacancy=derive `personId`, `departmentId`,
   `Department.parentPositionId`, `reportLines.kind` `admin|matrix|dotted` (+новий `lead-org`),
   `organization.role`, `position.external`; тема — рантайм `setTheme()`.
+- 🆕 **PR-кандидат (сесія 2026-11-04) — `fix/promote-overlay-structural-sync`:** розділення
+  promote-overlay-ресинку на **два тегованих канали** `PromoteSyncReason` = `'camera' | 'structural'`
+  (новий публічний `subscribePromoteSync(listener)` на фасаді; диспетчер в overlay:
+  `structural → sync()`, `camera → onCameraChange()`). Лагодить зум far-скелета й expand-ghost
+  (структурна зміна тепер ресинкає оверлей негайно, не чекаючи кадру камери). spec-flow повний цикл,
+  обидва гейти PASS, 9 файлів +271/−15. Артефакти — `work/reports/promote-overlay-structural-sync/`
+  (spec/plan/tasks/report).
+- 🔅 **Low-pri (research готовий, рішення власника):** mid-Pixi far-марка для staff-сітів. На `mid`
+  LOD `PersonNode` малює **повну картку** (фон+рамка+ім'я+compact), не легку «марку» — залишок
+  pre-T129, видимий поза transition, коли сіт не promoted (`failedIds`/поза near-visible gate).
+  Дослідження `work/reports/promote-overlay-structural-sync/_research-mid-pixi.md`: пороги
+  far&lt;0.45&lt;mid&lt;1.2&lt;near, near-visible gate = `lod!=='far'`.
 
 **Що змінилось із `6b199a4`:** 29 комітів, і зріз тут один: **закрито найбільшу агент-реді
 роботу в репо й половину другої.** **T80** — `cell-flood` і весь Rust-контур прибрані (реліз
@@ -212,11 +244,14 @@ doc-drift **свідомо не доданий** (аргумент виміря�
 
 ---
 
+> ⚠️ **Цей «вердикт на один екран» написаний у вересні 2026** і рефрешем 2026-11-06 переписаний НЕ був —
+> оновлення дописані блоками нижче (див. №5/№5б і далі). При розходженні **головні оновлення нижче**, не цей екран.
+
 ## Вердикт на один екран
 
 **Продукт** — embeddable browser SDK організаційних і штатних діаграм: host дає дані в пам'ять, SDK розкладає й малює Pixi-полотно, експортує SVG/PNG/PDF. Заміна прод-діаграми на GoJS у host-репо. ([`docs/REQUIREMENTS.md`](../docs/REQUIREMENTS.md) §0–§1; [T71](./tasks/T71-gojs-to-dg-migration-plan.md))
 
-**Стан:** живого P0 немає. **Активна WIP-дуга — T126/T128/T129** на гілці `feat/t126-staff-rust-geometry` (ще НЕ в `main`): R0→R6-7b, R6-4b і R7 A1→A4.2b закрито — staff-**геометрія** тепер на прод-шляху рендера через Rust `computeStaffGeometryWasm`; далі A4.4 (зняти TS-golden-шов) і R7-роутинг. На гілці також закрито **T128** (dg37/dg38 layout-слайс + Rust A*-роутер, демо-таб `staff-mock3`) і йде **T129** (ШПС alpha near-view, демо-таб `staff-alpha`: HTML-overlay картка, collapse §8.1, пошук §8.2). Ключовий факт «Rust staff-**роутер** (лінії) ще не на прод-шляху» лишається чинним (шов `resolveStaffRouting`) — деталі в блоці T126 вгорі файлу. За 2026-09-06/08 закрито **T111**, **T117 Гап 1**, **T110** (+ реліз `0.3.0`), **T113**, **T114**, **T118**, **T101**, **T106**, **T119 крок 0** і **T115 кроки 1–3**; заведено T115–T119. ✅ **T80, T102 блок Б і T109 закриті.** Заведено **T120** (стеля глибини — вимір у браузері плюс продуктове рішення про `tidy_tree`) і **T121** (`setStaffFocus` — намір чи стан?). **T115 крок 2 пройдено від К1 до К6** (2026-09-10/11): якір експандера є, `toggleOrgExpand` є, e2e зліз із містка; лишились К7 (доки) і К8 (реліз `0.5.0`). Із цього ж циклу заведено **T123** і **T124**, а **T122 спростовано**. Заблоковані продуктовим рішенням: **T116** (сім розвилок), **T117 Гап 2**, **T115 крок 4** (гейт середовища), **T119** (саме рознесення фасаду), T112, T56, T61, T67 Phase 2.
+**Стан:** живого P0 немає. **Активна WIP-дуга — T126/T128/T129** на гілці `feat/t126-staff-rust-geometry` (ще НЕ в `main`): R0→R6-7b, R6-4b і R7 A1→A4.2b закрито — staff-**геометрія** тепер на прод-шляху рендера через Rust `computeStaffGeometryWasm`; далі A4.4 (зняти TS-golden-шов) і R7-роутинг. На гілці **T128 РОЗПОЧАТО, не завершено** (dg37/dg38 layout-слайс + Rust A*-роутер, демо-таб `staff-mock3`; відкриті: зигзаги §5, стилізація §6, C-flip-борг, A* best-effort — див. оновлення нижче й AGENDA §47) і йде **T129** (ШПС alpha near-view, демо-таб `staff-alpha`: HTML-overlay картка, collapse §8.1, пошук §8.2). Ключовий факт «Rust staff-**роутер** (лінії) ще не на прод-шляху» лишається чинним (шов `resolveStaffRouting`) — деталі в блоці T126 вгорі файлу. За 2026-09-06/08 закрито **T111**, **T117 Гап 1**, **T110** (+ реліз `0.3.0`), **T113**, **T114**, **T118**, **T101**, **T106**, **T119 крок 0** і **T115 кроки 1–3**; заведено T115–T119. ✅ **T80, T102 блок Б і T109 закриті.** Заведено **T120** (стеля глибини — вимір у браузері плюс продуктове рішення про `tidy_tree`) і **T121** (`setStaffFocus` — намір чи стан?). **T115 крок 2 пройдено від К1 до К6** (2026-09-10/11): якір експандера є, `toggleOrgExpand` є, e2e зліз із містка; лишились К7 (доки) і К8 (реліз `0.5.0`). Із цього ж циклу заведено **T123** і **T124**, а **T122 спростовано**. Заблоковані продуктовим рішенням: **T116** (сім розвилок), **T117 Гап 2**, **T115 крок 4** (гейт середовища), **T119** (саме рознесення фасаду), T112, T56, T61, T67 Phase 2.
 
 ⚠️ **Черга змінила склад, а не лише довжину.** Агент-реді лишилось **три** пункти замість семи, і два з трьох великі. Решта черги — це вже не «нема кому робити», а **нема чийого рішення**: T115 і T119 обидва впираються в питання про форму публічного API, T116 — у сім продуктових розвилок. Практичне для планування: наступний цикл із високою ймовірністю починається **не** з коду.
 
@@ -288,6 +323,30 @@ CI ганяє окрему пробіжку з `SOFTWARE_GL=1`, бо гілка 
 2. **«Згорнуто» означає різне в двох базах, і це той самий клас, що зламав D9.** У GoJS згортання було способом **не малювати** (`addChildren` + `expandedKeys` існували через перф-стелю canvas). T113 зробив його способом **перемкнути розкладку**: коли всі сибліни згорнуті, вмикається матриця, а `matrixLayout.ts:35` мапить організації **без фільтра за згорнутістю**. Виміряно: згортання org не зменшує число видимих вузлів (`3 → 3`). У хоста `visibleNodeCount` годує **віртуалізацію**, тож розходження тихе й не косметичне.
 
 🔴 **Архітектурний факт №5 — SDK досі не має жодного споживача, і найупевненіші рядки цього файлу це приховували.** 2026-09-06 хост (`cassiopeia-admin-ui`, гілка `main` @ `f7b037e07`) прочитано **в коді**, а не в переказі. Grep по всьому його репо за `@org-hierarchy`, `org-hierarchy/sdk`, `OrgHierarchyError`, `contourEngine`, `onSeatCollision`, `displacedPositionId` дає **0 збігів** — ані в коді, ані в доках. Обидві діаграми він і далі малює на **GoJS 3.0.26** (`package.json:108`) через власний рушій на 1397 рядків, і це **чинне записане рішення** (`docs/adr/0034-redesign-diagram-tech-keep-gojs.md`); ADR про перехід на `dg` у нього немає. ([`reports/host-integration/questions.md`](./reports/host-integration/questions.md) §«Головне, що ламає посилку розділу A»)
+
+🟢 **Оновлення №5 (2026-11-04) — «немає ЖОДНОГО споживача» більше неправда; правдою лишилось «немає ПРОД-споживача».** Хост `cassiopeia-admin-ui` має **активну інтеграційну гілку** `b2w/queue/springs/spring-13/4311-shps-diagram-palette` (@ `6f1567a36`), яка **реально імпортує dg SDK** для ШПС через card-split (перевірено читанням host-репо, не переказом). SDK підключено як локальний лінк — `package.json:104` `"@org-hierarchy/sdk": "link:../../dg/packages/sdk"`. Розподіл шарів: **near/mid = HTML-overlay через `createReactPromoteOverlay`** (`src/modules/positions/lib/make-dg-sdk-factory.ts:1-8,332-340` — `mountOverlay` з `mode:'near-visible'`; `components/staff-seat-card.tsx:174` — «near-zoom HTML face … in place of the far-zoom Pixi card»; backdrop-адаптер `components/staff-chrome-backdrop.tsx:6`), **far = Pixi** (dg canvas). Grep host за `@org-hierarchy/sdk` дає ~25 файлів (фабрика, компоненти, контролер `use-positions-diagram.ts`, інженерний рушій `dg-tree-diagram.engine.ts`, ADR-0082/0083/0084). ⚠️ **Що НЕ змінилось:** `gojs ^3.0.26` досі в `package.json:112`, **прод-діаграми хоста все ще на GoJS** — тобто синхронно з релізом SDK `1.0.0` («під заміну GoJS, ШПС першим») інтеграція перейшла зі стадії «хост прочитано в коді» у стадію **активної гілки**, але ще не в прод. Отже: немає ПРОД-споживача — так; немає ЖОДНОГО споживача — вже ні. Пункти 1–3 і «що вже змінило код» нижче лишаються чинними (контракт і далі не підтверджено **злитою** інтеграцією), але «межу пакета не перевіряв жоден реальний споживач» (п. 2) тепер читати як «не перевірив жоден **прод**-споживач — активна гілка вже перевіряє».
+
+🟢 **Оновлення №5б (2026-11-05) — ШПС хоста вже на dg; діаграма організацій ще на GoJS.** Виміряно в host-репо (гілка `b2w/queue/springs/spring-13/4311-shps-diagram-palette` @ `61459a01c`): `src` імпортує SDK у **6** файлах (фабрика, картка, backdrop, мапер, рушій `dg-tree-diagram.engine.ts`, **живий контролер** `use-positions-diagram.ts`), `gojs` — у **21**. Рішення записані хостом: `docs/adr/0082-dg-diagram-engine-external-library-packaging.md` (Accepted 2026-11-02: рушій ШПС свопається з GoJS на dg; умова з Alternatives #2 `ADR-0034` — ліцензія/вотермарка GoJS — настала) і `0084-dg-render-model-stays-out-of-core-aggregation.md` (Accepted 2026-11-03: контролер ШПС переведено). `ADR-0034` формально лишається Accepted і стосується тепер лише org-діаграми — це документ хоста, не наш. **Наслідок для цього репо:** межу пакета ШПС тепер приймає реальний споживач, тож кожна поведінка, яку демо реалізує поверх SDK, хостові **не дістається** — аудит межі `work/reports/library-boundary-audit/_wip-review.md` (2026-11-05) перелічує, що вже перенесено в SDK, а що ще ні ([T130](./tasks/T130-near-card-event-seam.md) — подієвий шов near-картки).
+
+🟢 **Оновлення №6 (2026-11-06) — D3-зріз-1 + D1 + уся розширюваність R1–R5+R11 злито в `main` `a173c21`.** Звіти з джерелами: `work/reports/d3-transitions/REPORT.md`, `work/reports/d1-interaction-store/REPORT.md`, `work/reports/extensibility/REPORT.md` (+ `_MASTER.md`, per-фіча spec/plan/gate/review). Злиті зрізи (усе **opt-in**, без прапора хост байт-у-байт):
+- **D3 transition-шар зріз 1** (`1c8356c` та ін.): бібліотека анімує staff-переходи (`TransitionController`, `packages/sdk/src/render/transition/`); хост вмикає `animate`. **D1 interaction-store** (`abebeb6`/`dc163e5`): `InteractionStore {selected,hovered}`, публічні `subscribeInteraction`/`setHovered`; opt-in — source ставиться лише на підписку (ensureInteractionWired).
+- **R1** far-LOD hover related-dim (`b40118a`); **R5** marquee (`0c78c32`, config `onMarquee`); **R4** zoom-config (`3550b86`, `wheel: {behavior,gestures}`, Mac-pinch збережено); **R3** node-view-фабрики (`173d676`, config `nodeView`, інтерфейс `InteractiveNodeView`); **R2** React interaction-props (`98f7ff1`, `PromoteSlotProps.selected/hovered/onSelect/onHover` + фасадні `isSelected/isHovered/selectNode`); **R11** обгортки-перешкоди A*-роутера (`9e8130c`).
+- **Нова публічна поверхня (барель + USAGE §14/§Interaction/§nodeView):** `animate`/`AnimateOption`/`TransitionFrame`, `InteractionState`/`subscribeInteraction`/`setHovered`/`isSelected`/`isHovered`/`selectNode`, `onMarquee`/`MarqueeRect`, `wheel`/`WheelConfig`/`WheelBehavior`, `nodeView`/`NodeView`/`NodeViewInput`/`NodeViewContext`, `relatedStaffIds`/`staffDimmedIds`. Перевірки зелені: SDK 1587/0, demo 135/0, cargo 218+9, typecheck/lint/check:docs; dist перезібрано, cass-host повідомлено (opt-in → хост не зачеплено).
+
+🔴 **A*-enable-ґрунт (для наступної фічі — власник погодив «так» 2026-11-06).** Мета: увімкнути A* як дефолтний staff-роутер у хості.
+| Питання | Відповідь | Джерело |
+|---|---|---|
+| Дефолт A*? | **НІ** — `DEFAULT_STAFF_ASTAR = false` | `packages/core/src/staff_routes.rs:491` |
+| Як вибирається роутер | `use_astar = input.use_astar.unwrap_or(DEFAULT_STAFF_ASTAR)` | `staff_layout.rs:1809` |
+| Вхід-прапор | `StaffLayoutInput.use_astar: Option<bool>` (serde `useAstar`) | `types.rs:466-471` |
+| Дефолтний роутер зараз | **detour** `resolve_staff_routes(.., use_astar=false)` → `side_detour`, «byte-identical to pre-T8 path» | `staff_routes.rs:494,497,170` |
+| A*-шлях | `use_astar=true` → A*-pipeline `route_via_astar` | `staff_routes.rs:503`; T8(A) `:2223` |
+| A* як вимога | «A* — підтверджено як вимога власника 2026-11-02: потрібен для гарного рендеру лінків» | `work/ROADMAP-extensibility.md:109` |
+| Робота A*-роутера | T128 (повний A*-орто-роутер §10, implement розпочато) + R11 цієї сесії додав обгортки-перешкоди в `route_scene` | `work/tasks/T128-staff-link-routing-astar.md`; `staff_router.rs` (R11 `9e8130c`) |
+| Що зміниться при enable | роути всіх staff-ліній у хості перемкнуться detour→A* (видима зміна) → **golden/integration rebaseline** (R11 вже рабаселив 3 A*-expectation у `multi_source_parent.rs`); зворотність дорога | `staff_routes.rs:494`; R11 `_review-failures.md` |
+| Доставка в хост | спільний dist (local link), A* **off** зараз; enable = видима зміна в живому стенді → координація cass + golden | факт №5б; `work/reports/extensibility/REPORT.md §6` |
+
+**Наслідок для spec-flow A*-enable:** це host-visible незворотна зміна роутингу — потребує golden/integration-rebaseline, координації cass (спільний dist), і рішення, чи `DEFAULT_STAFF_ASTAR=true` глобально vs per-host-прапор `useAstar`. T128-гарантії §10 — перевірити стан перед enable.
 
 Три наслідки, кожен із яких агент зрозуміє неправильно, якщо не сказати:
 
@@ -455,7 +514,7 @@ Host fetch → DataMapper? → OrgHierarchyDiagram.create(el, { data, mappers, c
 
 Публічні входи: `.` / `./react` / `./worker` / `./mappers`. React — **optional peer**; Pixi — runtime dep SDK ([`packages/sdk/package.json`](../packages/sdk/package.json)). Persist drag/layout — лише `onLayoutChange`, SDK не пише на бекенд (REQUIREMENTS §8). Cutover GoJS у **цьому** репо закритий ([PARITY §3](./tasks/PARITY-gojs-to-dg.md)).
 
-🔴 **Але «cutover закритий» стосується лише цього репо, і плутати ці дві речі — найдорожча помилка на цій сторінці.** Хост SDK **не імпортує** й лишається на GoJS 3.0.26 за чинним `ADR-0034` — див. архітектурний факт №5. Два функціональні порівняння, зняті читанням **обох** кодових баз 2026-09-06:
+🔴 **Але «cutover закритий» стосується лише цього репо, і плутати ці дві речі — найдорожча помилка на цій сторінці.** Станом на 2026-09-06 хост SDK **не імпортував** і лишався на GoJS 3.0.26 за `ADR-0034`; з 2026-11-03 його ШПС уже на dg, а org-діаграма — ще на GoJS (оновлення №5б факту №5). Два функціональні порівняння, зняті читанням **обох** кодових баз 2026-09-06:
 
 | Звіт | Підсумок |
 |---|---|

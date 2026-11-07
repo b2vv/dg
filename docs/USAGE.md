@@ -79,7 +79,7 @@ diagram.destroy();               // обов'язково: звільняє Pixi
 | `departments` | відділи; саме за ними малюються контури |
 | `persons` | люди (`fullName`, `photoUrl` / `media`) |
 | `positions` | **посади** — головна сутність штатки |
-| `reportLines` | звʼязки `admin` / `matrix` / `dotted` між посадами |
+| `reportLines` | звʼязки `admin` / `matrix` / `dotted` між посадами; `payload?` — ваші дані на лінку, SDK їх не читає, лише віддає назад (`incomingLink` у контекстному меню). Reparent створює **новий** лінк без `payload` |
 | `orgLinks` | звʼязки між організаціями (опційно) |
 
 Три речі, на яких найчастіше спотикаються:
@@ -129,6 +129,7 @@ const mappers = {
 | Ключ | Навіщо |
 |---|---|
 | `theme` | `'light' \| 'dark' \| 'auto'` |
+| `nodeView` | Optional `NodeView` factory for staff-position visuals; omitted uses the built-in card unchanged (see below). |
 | `styles` | часткове перевизначення `NodeTheme` (кольори, розміри карток, edge-стиль) |
 | `render` | `RenderConfig`: `cellWidth/cellHeight`, `paddingCells`, `smoothIterations`, `magnetRadius`, `minContourMembers`, `corridorCells`, `departmentStyle`, `staffZoneChrome` |
 | `staffLayout` | геометрія штатки: `nodeWidth/Height`, `refCellWidth/Height`, `horizontalGap`, `verticalGap`, `tierGap`, `margin`, `maxExpandedPositions` |
@@ -136,12 +137,108 @@ const mappers = {
 | `staffCurrentOrgId` | яка org у центрі (ярус 2) |
 | `useWorker`, `workerPoolSize`, `workerFactory` | воркери під contour/search/map |
 | `lodThresholds` | межі far/mid/near |
+| `animate` | Opt-in переходи ШПС; дефолт `false`. `AnimateOption`: `true` / `false`, `smooth`, `snappy`, `gentle`, `instant`, `{ duration, bounce? }` (секунди) або `{ stiffness, damping, mass? }`. `true` = `smooth`. `instant`, reduced-motion та невалідна опція вимикають анімацію; невалідна опція дає попередження. |
+| `motionBlur` | **дефолт on.** Легкий velocity-blur на всю діаграму під час **пану**, знімається на settle. Сила — від екранної швидкості зсуву камери (зум блюриться лише через супутній зсув фокуса, не сам масштаб — v1). `{ maxPx, minSpeed, maxSpeed }` перевизначає пороги; **`false` вимикає**. Dead-zone тримає повільний пан чітким; **завжди вимкнено під `prefers-reduced-motion: reduce`**. SDK **володіє** `filter`/`willChange` на mount-елементі поки увімкнено (не застосовуйте власний CSS-`filter` на той самий mount — його затре; на clear ставиться `''`). Один CSS-фільтр на mount блюрить і canvas, і promote-overlay — але overlay лише якщо його змонтовано на **той самий** mount (`createReactPromoteOverlay({ mount })`) |
+| `staffRefitOnToggle` | **Opt-in, дефолт off.** Після згортання або розгортання через `togglePositionExpand` вписує staff org-бокс у камеру. `true` використовує дефолти `computeStaffFit`; об’єкт `StaffFitOptions` перевизначає їх. Без staff chrome org-боксу лишається звичайний `panToNode`. Не впливає на `revealPath`, `expandToDepth` чи `collapsePositionSubtree`. |
 | `renderer` | **`'auto'` (default) \| `'webgl'` \| `'canvas'`** — який рушій малює сцену (нижче) |
+| `onMarquee` | Opt-in additive Shift+drag selection. `(rect: MarqueeRect \| null) => void`; world-space rectangle for host drawing, emitted per frame during the gesture. |
+| `wheel` | `WheelConfig`: wheel behavior and gestures; defaults to modifier zoom and no Shift+wheel interception (below). |
 | `callbacks` | див. §9 |
 
 `setStyles(partial: NodeThemeOverrides | undefined): Promise<void>` замінює style-overrides
 під час роботи й перемальовує діаграму, симетрично `setTheme()` для зміни активної теми.
 `setStyles(undefined)` прибирає overrides і повертає дефолти активної теми.
+
+### Custom staff-position visuals (`nodeView`)
+
+`OrgHierarchyConfig.nodeView` is opt-in. Without it, the renderer uses the built-in
+`PersonNodeView` card unchanged. `NodeView`, `NodeViewInput`, `NodeViewContext`,
+`SimpleNodeView`, and `RetainedNodeView` are exported from `@org-hierarchy/sdk`.
+
+Two forms are supported:
+
+- **Simple:** `(node, ctx) => Container`. Return a fresh Pixi `Container`; on an
+  update, the SDK destroys the previous visual and invokes the function again.
+- **Retained:** `{ create(node, ctx) { return { root, update(node, ctx), destroy() }; } }`.
+  `root` is a Pixi `Container`. The retained pool reuses entries by position id and
+  calls `update` with current inputs; `destroy` releases the visual when its entry
+  leaves the pool or the pool is cleared.
+
+The host returns a visual in **local coordinates**, around `(0, 0)`. The SDK owns
+scene placement and transforms; do not compute world coordinates in the factory.
+`node` provides `kind: 'position'`, `id`, the `position`, and optional person `data`
+(undefined for a vacancy). `ctx` provides the current `lod` and read-only theme context.
+
+```ts
+import { Container, Text } from 'pixi.js';
+import type { SimpleNodeView } from '@org-hierarchy/sdk';
+
+const nodeView: SimpleNodeView = (node, ctx) => {
+  const root = new Container();
+  root.addChild(new Text({ text: node.position.title }));
+  root.label = `${node.id}:${ctx.lod}`;
+  return root;
+};
+const diagram = await OrgHierarchyDiagram.create(container, { data, nodeView });
+```
+
+### Wheel gestures and keyboard zoom
+
+Set `OrgHierarchyConfig.wheel` at creation. `WheelConfig` and `WheelBehavior` are
+exported types from `@org-hierarchy/sdk`:
+
+```ts
+const diagram = await OrgHierarchyDiagram.create(container, {
+  data,
+  wheel: {
+    behavior: 'zoom-modifier',
+    gestures: { zoom: 'ctrl', panHorizontal: false },
+  },
+});
+```
+
+Omitting `wheel` uses the values shown above. `behavior` accepts:
+
+- `'zoom-modifier'` (default): ordinary wheel pans; the zoom modifier zooms at the pointer.
+- `'zoom'`: ordinary wheel zooms at the pointer without a modifier.
+- `'pan'`: wheel only pans; use buttons or keyboard for zoom.
+
+`gestures.zoom` accepts `'ctrl'` (default), `'meta'`, or `'none'`. On non-Mac
+platforms, `'ctrl'` and `'meta'` select the modifier for `'zoom-modifier'` mode.
+On **Mac, both Ctrl and ⌘ zoom**, preserving trackpad pinch (synthetic Ctrl+wheel);
+**⌘ is recommended** for explicit wheel zoom. This is not an exclusive remap:
+choosing `'meta'` on Mac does not disable Ctrl/pinch. `'none'` disables wheel zoom,
+including in `'zoom'` mode. `'pan'` ignores the zoom modifier setting.
+
+Shift takes precedence: `gestures.panHorizontal` defaults to `false`, so the SDK
+leaves Shift+wheel unhandled, without preventing its default action. **Default
+behavior change: Shift+wheel no longer pans horizontally.** Restore the previous
+behavior by opting out of this default with `gestures: { panHorizontal: 'shift' }`.
+
+With the canvas focused, **Ctrl/⌘ + `+`, `-`, or `=`** zooms around its center.
+Keyboard zoom remains available regardless of the wheel configuration.
+
+The SDK exposes this **stable gesture contract** so a host's on-screen legend or
+hint can accurately describe the active configuration and platform. Drawing the
+hint overlay is the host's responsibility.
+
+### Marquee selection (opt-in)
+
+Set `OrgHierarchyConfig.onMarquee` at creation to enable **Shift + left drag on empty
+canvas**. The callback receives a `MarqueeRect` (`{ x, y, width, height }`, exported
+from `@org-hierarchy/sdk`) in **world coordinates**, on each pointer move during the drag.
+`null` means the rectangle ended or was cancelled. The host draws and removes the
+rubber-band in its own style, projecting world coordinates through the current
+viewport as needed; the SDK owns hit testing and selection.
+
+Marquee selection is always additive: intersecting nodes join the existing selection,
+with duplicates removed and selection order preserved. An empty marquee leaves the
+selection unchanged. Changes use the same `onSelectionChange` callback as other selection
+operations. Plain drag still pans. Without `onMarquee`, marquee is disabled and
+Shift+drag keeps its existing pan behavior: no host behavior changes until opt-in.
+A throwing `onMarquee` is isolated; later frames and selection still run, with one
+`console.warn` per diagram instance. Destroy clears the renderer sink; the host should
+also dispose its rubber-band presentation when disposing the diagram.
 
 ### `renderer` — на чому малювати
 
@@ -299,6 +396,20 @@ await diagram.collapsePositionSubtree('pos-9');
 та id відкинутих організацій (`Tier3 expand ignored (exceeds maxExpandedOrgCards=1): org-8,
 org-9`).
 
+**Згортання посад — вроджене, за роллю ярусу (не опція).** Бібліотека завжди прунить згорнуті
+піддерева; окремого прапора-вмикача немає. Дефолтний стан розгортання рахується за роллю org
+(SPEC §2.2):
+
+- **ярус 2 — поточна org** (`staffCurrentOrgId`): усі посади розгорнуті;
+- **ярус 1 — керуюча** та **ярус 3 — підпорядковані** org: лише керівна посада (head-only);
+  розгортання голови відкриває її прямий керівний склад.
+
+`position.expanded` — три-стан: `true` показує піддерево, `false` явно згортає, а відсутнє/`undefined`
+бере рольовий дефолт вище. `togglePositionExpand(id)` перемикає стан на будь-якому шляху рендеру
+(включно зі штаткою-alpha) і **змінює набір видимих вузлів**, а не лише камеру. Хост, що хоче
+дрібнішу початкову глибину у великій поточній org, виставляє `expanded: false` на потрібних
+посадах (або `expandToDepth`); читабельність повного розгортання тримає нижній зум-кламп (нижче).
+
 ---
 
 ## 8. Робота з вузлами
@@ -315,6 +426,8 @@ const found = await diagram.searchAll('ada', 0);
 
 // фокус: розкрити шлях, вибрати, підвести камеру
 await diagram.revealPath(hits[0].node.id);
+// розкрити шлях і підвести камеру без зміни вибору
+await diagram.revealPath(hits[0].node.id, { select: false });
 await diagram.focusNode('pos-9');             // false, якщо id невідомий
 
 // вибір
@@ -333,7 +446,29 @@ diagram.setZoom(1);
 diagram.resetView();
 diagram.getViewport();                        // { x, y, scale }
 diagram.getLodLevel();                        // 'far' | 'mid' | 'near'
+
+// точки вузла — камеру вже застосовано, хост нічого не множить сам
+diagram.nodeCanvasPoint('pos-9');             // { x, y } у пікселях канви | null
+diagram.nodeCenter('pos-9');                  // { x, y } у client-пікселях (вікно) | null
+diagram.expanderCenter('org-2');              // центр кнопки розгортання, client | null
 ```
+
+`revealPath(nodeId, options?: RevealPathOptions)` розкриває шлях організацій і всі згорнуті адміністративні посади-предки
+цілі; для персони ціль — посада, яку вона займає. За кількох адміністративних батьків
+розкриваються всі шляхи. Ліміт `staffLayout.maxExpandedPositions` тут не діє, щоб витіснення
+не сховало ціль знову. Обидва шляхи малюються одним кадром; після успішного кадру SDK
+надсилає `onPositionExpandChange` з `changedIds` розкритих предків і
+`onLayoutChange({ type: 'position-expand', … })`, потім підводить камеру до цілі.
+За замовчуванням `select: true` також вибирає ціль, як і раніше.
+Опція `{ select: false }` не змінює поточний вибір і не викликає `onSelectionChange`;
+для персони камера підводиться до її посади. Уже розкритий шлях
+не потребує додаткового кадру чи події розгортання посад. Якщо рендер відмовив, SDK
+відновлює дані й набір розкритих посад, кидає помилку далі та не надсилає подію розгортання посад.
+
+Точки рахуються на кожен виклик, тож ідуть за камерою. `null` — вузла немає в сцені, кнопки в
+цьому кадрі немає (лист, далекий LOD, chrome вимкнено) або діаграму знищено; винятку немає.
+`expanderCenter` поки знає лише кнопки організацій. Шеврон, який хост малює сам у своєму
+overlay, — його DOM: хост читає `getBoundingClientRect()` власного елемента.
 
 Жести на канвасі: `Ctrl`/`⌘` + колесо — зум, просто колесо — панорама, `Shift`/`⌘` + клік —
 множинний вибір.
@@ -484,7 +619,7 @@ await diagram.media.refresh({ kind: 'organization', id: 'org-7' });
 await OrgHierarchyDiagram.create(el, {
   data,
   callbacks: {
-    onNodeClick: (node) => {},
+    onNodeClick: (node, { modifiers }) => {},  // { shiftKey, ctrlKey, metaKey }
     onNodeDoubleClick: (node) => {},
     onSelectionChange: (nodes) => {},
     onBackgroundClick: () => {},
@@ -496,6 +631,7 @@ await OrgHierarchyDiagram.create(el, {
     onLayoutDiagnostics: (messages) => {},      // див. §12
     onViewportChange: (t, meta) => {},          // камера/ресайз — див. §11
     onContextMenu: (request) => request.items,  // повернути false → меню не показувати
+                                                // request.incomingLink — admin-лінк у вузол | null
     onContextMenuAction: (item, request) => {},
     onSeatCollision: async (request) => ({ kind: 'swap' }),  // див. нижче; null = скасувати
   },
@@ -534,12 +670,13 @@ callbacks: {
 `onBackgroundClick`, SDK все одно очистить виділення.
 
 ⚠️ **На `reason: 'reveal-rollback'` кадру немає взагалі** — і не через вас. Рендер там **уже
-відмовив**, стан повернуто назад, а одразу за подією летить виняток `revealPath`. Тобто з семи
+відмовив**, стан організацій і розкритих посад повернуто назад, а одразу за подією летить виняток `revealPath`. Тобто з семи
 точок емісії «кадр буде» тримається на шести, а на сьомій його не буде незалежно від вашого
 обробника. Хост, що прочитає гарантію як «після будь-якої події буде кадр», помилиться саме в
 обробці відмови.
 
-Ця гарантія стосується лише `onBackgroundClick` і `onOrgExpandChange`; інші колбеки її поки не мають —
+The error-reporting guarantee below applies to `onBackgroundClick` and `onOrgExpandChange`.
+`onMarquee` also isolates throws, but warns once as documented in §6. Other callbacks do not yet have this guarantee —
 зокрема виняток з `onOrgModeChange` усе ще може скасувати кадр, тому хост не повинен її узагальнювати.
 Помилка йде в `console.error` зі стабільним префіксом `'OrgHierarchyDiagram: '` і з оригінальним
 `Error`. У `getLayoutDiagnostics()` її **немає**: §12 описує інший канал — діагностику розкладки,
@@ -730,6 +867,49 @@ await diagram.appendData(nextChunk, { append: async (c) => mapChunk(c) });
 await diagram.setData(newWindow);
 ```
 
+### Лічильники підлеглих і доступ до одного вузла
+
+Після `setData` і `appendData` SDK обчислює `childrenCount` (кількість прямих admin-ребер)
+і `allDescendantCount` (унікальні транзитивні admin-нащадки без самої посади) для **всіх**
+посад, включно з непідпорядкованими коренями. Обидва кінці ребра мають бути у поточному
+наборі positions; matrix/dotted і self-loop ребра не враховуються. Цикли та дубль-ребра
+не зациклюють обхід. Лічильники, передані хостом, завжди перезаписуються; у листів обидва
+поля видаляються (`undefined`), тому футер картки прихований. Сайдбар може читати `?? 0`.
+Організаційні лічильники лишаються даними хоста.
+
+Хост читає результат через `diagram.getData().positions` або через новий
+`diagram.getNode(ref: NodeRef): DiagramNode | null`. Невідомий kind/id повертає `null`.
+Тип `DiagramNode` експортується з `@org-hierarchy/sdk`; сигнатура `onNodeClick` не змінена:
+
+```ts
+callbacks: {
+  onNodeClick(ref) {
+    const node = diagram.getNode(ref);
+    const data = node?.getData();
+    if (ref.kind === 'position' && data && 'title' in data) {
+      showCounts(data.childrenCount ?? 0, data.allDescendantCount ?? 0);
+    }
+    console.log(node?.getState());
+  },
+}
+```
+
+`node.ref` — незмінний ref. `node.getData()` читає поточний об'єкт position/organization/person
+за kind/id та повертає **shallow clone одного об'єкта**, без клонування сцени. Зміни полів
+верхнього рівня копії не змінюють SDK; вкладені масиви й об'єкти спільні, їх не мутуйте.
+Збережений accessor читає нові дані після наступного `setData`; якщо вузол видалено,
+`getData()` поверне `null` — перед читанням стану перевірте наявність даних.
+
+`node.getState()` повертає `{ selected, hovered, expanded, collapsed }`:
+
+- `selected` — входження kind/id у поточний вибір;
+- `hovered` — id збігається з поточним `highlightedNode` (зокрема від `highlightPath`);
+- для посади `expanded` враховує `position.expanded === true` і набір розгорнутих посад;
+  `collapsed` означає наявність admin-дітей при відсутньому розгортанні;
+- для org `expanded` означає розгорнуту tier-3 картку **останнього успішно намальованого
+  кадру**, `collapsed` — протилежне значення; це не org-tree режим;
+- для person `expanded` і `collapsed` завжди `false`.
+
 ### Вікно, що їде за камерою
 
 Щоб вікно рухалось саме, а не лише по явній дії, слухайте камеру:
@@ -862,7 +1042,7 @@ const promote = createReactPromoteOverlay({
 |---|---|---|
 | `shouldPromote(node)` | усі кандидати | хост виключає ноду з підйому. Нода, для якої `false`, лишається **намальованою на канвасі** — порожньої оболонки в DOM не з'являється |
 | `maxPromoted` | без стелі | стеля кількості; лишаються найближчі до **центру екрана** |
-| `settleMs` | `150` | скільки камера має стояти, перш ніж позиції перерахуються. Під час руху шар їде **одним CSS-трансформом**, картки не перераховуються |
+| `settleMs` | `150` | скільки камера має стояти, перш ніж позиції перерахуються. Під час руху шар їде **одним CSS-трансформом**, картки не перераховуються. Стосується **лише руху камери**: структурна зміна (LOD-перехід, `setData`, згортання/розгортання) ресинкає оверлей **негайно**, не чекаючи `settleMs` — інакше картки висіли б на старих місцях (ghost) або нода ховалась би в Pixi без картки на її місці |
 | `onSlotError(id, err)` | — | компонент картки кинув. Картку знято, нода **повернулась на канвас**; вона більше не піднімається до кінця життя оверлея |
 | `backdrop` | — | компонент, намальований **один раз під картками** у тому ж camera-synced шарі (той самий transform, без другого root і без desync на пані). Отримує `{ viewport, screen, lod }` — ті самі, для яких зібрано картки. Використовує ШПС near-view, щоб малювати рамки департаментів/організацій і лінії зв'язку під картками-посадами. `pointerEvents: none`, як і решта шару |
 
@@ -892,6 +1072,103 @@ const promote = createReactPromoteOverlay({
 ⚠️ **Зняття режиму помилки не дає.** Повернувши `mode` на `'near-selection'`, ви **не**
 отримаєте попередження — поведінка тихо повернеться до підйому **виділеної** ноди. Якщо після
 зміни режиму на екрані одна картка замість багатьох, це не збій.
+
+### Підготовка promote-оверлея до руху камери
+
+`subscribePromoteSync` передає `PromoteSyncReason`: `camera`, `structural`,
+`prepare-camera` або `transition`. Сигнал `prepare-camera` надходить під час opt-in refit після
+`togglePositionExpand`, **якщо переходи `animate` вимкнені**, коли камера вже тимчасово стоїть
+у цільовому кадрі.
+`createReactPromoteOverlay` синхронно будує й комітить картки цього кадру через
+`flushSync`, після чого SDK повертає камеру на старт і запускає штатну анімацію.
+Звичайний `structural` зберігає попередній режим React commit; `camera` переносить
+шар CSS-трансформом і перебудовує після settle. Власні слухачі можуть ігнорувати
+невідомі причини; наявні `camera` та `structural` залишаються без змін.
+
+### Переходи ШПС (`animate`)
+
+`animate` задається при `OrgHierarchyDiagram.create`. Reduced-motion
+(`prefers-reduced-motion: reduce`) читається **лише при створенні**, як у `motionBlur`:
+зміна налаштування ОС посеред сесії не змінює вже створену діаграму.
+Без `animate` зберігається попередній шлях рендера без анімаційного циклу.
+
+Переходи застосовуються до `togglePositionExpand`, `revealPath`, `expandToDepth`,
+`collapsePositionSubtree`, `setData` та редагувань даних. Перший рендер, зміна LOD,
+теми, стилів і resize завершують рух одразу. При `staffRefitOnToggle` разом з
+увімкненими переходами `prepare-camera` не надсилається: камера фітиться без
+окремого твіна після settle, за кінцевою геометрією хрому.
+
+**Увага для власних слухачів `subscribePromoteSync`:** `transition` надходить
+**щокадру всім підписникам**. Ігноруйте його або обробляйте дешево; не перебудовуйте
+весь DOM/React-дерево на кожному кадрі. Вбудований promote-оверлей рухає наявні
+картки CSS-трансформами. Виняток одного слухача на `transition` дає одне
+`console.warn` для цього слухача й не блокує інших слухачів та наступні кадри.
+Після завершення переходу надходить `structural`.
+
+`diagram.getTransitionFrame()` повертає `TransitionFrame | null`: поточні світові
+бокси за ключем `kind:id`, з `x`, `y`, `w`, `h`, `scale`, `opacity`, `phase`;
+`null` означає відсутність активного переходу. `nodeCenter` та тестові якорі
+залишаються в **кінцевих** позиціях. Експорт спочатку миттєво завершує перехід,
+тому PNG/PDF знімають кінцеву сцену; `destroy()` зупиняє анімаційний цикл.
+
+### Геометрія хрому ШПС для хоста (Б2)
+
+Коли хост малює near-view хром ШПС (рамки відділів, рамку організації, лінії звʼязків) власним
+React-оверлеєм замість Pixi, він **не повинен рахувати геометрію сам** — бере її з SDK:
+
+```ts
+const geom = diagram.getStaffChromeGeometry();   // StaffChromeGeometry | null
+// geom.org    — рамка поточної організації (AABB + відступи), світові координати
+// geom.depts  — рамки відділів з name/count
+// geom.lines  — лінії звʼязків; під час руху []
+// geom.linesOpacity — опційна прозорість ліній (для fade; за відсутності — 1)
+// geom.nodeBoxes — бокси посад за id (хост малює навколо знайденої картки)
+```
+
+Під час переходу рамки відповідають поточному кадру, `lines: []` ховає звʼязки,
+а після settle повертаються кінцеві лінії. Адитивне опційне поле `linesOpacity`
+дозволяє хосту врахувати fade. У спокої повертає геометрію **останнього** рендеру, що намалював цей хром; `null` до першого рендеру і
+коли хром не малювався (org-view, grid, оверлей не змонтовано). Це **той самий** розрахунок, що
+й Pixi-сцена (єдине джерело — розкладка Rust), тож рамки й лінії не розходяться.
+
+**Контракт backdrop:** `render.staffReactChrome: true` означає **реально змонтований**
+backdrop хоста, який малює цей хром замість Pixi. Не залишайте прапорець увімкненим
+після демонтажу backdrop. Для власного життєвого циклу викликайте
+`await diagram.setStaffReactChromeMounted(true)` після монтування та
+`await diagram.setStaffReactChromeMounted(false)` під час демонтажу. Метод
+миттєво завершує поточний перехід і перемальовує сцену з відповідним власником
+хрому; при демонтажі лінії знову малює Pixi. Після `destroy()` це no-op.
+
+Відступ навколо рамки організації — set-once стан діаграми `render.staffChromePad`
+(`{ x, top, bottom? }`, дефолт `{x:20, top:44}`, `bottom` дефолтиться на `x`): числа —
+оформлення хоста, а застосування до extent (яке мусить враховувати fit) — у SDK, тож рамка, яку
+хост обрамляє, і рамка, яку SDK фітить, — одна й та сама. Значення — косметика, не геометрія, тож
+невалідне (негатив/NaN) **клампиться до 0** (не кидає помилку й ніколи не стискає рамку всередину
+її вмісту). `foundId` (яка посада «знайдена») — стан пошуку хоста, не геометрія,
+тож його в типі **нема**. Центрувати камеру на знайдену посаду — `focusNode`/`panTo`, не fit.
+
+**Обрамити організацію** — `fitStaffChrome(opts?)`:
+
+```ts
+const target = diagram.fitStaffChrome({ minScale: 0.55, maxScale: 1, axis: 'width', align: 'top' });
+// target: { x, y, scale } | null  — камера, на яку SDK перейшов (null, якщо хрому ще нема)
+```
+
+Фітить **padded org box** (не content-bounds, які фітить `fitView`), кламп `[minScale,maxScale]`
+(дефолт `0.55…1`), центр по горизонталі, `axis:'width'` (дефолт) — лише по ширині, щоб високе
+дерево не стиснулось нижче near-порога; `align:'top'` (дефолт) притискає верх box до `padding`
+(дефолт 48). `animate` (дефолт true) — SDK твінить камеру сам. Повертає target-трансформ або
+`null`, якщо хрому нема. Математику й рух робить SDK; **pre-build карток під target — хост**:
+прочитай повернутий target, пересинкай оверлей під нього (flushSync), тоді запускай анімацію —
+інакше картка, якої не було в стартовому кадрі, «вискочить» наприкінці.
+
+⚠️ `minScale`/`maxScale` додатково обмежені власним зум-клампом діаграми (дефолт `0.36…4`,
+налаштовується при створенні). Нижня межа `0.36` (#96) не дає fit великої повністю-розгорнутої
+штатки впасти до нечитабельного зуму — замість цього сцена скролиться. Повернений target несе
+scale, порахований із **запитаного**
+діапазону; якщо діапазон виходить за зум-кламп, камеру підріже далі — і target розійдеться з
+фактичною камерою. Дефолт `0.55…1` лежить усередині клампу — тримайся зум-меж, щоб target
+лишався правдивим.
 
 ---
 
@@ -1048,7 +1325,8 @@ sync (`replaceChildren`), тож handle, узятий до руху камери
   організація, **два**, якщо вона сама корінь. Без `rootOrgId` «нашими» вважаються всі корені.
   ⚠️ **Не передати опцію — підтримуваний стан:** тоді `collapsed` із даних лишається **недоторканим**.
   Прапорці це контракт хоста, і забирати їх без запиту означало б змінити сцени, які вже працюють.
-  Робиться **до** першого рендера — `revealPath` теж уміє розкривати, але вже поверх намальованого
+  Робиться **до** першого рендера — `revealPath` теж уміє розкривати org-шлях і адміністративних предків посади
+  (без ліміту `maxExpandedPositions`, із `onPositionExpandChange`), але вже поверх намальованого
   кадру, тобто зі стрибком.
 - **`initialExpand.revealNodeId` — глибоке посилання.** URL, що називає організацію, приводить на
   неї вже розкритою: шлях відкрито, камера на цілі, **діти цілі лишаються згорнутими**. Приймає
@@ -1221,3 +1499,88 @@ found-focus приглушені. Обидва стани незалежні: с
 Theme-поля в `styles`: `edge.accentColor` (default `0xe5491d`),
 `edge.accentWidth` (`2`), `edge.dimAlpha` (`0.40`), `foundDimAlpha` (`0.38`).
 Found-focus змінює лише canvas-картки; HTML overlay хост стилізує сам.
+
+
+### Interaction state: selection and transient hover
+
+`subscribeInteraction(callback: (state: InteractionState) => void): () => void`
+subscribes to changes in selection or hover and returns an idempotent unsubscribe
+function. It does not emit an initial snapshot or notify for unchanged values.
+`InteractionState` is exported from `@org-hierarchy/sdk`:
+
+```ts
+interface InteractionState {
+  readonly selected: readonly NodeRef[];
+  readonly primary: NodeRef | null;
+  readonly hovered: NodeRef | null;
+}
+
+const unsubscribe = diagram.subscribeInteraction((state) => {
+  // Render host interaction chrome from state.selected, state.primary and state.hovered.
+});
+diagram.setHovered(nodeRef); // setHovered(node: NodeRef | null): void
+diagram.setHovered(null);
+unsubscribe();
+```
+
+This API is additive: existing `onSelectionChange` behavior is unchanged and
+hover changes do not call it. `primary` is the first selected node; `selected`
+keeps selection order. Hover is transient, accepts unknown refs (no visible
+accent for absent nodes), and is cleared when data replacement removes its
+kind/id. Present nodes retain hover across `setData`. Subscriber exceptions are
+isolated and warned once per listener. Hover repaint does not rebuild the scene.
+
+Two pure related-set selectors are also exported for computing hover-related
+emphasis on the host side (both are derived on demand, never stored):
+`relatedStaffIds(lines, hoveredId): Set<string>` — the one-hop staff relation set;
+and `staffDimmedIds(hovered, lines, visiblePositionIds): Set<string>` — the
+positions to dim for a hovered staff position (empty for a non-position hover).
+
+### Host-created React overlay interaction
+
+`isSelected(ref: NodeRef): boolean` and `isHovered(ref: NodeRef): boolean` read
+selection and transient hover from the shared interaction store. Both compare
+kind and id, return false for nonmatching refs, and do not enable interaction
+wiring by themselves.
+
+`selectNode(ref: NodeRef, mods?: SelectionPointerMods): void` uses the same
+pointer-selection semantics as Pixi and repaints selection: Ctrl, Cmd, or Shift
+toggles membership (including removing an already selected node); without those
+modifiers it replaces the selection. Shift does not select a range. The existing
+`select(ref | null)` remains replace-only. `NodeRef` and `SelectionPointerMods`
+are exported from `@org-hierarchy/sdk`.
+
+The host creates the overlay and explicitly supplies its interaction adapter.
+For an overlay promoting position cards:
+
+```ts
+import type { NodeRef } from '@org-hierarchy/sdk';
+import {
+  createReactPromoteOverlay,
+  DefaultPromoteCard,
+  type ReactPromoteOverlayOptions,
+} from '@org-hierarchy/sdk/react';
+
+const posRef = (id: string): NodeRef => ({ kind: 'position', id });
+const interaction = {
+  isSelected: (id) => diagram.isSelected(posRef(id)),
+  isHovered: (id) => diagram.isHovered(posRef(id)),
+  subscribe: (callback) => diagram.subscribeInteraction(callback),
+  select: (id, mods) => diagram.selectNode(posRef(id), mods),
+  hover: (id, on) => diagram.setHovered(on ? posRef(id) : null),
+} satisfies NonNullable<ReactPromoteOverlayOptions['interaction']>;
+
+const overlay = createReactPromoteOverlay({
+  diagram, mount: el, component: DefaultPromoteCard, interaction,
+});
+// When the host unmounts:
+// overlay.dispose();
+```
+
+The adapter reflects and drives the **same interaction state as Pixi**, with no
+second selection or hover store. Keep the subscription wrapper so the diagram
+method retains its receiver. Map ids to the appropriate NodeRef kind for the
+cards your host promotes. Without the `interaction` opt-in (omitted or null),
+overlay interaction is inert: `selected`/`hovered` are false and
+`onSelect`/`onHover` are no-ops. Hover updates refresh affected slots without a
+full overlay sync; selection retains the existing structural promotion sync.

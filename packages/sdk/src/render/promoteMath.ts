@@ -66,6 +66,25 @@ export function worldBoxToScreen(box: WorldBox, viewport: ViewportTransform): Sc
 export type PromoteMode = 'off' | 'selection' | 'near-selection' | 'near-visible';
 
 /**
+ * Why the promote layer was asked to re-sync.
+ *
+ * `'camera'` — the viewport moved (pan/zoom). The layer rides one CSS catch-up
+ * transform and defers the real rebuild until the camera settles (`settleMs`),
+ * so a drag does not rebuild every frame.
+ *
+ * `'structural'` — the scene itself changed under a still (or unrelated) camera:
+ * a LOD transition or a layout change (expand/collapse, `setData`). Pixi has
+ * already moved/hidden its nodes, so the HTML layer must rebuild **now** rather
+ * than lag by `settleMs` — otherwise cards sit at stale positions (ghost) or a
+ * node is hidden in Pixi with no card drawn in its place (empty far frame).
+ * The safe default: a sync whose reason is unstated is `'structural'`.
+ *
+ * `'prepare-camera'` — the viewport temporarily holds the animation target.
+ * Build and commit its cards synchronously before the camera returns to start.
+ */
+export type PromoteSyncReason = 'camera' | 'structural' | 'prepare-camera' | 'transition';
+
+/**
  * The detail-band gate. It answers only "is this a zoom band where cards
  * deserve real chrome", because the band is the whole rule: the limit is zoom,
  * never a card count. A bigger screen shows more cards at the same zoom, and

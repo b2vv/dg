@@ -138,7 +138,11 @@ export interface DiagramPosition {
    * host HTML overlay; canvas state rendering is additive (follow-up).
    */
   external?: boolean;
-  /** Розмір картки (staff layout AABB) */
+  /**
+   * Розмір картки (staff layout AABB), **на картку**: хост подає калібровані висоти, розкладка
+   * їх споживає (на шляху alpha теж). Без значення — дефолт шляху (alpha: 300×112). Нуль,
+   * від'ємне чи не-число на alpha — помилка розкладки, не тихий фолбек.
+   */
   width?: number;
   height?: number;
   /** Примітивні координати (після drag) — локальні px org */
@@ -151,17 +155,19 @@ export interface DiagramPosition {
   /** Staff hierarchy band (block shift) */
   hierarchyLevel?: number;
   /**
-   * When true and `collapseUnexpandedPositions` is on, admin-report children are laid out.
-   * Default omitted/false — only honored when collapse mode is enabled (T66).
+   * Tri-state expand flag (#96, SPEC §2.2). `true` — this position's admin-report
+   * subtree is shown; `false` — explicitly collapsed. Omitted/`undefined` takes the
+   * role-based default: expanded in the current org (tier 2), collapsed in the
+   * leading/subordinate tiers (1/3). Prune is always on — there is no gate.
    */
   expanded?: boolean;
   /** Assignment / acting window on the seat (E7 chip). */
   periodStart?: string;
   periodEnd?: string | null;
   periodLabel?: string;
-  /** GoJS row 2 — direct report count badge. */
+  /** SDK-computed direct admin report count; absent on leaves. */
   childrenCount?: number;
-  /** GoJS row 2 — all descendant count badge. */
+  /** SDK-computed unique admin descendants; absent on leaves. */
   allDescendantCount?: number;
   /** Key position — brand stroke + name color (GoJS). */
   isKeyPosition?: boolean;
@@ -176,6 +182,12 @@ export interface DiagramReportLine {
   fromId: string;
   toId: string;
   kind: 'admin' | 'matrix' | 'dotted';
+  /**
+   * Host data riding on the link, opaque to the SDK: never read, only handed
+   * back (e.g. `ContextMenuNodeData.incomingLink`). A reparent makes a **new**
+   * link, so it carries no payload until the host's next `setData`.
+   */
+  payload?: unknown;
 }
 
 export interface DiagramOrgLink {

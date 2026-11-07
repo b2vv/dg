@@ -1,13 +1,22 @@
 import {
   Component,
   createElement,
+  createRef,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useReducer,
+  type RefObject,
   type ComponentType,
   type ReactElement,
   type ReactNode,
 } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { flushSync } from 'react-dom';
+import type { SelectionPointerMods } from '../interaction/selection.js';
 import type { ContextMenuNodeData } from '../interaction/contextMenuPayload.js';
 import type { NodeKind, NodeRef } from '../core/index.js';
+import type { TransitionFrame } from '../render/transition/types.js';
 import type { LodLevel } from '../render/lod.js';
 import type { PromoteCandidate, PromoteChrome } from '../render/promoteTypes.js';
 
@@ -20,8 +29,10 @@ import {
   screenRectInView,
   worldBoxToScreen,
   type PromoteMode,
+  type PromoteSyncReason,
   type ScreenRect,
 } from '../render/promoteMath.js';
+export type { PromoteSyncReason } from '../render/promoteMath.js';
 import type { ViewportTransform } from '../render/Viewport.js';
 
 /** A node's world rectangle and identity, without its card data. */
@@ -37,6 +48,8 @@ export interface PromoteBox {
 /** Narrow diagram surface for the promote host (avoids circular import with sdk index). */
 export interface PromoteOverlayDiagram {
   getViewport(): ViewportTransform;
+  /** Current animated world boxes, keyed by kind:id; absent for static hosts. */
+  getTransitionFrame?(): TransitionFrame | null;
   getLodLevel(): LodLevel;
   getSelection(): NodeRef | null;
   select(node: NodeRef | null): Promise<void>;
@@ -62,7 +75,15 @@ export interface PromoteOverlayDiagram {
   listPromoteBoxes(): readonly PromoteBox[];
   listPromoteCandidates(ids?: readonly string[]): PromoteCandidate[];
   setPromotedNodeIds(ids: readonly string[]): void;
-  subscribePromoteSync(listener: () => void): () => void;
+  /**
+   * The overlay re-syncs when this fires. `reason` says whether the camera moved
+   * (`'camera'` — ride the catch-up, rebuild on settle) or the scene changed
+   * structurally (`'structural'` — rebuild now). `'transition'` moves existing
+   * cards from getTransitionFrame without rendering their components.
+   * A listener is free to ignore the reason,
+   * but then an expand/LOD change lags by `settleMs`. See {@link PromoteSyncReason}.
+   */
+  subscribePromoteSync(listener: (reason: PromoteSyncReason) => void): () => void;
 }
 
 export interface PromoteSlotProps {
@@ -74,6 +95,10 @@ export interface PromoteSlotProps {
   viewport: ViewportTransform;
   /** Demote / clear selection helper from the host card. */
   onDemote: () => void;
+  selected: boolean;
+  hovered: boolean;
+  onSelect(mods?: SelectionPointerMods): void;
+  onHover(on: boolean): void;
 }
 
 /**
@@ -86,6 +111,19 @@ export interface PromoteBackdropProps {
   viewport: ViewportTransform;
   screen: { width: number; height: number };
   lod: LodLevel;
+  /**
+   * World→screen transform for THIS synced frame, as a `translate(..) scale(..)`
+   * string valid as both a CSS `transform` and an SVG `transform` attribute (Б2).
+   * Wrap the backdrop in ONE element carrying it and draw children in world coords,
+   * instead of mapping each point: a point (wx,wy) under `transform` with
+   * `transform-origin:0 0` lands where `worldPointToScreen(wx,wy,viewport)` would.
+   * Put HTML frames under a CSS-transformed div and connector lines under an SVG
+   * `<g transform>` with `vector-effect:non-scaling-stroke`, so the stroke stays
+   * crisp while the geometry scales. The overlay layer already carries the
+   * pan catch-up transform on top, so the backdrop stays aligned while the camera
+   * moves — keep the backdrop inside that layer.
+   */
+  worldTransform: string;
 }
 
 export interface ReactPromoteOverlayOptions {
@@ -101,6 +139,14 @@ export interface ReactPromoteOverlayOptions {
    * host it is NOT assumed — the host decides what to show per lod.
    */
   backdrop?: ComponentType<PromoteBackdropProps>;
+  /** Opt-in interaction state and actions; absent/null keeps cards passive. */
+  interaction?: {
+    isSelected(id: string): boolean;
+    isHovered(id: string): boolean;
+    subscribe(callback: () => void): () => void;
+    select(id: string, mods?: SelectionPointerMods): void;
+    hover(id: string, on: boolean): void;
+  } | null;
   mode?: PromoteMode;
   maxPromoted?: number;
   /**
@@ -138,8 +184,53 @@ export interface ReactPromoteOverlay {
   dispose: () => void;
 }
 
+/** Refresh chrome independently: host card components must not render on ticks. */
+function FrameBackdrop(props: {
+  component: ComponentType<PromoteBackdropProps>;
+  backdropProps: PromoteBackdropProps;
+  refreshRef: RefObject<{ refresh(): void } | null>;
+}): ReactElement {
+  const [, refresh] = useReducer((version: number) => version + 1, 0);
+  useImperativeHandle(props.refreshRef, () => ({ refresh }), [refresh]);
+  return createElement(props.component, props.backdropProps);
+}
+
+/** Interaction refresh stays inside one card, preserving geometry and resolved data. */
+function InteractionSlot(props: {
+  component: ComponentType<PromoteSlotProps>;
+  slot: PromoteSlotProps;
+  interaction: NonNullable<ReactPromoteOverlayOptions['interaction']>;
+}): ReactElement {
+  const { slot, interaction } = props;
+  const refreshRef = useRef<{ refresh(): void } | null>(null);
+  const [, refresh] = useReducer((version: number) => version + 1, 0);
+  useImperativeHandle(refreshRef, () => ({ refresh }), [refresh]);
+  const selected = interaction.isSelected(slot.id);
+  const hovered = interaction.isHovered(slot.id);
+  useLayoutEffect(() => {
+    let previousSelected = selected;
+    let previousHovered = hovered;
+    const check = (): void => {
+      const nextSelected = interaction.isSelected(slot.id);
+      const nextHovered = interaction.isHovered(slot.id);
+      if (nextSelected === previousSelected && nextHovered === previousHovered) return;
+      previousSelected = nextSelected;
+      previousHovered = nextHovered;
+      refreshRef.current?.refresh();
+    };
+    const unsubscribe = interaction.subscribe(check);
+    // Cover changes between render and subscription. Unmount (including dispose)
+    // releases this slot's subscription even when its error boundary drops it.
+    check();
+    return unsubscribe;
+  }, [interaction, slot.id, selected, hovered]);
+  return createElement(props.component, { ...slot, selected, hovered });
+}
+
 function OverlayRoot(props: {
   slots: PromoteSlotProps[];
+  interaction?: ReactPromoteOverlayOptions['interaction'];
+  backdropRef: RefObject<{ refresh(): void } | null>;
   component: ComponentType<PromoteSlotProps>;
   onSlotError(id: string, error: unknown): void;
   className?: string;
@@ -152,7 +243,11 @@ function OverlayRoot(props: {
     ? createElement(
         'div',
         { key: '__backdrop', 'data-promote-backdrop': '', style: { display: 'contents' } },
-        createElement(props.backdrop, props.backdropProps),
+        createElement(FrameBackdrop, {
+          component: props.backdrop,
+          backdropProps: props.backdropProps,
+          refreshRef: props.backdropRef,
+        }),
       )
     : null;
   return createElement(
@@ -170,17 +265,29 @@ function OverlayRoot(props: {
     },
     backdropEl,
     props.slots.map((slot) =>
-      // `display: contents` keeps this wrapper out of layout entirely — the
-      // host's card positions itself exactly as it would without it — while
-      // still putting a node in the tree that `closest()` can find. That is how
-      // a focused element inside a card is traced back to which card it is.
+      // Static hosts retain display:contents. During motion applyFrame makes
+      // this a full-layer transform surface, preserving host absolute coordinates.
       createElement(
         'div',
-        { key: slot.id, 'data-promote-slot': slot.id, style: { display: 'contents' } },
+        {
+          key: slot.id,
+          'data-promote-slot': slot.id,
+          style: { display: 'contents' },
+          ref: (element: HTMLDivElement | null) => {
+            if (!element) return;
+            element.style.display = 'contents';
+            element.style.position = '';
+            element.style.inset = '';
+            element.style.transform = '';
+            element.style.opacity = '';
+          },
+        },
         createElement(
           SlotBoundary,
           { id: slot.id, onError: props.onSlotError },
-          createElement(props.component, { ...slot }),
+          props.interaction
+            ? createElement(InteractionSlot, { component: props.component, slot, interaction: props.interaction })
+            : createElement(props.component, { ...slot }),
         ),
       ),
     ),
@@ -287,6 +394,9 @@ export function createReactPromoteOverlay(
   let syncedViewport: ViewportTransform | null = null;
   let settleHandle: ReturnType<typeof setTimeout> | null = null;
   let appliedTransform = '';
+  const backdropRef = createRef<{ refresh(): void }>();
+  let renderedSlots: PromoteSlotProps[] = [];
+  let currentFrame: TransitionFrame | null = null;
   const settleMs = options.settleMs ?? 150;
 
   const cancelSettle = (): void => {
@@ -318,6 +428,35 @@ export function createReactPromoteOverlay(
     void options.diagram.select(null);
   };
 
+  const frameWorld = (
+    kind: NodeKind,
+    id: string,
+    fallback: { x: number; y: number; width: number; height: number },
+  ): { x: number; y: number; width: number; height: number } => {
+    const box = currentFrame?.get(id.startsWith(`${kind}:`) ? id : `${kind}:${id}`);
+    return box ? { x: box.x, y: box.y, width: box.w, height: box.h } : fallback;
+  };
+
+  const applyFrame = (frame: TransitionFrame): void => {
+    if (!syncedViewport) return;
+    const slots = new Map(renderedSlots.map((slot) => [slot.id, slot]));
+    for (const element of layer.querySelectorAll<HTMLElement>('[data-promote-slot]')) {
+      const slot = slots.get(element.getAttribute('data-promote-slot') ?? '');
+      if (!slot) continue;
+      const kind = slot.node.ref.kind;
+      const box = frame.get(slot.id.startsWith(`${kind}:`) ? slot.id : `${kind}:${slot.id}`);
+      if (!box) continue;
+      const dx = box.x * syncedViewport.scale + syncedViewport.x - slot.screenRect.left;
+      const dy = box.y * syncedViewport.scale + syncedViewport.y - slot.screenRect.top;
+      element.style.display = 'block';
+      element.style.position = 'absolute';
+      element.style.inset = '0';
+      element.style.transformOrigin = `${slot.screenRect.left}px ${slot.screenRect.top}px`;
+      element.style.transform = `translate(${dx}px, ${dy}px) scale(${box.scale})`;
+      element.style.opacity = String(box.opacity);
+    }
+  };
+
   /**
    * Ids worth resolving, already narrowed to what is on screen.
    *
@@ -331,7 +470,7 @@ export function createReactPromoteOverlay(
   ): string[] => {
     const ids: string[] = [];
     for (const box of options.diagram.listPromoteBoxes()) {
-      if (screenRectInView(worldBoxToScreen(box, viewport), screen)) ids.push(box.id);
+      if (screenRectInView(worldBoxToScreen(frameWorld(box.kind, box.id, box), viewport), screen)) ids.push(box.id);
     }
     return ids;
   };
@@ -383,7 +522,7 @@ export function createReactPromoteOverlay(
     if (ids.length === 0) return slots;
     for (const candidate of options.diagram.listPromoteCandidates(ids)) {
       if (failedIds.has(candidate.id)) continue;
-      const screenRect = worldBoxToScreen(candidate.world, viewport);
+      const screenRect = worldBoxToScreen(frameWorld(candidate.kind, candidate.id, candidate.world), viewport);
       if (!screenRectInView(screenRect, screen) && candidate.id !== sticky) continue;
       if (options.shouldPromote && !options.shouldPromote(candidate.node)) continue;
       slots.push({
@@ -393,6 +532,10 @@ export function createReactPromoteOverlay(
         chrome: scaleChrome(options.diagram.getPromoteChrome(candidate.kind), viewport.scale),
         viewport,
         onDemote: demote,
+        selected: false,
+        hovered: false,
+        onSelect: (mods) => { options.interaction?.select(candidate.id, mods); },
+        onHover: (on) => { options.interaction?.hover(candidate.id, on); },
       });
     }
     return slots;
@@ -419,6 +562,7 @@ export function createReactPromoteOverlay(
   const sync = (): void => {
     if (disposed || !root) return;
     cancelSettle();
+    currentFrame = options.diagram.getTransitionFrame?.() ?? null;
     const viewport = options.diagram.getViewport();
     // Positions below are computed for this camera, so the layer must not be
     // carrying a correction for an older one.
@@ -440,17 +584,29 @@ export function createReactPromoteOverlay(
     // nothing in its place: a hole in the scene rather than a promoted card.
     options.diagram.setPromotedNodeIds(capped.map((slot) => slot.id));
 
-    root.render(
+    renderedSlots = capped;
+    const render = (): void => root?.render(
       createElement(OverlayRoot, {
+        backdropRef,
         slots: capped,
+        interaction: options.interaction,
         component: options.component,
         onSlotError: handleSlotError,
         className: options.className,
         backdrop: options.backdrop,
         // Same viewport/lod the cards were built for → one frame of reference.
-        backdropProps: { viewport, screen, lod },
+        backdropProps: {
+          viewport,
+          screen,
+          lod,
+          worldTransform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`,
+        },
       }),
     );
+    if (currentFrame) {
+      flushSync(render);
+      applyFrame(currentFrame);
+    } else render();
   };
 
   /**
@@ -480,7 +636,25 @@ export function createReactPromoteOverlay(
     }, settleMs);
   };
 
-  const unsubscribe = options.diagram.subscribePromoteSync(onCameraChange);
+  // A camera move rides the catch-up transform and rebuilds on settle; a
+  // structural change (LOD transition, layout/setData, expand) has already moved
+  // or hidden the Pixi nodes, so the HTML must rebuild in the same tick — else
+  // cards lag at stale positions (ghost) or a far node is hidden with no card in
+  // its place (empty frame). `sync()` cancels any pending camera settle on entry.
+  const unsubscribe = options.diagram.subscribePromoteSync((reason) => {
+    if (reason === 'transition') {
+      try {
+        const frame = options.diagram.getTransitionFrame?.();
+        if (!frame || disposed) return;
+        applyFrame(frame);
+        flushSync(() => backdropRef.current?.refresh());
+      } catch (error) {
+        console.warn('[org-hierarchy] promote transition failed', error);
+      }
+    } else if (reason === 'prepare-camera') flushSync(sync);
+    else if (reason === 'structural') sync();
+    else onCameraChange();
+  });
   sync();
 
   return {

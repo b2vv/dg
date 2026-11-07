@@ -25,6 +25,20 @@ import {
 } from './mockups.js';
 import { buildStaffTreeData } from './staffTree.js';
 
+// #96: prune is always on and this census calls `layoutStaffCanvas` directly
+// (no OrgHierarchyDiagram seed). Mirror the role-based default (SPEC §2.2): the
+// current org is fully expanded, subordinate/leading orgs stay head-only.
+const withRoleDefault = (
+  layout: StaffLayoutOptions,
+  data: DiagramData,
+  currentOrgId: string,
+): StaffLayoutOptions => ({
+  ...layout,
+  expandedPositionIds: data.positions
+    .filter((p) => p.organizationId === currentOrgId)
+    .map((p) => p.id),
+});
+
 interface RouteCensus {
   tab: string;
   total: number;
@@ -122,7 +136,6 @@ const GOJS_LAYOUT: StaffLayoutOptions = {
   refCellWidth: 220,
   refCellHeight: 72,
   expandedOrgIds: ['unit-current'],
-  collapseUnexpandedPositions: false,
 };
 
 const TREE_LAYOUT: StaffLayoutOptions = {
@@ -136,7 +149,6 @@ const TREE_LAYOUT: StaffLayoutOptions = {
   orgCardHeight: 64,
   refCellWidth: 140,
   refCellHeight: 160,
-  collapseUnexpandedPositions: true,
 };
 
 describe('staff edge fallback census (demo tabs)', () => {
@@ -170,25 +182,29 @@ describe('staff edge fallback census (demo tabs)', () => {
     const rows = [
       censusTab(
         'Staff · Figma',
-        await layoutStaffCanvas(staffInput(figmaData), 'region', FIGMA_LAYOUT),
+        await layoutStaffCanvas(staffInput(figmaData), 'region', withRoleDefault(FIGMA_LAYOUT, figmaData, 'region')),
         figmaData,
         figmaPerson,
       ),
       censusTab(
         'Staff · Magnetic',
-        await layoutStaffCanvas(staffInput(magneticData), 'region', MAGNETIC_STAFF_LAYOUT),
+        await layoutStaffCanvas(
+          staffInput(magneticData),
+          'region',
+          withRoleDefault(MAGNETIC_STAFF_LAYOUT, magneticData, 'region'),
+        ),
         magneticData,
         magneticPerson,
       ),
       censusTab(
         'Staff · GoJS',
-        await layoutStaffCanvas(staffInput(gojsData), 'region', GOJS_LAYOUT),
+        await layoutStaffCanvas(staffInput(gojsData), 'region', withRoleDefault(GOJS_LAYOUT, gojsData, 'region')),
         gojsData,
         gojsPerson,
       ),
       censusTab(
         'Staff · tree',
-        await layoutStaffCanvas(staffInput(treeData), 'ops', TREE_LAYOUT),
+        await layoutStaffCanvas(staffInput(treeData), 'ops', withRoleDefault(TREE_LAYOUT, treeData, 'ops')),
         treeData,
         defaultNodeTheme.person,
       ),
@@ -204,7 +220,10 @@ describe('staff edge fallback census (demo tabs)', () => {
       { total: 0, forced: 0, dirty: 0 },
     );
 
-    expect(rows[0]?.total).toBe(11);
+    // #96: the Figma scene is multi-org; its current org (region) paints fully
+    // while subordinate orgs collapse to head-only (role default), so the edge
+    // count drops from the old gate-off full-scene total.
+    expect(rows[0]?.total).toBe(7);
     expect({
       total: totals.total,
       forced: totals.forced,
@@ -222,49 +241,39 @@ describe('staff edge fallback census (demo tabs)', () => {
       {
         "dirty": 0,
         "dirtyPct": 0,
-        "forced": 3,
-        "forcedPct": 8.33,
+        "forced": 2,
+        "forcedPct": 6.9,
         "tabs": [
           {
             "around": 0,
-            "direct": 10,
-            "dirty": 0,
-            "forced": 1,
-            "kinds": {
-              "admin": {
-                "dirty": 0,
-                "forced": 0,
-                "total": 9,
-              },
-              "dotted": {
-                "dirty": 0,
-                "forced": 0,
-                "total": 1,
-              },
-              "lead-org": {
-                "dirty": 0,
-                "forced": 1,
-                "total": 1,
-              },
-            },
-            "tab": "Staff · Figma",
-            "total": 11,
-          },
-          {
-            "around": 0,
-            "direct": 12,
+            "direct": 7,
             "dirty": 0,
             "forced": 0,
             "kinds": {
               "admin": {
                 "dirty": 0,
                 "forced": 0,
-                "total": 10,
+                "total": 6,
               },
-              "dotted": {
+              "lead-org": {
                 "dirty": 0,
                 "forced": 0,
                 "total": 1,
+              },
+            },
+            "tab": "Staff · Figma",
+            "total": 7,
+          },
+          {
+            "around": 0,
+            "direct": 8,
+            "dirty": 0,
+            "forced": 0,
+            "kinds": {
+              "admin": {
+                "dirty": 0,
+                "forced": 0,
+                "total": 7,
               },
               "lead-org": {
                 "dirty": 0,
@@ -273,18 +282,18 @@ describe('staff edge fallback census (demo tabs)', () => {
               },
             },
             "tab": "Staff · Magnetic",
-            "total": 12,
+            "total": 8,
           },
           {
             "around": 0,
-            "direct": 8,
+            "direct": 6,
             "dirty": 0,
             "forced": 1,
             "kinds": {
               "admin": {
                 "dirty": 0,
                 "forced": 0,
-                "total": 7,
+                "total": 5,
               },
               "dotted": {
                 "dirty": 0,
@@ -298,30 +307,35 @@ describe('staff edge fallback census (demo tabs)', () => {
               },
             },
             "tab": "Staff · GoJS",
-            "total": 9,
+            "total": 7,
           },
           {
             "around": 1,
-            "direct": 2,
+            "direct": 5,
             "dirty": 0,
             "forced": 1,
             "kinds": {
               "admin": {
                 "dirty": 0,
                 "forced": 0,
-                "total": 1,
+                "total": 3,
               },
               "lead-org": {
                 "dirty": 0,
                 "forced": 1,
                 "total": 3,
               },
+              "matrix": {
+                "dirty": 0,
+                "forced": 0,
+                "total": 1,
+              },
             },
             "tab": "Staff · tree",
-            "total": 4,
+            "total": 7,
           },
         ],
-        "total": 36,
+        "total": 29,
       }
     `);
   });

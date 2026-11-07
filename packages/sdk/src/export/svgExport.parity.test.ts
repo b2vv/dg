@@ -162,6 +162,8 @@ describe('buildDiagramSvg — per-kind stroke in SVG (R6-7, H3 style)', () => {
     const svg = await buildDiagramSvg({
       data,
       currentOrgId: 'org1',
+      // #96: prune is always on; expand the head so its admin edge survives.
+      staffLayout: { expandedPositionIds: ['ceo'] },
       config: { ...defaultRenderConfig, staffEdgeRouter: 'v2' },
     });
     const edgeGroup = svg.match(/<g id="edges">([\s\S]*?)<\/g>/)?.[1] ?? '';

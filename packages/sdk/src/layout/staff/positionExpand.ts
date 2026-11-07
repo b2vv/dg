@@ -1,5 +1,6 @@
 import type { DiagramPosition, DiagramReportLine } from '../../data/types.js';
 import { detachedRootIds, resolveStaffHead } from './resolveHead.js';
+import { StaffLayoutError } from './types.js';
 
 /** Admin children: reportLines fromId = manager, toId = report. */
 export function adminChildrenMap(
@@ -56,7 +57,17 @@ export function visiblePositions(
 
   const byId = new Map(inOrg.map((p) => [p.id, p]));
   const children = adminChildrenMap(inOrg, reports, orgId);
-  const headId = resolveStaffHead(inOrg, orgId, reports);
+  // #96: prune is unconditional, so `visiblePositions` now runs on scenes that
+  // the gate used to spare — including a matrix/headless org with no resolvable
+  // head. Without a root there is no tree to collapse, so degrade to showing all
+  // (the pre-#96 gate-off behaviour) instead of throwing.
+  let headId: string;
+  try {
+    headId = resolveStaffHead(inOrg, orgId, reports);
+  } catch (err) {
+    if (err instanceof StaffLayoutError) return inOrg;
+    throw err;
+  }
 
   const visible: DiagramPosition[] = [];
   const seen = new Set<string>();
@@ -178,4 +189,24 @@ export function victimsForExpand(
   const surplus = expandedIds.size - Math.max(0, max) + 1;
   if (surplus <= 0) return [];
   return [...expandedIds].slice(0, Math.min(surplus, expandedIds.size));
+}
+
+/** All admin ancestors, across every parent; the target itself is excluded on cycles. */
+export function adminAncestorIds(id: string, reports: readonly DiagramReportLine[]): Set<string> {
+  const parents = new Map<string, string[]>();
+  for (const r of reports) {
+    if (r.kind !== 'admin' || r.fromId === r.toId) continue;
+    const arr = parents.get(r.toId);
+    if (arr) arr.push(r.fromId);
+    else parents.set(r.toId, [r.fromId]);
+  }
+  const ancestors = new Set<string>();
+  const stack = [...(parents.get(id) ?? [])];
+  while (stack.length > 0) {
+    const p = stack.pop()!;
+    if (p === id || ancestors.has(p)) continue;
+    ancestors.add(p);
+    for (const gp of parents.get(p) ?? []) stack.push(gp);
+  }
+  return ancestors;
 }

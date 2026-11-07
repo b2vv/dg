@@ -43,6 +43,18 @@ export class LayerManager {
     this.dragPreview.eventMode = 'none';
   }
 
+  /** Preserve the displayed scene until its replacement is confirmed. */
+  detach(): Map<Container, Container[]> {
+    return new Map(this.root.children.map((layer) => [layer, layer.removeChildren()]));
+  }
+
+  restore(snapshot: ReadonlyMap<Container, readonly Container[]>): void {
+    this.clear();
+    for (const [layer, children] of snapshot) {
+      for (const child of children) layer.addChild(child);
+    }
+  }
+
   clear(): void {
     this.destroyLayerChildren(this.zones);
     this.destroyLayerChildren(this.departments);

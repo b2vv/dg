@@ -2,10 +2,10 @@ import { readFileSync } from 'node:fs';
 const old = JSON.parse(readFileSync('/tmp/dg29-golden-old.json','utf8'));
 const neu = JSON.parse(readFileSync('/tmp/dg29-golden-new.json','utf8'));
 const s='staff-tree';
-const o=old[s].live.routes, n=neu[s].live.routes;
+const n=neu[s].live.routes, o=old[s].live.routes;
 for(const lod of ['near','mid','far']){
   console.log(`\n=== ${s} routes.${lod}: OLD ${o[lod]?.length} vs NEW ${n[lod]?.length} ===`);
-  const oo=o[lod]||[], nn=n[lod]||[];
+  const nn=n[lod]||[], oo=o[lod]||[];
   const m=Math.max(oo.length,nn.length);
   for(let i=0;i<m;i++){
     const a=oo[i], b=nn[i];

@@ -30,6 +30,7 @@ import {
 import { layoutStaffCanvas } from '../layout/staff/canvasLayout.js';
 import { positionHasCoords } from '../layout/staff/coords.js';
 import { resolveStaffHead } from '../layout/staff/resolveHead.js';
+import { visiblePositions } from '../layout/staff/positionExpand.js';
 import { resolveDeptHeads } from '../layout/staff/resolveDeptHeads.js';
 import {
   computeStaffGeometryWasm,
@@ -143,7 +144,7 @@ function staffHeadResolvable(data: DiagramData, currentOrgId: string): boolean {
  */
 function isGenuineTreeScene(data: DiagramData, currentOrgId: string): boolean {
   const inOrg = data.positions.filter((p) => p.organizationId === currentOrgId);
-  if (!inOrg.some(positionHasCoords)) return true;
+  if (!inOrg.some((p) => positionHasCoords(p))) return true;
   if (inOrg.some((p) => p.isHead === true)) return true;
   const ids = new Set(inOrg.map((p) => p.id));
   return data.reportLines.some(
@@ -342,11 +343,24 @@ async function computeViaTs(input: BranchInput): Promise<StaffLiveGeometry> {
  * caller can't drift. Internal (not exported): the demo near-view chrome gets the
  * same geometry through `computeStaffLiveGeometry`, not by re-building the input.
  */
-function buildStaffTidyInput(data: DiagramData, currentOrgId: string): StaffTidyInput {
-  const inOrg = data.positions.filter((p) => p.organizationId === currentOrgId);
+function buildStaffTidyInput(
+  data: DiagramData,
+  currentOrgId: string,
+  expandedPositionIds: readonly string[],
+): StaffTidyInput {
+  // #96: prune the current org's admin tree to the visible set — the role-based
+  // default (SPEC §2.2 current org = all unless collapsed) is seeded into
+  // `expandedPositionIds` by OrgHierarchyDiagram, and `togglePositionExpand`
+  // mutates it. `visiblePositions` filters by org and degrades to all positions
+  // when the org has no resolvable head (matrix/headless).
+  const inOrg = visiblePositions(data.positions, data.reportLines, currentOrgId, expandedPositionIds);
   const ids = new Set(inOrg.map((p) => p.id));
-  const seatW = inOrg[0]?.width ?? 300;
-  const seatH = inOrg[0]?.height ?? 112;
+  // Розмір — на картку (`position.width/height`, калібрує хост); посада без нього бере
+  // DG-сидіння 300×112 з `params`. Не розмір першої посади на всіх: так калібровані
+  // висоти не мали ефекту.
+  const sizes = inOrg
+    .filter((p) => p.width !== undefined || p.height !== undefined)
+    .map((p) => ({ id: p.id, width: p.width ?? 300, height: p.height ?? 112 }));
   const reports = data.reportLines
     .filter(
       (r) => r.kind === 'admin' && r.fromId !== r.toId && ids.has(r.fromId) && ids.has(r.toId),
@@ -365,7 +379,8 @@ function buildStaffTidyInput(data: DiagramData, currentOrgId: string): StaffTidy
       .map((d) => ({ id: d.id, order: d.order })),
     // routing 'astar' = порт справжнього роутера мокапа (route()/A*, 0 перетинів);
     // 'simple' лишається варіантом порівняння в Rust-бібліотеці.
-    params: { pad: 8, lane: 8, cardWidth: seatW, cardHeight: seatH, headerHeight: 34, routing: 'astar' },
+    params: { pad: 8, lane: 8, cardWidth: 300, cardHeight: 112, headerHeight: 34, routing: 'astar' },
+    sizes,
   };
 }
 
@@ -379,7 +394,11 @@ function buildStaffTidyInput(data: DiagramData, currentOrgId: string): StaffTidy
 async function computeViaMockup(input: BranchInput): Promise<StaffLiveGeometry> {
   const { data, currentOrgId, staffOptions, zoneLabelBand, contentPadding } = input;
 
-  const mockInput = buildStaffTidyInput(data, currentOrgId);
+  const mockInput = buildStaffTidyInput(
+    data,
+    currentOrgId,
+    staffOptions.expandedPositionIds ?? [],
+  );
   const result = await computeStaffTidyLayoutWasm(mockInput);
 
   const positionNodes: StaffNodeBox[] = result.nodes.map((n) => ({

@@ -1,3 +1,5 @@
+import type { InteractiveNodeView } from './interactiveNodeView.js';
+import type { NodeRef } from '../core/index.js';
 import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js';
 import type { DiagramPerson, DiagramPosition } from '../data/types.js';
 import type { LodLevel } from './lod.js';
@@ -55,15 +57,28 @@ export interface PersonNodeExpandChrome {
 }
 
 export interface PersonNodeOptions {
+  onHover?: (ref: NodeRef | null) => void;
   nodeTheme?: Pick<NodeTheme, 'fonts'>;
   onContextMenu?: (pointer: ContextMenuPointer) => void;
   /** Position subtree expand (T66) — shown when hasChildren. */
   expand?: PersonNodeExpandChrome;
   /** T74: diagram media loader; falls back to module `loadNodeTexture`. */
   loadTexture?: NodeTextureLoader;
+  /**
+   * Card-split (`staffReactChrome`): the HTML overlay owns the detail card at
+   * near/mid, so when a staff seat falls back to Pixi at **mid** it draws the
+   * compact far mark, not a full card — consistent with T129 «Pixi = marks».
+   * A seat that is not promoted (slot error, off-screen) then degrades to an
+   * honest dot instead of a stale GoJS-era card. `near` is left as the detailed
+   * card (max-zoom fallback). Default off → mid keeps its card for overlay-less
+   * Pixi consumers.
+   */
+  markAtMid?: boolean;
 }
 
-export class PersonNodeView extends Container {
+export class PersonNodeView extends Container implements InteractiveNodeView {
+  private onHover: ((ref: NodeRef | null) => void) | undefined;
+  private nodeRef: NodeRef = { kind: 'position', id: '' };
   private readonly shadow = new Graphics();
   private readonly card = new Graphics();
   private readonly avatarTile = new Graphics();
@@ -202,8 +217,14 @@ export class PersonNodeView extends Container {
       countExpander: this.countExpander,
     };
 
-    this.on('pointerover', () => this.setHovered(true, style));
-    this.on('pointerout', () => this.setHovered(false, style));
+    this.on('pointerover', () => {
+      if (this.onHover) this.onHover(this.nodeRef);
+      else this.setHovered(true);
+    });
+    this.on('pointerout', () => {
+      if (this.onHover) this.onHover(null);
+      else this.setHovered(false);
+    });
   }
 
   static create(
@@ -218,15 +239,21 @@ export class PersonNodeView extends Container {
       resolveMedia = resolve;
     });
     const avatarFill = avatarColorFromName(person?.fullName);
-    const view = new PersonNodeView(style, lod, mediaReady, avatarFill, options.nodeTheme ?? defaultNodeTheme);
+    // Card-split: at mid a staff seat whose detail card is owned by the HTML
+    // overlay renders the far mark instead, so an un-promoted fallback is an
+    // honest dot, not a stale card (see `markAtMid`). near keeps its card.
+    const effectiveLod: LodLevel = options.markAtMid && lod === 'mid' ? 'far' : lod;
+    const view = new PersonNodeView(style, effectiveLod, mediaReady, avatarFill, options.nodeTheme ?? defaultNodeTheme);
+    view.nodeRef = { kind: 'position', id: position.id };
+    view.onHover = options.onHover;
     view.loadTexture = options.loadTexture ?? loadNodeTexture;
     view.mediaRevision = person?.media?.revision;
     view.photoUrl = resolvePersonPhotoUrl(person);
     view.styleRef = style;
     view.expandToggle = options.expand?.hasChildren ? options.expand.onToggle : undefined;
-    view.updateContent(person, position, style, lod, options);
-    view.applyChrome(style, lod, options);
-    void view.applyPhoto(view.photoUrl, style, lod).finally(resolveMedia);
+    view.updateContent(person, position, style, effectiveLod, options);
+    view.applyChrome(style, effectiveLod, options);
+    void view.applyPhoto(view.photoUrl, style, effectiveLod).finally(resolveMedia);
     return view;
   }
 
@@ -321,7 +348,15 @@ export class PersonNodeView extends Container {
     return { ...metrics, timelineLabel, countsLabel };
   }
 
-  private setHovered(on: boolean, style: PersonNodeStyle): void {
+  /** Switch between controlled hover and the legacy local pointer path. */
+  setHoverHandler(onHover: ((ref: NodeRef | null) => void) | undefined): void {
+    this.onHover = onHover;
+    this.setHovered(false);
+  }
+
+  setHovered(on: boolean): void {
+    const style = this.styleRef;
+    if (!style) return;
     if (this.lod === 'far') {
       this.hoverRing.visible = false;
       return;

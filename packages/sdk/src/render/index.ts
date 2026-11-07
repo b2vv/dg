@@ -7,6 +7,8 @@ export { Viewport } from './Viewport.js';
 export type { ViewportTransform, ViewportOptions, CameraMotionOptions } from './Viewport.js';
 export { resolveLodLevel, simplifyPolyline, defaultLodThresholds } from './lod.js';
 export type { LodLevel, LodThresholds } from './lod.js';
+export { motionBlurPx, defaultMotionBlurOptions } from './motionBlur.js';
+export type { MotionBlurOptions } from './motionBlur.js';
 export { DepartmentBlobView } from './contour/DepartmentBlob.js';
 export { PersonNodeView } from './PersonNode.js';
 export { personInitials, avatarColorFromName } from './personInitials.js';
@@ -19,8 +21,23 @@ export type {
   StaffLiveGeometryInput,
   StaffFrameBox,
 } from './staffLiveGeometry.js';
-export { worldPointToScreen, roundedPathD } from './staffChromeGeometry.js';
-export type { ScreenPoint } from './staffChromeGeometry.js';
+export {
+  worldPointToScreen,
+  roundedPathD,
+  buildStaffChromeGeometry,
+  computeStaffFit,
+  DEFAULT_STAFF_CHROME_PAD,
+} from './staffChromeGeometry.js';
+export type {
+  ScreenPoint,
+  WorldPoint,
+  StaffChromeGeometry,
+  StaffChromePad,
+  StaffFitOptions,
+  ChromeDeptFrame,
+  ChromeLine,
+  NodeBox,
+} from './staffChromeGeometry.js';
 export { arrowHeadTriangle, shortenPolylineForArrow } from './staffEdgeArrows.js';
 export {
   buildStaffEdgeSegments,
@@ -124,6 +141,7 @@ export {
   type WorldBox,
   type ScreenRect,
   type PromoteMode,
+  type PromoteSyncReason,
 } from './promoteMath.js';
 export type { PromoteCandidate } from './promoteTypes.js';
 export {

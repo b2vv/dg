@@ -196,8 +196,11 @@ function collapseData(): StaffData {
 const idsIn = (input: ReturnType<typeof buildStaffLayoutInput>, orgId: string): string[] =>
   input.positions.filter((p) => p.organizationId === orgId).map((p) => p.id);
 
-describe('buildStaffLayoutInput — collapse pre-filter (T66 V2a)', () => {
-  it('collapse OFF (default) emits every position unchanged', () => {
+describe('buildStaffLayoutInput — always-on prune (T66 V2a / #96)', () => {
+  it('empty expandedPositionIds → head only per org (prune is unconditional)', () => {
+    // #96: no gate. With no expanded ids the role default is head-only for every
+    // tier (the current org = all default is seeded upstream in OrgHierarchyDiagram,
+    // not here). managing leadership → head; current → head; no expanded child.
     const input = buildStaffLayoutInput({
       data: collapseData(),
       currentOrgId: 'cur',
@@ -205,31 +208,17 @@ describe('buildStaffLayoutInput — collapse pre-filter (T66 V2a)', () => {
       lod: 'near',
       contentPadding: 16,
     });
-    expect(input.positions.map((p) => p.id)).toEqual([
-      'mh', 'm2', 'm3', 'ch', 'c2', 'c3', 'a1', 'b1',
-    ]);
-  });
-
-  it('collapse ON strips hidden positions to visible per org (head only when nothing expanded)', () => {
-    const input = buildStaffLayoutInput({
-      data: collapseData(),
-      currentOrgId: 'cur',
-      options: { collapseUnexpandedPositions: true },
-      lod: 'near',
-      contentPadding: 16,
-    });
-    // managing leadership collapsed to head; current collapsed to head; no expanded child.
     expect(idsIn(input, 'parent')).toEqual(['mh']);
     expect(idsIn(input, 'cur')).toEqual(['ch']);
     expect(idsIn(input, 'childA')).toEqual([]);
     expect(idsIn(input, 'childB')).toEqual([]);
   });
 
-  it('collapse ON reveals direct reports of an expanded current head', () => {
+  it('reveals direct reports of an expanded current head', () => {
     const input = buildStaffLayoutInput({
       data: collapseData(),
       currentOrgId: 'cur',
-      options: { collapseUnexpandedPositions: true, expandedPositionIds: ['ch'] },
+      options: { expandedPositionIds: ['ch'] },
       lod: 'near',
       contentPadding: 16,
     });
@@ -237,13 +226,13 @@ describe('buildStaffLayoutInput — collapse pre-filter (T66 V2a)', () => {
     expect(idsIn(input, 'parent')).toEqual(['mh']);
   });
 
-  it('collapse ON managing uses visiblePositions(leadershipOf), never the full subtree (U2)', () => {
+  it('managing uses visiblePositions(leadershipOf), never the full subtree (U2)', () => {
     // Both mh and m2 expanded. leadership_of(mh) = {mh, m2}; m3 is depth-2, outside
     // leadership, so it must NOT appear — proving leadership-first, not full-mgr.
     const input = buildStaffLayoutInput({
       data: collapseData(),
       currentOrgId: 'cur',
-      options: { collapseUnexpandedPositions: true, expandedPositionIds: ['mh', 'm2'] },
+      options: { expandedPositionIds: ['mh', 'm2'] },
       lod: 'near',
       contentPadding: 16,
     });
@@ -251,22 +240,16 @@ describe('buildStaffLayoutInput — collapse pre-filter (T66 V2a)', () => {
     expect(idsIn(input, 'cur')).toEqual(['ch']);
   });
 
-  it('collapse ON managing with multiple isHead emits raw positions without throwing', () => {
+  it('managing with multiple isHead emits raw positions without throwing', () => {
     const data = collapseData();
     data.positions.push(pos('mh2', 'parent', true)); // second head in managing org
     expect(() =>
-      buildStaffLayoutInput({
-        data,
-        currentOrgId: 'cur',
-        options: { collapseUnexpandedPositions: true },
-        lod: 'near',
-        contentPadding: 16,
-      }),
+      buildStaffLayoutInput({ data, currentOrgId: 'cur', options: {}, lod: 'near', contentPadding: 16 }),
     ).not.toThrow();
     const input = buildStaffLayoutInput({
       data,
       currentOrgId: 'cur',
-      options: { collapseUnexpandedPositions: true },
+      options: {},
       lod: 'near',
       contentPadding: 16,
     });
@@ -274,22 +257,16 @@ describe('buildStaffLayoutInput — collapse pre-filter (T66 V2a)', () => {
     expect(idsIn(input, 'parent').sort()).toEqual(['m2', 'm3', 'mh', 'mh2']);
   });
 
-  it('collapse ON managing with no isHead emits raw positions without throwing', () => {
+  it('managing with no isHead emits raw positions without throwing', () => {
     const data = collapseData();
     data.positions = data.positions.map((p) => (p.id === 'mh' ? { ...p, isHead: false } : p));
     expect(() =>
-      buildStaffLayoutInput({
-        data,
-        currentOrgId: 'cur',
-        options: { collapseUnexpandedPositions: true },
-        lod: 'near',
-        contentPadding: 16,
-      }),
+      buildStaffLayoutInput({ data, currentOrgId: 'cur', options: {}, lod: 'near', contentPadding: 16 }),
     ).not.toThrow();
     const input = buildStaffLayoutInput({
       data,
       currentOrgId: 'cur',
-      options: { collapseUnexpandedPositions: true },
+      options: {},
       lod: 'near',
       contentPadding: 16,
     });
@@ -307,7 +284,7 @@ describe('buildStaffLayoutInput — report filter (collapse)', () => {
     const input = buildStaffLayoutInput({
       data,
       currentOrgId: 'cur',
-      options: { collapseUnexpandedPositions: true },
+      options: {},
       lod: 'near',
       contentPadding: 16,
     });
@@ -316,19 +293,6 @@ describe('buildStaffLayoutInput — report filter (collapse)', () => {
     expect(has('ch', 'c2', 'dotted')).toBe(false); // dropped: c2 collapsed away
     expect(has('ch', 'mh', 'matrix')).toBe(true); // kept: both endpoints visible
     expect(has('ch', 'c2', 'admin')).toBe(true); // admin kept (Rust guards)
-  });
-
-  it('collapse OFF leaves all report lines intact', () => {
-    const data = collapseData();
-    data.reportLines.push({ fromId: 'ch', toId: 'c2', kind: 'dotted' });
-    const input = buildStaffLayoutInput({
-      data,
-      currentOrgId: 'cur',
-      options: {},
-      lod: 'near',
-      contentPadding: 16,
-    });
-    expect(input.reports.some((r) => r.kind === 'dotted')).toBe(true);
   });
 });
 
@@ -372,7 +336,6 @@ describe('buildStaffLayoutInput — expand cap (closes the cap-gap)', () => {
       data: collapseData(),
       currentOrgId: 'cur',
       options: {
-        collapseUnexpandedPositions: true,
         expandedOrgIds: ['childA', 'childB'],
         maxExpandedOrgCards: 1,
       },

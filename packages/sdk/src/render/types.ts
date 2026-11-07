@@ -1,4 +1,5 @@
 import { DEFAULT_CORRIDOR_CELLS } from './contour/contourCorridor.js';
+import type { StaffChromePad } from './staffChromeGeometry.js';
 
 export type ThemeMode = 'light' | 'dark' | 'auto';
 
@@ -332,6 +333,14 @@ export interface RenderConfig {
    * the chrome (graceful fallback, never an empty scene). Default false.
    */
   staffReactChrome?: boolean;
+  /**
+   * Б2: padding the SDK applies around the org AABB when building the chrome
+   * geometry the host reads (`getStaffChromeGeometry`). The host owns the numbers
+   * (styling) but the SDK owns applying them to the extent, so fit frames the same
+   * box the host draws. Mirrors the diagram's set-once pad state into each render;
+   * default {@link DEFAULT_STAFF_CHROME_PAD}.
+   */
+  staffChromePad?: StaffChromePad;
   /** T64: department paint mode (default blob). */
   departmentStyle?: DepartmentPaintStyle;
   /** Enables dept-grouping layout + v2 routing; default legacy. */

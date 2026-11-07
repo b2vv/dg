@@ -1,3 +1,11 @@
+import type { NodeView } from './render/nodeViewFactory.js';
+import type { MarqueeRect } from './render/marquee.js';
+import { resolveAnimate } from './render/transition/resolveAnimate.js';
+import type { AnimateOption, TransitionFrame } from './render/transition/types.js';
+import type { DiagramNode } from './DiagramNode.js';
+import { adminAncestorIds, isPositionExpanded } from './layout/staff/positionExpand.js';
+import { sameNodeRef } from './interaction/selection.js';
+import { computeSubordinateCounts } from './core/subordinateCounts.js';
 import {
   nodeEntityKey,
   parseNodeEntityKey,
@@ -16,6 +24,7 @@ import type {
   DiagramOrganization,
   DiagramReportLine,
   GridCell,
+  Point2D,
 } from './data/types.js';
 import { isDiagramData, mergePartial } from './data/mergeData.js';
 import { applyInitialExpand } from './data/initialExpand.js';
@@ -37,19 +46,29 @@ import {
   resolveTheme,
   resolveNodeTheme,
   canvasBackgroundForTheme,
+  computeStaffFit,
   type NodeThemeOverrides,
   type RenderConfig,
   type CameraMotionOptions,
   type NodeWorldBox,
+  type StaffChromeGeometry,
+  type StaffFitOptions,
 } from './render/index.js';
 import { inferStaffCurrentOrgId } from './render/inferStaffCurrentOrgId.js';
 import { resolveLodLevel, type LodLevel, type LodThresholds } from './render/lod.js';
+import {
+  motionBlurPx,
+  defaultMotionBlurOptions,
+  type MotionBlurOptions,
+} from './render/motionBlur.js';
 import { createRenderCoalesce } from './render/renderCoalesce.js';
-import { SelectionStore } from './state/SelectionStore.js';
+import { InteractionStore } from './state/InteractionStore.js';
+import { EmphasisStore } from './state/EmphasisStore.js';
+import type { InteractionState } from './interaction/interactionState.js';
 import { ViewStateStore } from './state/ViewStateStore.js';
 import { DataStore } from './state/DataStore.js';
 import type { PromoteCandidate, PromoteChrome } from './render/promoteTypes.js';
-import { promoteIdMatches } from './render/promoteMath.js';
+import { promoteIdMatches, type PromoteSyncReason } from './render/promoteMath.js';
 import type { SelectionPointerMods } from './interaction/selection.js';
 import {
   adminParentsOf,
@@ -67,6 +86,7 @@ import {
   swapMatrixOrder,
   applyMatrixPlacement,
   assignExpandToDepth,
+  adminChildrenMap,
   adminDescendantIds,
   positionHasAdminChildren,
   victimsForExpand,
@@ -78,6 +98,7 @@ import {
 import type {
   OrgHierarchyCallbacks,
   OrgExpandChange,
+  NodeClickMeta,
   LayoutPatch,
   ViewportChangeReason,
   HostSearchHit,
@@ -87,6 +108,7 @@ import type {
   SeatDropChoice,
 } from './callbacks.js';
 import type { ViewportTransform } from './render/Viewport.js';
+import type { WheelConfig } from './render/wheelConfig.js';
 import { createTransformWorker, WorkerPool } from './worker/index.js';
 import {
   transferChildren,
@@ -116,12 +138,19 @@ import {
   type ExportOptions,
 } from './export/index.js';
 
+export interface RevealPathOptions {
+  /** Default true. false = reveal and bring into view without changing the selection. */
+  select?: boolean;
+}
+
 export interface OrgHierarchyConfig<TRaw = DiagramData> {
   data: TRaw | DiagramData;
   mappers?: DiagramMappers<TRaw>;
   theme?: 'light' | 'dark' | 'auto';
   styles?: NodeThemeOverrides;
   render?: Partial<RenderConfig>;
+  /** Optional staff-position visual in local coordinates; SDK owns placement. */
+  nodeView?: NodeView;
   /** Contour + WASM compute у Web Worker (default: true у browser) */
   useWorker?: boolean;
   /** Worker pool для паралельних map chunks (flatRowsToDiagram тощо) */
@@ -129,8 +158,25 @@ export interface OrgHierarchyConfig<TRaw = DiagramData> {
   /** Custom worker factory (transform.worker.ts) */
   workerFactory?: () => Worker;
   callbacks?: OrgHierarchyCallbacks;
+  /** Opt in to additive Shift+drag selection; the host draws this world-space rectangle. */
+  onMarquee?: (rect: MarqueeRect | null) => void;
   /** Quiet period before `onViewportChange` reports `settled` (default 150). */
   viewportSettleMs?: number;
+  /** Wheel gestures; defaults to modifier zoom with Shift+wheel left to the host. */
+  wheel?: WheelConfig;
+  /**
+   * Light velocity-driven blur on the whole diagram while the camera pans,
+   * cleared when it settles. Strength tracks on-screen pan speed; a zoom blurs
+   * only through its incidental focal shift, not the scale itself (v1).
+   * `true`/omitted = on with defaults; an object overrides them; `false` = off.
+   * Default **on**. Always disabled under `prefers-reduced-motion: reduce`.
+   */
+  motionBlur?: boolean | Partial<MotionBlurOptions>;
+  /** Opt-in staff transitions; reduced motion is sampled only at creation. */
+  animate?: AnimateOption;
+  /** Re-frame the staff org box after `togglePositionExpand` (collapse or expand). Off by default.
+   * `true` = the `computeStaffFit` defaults; an object overrides them. */
+  staffRefitOnToggle?: boolean | StaffFitOptions;
   /** Staff 3-tier focus organization id */
   staffCurrentOrgId?: string;
   /** Staff layout (node/cell pitch — keep refCell* aligned with render.cell* for contours). */
@@ -219,6 +265,17 @@ export interface SearchAllResult {
   unresolved?: string[];
 }
 
+/** A click with no modifier info is a plain click — the host gets all `false`, never `undefined`. */
+function nodeClickMeta(mods?: SelectionPointerMods): NodeClickMeta {
+  return {
+    modifiers: {
+      shiftKey: mods?.shiftKey ?? false,
+      ctrlKey: mods?.ctrlKey ?? false,
+      metaKey: mods?.metaKey ?? false,
+    },
+  };
+}
+
 /**
  * Validate a host answer before believing it.
  *
@@ -238,6 +295,8 @@ function parseHostSearchPage(value: unknown): HostSearchPage | null {
   }
   return page as HostSearchPage;
 }
+
+type RenderReason = 'animate' | 'snap';
 
 export class OrgHierarchyDiagram {
   private readonly dataStore = new DataStore();
@@ -294,18 +353,24 @@ export class OrgHierarchyDiagram {
     pool: this.workerPool,
     workerFactory: this.workerFactory,
   }));
-  /** Multi-select set (T67 / T76 SelectionStore). */
-  private readonly selectionStore = new SelectionStore((selections) => {
-    this.callbacks.onSelectionChange?.([...selections]);
-    this.notifyPromoteSync();
+  private readonly emphasis = new EmphasisStore();
+  /** Shared selection and transient hover. */
+  private readonly interactionStore = new InteractionStore({
+    onSelectionChange: (selections) => {
+      this.callbacks.onSelectionChange?.([...selections]);
+      this.notifyPromoteSync();
+    },
   });
+  private marqueeWired = false;
+  private unsubscribeInteractionPaint: (() => void) | null = null;
   /** Theme / LOD / staff focus / expand sets (T76 ViewStateStore). */
   private readonly viewState = new ViewStateStore();
   private lodRenderQueued = false;
+  private pendingReason: RenderReason = 'snap';
   /** T75 D2: coalesce overlapping render() so layers.clear never races. */
   private readonly renderCoalesce = createRenderCoalesce(() => this.renderNow());
   private destroyed = false;
-  private promoteSyncListeners = new Set<() => void>();
+  private promoteSyncListeners = new Set<(reason: PromoteSyncReason) => void>();
 
   // The viewport notifier is deliberately separate from `promoteSync`: that one
   // has no transform to hand out and also fires from selection and from the end
@@ -316,11 +381,19 @@ export class OrgHierarchyDiagram {
   private viewportPending: { t: ViewportTransform; reason: ViewportChangeReason } | null = null;
   private viewportFrame: number | null = null;
   private viewportSettleTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Resolved motion-blur options, or null when off / reduced-motion. */
+  private motionBlur: MotionBlurOptions | null = null;
+  private animate = false;
+  private pendingFramePositionId: string | null = null;
+  private readonly warnedTransitionListeners = new WeakSet<(reason: PromoteSyncReason) => void>();
+  private staffRefitOnToggle: boolean | StaffFitOptions = false;
+  private motionBlurLast: { x: number; y: number; t: number } | null = null;
+  private motionBlurClearTimer: ReturnType<typeof setTimeout> | null = null;
   private mediaService: MediaService | null = null;
   /** Menu build + dispatch (was an inline switch on this class). */
   private readonly contextMenu = new ContextMenuController({
     data: () => this.data,
-    selection: () => this.selectionStore.list,
+    selection: () => this.interactionStore.list,
     hooks: () => this.callbacks,
     commands: {
       expandOrg: (orgId) => this.expandOrg(orgId),
@@ -339,6 +412,11 @@ export class OrgHierarchyDiagram {
   }
   private set data(next: DiagramData) {
     this.dataStore.replace(next);
+    this.interactionStore.reconcile((ref) => {
+      const entities = ref.kind === 'organization' ? next.organizations
+        : ref.kind === 'position' ? next.positions : next.persons;
+      return entities.some((entity) => entity.id === ref.id);
+    });
   }
 
   static async create<TRaw>(
@@ -386,6 +464,10 @@ export class OrgHierarchyDiagram {
     }
 
     instance.data = await instance.mapConfig(config);
+    // The first scene arrives through create (host mounts via create(config.data)),
+    // and a later setData often never comes — so counts must be derived here too,
+    // before the first render and before the expand set is seeded from the data.
+    instance.applySubordinateCounts(instance.data);
     instance.seedExpandedPositionsFromData();
 
     // Before the first render, not after it. `revealPath` and `setOrgsCollapsed`
@@ -430,7 +512,7 @@ export class OrgHierarchyDiagram {
     instance.rendererPreference = config.renderer ?? 'auto';
     instance.rendererDiagnostic = resolveRendererPreference(config.renderer).diagnostic ?? null;
     try {
-      instance.host = await PixiHost.create(container, { renderer: config.renderer });
+      instance.host = await PixiHost.create(container, { renderer: config.renderer, wheel: config.wheel });
     } catch (cause) {
       // The workers and the search index are already alive by now, and the
       // caller never receives the instance — so nobody else can release them.
@@ -441,16 +523,65 @@ export class OrgHierarchyDiagram {
         { cause },
       );
     }
+    instance.host.renderer.setNodeViewFactory(config.nodeView ?? null);
+    if (config.onMarquee) {
+      instance.marqueeWired = true;
+      let warned = false;
+      const warnOnce = (error: unknown) => {
+        if (warned) return;
+        warned = true;
+        console.warn('OrgHierarchyDiagram: onMarquee threw', error);
+      };
+      instance.host.renderer.setMarqueeSink({
+        onRect: (rect) => {
+          if (instance.destroyed) return;
+          instance.callHostCallback(config.onMarquee, [rect], warnOnce);
+        },
+        onSelect: (ids) => {
+          if (instance.destroyed) return;
+          const union = [...instance.interactionStore.list];
+          for (const id of ids) {
+            const ref = resolveNodeRefInData(instance.data, id);
+            if (ref && !union.some((selected) => sameNodeRef(selected, ref))) union.push(ref);
+          }
+          instance.interactionStore.replaceMany(union);
+          instance.repaintSelection();
+        },
+      });
+    }
     instance.viewportSettleMs = config.viewportSettleMs ?? 150;
+    instance.motionBlur = resolveMotionBlur(config.motionBlur ?? true);
+    instance.staffRefitOnToggle = config.staffRefitOnToggle ?? false;
+    const reducedMotion = typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const resolvedAnimate = resolveAnimate(config.animate, reducedMotion);
+    instance.animate = resolvedAnimate !== null;
+    instance.host.renderer.configureTransition(resolvedAnimate);
+    instance.host.renderer.onTransitionFrame = () => {
+      if (instance.getTransitionFrame()) {
+        instance.notifyPromoteSync('transition');
+        return;
+      }
+      const positionId = instance.pendingFramePositionId;
+      instance.pendingFramePositionId = null;
+      if (positionId !== null) instance.framePositionToggle(positionId);
+      instance.notifyPromoteSync('structural');
+    };
     instance.host.setOnViewportChange((t) => {
       instance.onViewportTransform(t.scale);
-      instance.notifyPromoteSync();
+      // Camera moved — the overlay rides a CSS catch-up and rebuilds on settle.
+      // A LOD transition crossing here still re-renders (onViewportTransform),
+      // and THAT render's afterRender emits 'structural' to force the rebuild.
+      instance.notifyPromoteSync('camera');
+      instance.onMotionBlurFrame(t);
       instance.notifyViewportChange(t, 'camera');
     });
     // A resize changes how much of the scene fits without moving the camera, so
     // it changes the answer to "which nodes are visible" — and nothing else
     // would tell the promote layer that.
     instance.host.setOnResize(() => {
+      if (instance.animate) instance.renderer?.settleNow();
       instance.notifyPromoteSync();
       // The transform is unchanged by design — only how much of it fits is.
       instance.notifyViewportChange(instance.getViewport(), 'resize');
@@ -536,13 +667,68 @@ export class OrgHierarchyDiagram {
     });
   }
 
-  private notifyPromoteSync(): void {
-    for (const listener of this.promoteSyncListeners) listener();
+  /**
+   * One camera frame → set the blur radius from pan speed, and arm a timer to
+   * clear it once the camera goes quiet. Self-contained (own debounce), so it
+   * runs whether or not the host listens for `onViewportChange`. A speed below
+   * the dead zone yields 0 and no filter — the common slow pan stays free.
+   */
+  private onMotionBlurFrame(t: ViewportTransform): void {
+    if (!this.motionBlur || this.destroyed) return;
+    const now =
+      typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+    const last = this.motionBlurLast;
+    this.motionBlurLast = { x: t.x, y: t.y, t: now };
+    if (last) {
+      const dt = now - last.t;
+      if (dt > 0) {
+        const speed = Math.hypot(t.x - last.x, t.y - last.y) / dt;
+        this.writeMotionFilter(motionBlurPx(speed, this.motionBlur));
+      }
+    }
+    if (this.motionBlurClearTimer !== null) clearTimeout(this.motionBlurClearTimer);
+    this.motionBlurClearTimer = setTimeout(() => this.clearMotionBlur(), this.viewportSettleMs);
+  }
+
+  /** Blur radius (px) → container filter + GPU hint. `px <= 0` clears both. */
+  private writeMotionFilter(px: number): void {
+    const container = this.host?.getContainer();
+    if (!container) return;
+    container.style.filter = px > 0 ? `blur(${px.toFixed(2)}px)` : '';
+    container.style.willChange = px > 0 ? 'filter' : '';
+  }
+
+  /** Remove the blur and its hint — camera is still (or diagram torn down). */
+  private clearMotionBlur(): void {
+    if (this.motionBlurClearTimer !== null) {
+      clearTimeout(this.motionBlurClearTimer);
+      this.motionBlurClearTimer = null;
+    }
+    this.motionBlurLast = null;
+    this.writeMotionFilter(0);
+  }
+
+  private notifyPromoteSync(reason: PromoteSyncReason = 'structural'): void {
+    for (const listener of this.promoteSyncListeners) {
+      if (reason !== 'transition') {
+        listener(reason);
+        continue;
+      }
+      try {
+        listener(reason);
+      } catch (error) {
+        if (!this.warnedTransitionListeners.has(listener)) {
+          this.warnedTransitionListeners.add(listener);
+          console.warn('OrgHierarchyDiagram: transition subscriber threw', error);
+        }
+      }
+    }
   }
 
   private callHostCallback<TArgs extends readonly unknown[]>(
     callback: ((...args: TArgs) => void) | undefined,
-    ...args: TArgs
+    args: TArgs,
+    onError?: (error: unknown) => void,
   ): void {
     if (!callback) return;
     try {
@@ -550,7 +736,8 @@ export class OrgHierarchyDiagram {
     } catch (error) {
       // Do not borrow the host's environment-dependent uncaught-error channel. This stable
       // SDK prefix prevents silence, while the original Error preserves its stack (§12).
-      console.error('OrgHierarchyDiagram: host callback threw', error);
+      if (onError) onError(error);
+      else console.error('OrgHierarchyDiagram: host callback threw', error);
     }
   }
 
@@ -570,15 +757,15 @@ export class OrgHierarchyDiagram {
     const first = changed[0];
     if (!first) return;
     const expanded = !isOrgCollapsed(first);
-    this.callHostCallback(this.callbacks.onOrgExpandChange, {
+    this.callHostCallback(this.callbacks.onOrgExpandChange, [{
       reason,
       changedIds: changed.map((org) => org.id),
       expanded: changed.every((org) => isOrgCollapsed(org) !== expanded) ? expanded : null,
-    });
+    }]);
   }
 
   /** Subscribe to viewport / selection / render changes for HTML promote overlays. */
-  subscribePromoteSync(listener: () => void): () => void {
+  subscribePromoteSync(listener: (reason: PromoteSyncReason) => void): () => void {
     this.promoteSyncListeners.add(listener);
     return () => {
       this.promoteSyncListeners.delete(listener);
@@ -598,22 +785,22 @@ export class OrgHierarchyDiagram {
   }
 
   private applySelection(next: NodeRef | null): void {
-    this.selectionStore.replace(next);
+    this.interactionStore.replace(next);
   }
 
   private applyToggleSelection(node: NodeRef): void {
-    this.selectionStore.toggle(node);
+    this.interactionStore.toggle(node);
   }
 
   private applySelections(next: readonly NodeRef[]): void {
-    this.selectionStore.replaceMany(next);
+    this.interactionStore.replaceMany(next);
   }
 
   private handleNodeSelect(
     node: NodeRef,
     mods?: SelectionPointerMods,
   ): void {
-    this.selectionStore.handlePointerSelect(node, mods);
+    this.interactionStore.handlePointerSelect(node, mods);
   }
 
   /** Invoke a menu action (from React menu item click). */
@@ -656,11 +843,38 @@ export class OrgHierarchyDiagram {
     return this.dataEpoch === epoch;
   }
 
-  /** Sync interactive expand set from mapper/`position.expanded` flags. */
+  /**
+   * Sync the interactive expand set from the role-based default (SPEC §2.2) and
+   * the mapper/`position.expanded` flags (#96). The current org (tier 2) is
+   * expanded unless a position is explicitly collapsed (`expanded === false`);
+   * the leading (tier 1) and subordinate (tier 3) orgs stay collapsed unless a
+   * position is explicitly expanded (`expanded === true`). Only positions with
+   * admin children carry an expand flag (mirrors `expandIdsForDepth`), so a
+   * childless seat never enters the set.
+   *
+   * The tri-state `position.expanded` is what makes MERGE and rollback fall out
+   * for free (#96 plan §2.1): a host `setData` that re-sends `expanded === false`
+   * keeps a manual collapse, a fresh position arrives `undefined` and defaults to
+   * expanded, and `drawOrRestore` re-seeds losslessly because
+   * `setPositionExpandedFlag` already wrote the state onto `this.data`.
+   */
   private seedExpandedPositionsFromData(): void {
-    this.viewState.staffExpandedPositionIds.clear();
+    const currentOrgId = this.viewState.staffCurrentOrgId ?? inferStaffCurrentOrgId(this.data);
+    const set = this.viewState.staffExpandedPositionIds;
+    set.clear();
+    const childrenByOrg = new Map<string, Map<string, string[]>>();
+    const hasAdminChildren = (orgId: string, id: string): boolean => {
+      let kids = childrenByOrg.get(orgId);
+      if (!kids) {
+        kids = adminChildrenMap(this.data.positions, this.data.reportLines, orgId);
+        childrenByOrg.set(orgId, kids);
+      }
+      return (kids.get(id)?.length ?? 0) > 0;
+    };
     for (const p of this.data.positions) {
-      if (p.expanded === true) this.viewState.staffExpandedPositionIds.add(p.id);
+      const wantExpanded =
+        p.organizationId === currentOrgId ? p.expanded !== false : p.expanded === true;
+      if (wantExpanded && hasAdminChildren(p.organizationId, p.id)) set.add(p.id);
     }
   }
 
@@ -688,8 +902,18 @@ export class OrgHierarchyDiagram {
    * a frame that drew perfectly well.
    */
   private async commitDataChange(next: DiagramData, patch: LayoutPatch): Promise<void> {
+    // An edit (reparent, seat move) rewrites admin report lines, so the derived
+    // subordinate counts change with it — recompute before the frame, same as setData.
+    this.applySubordinateCounts(next);
     this.data = next;
-    await this.drawOrRestore(next);
+    // #96: re-derive the role-based expand set from the edited data before the
+    // draw. Prune is always on now, so an in-place edit that gives a position a
+    // new admin child (e.g. a reparent) must expand it per the current-org default
+    // — otherwise the moved subtree prunes away and the node vanishes. MERGE-safe:
+    // a manual collapse lives in `position.expanded === false` on `next` and
+    // survives the re-seed (mirrors `setData` and the `drawOrRestore` rollback).
+    this.seedExpandedPositionsFromData();
+    await this.drawOrRestore(next, 'animate');
     if (this.lastDrawnData !== next) {
       // Our frame resolved, but the state on screen is not ours. Either a
       // neighbour's rollback took our edit with it, or nothing drew at all
@@ -715,9 +939,9 @@ export class OrgHierarchyDiagram {
    * wrote on top and its frame is what the screen will show, so restoring our
    * target there would replace a drawn state with an older one.
    */
-  private async drawOrRestore(next: DiagramData): Promise<void> {
+  private async drawOrRestore(next: DiagramData, reason: RenderReason = 'snap'): Promise<void> {
     try {
-      await this.render();
+      await this.render(reason, next);
     } catch (err) {
       if (this.data === next && this.lastDrawnData) {
         this.data = this.lastDrawnData;
@@ -736,55 +960,71 @@ export class OrgHierarchyDiagram {
     }
   }
 
-  private async render(): Promise<void> {
+  private async render(reason: RenderReason = 'snap', expectedData?: DiagramData): Promise<void> {
     if (!this.host || this.destroyed) return;
+    if (reason === 'animate') this.pendingReason = 'animate';
     await this.renderCoalesce.schedule();
+    if (this.animate && !this.destroyed
+      && (expectedData === undefined || this.lastDrawnData === expectedData)) {
+      this.renderer?.startTransition();
+    }
   }
 
   private async renderNow(): Promise<void> {
+    const reason = this.pendingReason;
+    this.pendingReason = 'snap';
     if (!this.host || this.destroyed) return;
     const host = this.host;
-    const { nodeTheme, resolved } = this.applyRenderTheme(host);
-    this.bindCanReparent(host);
-    // #4 owns the layout compute now (split T2a): for the org branch, place the
-    // nodes here and hand the result to the renderer, so `render()` draws
-    // already-positioned nodes instead of computing them. Computed from the
-    // captured `drawing` — the same snapshot the renderer is handed (T104) — and
-    // with the same view state. Compute and render go through ONE promise so a
-    // layout throw (`validateOrgHierarchy` on a bad hierarchy) still routes
-    // through `reportIfRenderFails` → onRenderFailed / getLastRenderFailure, as
-    // it did when the compute lived inside `render()` (T97). The staff branch
-    // still computes inside the renderer until T2b; the mode test mirrors
-    // `render()`'s own dispatch (positions ⇒ staff, else orgs).
-    const { drawing, drawingStaffOrgIds } = this.captureDrawingState();
-    await this.reportIfRenderFails(
-      (async () => {
-        const orgLayoutResult =
-          drawing.positions.length === 0 && drawing.organizations.length > 0
-            ? await computeOrgLayout(
-                drawing.organizations,
-                drawing.orgLinks ?? [],
-                this.viewState.orgLayout,
-              )
-            : undefined;
-        const options = this.buildRenderOptions();
-        // Staff geometry is computed by the renderer per-LOD from the Rust bridge
-        // (A4.2b/FORK2): no pre-computed canvas is passed, so there is a single
-        // geometry path and nothing can drift. A `StaffLayoutError` still surfaces
-        // through this awaited `reportIfRenderFails`, like the org throw.
-        await host.renderer.render(
-          drawing,
-          nodeTheme,
-          resolved,
-          this.renderConfig,
-          options,
-          orgLayoutResult,
-        );
-      })(),
-      drawing,
-      drawingStaffOrgIds,
-    );
-    this.afterRender(host);
+    try {
+      const { nodeTheme, resolved } = this.applyRenderTheme(host);
+      this.bindCanReparent(host);
+      // #4 owns the layout compute now (split T2a): for the org branch, place the
+      // nodes here and hand the result to the renderer, so `render()` draws
+      // already-positioned nodes instead of computing them. Computed from the
+      // captured `drawing` — the same snapshot the renderer is handed (T104) — and
+      // with the same view state. Compute and render go through ONE promise so a
+      // layout throw (`validateOrgHierarchy` on a bad hierarchy) still routes
+      // through `reportIfRenderFails` → onRenderFailed / getLastRenderFailure, as
+      // it did when the compute lived inside `render()` (T97). The staff branch
+      // still computes inside the renderer until T2b; the mode test mirrors
+      // `render()`'s own dispatch (positions ⇒ staff, else orgs).
+      const { drawing, drawingStaffOrgIds } = this.captureDrawingState();
+      await this.reportIfRenderFails(
+        (async () => {
+          const orgLayoutResult =
+            drawing.positions.length === 0 && drawing.organizations.length > 0
+              ? await computeOrgLayout(
+                  drawing.organizations,
+                  drawing.orgLinks ?? [],
+                  this.viewState.orgLayout,
+                )
+              : undefined;
+          const options = this.buildRenderOptions();
+          if (this.animate) options.transition = reason;
+          // Staff geometry is computed by the renderer per-LOD from the Rust bridge
+          // (A4.2b/FORK2): no pre-computed canvas is passed, so there is a single
+          // geometry path and nothing can drift. A `StaffLayoutError` still surfaces
+          // through this awaited `reportIfRenderFails`, like the org throw.
+          await host.renderer.render(
+            drawing,
+            nodeTheme,
+            resolved,
+            this.renderConfig,
+            options,
+            orgLayoutResult,
+          );
+        })(),
+        drawing,
+        drawingStaffOrgIds,
+      );
+      this.afterRender(host);
+    } catch (error) {
+      if (this.animate) {
+        this.pendingFramePositionId = null;
+        host.renderer.abortTransition();
+      }
+      throw error;
+    }
   }
 
   /**
@@ -848,14 +1088,14 @@ export class OrgHierarchyDiagram {
             expandedOrgIds: [...this.viewState.staffExpandedOrgIds],
           }
         : undefined,
-      selected: this.selectionStore.list,
+      selected: this.interactionStore.list,
       loadTexture: (url, revision) =>
         this.mediaService
           ? this.mediaService.loadTexture(url, revision)
           : Promise.resolve(null),
       onCanvasClick: () => {
         if (this.destroyed) return;
-        this.callHostCallback(this.callbacks.onBackgroundClick);
+        this.callHostCallback(this.callbacks.onBackgroundClick, []);
         this.applySelection(null);
         this.repaintSelection();
       },
@@ -863,7 +1103,7 @@ export class OrgHierarchyDiagram {
         if (this.destroyed) return;
         const node = orgNodeRef(orgId);
         this.handleNodeSelect(node, mods);
-        this.callbacks.onNodeClick?.(node);
+        this.callbacks.onNodeClick?.(node, nodeClickMeta(mods));
         this.repaintSelection();
       },
       onOrgDoubleClick: (orgId) => {
@@ -882,7 +1122,7 @@ export class OrgHierarchyDiagram {
         if (this.destroyed) return;
         const node = seatNodeRef(this.data, personId, positionId);
         this.handleNodeSelect(node, mods);
-        this.callbacks.onNodeClick?.(node);
+        this.callbacks.onNodeClick?.(node, nodeClickMeta(mods));
         this.repaintSelection();
       },
       onPersonDoubleClick: (personId, positionId) => {
@@ -1169,6 +1409,59 @@ export class OrgHierarchyDiagram {
     return structuredClone(this.data);
   }
 
+  /** Access one live entity without cloning the whole scene; unknown refs return null. */
+  getNode(ref: NodeRef): DiagramNode | null {
+    const nodeRef = Object.freeze({ ...ref });
+    const read = (): ReturnType<DiagramNode['getData']> => {
+      const collection = nodeRef.kind === 'position'
+        ? this.data.positions
+        : nodeRef.kind === 'organization' ? this.data.organizations : this.data.persons;
+      return collection.find((entity) => entity.id === nodeRef.id) ?? null;
+    };
+    if (!read()) return null;
+    return {
+      ref: nodeRef,
+      getData: () => {
+        const entity = read();
+        return entity ? { ...entity } : null;
+      },
+      getState: () => {
+        let expanded = false;
+        let collapsed = false;
+        if (nodeRef.kind === 'position') {
+          const position = this.data.positions.find((p) => p.id === nodeRef.id);
+          expanded = position !== undefined
+            && isPositionExpanded(position, this.viewState.staffExpandedPositionIds);
+          collapsed = !expanded
+            && positionHasAdminChildren(nodeRef.id, this.data.positions, this.data.reportLines);
+        } else if (nodeRef.kind === 'organization') {
+          expanded = this.lastDrawnStaffOrgIds?.includes(nodeRef.id) ?? false;
+          collapsed = !expanded;
+        }
+        return {
+          selected: this.interactionStore.list.some((selected) => sameNodeRef(selected, nodeRef)),
+          hovered: this.emphasis.highlight === nodeRef.id,
+          expanded,
+          collapsed,
+        };
+      },
+    };
+  }
+
+  private applySubordinateCounts(data: DiagramData): void {
+    const counts = computeSubordinateCounts(data.positions, data.reportLines);
+    for (const position of data.positions) {
+      const count = counts.get(position.id);
+      if (count) {
+        position.childrenCount = count.childrenCount;
+        position.allDescendantCount = count.allDescendantCount;
+      } else {
+        delete position.childrenCount;
+        delete position.allDescendantCount;
+      }
+    }
+  }
+
   /**
    * Replace diagram data (host fetch → map → setData).
    * Rebuilds search index and re-renders. Clears selection.
@@ -1190,12 +1483,12 @@ export class OrgHierarchyDiagram {
     const index = await this.searchService.buildForScale(next);
     if (!this.ingestIsCurrent(epoch)) return;
 
+    this.applySubordinateCounts(next);
     this.data = next;
     this.searchService.adopt(index);
     this.seedExpandedPositionsFromData();
     this.applySelection(null);
-    this.viewState.highlightedNode = null;
-    this.viewState.foundFocus = null;
+    this.emphasis.clearEmphasis();
     const ms =
       (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()) - t0;
     this.callbacks.onDataMapped?.({
@@ -1207,12 +1500,12 @@ export class OrgHierarchyDiagram {
     this.callbacks.onOrgModeChange?.(this.getOrgMode());
     // A whole new snapshot has no meaningful delta. Emit the re-read signal directly,
     // deliberately bypassing emitOrgExpandChange instead of manufacturing an empty delta.
-    this.callHostCallback(this.callbacks.onOrgExpandChange, {
+    this.callHostCallback(this.callbacks.onOrgExpandChange, [{
       reason: 'data',
       changedIds: [],
       expanded: null,
-    });
-    await this.render();
+    }]);
+    await this.render('animate');
   }
 
   getCanvas(): HTMLCanvasElement | null {
@@ -1257,6 +1550,7 @@ export class OrgHierarchyDiagram {
     // its data with an index built from the roster it replaced.
     if (!this.ingestIsCurrent(epoch)) return;
 
+    this.applySubordinateCounts(merged);
     this.data = merged;
     this.searchService.adopt(index);
     await this.render();
@@ -1318,9 +1612,9 @@ export class OrgHierarchyDiagram {
       // Announced after the frame, like every other edit path (T104): a host
       // told about a collapse the render then refused had no way to hear it
       // taken back.
-      await this.drawOrRestore(this.data);
+      await this.drawOrRestore(this.data, 'animate');
       this.emitPositionExpand(positionId, false, [positionId]);
-      this.panToNode(positionId, { animate: true });
+      this.framePositionToggle(positionId);
       return false;
     }
 
@@ -1332,11 +1626,33 @@ export class OrgHierarchyDiagram {
     for (const id of evicted) this.setPositionExpandedFlag(id, false);
     this.setPositionExpandedFlag(positionId, true);
 
-    await this.drawOrRestore(this.data);
+    await this.drawOrRestore(this.data, 'animate');
     for (const id of evicted) this.emitPositionExpand(id, false, [id]);
     this.emitPositionExpand(positionId, true, [positionId, ...evicted]);
-    this.panToNode(positionId, { animate: true });
+    this.framePositionToggle(positionId);
     return true;
+  }
+
+  private framePositionToggle(positionId: string): void {
+    if (this.staffRefitOnToggle) {
+      if (this.animate && this.getTransitionFrame()) {
+        this.pendingFramePositionId = positionId;
+        return;
+      }
+      const from = this.getViewport();
+      const options = this.staffRefitOnToggle === true ? {} : this.staffRefitOnToggle;
+      const target = this.fitStaffChrome({ ...options, animate: false });
+      if (target) {
+        if (this.animate) return;
+        // Commit target-frame cards before returning to the start frame. During
+        // the animation the overlay carries these cards with one CSS transform.
+        this.notifyPromoteSync('prepare-camera');
+        this.setViewport(from);
+        this.host?.animateViewport(target);
+        return;
+      }
+    }
+    this.panToNode(positionId, { animate: true });
   }
 
   /** Both expand callbacks always fire together — one place, one shape. */
@@ -1386,7 +1702,7 @@ export class OrgHierarchyDiagram {
       expanded: changedIds.length > 0,
       changedIds,
     });
-    await this.render();
+    await this.render('animate');
     const head = this.data.positions.find(
       (p) => p.organizationId === organizationId && p.isHead,
     );
@@ -1407,7 +1723,7 @@ export class OrgHierarchyDiagram {
       expanded: false,
       changedIds: ids,
     });
-    await this.render();
+    await this.render('animate');
     this.panToNode(positionId, { animate: true });
   }
 
@@ -1511,14 +1827,50 @@ export class OrgHierarchyDiagram {
     };
   }
 
+  private ensureInteractionWired(): void {
+    if (this.destroyed || this.unsubscribeInteractionPaint || !this.renderer) return;
+    this.renderer.setInteractionSource({
+      getHovered: () => this.interactionStore.state.hovered,
+      setHovered: (ref: NodeRef | null) => { this.interactionStore.setHovered(ref); },
+    });
+    let hovered = this.interactionStore.state.hovered;
+    this.unsubscribeInteractionPaint = this.interactionStore.subscribe((state) => {
+      if (hovered === state.hovered || sameNodeRef(hovered, state.hovered)) return;
+      hovered = state.hovered;
+      this.renderer?.onNeedsPaint?.();
+    });
+  }
+
+  /** Subscribe to selection and transient hover changes. */
+  subscribeInteraction(callback: (state: InteractionState) => void): () => void {
+    this.ensureInteractionWired();
+    return this.interactionStore.subscribe(callback);
+  }
+
+  /** Set transient hover; unknown refs are cleared on data reconciliation. */
+  setHovered(node: NodeRef | null): void {
+    this.ensureInteractionWired();
+    this.interactionStore.setHovered(node);
+  }
+
+  /** Whether the shared selection contains this kind/id. Does not opt in to hover wiring. */
+  isSelected(ref: NodeRef): boolean {
+    return this.interactionStore.list.some((selected) => sameNodeRef(selected, ref));
+  }
+
+  /** Whether this kind/id is hovered in the shared interaction state. */
+  isHovered(ref: NodeRef): boolean {
+    return sameNodeRef(this.interactionStore.state.hovered, ref);
+  }
+
   /** Primary / first selected node (compat). Prefer {@link getSelections}. */
   getSelection(): NodeRef | null {
-    return this.selectionStore.primary;
+    return this.interactionStore.primary;
   }
 
   /** Full multi-select set (T67 Phase 1). Order = selection order. */
   getSelections(): readonly NodeRef[] {
-    return this.selectionStore.list;
+    return this.interactionStore.list;
   }
 
   /** Engine that drew the scene, or `null` before mount / after destroy (T83). */
@@ -1551,6 +1903,12 @@ export class OrgHierarchyDiagram {
     this.repaintSelection();
   }
 
+  /** Select like a pointer click: Ctrl/Cmd/Shift toggle; otherwise replace. */
+  selectNode(ref: NodeRef, mods?: SelectionPointerMods): void {
+    this.handleNodeSelect(ref, mods);
+    this.repaintSelection();
+  }
+
   /** Replace selection with many nodes (deduped). */
   async selectMany(nodes: readonly NodeRef[]): Promise<void> {
     this.applySelections(nodes);
@@ -1572,7 +1930,7 @@ export class OrgHierarchyDiagram {
   /** Accent the admin reporting path and direct reports using raw position ids. */
   highlightPath(nodeId: string | null): void {
     if (this.destroyed) return;
-    this.viewState.highlightedNode = nodeId || null;
+    this.emphasis.setHighlight(nodeId);
     this.repaintHighlight();
   }
 
@@ -1589,14 +1947,14 @@ export class OrgHierarchyDiagram {
         }
       }
     }
-    this.viewState.foundFocus = keys.size > 0 ? keys : null;
+    this.emphasis.setFound(keys.size > 0 ? keys : null);
     this.repaintHighlight();
   }
 
   private repaintHighlight(): void {
     if (this.destroyed) return;
     this.renderer?.repaintHighlight(
-      this.viewState.highlightedNode, this.viewState.foundFocus, this.data.reportLines, this.nodeTheme,
+      this.emphasis.highlight, this.emphasis.found, this.data.reportLines, this.nodeTheme,
     );
     this.host?.requestPaint();
   }
@@ -1604,40 +1962,63 @@ export class OrgHierarchyDiagram {
   /** T75 D1: selection chrome only — keeps nodeViews alive. */
   private repaintSelection(): void {
     if (!this.host || this.destroyed) return;
-    this.renderer?.repaintSelection(this.selectionStore.list);
+    this.renderer?.repaintSelection(this.interactionStore.list);
     this.notifyPromoteSync();
   }
 
   /**
-   * Expand org path to root for a person/position/org id, then focus.
+   * Expand org and admin ancestor paths for a person/position/org id, then focus.
    * Unknown id → no-op (returns false).
    */
-  async revealPath(nodeId: string): Promise<boolean> {
+  async revealPath(nodeId: string, options?: RevealPathOptions): Promise<boolean> {
     // A destroyed diagram has nothing to reveal a path into, and `search()`
     // already answers that way (`:881`).
     if (this.destroyed) return false;
 
     const orgId = resolveOrganizationIdForNode(this.data, nodeId);
     if (!orgId) return false;
-    const organizations = revealOrgPath(this.data.organizations, orgId);
-    if (organizations !== this.data.organizations) {
-      // The node box only exists after the reveal is laid out — focusing before
-      // the render silently skipped the pan for anything under a collapsed org.
-      const previous = this.data;
-      this.data = { ...this.data, organizations };
-      this.callbacks.onOrgModeChange?.(this.getOrgMode());
-      this.emitOrgExpandChange('reveal', previous.organizations, organizations);
+    const previous = this.data;
+    const previousExpandedIds = new Set(this.viewState.staffExpandedPositionIds);
+    const organizations = revealOrgPath(previous.organizations, orgId);
+    const orgChanged = organizations !== previous.organizations;
+    const ref = resolveNodeRefInData(previous, nodeId);
+    const positionId = ref?.kind === 'position' ? ref.id : ref?.positionId;
+    const changedIds: string[] = [];
+    if (positionId) {
+      const positions = new Map(previous.positions.map((position) => [position.id, position]));
+      for (const id of adminAncestorIds(positionId, previous.reportLines)) {
+        const position = positions.get(id);
+        if (position && !isPositionExpanded(position, previousExpandedIds)
+          && positionHasAdminChildren(id, previous.positions, previous.reportLines)) {
+          changedIds.push(id);
+        }
+      }
+    }
+    if (orgChanged || changedIds.length > 0) {
+      this.data = { ...previous, organizations };
+      // Revealing a full path bypasses eviction: evicting an ancestor hides the target again.
+      for (const id of changedIds) this.setPositionExpandedFlag(id, true);
+      if (orgChanged) {
+        this.callbacks.onOrgModeChange?.(this.getOrgMode());
+        this.emitOrgExpandChange('reveal', previous.organizations, organizations);
+      }
       try {
-        await this.render();
+        // Org and admin paths must both be visible before focusing the target.
+        await this.render('animate');
       } catch (error) {
         // Rolled back rather than left half-applied. The data said «expanded»
         // and the scene did not, so the next caller read a tree that was never
         // drawn — and `getOrgMode()` had already been told about it. Same shape
         // as the staff window's rebuild, which advertises optimistically and
-        // undoes it here (T88 report §20).
+        // undoes it here (T88 report §20). The position expand set is restored
+        // with the data: `setPositionExpandedFlag` wrote into both.
         this.data = previous;
-        this.callbacks.onOrgModeChange?.(this.getOrgMode());
-        this.emitOrgExpandChange('reveal-rollback', organizations, previous.organizations);
+        this.viewState.staffExpandedPositionIds.clear();
+        for (const id of previousExpandedIds) this.viewState.staffExpandedPositionIds.add(id);
+        if (orgChanged) {
+          this.callbacks.onOrgModeChange?.(this.getOrgMode());
+          this.emitOrgExpandChange('reveal-rollback', organizations, previous.organizations);
+        }
         throw error;
       }
       // After the await as well as before it: `destroy()` during a reveal is
@@ -1645,8 +2026,15 @@ export class OrgHierarchyDiagram {
       // because each call gates itself on `this.host`, but that is a
       // coincidence of the current call chain rather than a guarantee.
       if (this.destroyed) return false;
+      // Announced after the frame (T104): a refused frame above re-throws first.
+      if (changedIds.length > 0) this.emitPositionExpand(changedIds[0]!, true, changedIds);
     }
-    await this.focusNode(nodeId);
+    if (options?.select === false) {
+      const target = resolveNodeRefInData(this.data, nodeId);
+      if (target) this.panToNodeOrSeat(nodeId, target.positionId);
+    } else {
+      await this.focusNode(nodeId);
+    }
     return true;
   }
 
@@ -1730,15 +2118,59 @@ export class OrgHierarchyDiagram {
     if (!ref) return false;
     this.applySelection(ref);
     this.repaintSelection();
-    // A person id has no box of its own — the seat it fills does.
-    if (!this.panToNode(nodeId, { animate: true }) && ref.positionId) {
-      this.panToNode(ref.positionId, { animate: true });
-    }
+    this.panToNodeOrSeat(nodeId, ref.positionId);
     return true;
+  }
+
+  private panToNodeOrSeat(nodeId: string, positionId?: string): void {
+    // A person id has no box of its own — the seat it fills does.
+    if (!this.panToNode(nodeId, { animate: true }) && positionId) {
+      this.panToNode(positionId, { animate: true });
+    }
   }
 
   getViewport(): { x: number; y: number; scale: number } {
     return this.host?.getViewport() ?? { x: 0, y: 0, scale: 1 };
+  }
+
+  /**
+   * Centre of a node's card in canvas pixels — camera already applied.
+   *
+   * Exists so a host never composes `world·scale + pan` itself: geometry is
+   * computed once, here. Recomputed on every call, so it follows the camera.
+   * `null` for an id the scene holds no card for, and after `destroy()`.
+   */
+  nodeCanvasPoint(nodeId: string): Point2D | null {
+    const box = this.destroyed ? undefined : this.renderer?.getNodeBox(nodeId);
+    return box ? this.worldToCanvas(box.x + box.width / 2, box.y + box.height / 2) : null;
+  }
+
+  /** {@link nodeCanvasPoint} in client (window) pixels, for placing host DOM. */
+  nodeCenter(nodeId: string): Point2D | null {
+    return this.canvasToClient(this.nodeCanvasPoint(nodeId));
+  }
+
+  /**
+   * Centre of a node's expand button in client pixels, or `null` when the
+   * scene draws no button for it this frame (a leaf, far LOD, chrome off).
+   * Organizations only today; a host-drawn chevron is host DOM and the host
+   * reads its own element.
+   */
+  expanderCenter(nodeId: string): Point2D | null {
+    const e = this.destroyed ? undefined : this.renderer?.getNodeBox(nodeId)?.expander;
+    return e ? this.canvasToClient(this.worldToCanvas(e.x + e.width / 2, e.y + e.height / 2)) : null;
+  }
+
+  private worldToCanvas(x: number, y: number): Point2D {
+    const v = this.getViewport();
+    return { x: x * v.scale + v.x, y: y * v.scale + v.y };
+  }
+
+  private canvasToClient(point: Point2D | null): Point2D | null {
+    const canvas = this.getCanvas();
+    if (!point || !canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    return { x: point.x + rect.left, y: point.y + rect.top };
   }
 
   setViewport(next: Partial<{ x: number; y: number; scale: number }>): void {
@@ -1786,6 +2218,31 @@ export class OrgHierarchyDiagram {
    */
   listPromoteBoxes(): readonly NodeWorldBox[] {
     return this.renderer?.listNodeBoxes() ?? [];
+  }
+
+  /** Notify the SDK when a host staff backdrop mounts or unmounts. */
+  async setStaffReactChromeMounted(mounted: boolean): Promise<void> {
+    if (this.destroyed || this.renderConfig.staffReactChrome === mounted) return;
+    if (this.animate) this.renderer?.settleNow();
+    this.renderConfig = { ...this.renderConfig, staffReactChrome: mounted };
+    await this.render();
+  }
+
+  /** Current animated world boxes; null when settled or animation is disabled. */
+  getTransitionFrame(): TransitionFrame | null {
+    return this.animate ? this.renderer?.getTransitionFrame() ?? null : null;
+  }
+
+  /**
+   * Chrome geometry (department/org frames, connector lines and seat boxes, all in
+   * world coords) from the last render that drew the React near-view chrome; null
+   * before the first render and whenever that chrome was not drawn (org-view, grid,
+   * backdrop unmounted). The host reads this to draw the staff-alpha chrome instead
+   * of recomputing the layout. Pad around the org box is the diagram's set-once
+   * `render.staffChromePad`.
+   */
+  getStaffChromeGeometry(): StaffChromeGeometry | null {
+    return this.renderer?.getStaffChromeGeometry() ?? null;
   }
 
   /**
@@ -1852,6 +2309,39 @@ export class OrgHierarchyDiagram {
       this.onViewportTransform(this.host?.getZoom() ?? 1);
     }
     return ok;
+  }
+
+  /**
+   * Frame the staff near-view chrome (Б2): fit the padded org box from
+   * {@link OrgHierarchyDiagram.getStaffChromeGeometry} — NOT content bounds, which
+   * `fitView` fits — clamped to `[minScale,maxScale]`, centred horizontally and
+   * (by default) top-aligned, fitting width only so a tall tree is not shrunk
+   * below the near-view threshold. Returns the target transform it moved to, or
+   * `null` when there is no chrome box (before the first alpha render, org-view,
+   * backdrop unmounted). The camera math and the move are the SDK's; building the
+   * promote cards for the target frame before an animation is the host's (read the
+   * returned target, pre-sync the overlay, then let the animation run).
+   *
+   * Coupling caveat: `minScale`/`maxScale` are additionally bounded by the diagram's
+   * own zoom clamp (default 0.36–4, configurable at construction). The returned
+   * target carries the scale computed from the requested range; if that range
+   * exceeds the zoom clamp the camera is clamped further, so the returned target
+   * would then differ from the final camera. The default 0.55–1 sits inside the
+   * clamp — stay within the zoom limits to keep the returned target truthful.
+   */
+  fitStaffChrome(
+    opts: StaffFitOptions & CameraMotionOptions = {},
+  ): { x: number; y: number; scale: number } | null {
+    const box = this.getStaffChromeGeometry()?.org;
+    if (!box) return null;
+    const target = computeStaffFit(box, this.getScreenSize(), opts);
+    if (opts.animate === false) {
+      this.host?.setViewport(target);
+      this.onViewportTransform(target.scale);
+    } else {
+      this.host?.animateViewport(target, opts);
+    }
+    return target;
   }
 
   /** Reset camera to identity (scale 1, origin). */
@@ -2140,8 +2630,10 @@ export class OrgHierarchyDiagram {
     //
     // SVG цього не потребує — він будується з моделі, не зі сцени (виміряно:
     // байт у байт однаковий в обох станах).
+    if (this.animate) this.renderer?.settleNow();
     const promoted = [...(this.renderer?.getPromotedNodeIds() ?? [])];
     if (promoted.length > 0) this.renderer?.setPromotedNodeIds([]);
+    this.renderer?.resetCull();
     try {
       return await this.runExportNow(this.host, options);
     } finally {
@@ -2187,11 +2679,20 @@ export class OrgHierarchyDiagram {
   destroy(): void {
     this.destroyed = true;
     this.renderCoalesce.stop();
+    if (this.marqueeWired) {
+      this.renderer?.setMarqueeSink(null);
+      this.marqueeWired = false;
+    }
+    this.unsubscribeInteractionPaint?.();
+    this.unsubscribeInteractionPaint = null;
+    this.pendingFramePositionId = null;
+    if (this.animate) this.renderer?.configureTransition(null);
     if (this.viewportFrame !== null) cancelAnimationFrame(this.viewportFrame);
     if (this.viewportSettleTimer !== null) clearTimeout(this.viewportSettleTimer);
     this.viewportFrame = null;
     this.viewportSettleTimer = null;
     this.viewportPending = null;
+    this.clearMotionBlur();
     this.promoteSyncListeners.clear();
     void this.mediaService?.destroy();
     this.mediaService = null;
@@ -2201,4 +2702,23 @@ export class OrgHierarchyDiagram {
     this.host?.destroy();
     this.host = null;
   }
+}
+
+/**
+ * Resolve the `motionBlur` config to options, or null when it must not run:
+ * falsy config, or the user asked for reduced motion. Checked once at create —
+ * a mid-session OS toggle is not tracked (v1).
+ */
+function resolveMotionBlur(
+  cfg: boolean | Partial<MotionBlurOptions> | undefined,
+): MotionBlurOptions | null {
+  if (!cfg) return null;
+  if (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  ) {
+    return null;
+  }
+  return cfg === true ? { ...defaultMotionBlurOptions } : { ...defaultMotionBlurOptions, ...cfg };
 }

@@ -210,7 +210,6 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
           orgCardHeight: 64,
           refCellWidth: 140,
           refCellHeight: 160,
-          collapseUnexpandedPositions: true,
         },
       };
     case 'staff-dept-legacy':
@@ -236,7 +235,6 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
           orgCardHeight: 64,
           refCellWidth: 140,
           refCellHeight: 160,
-          collapseUnexpandedPositions: false,
         },
       };
     case 'mockup-orgs-figma':
@@ -338,10 +336,9 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
           orgCardHeight: 64,
           refCellWidth: 172,
           refCellHeight: 100,
-          // First paint stops at the section chiefs; officers and NCOs open on
-          // a click. Without this the eleven departments lay out side by side
-          // and «fit» lands at zoom 0.15.
-          collapseUnexpandedPositions: true,
+          // #96: prune is always on and the current org defaults to fully
+          // expanded (SPEC §2.2); the eleven departments stay readable because
+          // the library clamps fit-zoom at 0.36 rather than collapsing them.
         },
       };
 
@@ -391,7 +388,6 @@ export function buildTabConfig(tab: DemoTab, deps: TabConfigDeps): OrgHierarchyC
           orgCardHeight: 121,
           refCellWidth: 220,
           refCellHeight: 72,
-          collapseUnexpandedPositions: false,
         },
         render: {
           ...base.render,

@@ -1,10 +1,20 @@
+import { HostNodeView, isInteractiveNodeView } from './interactiveNodeView.js';
+import { NodeViewPool, type NodeView } from './nodeViewFactory.js';
+import { TransitionController } from './transition/TransitionController.js';
+import { FADE_MS } from './transition/constants.js';
+import { createAnimator } from './transition/animators.js';
+import type { ResolvedAnimate, TargetBox, TransitionFrame } from './transition/types.js';
+import type { SceneRegistrySnapshot } from './SceneRegistry.js';
 import { reportPath } from '../interaction/reportPath.js';
 import type { DiagramReportLine } from '../data/types.js';
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, type FederatedPointerEvent } from 'pixi.js';
+import { boxesIntersectRect, isDrag, rectFromDrag, type MarqueeRect } from './marquee.js';
 import { LayerManager } from './LayerManager.js';
 import { DropTargetIndex } from './dropTargetIndex.js';
 import { nodeEntityKey, normalizeSelected, parseNodeEntityKey, type NodeRef } from '../core/index.js';
 import { SceneRegistry, type NodeWorldBox } from './SceneRegistry.js';
+import { promoteIdMatches, screenRectInView, worldBoxToScreen } from './promoteMath.js';
+import type { ViewportTransform } from './Viewport.js';
 import { ContourPainter } from './contour/ContourPainter.js';
 import { projectedOccupantMove } from '../core/index.js';
 import {
@@ -36,9 +46,11 @@ import { countDepartmentPositions } from './departmentPositionsBadge.js';
 import { paintDashedFrame } from './dashedStroke.js';
 import { StaffZonesView } from './StaffZonesView.js';
 import type { WorldRect } from './staffZoneBounds.js';
+import { worldBoundsForTier } from './staffZoneBounds.js';
 import { unionBoxes } from './staffZoneBounds.js';
 import { OrgEdgesView } from './OrgEdgesView.js';
 import { StaffEdgesView } from './StaffEdgesView.js';
+import { staffDimmedIds } from './staffRelated.js';
 import { PersonNodeView } from './PersonNode.js';
 import { OrganizationNodeView } from './OrganizationNode.js';
 import type {
@@ -52,6 +64,11 @@ import { resolveSeatDrop, type SeatDrop } from '../core/index.js';
 import type { LodLevel } from './lod.js';
 import { computeStaffLiveGeometry, type StaffLiveGeometry } from './staffLiveGeometry.js';
 import {
+  buildStaffChromeGeometry,
+  DEFAULT_STAFF_CHROME_PAD,
+  type StaffChromeGeometry,
+} from './staffChromeGeometry.js';
+import {
   resolveContourWorldTransform,
   type ContourWorldTransform,
 } from './contour/contourWorldTransform.js';
@@ -64,7 +81,15 @@ import {
 } from './staffLayoutInputs.js';
 import { orgStaffCardOptions, orgTreeOptions } from './organizationNodeOptions.js';
 
+export interface InteractionSource {
+  getHovered(): NodeRef | null;
+  setHovered(ref: NodeRef | null): void;
+}
+
+export type RenderReason = 'animate' | 'snap';
+
 export interface RenderOptions {
+  transition?: RenderReason;
   orgLayout?: OrgLayoutOptions;
   lod?: LodLevel;
   /** Contour morph duration during drag (ms). `0` = snap. Default 160. */
@@ -163,15 +188,114 @@ const EXTERNAL_CARD_ALPHA = 0.55;
 const DROP_VALID_COLOR = 0x16a34a;
 const DROP_INVALID_COLOR = 0xdc2626;
 
+// Small scenes can spend more on culling than they save. Start conservatively
+// within the 100–500 node guidance; validate this threshold with npm run measure.
+const CULL_MIN_NODES = 300;
+
+type CullStats = { drawn: number; culled: number; passes: number };
+
+interface TransitionChromePaint {
+  target: TargetBox;
+  view: Container;
+  draw: (rect: WorldRect) => Container;
+  drawn: WorldRect;
+}
+
+interface TransitionSnapshot {
+  layers: Map<Container, Container[]>;
+  scene: SceneRegistrySnapshot;
+  chrome: StaffChromeGeometry | null;
+  lod: LodLevel | null;
+  frame: TransitionFrame;
+  chromePaint: Map<string, TransitionChromePaint>;
+  ghosts: Map<string, { view: Container; baselineAlpha: number }>;
+  layerAlphas: Map<Container, number>;
+}
+
 export class DiagramRenderer {
   readonly layers = new LayerManager();
+  private nodeViewPool: NodeViewPool | null = null;
+
+  setNodeViewFactory(factory: NodeView | null): void {
+    if (this.destroyed) return;
+    this.nodeViewPool?.clearAll();
+    this.nodeViewPool = factory ? new NodeViewPool(factory) : null;
+  }
+
+  private createHostNode(
+    person: DiagramData['persons'][number] | undefined,
+    position: DiagramPosition,
+    theme: NodeTheme,
+    lod: LodLevel,
+    width: number,
+    height: number,
+  ): HostNodeView | null {
+    if (!this.nodeViewPool) return null;
+    const key = nodeEntityKey('position', position.id);
+    // The pool contains host exceptions and warns once before returning null.
+    const root = this.nodeViewPool.obtain(key,
+      { kind: 'position', id: position.id, data: person, position }, { lod, theme });
+    this.nodeViewPool.markSeen(key);
+    return root ? new HostNodeView(root, lod, { kind: 'position', id: position.id }, width, height) : null;
+  }
+
   private destroyed = false;
   /** Bumped at each render entry; stale async passes bail after await (T75 D2). */
   private renderEpoch = 0;
   private highlightReady = false;
   private highlightApplied = false;
+  private interactionSource: InteractionSource | null = null;
+  private selectedViewKeys = new Set<string>();
+  private interactionLines: readonly DiagramReportLine[] = [];
+  private foundFocus: ReadonlySet<string> | null = null;
+  private foundDimAlpha = 0.38;
+
+  /** Null restores the original local hover path, including already mounted nodes. */
+  setInteractionSource(src: InteractionSource | null): void {
+    if (this.destroyed || this.interactionSource === src) return;
+    if (this.interactionSource && !src) this.paintInteraction(null);
+    this.interactionSource = src;
+    for (const { view } of this.scene.listViews()) this.bindInteraction(view);
+    this.onNeedsPaint?.();
+  }
+
+  private bindInteraction(view: Container): void {
+    if (isInteractiveNodeView(view)) {
+      const source = this.interactionSource;
+      view.setHoverHandler(source ? (ref) => source.setHovered(ref) : undefined);
+    }
+  }
+
+  private interactionViewKey(ref: NodeRef): string | null {
+    if (ref.kind !== 'person') return nodeEntityKey(ref.kind, ref.id);
+    const position = this.currentPositions.find((p) =>
+      ref.positionId ? p.id === ref.positionId && p.personId === ref.id : p.personId === ref.id);
+    return position ? nodeEntityKey('position', position.id) : null;
+  }
+
+  /** Read the source at paint time; related sets exist only for this paint. */
+  private paintInteraction(hovered: NodeRef | null): void {
+    const views = this.scene.listViews();
+    const hoveredKey = hovered ? this.interactionViewKey(hovered) : null;
+    const positionIds = new Set(views.flatMap(({ key, view }) => {
+      const ref = parseNodeEntityKey(key);
+      return isInteractiveNodeView(view) && ref?.kind === 'position' ? [ref.id] : [];
+    }));
+    const hoverRef = hoveredKey ? parseNodeEntityKey(hoveredKey) : null;
+    const dimmed = staffDimmedIds(hoverRef, this.lastStaffChrome?.lines ?? this.interactionLines, positionIds);
+    const frame = this.getTransitionFrame();
+    for (const { key, view, baselineAlpha } of views) {
+      if (!isInteractiveNodeView(view)) continue;
+      view.setHovered(key === hoveredKey && !this.selectedViewKeys.has(key));
+      const ref = parseNodeEntityKey(key);
+      const emphasisAlpha = this.foundFocus && !this.foundFocus.has(key) ? this.foundDimAlpha : baselineAlpha;
+      const hoverAlpha = ref?.kind === 'position' && dimmed.has(ref.id) ? 0.45 : 1;
+      view.alpha = emphasisAlpha * hoverAlpha * (frame?.get(key)?.opacity ?? 1);
+    }
+  }
   /** Boxes, views and promote state for what the last render put on screen. */
   private readonly scene = new SceneRegistry();
+  private lastCullStats: CullStats = { drawn: 0, culled: 0, passes: 0 };
   private lastDiagnostics: string[] = [];
   /** Contour cell-space → staff world (pitch + origin). */
   private contourWorld: ContourWorldTransform | null = null;
@@ -197,12 +321,286 @@ export class DiagramRenderer {
    * a dragged card, for one. Set by the host, which owns the Pixi application.
    */
   onNeedsPaint: (() => void) | null = null;
+  onTransitionFrame: ((frame: TransitionFrame) => void) | null = null;
+  private transition: TransitionController | null = null;
+  private transitionSnapshot: TransitionSnapshot | null = null;
+  private lastConfirmedLod: LodLevel | null = null;
+  private transitionGhosts: Container | null = null;
+  private ghostViews = new Map<string, { view: Container; baselineAlpha: number }>();
+  private transitionFrom: TransitionFrame = new Map();
+  private transitionPreparedEpoch = -1;
+  private transitionWarned = false;
+  private lineFadeRequest: number | null = null;
+  private lineFadeViews: Container[] = [];
+  private forceTransitionSettle = false;
+  private oldTransitionPaint: { view: Container; alpha: number }[] = [];
+  private stagedPaint: Container[] = [];
+  private transitionPaintStarted = 0;
+  private transitionChromePaint = new Map<string, TransitionChromePaint>();
+
+  configureTransition(resolved: ResolvedAnimate | null): void {
+    if (this.destroyed) return;
+    this.settleNow();
+    this.transition?.destroy();
+    this.transition = resolved ? new TransitionController({
+      resolved, createAnimator,
+      clock: {
+        now: () => performance.now(),
+        requestFrame: (cb) => requestAnimationFrame((time) => {
+          // A pending async render owns the stage until prepare or abort.
+          if (!this.transitionSnapshot) cb(time);
+        }),
+        cancelFrame: (id) => cancelAnimationFrame(id),
+      },
+    }) : null;
+    this.transition?.onFrame((frame) => {
+      this.applyTransitionFrame(frame);
+      if (!this.transition?.isActive()) {
+        const paint = [...this.stagedPaint];
+        if (this.layers.edges.children.length > 0) paint.push(this.layers.edges);
+        this.clearTransitionGhosts();
+        if (!this.forceTransitionSettle) this.fadeInTransitionPaint(paint);
+      }
+      this.signalTransitionFrame(frame);
+      this.onNeedsPaint?.();
+    });
+  }
+
+  startTransition(): void {
+    if (!this.transition || this.destroyed) return;
+    this.releaseTransitionSnapshot();
+    this.transition.confirm();
+    this.transitionPaintStarted = performance.now();
+    this.transition.start();
+  }
+
+  abortTransition(): void {
+    const snapshot = this.transitionSnapshot;
+    if (!snapshot || !this.transition) return;
+    this.transition.abort();
+    // Rescue snapshot children before clearing the refused scene's ghosts.
+    for (const children of snapshot.layers.values()) {
+      for (const child of children) child.removeFromParent();
+    }
+    this.clearTransitionGhosts();
+    this.layers.restore(snapshot.layers);
+    this.ghostViews = snapshot.ghosts;
+    this.transitionChromePaint = snapshot.chromePaint;
+    for (const [layer, alpha] of snapshot.layerAlphas) layer.alpha = alpha;
+    this.scene.restore(snapshot.scene);
+    for (const box of this.scene.listBoxes()) {
+      const frameBox = snapshot.frame.get(box.id);
+      if (frameBox) this.scene.rememberBox({ ...box, x: frameBox.x, y: frameBox.y });
+    }
+    this.lastStaffChrome = snapshot.chrome;
+    this.lastConfirmedLod = snapshot.lod;
+    this.lastLod = snapshot.lod ?? this.lastLod;
+    for (const { view } of this.scene.listViews()) view.eventMode = 'none';
+    this.transitionSnapshot = null;
+    this.onNeedsPaint?.();
+  }
+
+  settleNow(): void {
+    const fading = this.lineFadeRequest !== null;
+    this.finishLineFade();
+    if (!this.transition?.isActive()) {
+      if (fading) this.onNeedsPaint?.();
+      return;
+    }
+    this.releaseTransitionSnapshot();
+    this.forceTransitionSettle = true;
+    try { this.transition.snapToTarget(); }
+    finally { this.forceTransitionSettle = false; }
+  }
+
+  /** No layout work or structural signals in the short final paint fade. */
+  private fadeInTransitionPaint(views: Container[]): void {
+    if (views.length === 0) return;
+    this.lineFadeViews = views;
+    const started = performance.now();
+    // The settled routes become visible immediately, including at the burst cap.
+    for (const view of views) view.alpha = 0.01;
+    const tick = (now: number) => {
+      this.lineFadeRequest = null;
+      if (this.destroyed) return;
+      const progress = Math.min(1, Math.max(0, (now - started) / FADE_MS));
+      for (const view of views) view.alpha = 0.01 + 0.99 * (1 - (1 - progress) ** 3);
+      if (progress < 1) this.lineFadeRequest = requestAnimationFrame(tick);
+      else this.lineFadeViews = [];
+      this.onNeedsPaint?.();
+    };
+    this.lineFadeRequest = requestAnimationFrame(tick);
+  }
+
+  private finishLineFade(): void {
+    if (this.lineFadeRequest !== null) cancelAnimationFrame(this.lineFadeRequest);
+    this.lineFadeRequest = null;
+    for (const view of this.lineFadeViews) view.alpha = 1;
+    this.lineFadeViews = [];
+  }
+
+  getTransitionFrame(): TransitionFrame | null {
+    return this.transition?.isActive() ? this.transition.frame() : null;
+  }
+
+  private signalTransitionFrame(frame: TransitionFrame): void {
+    try { this.onTransitionFrame?.(frame); }
+    catch (error) {
+      if (!this.transitionWarned) {
+        this.transitionWarned = true;
+        console.warn('Transition frame callback failed', error);
+      }
+    }
+  }
+
+  private captureTransitionSnapshot(): void {
+    this.releaseTransitionSnapshot();
+    if (!this.transition) return;
+    this.transitionSnapshot = {
+      layers: this.layers.detach(), scene: this.scene.snapshot(),
+      chrome: this.getStaffChromeGeometry(), lod: this.lastConfirmedLod,
+      chromePaint: new Map(this.transitionChromePaint),
+      frame: this.transition.frame(), ghosts: new Map(this.ghostViews),
+      layerAlphas: new Map(this.layers.root.children.map((layer) => [layer, layer.alpha])),
+    };
+  }
+
+  private releaseTransitionSnapshot(): void {
+    if (!this.transitionSnapshot) return;
+    for (const children of this.transitionSnapshot.layers.values()) {
+      for (const child of children) {
+        if (child.parent !== this.transitionGhosts) child.destroy({ children: true });
+      }
+    }
+    this.transitionSnapshot = null;
+  }
+
+  private clearTransitionGhosts(): void {
+    if (this.transitionGhosts) {
+      for (const child of this.transitionGhosts.removeChildren()) {
+        // Rollback still owns these until startTransition confirms the pass.
+        if (!this.transitionSnapshot) child.destroy({ children: true });
+      }
+    }
+    this.ghostViews.clear();
+    this.oldTransitionPaint = [];
+    for (const view of this.stagedPaint) view.alpha = 1;
+    this.stagedPaint = [];
+    this.layers.edges.alpha = 1;
+  }
+
+  private prepareTransition(options: RenderOptions, staff: boolean, nodeTargets?: TargetBox[]): void {
+    if (!this.transition) return;
+    const targets: TargetBox[] = nodeTargets ?? (staff ? this.scene.listBoxes().map((box) => ({
+      key: box.id, x: box.x, y: box.y, w: box.width, h: box.height,
+    })) : []);
+    this.transitionPreparedEpoch = this.renderEpoch;
+    for (const paint of this.transitionChromePaint.values()) targets.push(paint.target);
+    const chrome = this.lastStaffChrome;
+    if (chrome?.org) targets.push(rectTarget('frame:org', chrome.org));
+    for (const dept of chrome?.depts ?? []) targets.push(rectTarget(`frame:dept:${dept.departmentId}`, dept));
+    this.transitionFrom = this.transition.frame();
+    this.transition.prepare(targets, {
+      animate: staff && options.transition === 'animate' && this.lastConfirmedLod === this.lastLod,
+    });
+    this.clearTransitionGhosts();
+    if (this.transition.isActive()) {
+      this.transitionGhosts ??= this.layers.root.addChild(new Container());
+      this.transitionGhosts.eventMode = 'none';
+      const snapshot = this.transitionSnapshot;
+      if (snapshot) {
+        const candidates = new Map(snapshot.ghosts);
+        for (const [key, paint] of snapshot.chromePaint) {
+          candidates.set(key, { view: paint.view, baselineAlpha: 1 });
+        }
+        for (const [key, view] of snapshot.scene.views) {
+          candidates.set(key, { view, baselineAlpha: snapshot.scene.baselineAlphas.get(key) ?? 1 });
+        }
+        for (const [key, { view, baselineAlpha }] of candidates) {
+          if (this.transition.frame().get(key)?.phase !== 'exiting') continue;
+          this.transitionGhosts.addChild(view);
+          this.ghostViews.set(key, { view, baselineAlpha });
+        }
+      }
+      if (snapshot) {
+        const oldPaint = [this.layers.edges, this.layers.departmentStrokes];
+        for (const layer of oldPaint) {
+          for (const view of snapshot.layers.get(layer) ?? []) {
+            this.transitionGhosts.addChild(view);
+            this.oldTransitionPaint.push({ view, alpha: view.alpha * (snapshot.layerAlphas.get(layer) ?? 1) });
+          }
+        }
+        for (const view of snapshot.layers.get(this.layers.departments) ?? []) {
+          if ([...snapshot.chromePaint.values()].some((paint) => paint.view === view)) continue;
+          this.transitionGhosts.addChild(view);
+          this.oldTransitionPaint.push({ view, alpha: view.alpha });
+        }
+      }
+      this.stagedPaint = [...this.layers.departmentStrokes.children,
+        ...this.layers.departments.children.filter((view) => ![...this.transitionChromePaint.values()].some((paint) => paint.view === view))];
+      for (const view of this.stagedPaint) view.alpha = 0;
+      this.layers.edges.alpha = 0;
+    }
+    this.transitionPaintStarted = performance.now();
+    this.applyTransitionFrame(this.transition.frame());
+  }
+
+  private applyTransitionFrame(frame: TransitionFrame): void {
+    const progress = Math.min(1, Math.max(0, (performance.now() - this.transitionPaintStarted) / FADE_MS));
+    for (const { view, alpha } of this.oldTransitionPaint) view.alpha = alpha * (1 - progress) ** 3;
+    for (const { key, view, baselineAlpha } of this.scene.listViews()) {
+      const box = frame.get(key);
+      if (!box) continue;
+      view.position.set(box.x, box.y);
+      view.scale.set(box.scale);
+      view.alpha = baselineAlpha * box.opacity;
+    }
+    for (const [key, { view, baselineAlpha }] of this.ghostViews) {
+      const box = frame.get(key);
+      if (!box) continue;
+      if (!key.startsWith('frame:')) {
+        view.position.set(box.x, box.y);
+        view.scale.set(box.scale);
+      }
+      view.alpha = baselineAlpha * box.opacity;
+    }
+    for (const [key, paint] of this.transitionChromePaint) {
+      const box = frame.get(key);
+      if (!box) continue;
+      const rect = frameRect(box);
+      if (rect.x !== paint.drawn.x || rect.y !== paint.drawn.y
+        || rect.width !== paint.drawn.width || rect.height !== paint.drawn.height) {
+        for (const child of paint.view.removeChildren()) child.destroy({ children: true });
+        paint.view.addChild(paint.draw(rect));
+        paint.drawn = rect;
+      }
+      paint.view.alpha = box.opacity;
+    }
+  }
+
+  /** Rectangular chrome repaints from boxes, preserving labels and stroke widths. */
+  private addTransitionChrome(key: string, rect: WorldRect, layer: Container,
+    draw: (box: WorldRect) => Container): void {
+    const view = new Container();
+    view.eventMode = 'none';
+    view.addChild(draw(rect));
+    layer.addChild(view);
+    this.transitionChromePaint.set(key, { target: rectTarget(key, rect), view, draw, drawn: rect });
+  }
 
   /** The band the scene was last drawn at — seat drag is gated on it. */
   private lastLod: LodLevel = 'near';
 
   /** Strip reserved for zone labels in the last render; 0 without zone chrome. */
   private lastZoneLabelBand = 0;
+
+  /**
+   * Chrome geometry from the LAST render that drew the React near-view chrome
+   * (Б2 getter). Reset to null at the top of every render() — so an org-view or a
+   * React-chrome-off render leaves no stale box — and set only in the
+   * reactChrome-on branch of renderStaffCanvas. Read by `getStaffChromeGeometry`.
+   */
+  private lastStaffChrome: StaffChromeGeometry | null = null;
 
   /**
    * Union of the chrome painted around the nodes — zones and department frames.
@@ -220,6 +618,7 @@ export class DiagramRenderer {
     rememberBox: (box) => this.rememberBox(box),
     dragGrid: () => this.dragGrid,
     currentLod: () => this.lastLod,
+    onDragStart: () => this.settleNow(),
     // Resolve the same `SeatDrop` the commit will (T111-K4a, plan §1's "one
     // clean function, two consumers"): `movePersonToCell`
     // (OrgHierarchyDiagram.ts) is the other caller of `resolveSeatDrop`, over
@@ -273,8 +672,83 @@ export class DiagramRenderer {
   /** What the drop preview is currently saying, or null when nothing is drawn. */
   lastDropPreview: { targetId: string; valid: boolean; color: number } | null = null;
 
+  private marqueeSink: {
+    onRect(rect: MarqueeRect | null): void;
+    onSelect(ids: string[]): void;
+  } | null = null;
+  private marqueeDrag: {
+    pointerId: number;
+    startWorld: { x: number; y: number };
+    startScreen: { x: number; y: number };
+    moved: boolean;
+  } | null = null;
+  private marqueeTapAfterDrag = false;
+  private detachMarquee: (() => void) | null = null;
+
+  setMarqueeSink(sink: {
+    onRect(rect: MarqueeRect | null): void;
+    onSelect(ids: string[]): void;
+  } | null): void {
+    if (this.destroyed || this.marqueeSink === sink) return;
+    const previous = this.marqueeSink;
+    const active = this.marqueeDrag !== null;
+    this.marqueeDrag = null;
+    this.marqueeSink = sink;
+    if (active) previous?.onRect(null);
+  }
+
   mount(stage: Container): void {
     stage.addChild(this.layers.root);
+    this.detachMarquee?.();
+    const down = (e: FederatedPointerEvent) => {
+      this.marqueeTapAfterDrag = false;
+      if (!this.marqueeSink || !e.shiftKey || e.button !== 0) return;
+      if (e.target !== stage && e.target !== this.layers.root) return;
+      // Mount precedes PixiHost.bindPan; stop the later stage listener too.
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      this.marqueeDrag = {
+        pointerId: e.pointerId,
+        startWorld: this.layers.root.toLocal(e.global),
+        startScreen: { x: e.global.x, y: e.global.y },
+        moved: false,
+      };
+    };
+    const move = (e: FederatedPointerEvent) => {
+      const drag = this.marqueeDrag;
+      if (!drag || drag.pointerId !== e.pointerId) return;
+      drag.moved ||= isDrag(drag.startScreen, e.global);
+      if (!drag.moved) return;
+      this.marqueeSink?.onRect(rectFromDrag(drag.startWorld, this.layers.root.toLocal(e.global)));
+    };
+    const up = (e: FederatedPointerEvent) => {
+      const drag = this.marqueeDrag;
+      if (!drag || drag.pointerId !== e.pointerId) return;
+      this.marqueeDrag = null;
+      if (drag.moved || isDrag(drag.startScreen, e.global)) {
+        this.marqueeTapAfterDrag = true;
+        const rect = rectFromDrag(drag.startWorld, this.layers.root.toLocal(e.global));
+        this.marqueeSink?.onSelect(boxesIntersectRect(this.scene.listBoxes(), rect));
+      }
+      this.marqueeSink?.onRect(null);
+    };
+    const cancel = (e: FederatedPointerEvent) => {
+      if (this.marqueeDrag?.pointerId !== e.pointerId) return;
+      this.marqueeDrag = null;
+      this.marqueeSink?.onRect(null);
+    };
+    stage.on('pointercancelcapture', cancel);
+    stage.on('pointerdown', down);
+    stage.on('globalpointermove', move);
+    stage.on('pointerupcapture', up);
+    stage.on('pointerupoutside', up);
+    this.detachMarquee = () => {
+      stage.off('pointercancelcapture', cancel);
+      stage.off('pointerdown', down);
+      stage.off('globalpointermove', move);
+      stage.off('pointerupcapture', up);
+      stage.off('pointerupoutside', up);
+    };
   }
 
   getNodeBox(id: string): NodeWorldBox | undefined {
@@ -296,6 +770,10 @@ export class DiagramRenderer {
    */
   setPromotedNodeIds(ids: readonly string[]): void {
     this.scene.setPromotedIds(ids);
+    const promoted = new Set(ids);
+    for (const [key, { view }] of this.ghostViews) {
+      view.visible = !promoteIdMatches(promoted, key);
+    }
   }
 
   getPromotedNodeIds(): readonly string[] {
@@ -387,6 +865,7 @@ export class DiagramRenderer {
 
   private registerView(kind: NodeWorldBox['kind'], id: string, view: Container): void {
     this.scene.registerView(kind, id, view);
+    if (this.interactionSource) this.bindInteraction(view);
   }
 
   private registerMediaView(
@@ -413,11 +892,92 @@ export class DiagramRenderer {
     return unionBoxes(parts);
   }
 
+  /**
+   * Chrome geometry (frames/org/lines/seat boxes, world coords) from the last
+   * render that drew the React near-view chrome; null before the first render and
+   * on any render that did not (org-view, grid, React chrome off). The Б2 host
+   * reads this instead of recomputing the layout.
+   */
+  getStaffChromeGeometry(): (StaffChromeGeometry & { linesOpacity?: number }) | null {
+    const chrome = this.lastStaffChrome;
+    const frame = this.getTransitionFrame();
+    if (!chrome || !frame) return chrome;
+    const org = frame.get('frame:org');
+    return {
+      ...chrome,
+      org: chrome.org && org ? { ...chrome.org, ...frameRect(org) } : chrome.org,
+      depts: chrome.depts.map((dept) => {
+        const box = frame.get(`frame:dept:${dept.departmentId}`);
+        return box ? { ...dept, ...frameRect(box) } : dept;
+      }),
+      nodeBoxes: Object.fromEntries(Object.entries(chrome.nodeBoxes).map(([id, box]) => {
+        const current = frame.get(`position:${id}`);
+        return [id, current ? frameRect(current) : box];
+      })),
+      lines: [], linesOpacity: 0,
+    };
+  }
+
   /** Grow the painted-chrome union; reset per render. */
   private rememberChrome(rect: WorldRect): void {
     this.chromeBounds = unionBoxes(
       this.chromeBounds ? [this.chromeBounds, rect] : [rect],
     );
+  }
+
+  /** Fail open on bad geometry so a cull pass cannot abort the animation frame. */
+  cullToViewport(
+    viewport: ViewportTransform,
+    screen: { width: number; height: number },
+  ): void {
+    if (this.interactionSource) this.paintInteraction(this.interactionSource.getHovered());
+    this.lastCullStats.passes += 1;
+    const views = [...this.scene.listViews(), ...[...this.ghostViews].map(([key, value]) => ({ key, ...value }))];
+    if (views.length < CULL_MIN_NODES) {
+      this.resetCull();
+      return;
+    }
+    const pad = 0.5 * Math.max(screen.width, screen.height);
+    let drawn = 0;
+    for (const { key, view } of views) {
+      let renderable = true;
+      try {
+        const target = this.scene.getBox(key);
+        const from = this.getTransitionFrame() && this.transitionFrom.get(key);
+        const ghost = this.ghostViews.has(key) && this.getTransitionFrame()?.get(key);
+        const box = ghost ? frameRect(ghost)
+          : from && target ? unionBoxes([target, frameRect(from)]) : target;
+        if (
+          box &&
+          Number.isFinite(box.x) && Number.isFinite(box.y) &&
+          Number.isFinite(box.width) && Number.isFinite(box.height)
+        ) {
+          renderable = screenRectInView(worldBoxToScreen(box, viewport), screen, pad);
+        }
+      } catch {
+        // Geometry failure must restore a view culled by the previous paint.
+        renderable = true;
+      }
+      view.renderable = renderable;
+      if (renderable) drawn += 1;
+    }
+    this.lastCullStats = {
+      drawn,
+      culled: views.length - drawn,
+      passes: this.lastCullStats.passes,
+    };
+  }
+
+  /** Restore node paint without changing the visibility owned by promote. */
+  resetCull(): void {
+    const views = this.scene.listViews();
+    for (const { view } of views) view.renderable = true;
+    for (const { view } of this.ghostViews.values()) view.renderable = true;
+    this.lastCullStats = { drawn: views.length, culled: 0, passes: this.lastCullStats.passes };
+  }
+
+  getCullStats(): CullStats {
+    return { ...this.lastCullStats };
   }
 
   async render(
@@ -429,8 +989,18 @@ export class DiagramRenderer {
     orgLayoutResult?: OrgLayoutResult,
   ): Promise<void> {
     if (this.destroyed) return;
+    if (this.transition) {
+      this.finishLineFade();
+      if (options.transition === 'animate') this.captureTransitionSnapshot();
+      else {
+        this.releaseTransitionSnapshot();
+        this.clearTransitionGhosts();
+      }
+    }
     this.highlightReady = false;
     this.highlightApplied = false;
+    this.foundFocus = null;
+    this.interactionLines = data.reportLines;
     const epoch = ++this.renderEpoch;
     this.currentPositions = data.positions;
     this.contours.reset();
@@ -441,12 +1011,21 @@ export class DiagramRenderer {
     this.personInteractions.reset();
     this.layers.clear();
     this.scene.clear();
+    this.nodeViewPool?.beginPass();
     this.lastDiagnostics = [];
+    // Reset here — not inside renderStaffCanvas — because org-view and grid renders
+    // never enter it, and would otherwise leave the previous alpha box cached.
+    this.lastStaffChrome = null;
+    this.transitionChromePaint = new Map();
 
     this.layers.root.eventMode = 'static';
     this.layers.root.removeAllListeners('pointertap');
     this.layers.root.on('pointertap', () => {
       this.nodeDoubleTap.reset();
+      if (this.marqueeTapAfterDrag) {
+        this.marqueeTapAfterDrag = false;
+        return;
+      }
       options.onCanvasClick?.();
     });
 
@@ -459,7 +1038,15 @@ export class DiagramRenderer {
       await this.renderOrganizations(data, theme, resolvedTheme, config, { ...options, lod }, epoch, orgLayoutResult);
     }
     if (!this.isRenderCurrent(epoch)) return;
+    this.nodeViewPool?.endPass();
 
+    if (this.transition) {
+      if (this.transitionPreparedEpoch !== epoch) {
+        this.prepareTransition(options, hasStaff || data.organizations.length === 0);
+      }
+      this.applyTransitionFrame(this.transition.frame());
+      this.lastConfirmedLod = lod;
+    }
     this.drawSelection(options.selected ?? []);
     this.scene.applyPromoteVisibility();
     this.highlightReady = true;
@@ -506,6 +1093,8 @@ export class DiagramRenderer {
     const views = this.scene.listViews();
     if (views.length === 0) return;
     const found = foundFocus && views.some(({ key }) => foundFocus.has(key)) ? foundFocus : null;
+    this.foundFocus = found;
+    this.foundDimAlpha = theme.foundDimAlpha ?? 0.38;
     const path = highlightedNode === null ? null : reportPath(highlightedNode, lines);
     const dim = Boolean(path?.nodeKeys.size || found);
     for (const { key, view, baselineAlpha } of views) {
@@ -517,14 +1106,24 @@ export class DiagramRenderer {
       }
     }
     this.highlightApplied = dim;
+    if (this.interactionSource) this.paintInteraction(this.interactionSource.getHovered());
   }
 
   destroy(): void {
     if (this.destroyed) return;
+    this.finishLineFade();
+    this.transition?.destroy();
+    this.releaseTransitionSnapshot();
+    this.clearTransitionGhosts();
     this.destroyed = true;
+    this.detachMarquee?.();
+    this.detachMarquee = null;
+    this.marqueeDrag = null;
+    this.marqueeSink = null;
     this.renderEpoch += 1;
     this.contours.reset();
     this.layers.clear();
+    this.nodeViewPool?.clearAll();
     this.layers.root.destroy({ children: true });
   }
 
@@ -594,6 +1193,11 @@ export class DiagramRenderer {
   }
 
   private drawSelection(selected: NodeRef | null | readonly NodeRef[]): void {
+    this.selectedViewKeys = new Set(normalizeSelected(selected).flatMap((ref) => {
+      const key = this.interactionViewKey(ref);
+      return key ? [key] : [];
+    }));
+    if (this.interactionSource) this.paintInteraction(this.interactionSource.getHovered());
     for (const node of normalizeSelected(selected)) {
       const box =
         this.getNodeBox(node.id) ??
@@ -681,11 +1285,27 @@ export class DiagramRenderer {
     // far, Pixi draws everything. Person/org cards are untouched: the promote
     // overlay hides the ones it draws in React; the rest stay Pixi.
     const reactChrome = config.staffReactChrome === true && (options.lod ?? 'near') !== 'far';
-    if (!reactChrome) {
+    if (reactChrome) {
+      // The host owns the chrome in React; cache the geometry it must read (Б2).
+      this.lastStaffChrome = buildStaffChromeGeometry(
+        live,
+        data,
+        currentOrgId,
+        config.staffChromePad ?? DEFAULT_STAFF_CHROME_PAD,
+      );
+    } else {
       if (config.staffZoneChrome) this.paintStaffZones(ctx, live, geom);
       await this.paintStaffDepartments(ctx, canvas, geom);
       if (!this.isRenderCurrent(epoch)) return;
       this.paintStaffFrameAndEdges(ctx, live);
+    }
+    if (this.transition) {
+      const targets = canvas.positionNodes.map((node) => rectTarget(`position:${node.id}`, node));
+      for (const card of canvas.orgCards) {
+        if (theme.organization.orgCardLayout === 'gojs-vertical' && card.expanded) continue;
+        targets.push(rectTarget(`organization:${card.orgId}`, card));
+      }
+      this.prepareTransition(options, true, targets);
     }
     this.addStaffPersonCards(ctx, canvas, geom);
     this.addStaffOrgCards(ctx, canvas);
@@ -702,6 +1322,22 @@ export class DiagramRenderer {
       if (tier.x !== undefined && tier.width !== undefined) {
         this.rememberChrome({ x: tier.x, y: tier.y, width: tier.width, height: tier.height });
       }
+    }
+    if (this.transition) {
+      for (const tier of tiers) {
+        if (tier.kind !== 'staff-block') continue;
+        const bounds = tier.x !== undefined && tier.width !== undefined
+          ? { x: tier.x, y: tier.y, width: tier.width, height: tier.height }
+          : worldBoundsForTier(tier, canvas.positionNodes, canvas.orgCards,
+            { margin: geom.margin, canvasWidth: canvas.width, contentPadding });
+        this.addTransitionChrome(`frame:zone:${tier.organizationId ?? tier.tier}`, bounds, this.layers.zones,
+          (rect) => StaffZonesView.fromCanvas({
+            tiers: [{ ...tier, ...rect }], positionNodes: canvas.positionNodes,
+            orgCards: canvas.orgCards, style: resolveStaffZoneStyle(theme, resolvedTheme),
+            nodeTheme: theme, margin: geom.margin, canvasWidth: canvas.width, contentPadding,
+          }));
+      }
+      return;
     }
     this.layers.zones.addChild(
       StaffZonesView.fromCanvas({
@@ -785,10 +1421,18 @@ export class DiagramRenderer {
       );
       if (frame) {
         const zoneStyle = resolveStaffZoneStyle(theme, resolvedTheme);
-        paintDashedFrame(this.layers.zones, frame, {
-          color: zoneStyle.stroke,
-          borderRadius: zoneStyle.borderRadius,
-        });
+        if (this.transition) {
+          this.addTransitionChrome('frame:grid', frame, this.layers.zones, (rect) => {
+            const view = new Container();
+            paintDashedFrame(view, rect, { color: zoneStyle.stroke, borderRadius: zoneStyle.borderRadius });
+            return view;
+          });
+        } else {
+          paintDashedFrame(this.layers.zones, frame, {
+            color: zoneStyle.stroke,
+            borderRadius: zoneStyle.borderRadius,
+          });
+        }
       }
     }
 
@@ -816,7 +1460,6 @@ export class DiagramRenderer {
       expandedOrgIds: options.staff?.expandedOrgIds ?? options.staff?.layout?.expandedOrgIds,
     };
     const expandedPosIds = new Set(staffLayoutOpts.expandedPositionIds ?? []);
-    const collapsePositions = staffLayoutOpts.collapseUnexpandedPositions === true;
     const childrenByOrg = new Map<string, Map<string, string[]>>();
     const childrenFor = (orgId: string) => {
       let m = childrenByOrg.get(orgId);
@@ -832,8 +1475,10 @@ export class DiagramRenderer {
       if (!position) continue;
       const person = position.personId ? personById.get(position.personId) : undefined;
       const kids = childrenFor(position.organizationId).get(position.id) ?? [];
-      const showExpand = collapsePositions && kids.length > 0 && !!options.onPositionExpandToggle;
-      const node = PersonNodeView.create(
+      // #96: prune is always on, so the chevron shows for any node with admin
+      // children and a toggle handler (no gate term).
+      const showExpand = kids.length > 0 && !!options.onPositionExpandToggle;
+      const node = this.createHostNode(person, position, theme, lod, n.width, n.height) ?? PersonNodeView.create(
         person,
         position,
         { ...theme.person, width: n.width, height: n.height },
@@ -856,9 +1501,13 @@ export class DiagramRenderer {
                 onToggle: () => options.onPositionExpandToggle!(position.id),
               }
             : undefined,
+          // Card-split: when the host owns detail via the HTML overlay, a seat
+          // that falls back to Pixi at mid draws the far mark, not a stale card.
+          markAtMid: config.staffReactChrome === true,
         },
       );
-      node.position.set(n.x, n.y);
+      const start = this.transition?.frame().get(`position:${n.id}`);
+      node.position.set(start?.x ?? n.x, start?.y ?? n.y);
       // A pinned outside manager is a reference, not a member: dimmed so the
       // block's own seats stay the foreground (T91 row 25).
       if (n.role === 'external') node.alpha = EXTERNAL_CARD_ALPHA;
@@ -873,7 +1522,7 @@ export class DiagramRenderer {
       });
       this.layers.persons.addChild(node);
       this.registerView('position', position.id, node);
-      this.registerMediaView(node.resolvedPhotoUrl, node);
+      if (node instanceof PersonNodeView) this.registerMediaView(node.resolvedPhotoUrl, node);
     }
   }
 
@@ -894,7 +1543,8 @@ export class DiagramRenderer {
         options.lod ?? 'near',
         { ...orgStaffCardOptions(org, card, options, config), nodeTheme: theme },
       );
-      view.position.set(card.x, card.y);
+      const start = this.transition?.frame().get(`organization:${card.orgId}`);
+      view.position.set(start?.x ?? card.x, start?.y ?? card.y);
       view.eventMode = 'static';
       view.cursor = 'pointer';
       this.rememberBox({
@@ -938,13 +1588,14 @@ export class DiagramRenderer {
     const insetY = (config.cellHeight - theme.person.height) / 2;
 
     // T78-C2: same member AABB path as staff — button-group needs boxes.
+    const gridNodes = matrixNodeBoxes(data.positions, {
+      cellWidth: config.cellWidth,
+      cellHeight: config.cellHeight,
+      cardWidth: theme.person.width,
+      cardHeight: theme.person.height,
+    });
     const { inputs: contourInputs, memberBoxesByDept } = contourSceneInputs(
-      matrixNodeBoxes(data.positions, {
-        cellWidth: config.cellWidth,
-        cellHeight: config.cellHeight,
-        cardWidth: theme.person.width,
-        cardHeight: theme.person.height,
-      }),
+      gridNodes,
       new Map(data.positions.map((p) => [p.id, p])),
     );
 
@@ -968,10 +1619,13 @@ export class DiagramRenderer {
     this.dragGrid = { pitchX: config.cellWidth, pitchY: config.cellHeight, originX: 0, originY: 0, insetX, insetY };
 
     const personById = new Map(data.persons.map((p) => [p.id, p]));
+    if (this.transition) {
+      this.prepareTransition(options, true, gridNodes.map((node) => rectTarget(`position:${node.id}`, node)));
+    }
     for (const position of data.positions) {
       if (!position.gridCell) continue;
       const person = position.personId ? personById.get(position.personId) : undefined;
-      const node = PersonNodeView.create(person, position, theme.person, options.lod ?? 'near', {
+      const node = this.createHostNode(person, position, theme, options.lod ?? 'near', theme.person.width, theme.person.height) ?? PersonNodeView.create(person, position, theme.person, options.lod ?? 'near', {
         nodeTheme: theme,
         loadTexture: options.loadTexture,
         onContextMenu: options.onPersonContextMenu
@@ -982,10 +1636,13 @@ export class DiagramRenderer {
                 canvasY: 0,
               })
           : undefined,
+        // Card-split: seat falling back to Pixi at mid draws the far mark.
+        markAtMid: config.staffReactChrome === true,
       });
       const x = position.gridCell.col * config.cellWidth + insetX;
       const y = position.gridCell.row * config.cellHeight + insetY;
-      node.position.set(x, y);
+      const start = this.transition?.frame().get(`position:${position.id}`);
+      node.position.set(start?.x ?? x, start?.y ?? y);
       this.personInteractions.bind(node, {
         personId: position.personId,
         positionId: position.id,
@@ -1007,7 +1664,7 @@ export class DiagramRenderer {
       });
       this.layers.persons.addChild(node);
       this.registerView('position', position.id, node);
-      this.registerMediaView(node.resolvedPhotoUrl, node);
+      if (node instanceof PersonNodeView) this.registerMediaView(node.resolvedPhotoUrl, node);
     }
   }
 
@@ -1118,6 +1775,15 @@ export class DiagramRenderer {
     const minMembers = config.minContourMembers ?? defaultRenderConfig.minContourMembers;
     for (const dept of data.departments) {
       const members = memberBoxesByDept.get(dept.id) ?? [];
+      const bounds = unionBoxes(members);
+      if (this.transition && bounds && members.length >= minMembers) {
+        this.addTransitionChrome(`frame:dept:${dept.id}`, bounds, this.layers.departments,
+          (rect) => DepartmentCardView.fromMembers(dept, [rect], style, {
+            minMembers: 1, nodeTheme: theme,
+            positionsCount: countDepartmentPositions(data.positions, dept.id),
+          }) ?? new Container());
+        continue;
+      }
       const card = DepartmentCardView.fromMembers(dept, members, style, {
         minMembers,
         nodeTheme: theme,
@@ -1167,4 +1833,12 @@ function resolveDepartmentCardStyle(theme: NodeTheme): DepartmentCardStyle {
     labelColor: 0xf1f5f9,
     labelFontSize: 14,
   };
+}
+
+function rectTarget(key: string, rect: WorldRect): TargetBox {
+  return { key, x: rect.x, y: rect.y, w: rect.width, h: rect.height };
+}
+
+function frameRect(box: TargetBox): WorldRect {
+  return { x: box.x, y: box.y, width: box.w, height: box.h };
 }

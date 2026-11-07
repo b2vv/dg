@@ -9,6 +9,8 @@ import {
   type ReactPromoteOverlay,
 } from './createReactPromoteOverlay.js';
 import type { PromoteCandidate } from '../render/promoteTypes.js';
+import type { PromoteSyncReason } from '../render/promoteMath.js';
+import { worldPointToScreen } from '../render/staffChromeGeometry.js';
 
 function makeDiagram(overrides: Partial<PromoteOverlayDiagram> = {}): PromoteOverlayDiagram {
   const candidate: PromoteCandidate = {
@@ -60,6 +62,45 @@ describe('createReactPromoteOverlay', () => {
     document.body.innerHTML = '';
   });
 
+  for (const reason of ['prepare-camera', 'structural'] as const) {
+    it(`${reason} commits cards synchronously only for camera preparation`, () => {
+      const mount = document.createElement('div');
+      document.body.appendChild(mount);
+      let viewport = { x: -2000, y: 0, scale: 1 };
+      let notify: (reason: PromoteSyncReason) => void = () => undefined;
+      let overlay: ReactPromoteOverlay | undefined;
+      act(() => {
+        overlay = createReactPromoteOverlay({
+          diagram: makeDiagram({
+            getViewport: () => viewport,
+            subscribePromoteSync: (listener) => {
+              notify = listener;
+              return () => undefined;
+            },
+          }),
+          mount,
+          component: DefaultPromoteCard,
+          mode: 'near-visible',
+          settleMs: 10_000,
+        });
+      });
+      try {
+        expect(mount.querySelector('[data-promote-card]')).toBeNull();
+        viewport = { x: 0, y: 0, scale: 1 };
+        // Assert inside act, before it flushes ordinary concurrent root renders.
+        act(() => {
+          notify(reason);
+          expect(mount.querySelector('[data-promote-card]') !== null).toBe(
+            reason === 'prepare-camera',
+          );
+        });
+        expect(mount.querySelector('[data-promote-card]')).not.toBeNull();
+      } finally {
+        act(() => overlay?.dispose());
+      }
+    });
+  }
+
   it('renders the backdrop behind the cards with the synced viewport and lod', () => {
     const mount = document.createElement('div');
     document.body.appendChild(mount);
@@ -92,6 +133,39 @@ describe('createReactPromoteOverlay', () => {
     expect(bdWrap).not.toBeNull();
     if (firstSlot) {
       expect(kids.indexOf(bdWrap)).toBeLessThan(kids.indexOf(firstSlot));
+    }
+
+    act(() => overlay?.dispose());
+  });
+
+  it('backdrop gets a worldTransform that reproduces worldPointToScreen (Б2)', () => {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    const seen: PromoteBackdropProps[] = [];
+    const Backdrop = (p: PromoteBackdropProps) => {
+      seen.push(p);
+      return createElement('div', { 'data-test-backdrop': '' });
+    };
+    const viewport = { x: 5, y: 7, scale: 2 };
+    let overlay: ReactPromoteOverlay | undefined;
+    act(() => {
+      overlay = createReactPromoteOverlay({
+        diagram: makeDiagram({ getViewport: () => viewport }),
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-visible',
+        backdrop: Backdrop,
+      });
+    });
+
+    // One transform string, usable as both a CSS and an SVG transform: applying it
+    // to a world point (origin 0,0) must equal the per-point map the host is dropping.
+    const wt = seen.at(-1)?.worldTransform;
+    expect(wt).toBe(`translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`);
+    for (const [wx, wy] of [[0, 0], [10, 20], [-3, 4]] as const) {
+      expect({ x: wx * viewport.scale + viewport.x, y: wy * viewport.scale + viewport.y }).toEqual(
+        worldPointToScreen(wx, wy, viewport),
+      );
     }
 
     act(() => overlay?.dispose());
@@ -603,11 +677,11 @@ describe('maxPromoted meets focus', () => {
       height: 40,
     }));
     let viewport = { x: 0, y: 0, scale: 1 };
-    let listener: (() => void) | null = null;
+    let listener: ((reason: PromoteSyncReason) => void) | null = null;
     return {
       panBy: (dx: number) => {
         viewport = { ...viewport, x: viewport.x + dx };
-        listener?.();
+        listener?.('camera');
       },
       getViewport: () => viewport,
       getLodLevel: () => 'near',
@@ -817,7 +891,7 @@ describe('deferred recompute while the camera moves', () => {
     syncs: number;
   } {
     const state = { viewport: { x: 0, y: 0, scale: 1 }, syncs: 0 };
-    let listener: (() => void) | null = null;
+    let listener: ((reason: PromoteSyncReason) => void) | null = null;
     const box = { id: 'pos1', kind: 'position' as const, x: 100, y: 100, width: 60, height: 40 };
     const diagram: PromoteOverlayDiagram = {
       getViewport: () => state.viewport,
@@ -858,7 +932,7 @@ describe('deferred recompute while the camera moves', () => {
       diagram,
       moveTo: (v) => {
         state.viewport = v;
-        listener?.();
+        listener?.('camera');
       },
       get syncs() {
         return state.syncs;
@@ -1220,7 +1294,7 @@ describe('a node entering the view during a gesture is never a hole', () => {
       height: 40,
     };
     let viewport = { x: 0, y: 0, scale: 1 };
-    let listener: (() => void) | null = null;
+    let listener: ((reason: PromoteSyncReason) => void) | null = null;
     const diagram: PromoteOverlayDiagram = {
       getViewport: () => viewport,
       getLodLevel: () => 'near',
@@ -1276,7 +1350,7 @@ describe('a node entering the view during a gesture is never a hole', () => {
     // so no rebuild has run.
     await act(async () => {
       viewport = { x: -1900, y: 0, scale: 1 };
-      listener?.();
+      listener?.('camera');
     });
 
     // `arriving` has no card yet, and that is not a hole: it was never hidden, so
@@ -1287,3 +1361,385 @@ describe('a node entering the view during a gesture is never a hole', () => {
     await act(async () => overlay.dispose());
   });
 });
+
+describe('sync reason: structural is immediate, camera is deferred', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  // Build a diagram whose promote listener and setPromotedNodeIds calls the test
+  // can observe directly. A `sync()` always calls setPromotedNodeIds (even with
+  // an empty set), so a setPromotedNodeIds call after a notify is the observable
+  // proof that a rebuild happened; its ABSENCE proves the rebuild was deferred.
+  function harness() {
+    const setCalls: ReadonlyArray<string>[] = [];
+    let listener: ((reason: PromoteSyncReason) => void) | null = null;
+    const base = makeDiagram({
+      getLodLevel: () => 'near',
+      getViewport: () => ({ x: 0, y: 0, scale: 1 }),
+    });
+    const diagram: PromoteOverlayDiagram = {
+      ...base,
+      setPromotedNodeIds: (ids) => setCalls.push(ids),
+      subscribePromoteSync: (l) => {
+        listener = l;
+        return () => {
+          listener = null;
+        };
+      },
+    };
+    return {
+      diagram,
+      setCalls,
+      notify: (reason: PromoteSyncReason) => listener?.(reason),
+    };
+  }
+
+  it('structural: rebuilds synchronously, without waiting settleMs', () => {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    const h = harness();
+    let overlay: ReactPromoteOverlay | undefined;
+    act(() => {
+      overlay = createReactPromoteOverlay({
+        diagram: h.diagram,
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-visible',
+        settleMs: 10_000, // remove the clock: the point is the write is NOT deferred
+      });
+    });
+    const before = h.setCalls.length; // construction already synced once
+
+    act(() => h.notify('structural'));
+
+    // A structural notify rebuilds in the same tick — no timer advance.
+    expect(h.setCalls.length).toBe(before + 1);
+
+    act(() => overlay?.dispose());
+  });
+
+  it('camera: does NOT rebuild synchronously (defers to settle)', () => {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    const h = harness();
+    let overlay: ReactPromoteOverlay | undefined;
+    act(() => {
+      overlay = createReactPromoteOverlay({
+        diagram: h.diagram,
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-visible',
+        settleMs: 10_000,
+      });
+    });
+    const before = h.setCalls.length;
+
+    act(() => h.notify('camera'));
+
+    // A camera notify rides the catch-up transform; the rebuild waits for settle.
+    expect(h.setCalls.length).toBe(before);
+
+    act(() => overlay?.dispose());
+  });
+
+  it('camera then structural in one frame: structural rebuilds now and cancels the pending settle', async () => {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    const h = harness();
+    let overlay: ReactPromoteOverlay | undefined;
+    act(() => {
+      overlay = createReactPromoteOverlay({
+        diagram: h.diagram,
+        mount,
+        component: DefaultPromoteCard,
+        mode: 'near-visible',
+        settleMs: 20,
+      });
+    });
+    const before = h.setCalls.length;
+
+    // The far-crossing frame: the camera change schedules a settle, then the
+    // LOD re-render's afterRender fires structural. The structural sync must run
+    // now AND cancel the orphaned camera settle — otherwise it fires later and
+    // rebuilds a second time against a scene already rebuilt.
+    act(() => {
+      h.notify('camera');
+      h.notify('structural');
+    });
+    expect(h.setCalls.length).toBe(before + 1); // structural rebuilt once, now
+
+    await act(async () => {
+      await new Promise((r) => {
+        setTimeout(r, 40); // past settleMs: a live settle would fire here
+      });
+    });
+    expect(h.setCalls.length).toBe(before + 1); // no second rebuild → settle was cancelled
+
+    act(() => overlay?.dispose());
+  });
+});
+
+describe('transition frames', () => {
+  it('success: moves mounted cards without rendering them and refreshes chrome through settle', () => {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    let x = 30;
+    let moving = true;
+    let notify: (reason: PromoteSyncReason) => void = () => undefined;
+    let renders = 0;
+    const Card = (props: PromoteSlotProps) => {
+      renders++;
+      return createElement(DefaultPromoteCard, props);
+    };
+    const Backdrop = () => createElement('div', {
+      'data-chrome-x': x,
+      'data-lines': moving ? 'hidden' : 'visible',
+    });
+    const diagram = makeDiagram({
+      getViewport: () => ({ x: 5, y: 7, scale: 2 }),
+      getTransitionFrame: () => new Map([['position:pos1', {
+        key: 'position:pos1', x, y: 40, w: 100, h: 60,
+        scale: 1, opacity: 1, phase: 'updating',
+      }]]),
+      subscribePromoteSync: (listener) => { notify = listener; return () => undefined; },
+    });
+    let overlay: ReactPromoteOverlay | undefined;
+    act(() => { overlay = createReactPromoteOverlay({ diagram, mount, component: Card, backdrop: Backdrop }); });
+    try {
+      const card = mount.querySelector<HTMLElement>('[data-promote-card]');
+      expect(card?.style.left).toBe('65px');
+      expect(card?.style.top).toBe('87px');
+      const initialRenders = renders;
+      for (const nextX of [50, 65]) {
+        x = nextX;
+        act(() => notify('transition'));
+        const slot = mount.querySelector<HTMLElement>('[data-promote-slot]');
+        expect(slot?.style.transform).toBe(`translate(${nextX === 50 ? 40 : 70}px, 0px) scale(1)`);
+        expect(mount.querySelector('[data-promote-card]')).toBe(card);
+        expect(renders).toBe(initialRenders);
+        expect(mount.querySelector('[data-chrome-x]')?.getAttribute('data-chrome-x')).toBe(String(nextX));
+        expect(mount.querySelector('[data-lines]')?.getAttribute('data-lines')).toBe('hidden');
+      }
+      moving = false;
+      act(() => notify('structural'));
+      expect(mount.querySelector<HTMLElement>('[data-promote-card]')?.style.left).toBe('135px');
+      expect(mount.querySelector('[data-lines]')?.getAttribute('data-lines')).toBe('visible');
+      expect(renders).toBeGreaterThan(initialRenders);
+      expect(diagram.setPromotedNodeIds).toHaveBeenLastCalledWith(['pos1']);
+    } finally { act(() => overlay?.dispose()); mount.remove(); }
+    expect(diagram.setPromotedNodeIds).toHaveBeenLastCalledWith([]);
+    expect(mount.querySelector('[data-promote-card]')).toBeNull();
+  });
+
+  it('failure: a frame read throws once without stopping later overlay frames', () => {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    let fail = false;
+    let x = 10;
+    let notify: (reason: PromoteSyncReason) => void = () => undefined;
+    const warn = rstest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    let overlay: ReactPromoteOverlay | undefined;
+    act(() => { overlay = createReactPromoteOverlay({
+      mount, component: DefaultPromoteCard,
+      diagram: makeDiagram({
+        getTransitionFrame: () => {
+          if (fail) throw new Error('frame unavailable');
+          return new Map([['position:pos1', { key: 'position:pos1', x, y: 20, w: 100, h: 60, scale: 1, opacity: 1, phase: 'updating' }]]);
+        },
+        subscribePromoteSync: (listener) => { notify = listener; return () => undefined; },
+      }),
+    }); });
+    try {
+      fail = true;
+      act(() => notify('transition'));
+      expect(warn).toHaveBeenCalledTimes(1);
+      fail = false;
+      x = 45;
+      act(() => notify('transition'));
+      expect(mount.querySelector<HTMLElement>('[data-promote-slot]')?.style.transform).toBe('translate(35px, 0px) scale(1)');
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally { act(() => overlay?.dispose()); warn.mockRestore(); mount.remove(); }
+  });
+});
+
+it('mount and structural sync commit entering cards before returning, without transition timers', () => {
+  const mount = document.createElement('div');
+  document.body.appendChild(mount);
+  let x = 90;
+  let pixiVisible = true;
+  let notify: (reason: PromoteSyncReason) => void = () => undefined;
+  let overlay: ReactPromoteOverlay | undefined;
+  const timer = rstest.spyOn(globalThis, 'setTimeout');
+  const diagram = makeDiagram({
+    getTransitionFrame: () => new Map([['position:pos1', {
+      key: 'position:pos1', x, y: 50, w: 100, h: 60, scale: 0.9, opacity: 0.4, phase: 'entering',
+    }]]),
+    setPromotedNodeIds: (ids) => { pixiVisible = ids.length === 0; },
+    subscribePromoteSync: (listener) => { notify = listener; return () => undefined; },
+  });
+  try {
+    act(() => {
+      overlay = createReactPromoteOverlay({ diagram, mount, component: DefaultPromoteCard });
+      expect(mount.querySelector<HTMLElement>('[data-promote-card]')?.style.left).toBe('90px');
+      expect(Number(pixiVisible) + mount.querySelectorAll('[data-promote-card]').length).toBe(1);
+    });
+    x = 130;
+    act(() => {
+      notify('structural');
+      expect(mount.querySelector<HTMLElement>('[data-promote-card]')?.style.left).toBe('130px');
+      expect(mount.querySelector<HTMLElement>('[data-promote-slot]')?.style.opacity).toBe('0.4');
+      expect(mount.querySelector<HTMLElement>('[data-promote-slot]')?.style.transform).toBe('translate(0px, 0px) scale(0.9)');
+    });
+    timer.mockClear();
+    act(() => notify('transition'));
+    expect(timer).not.toHaveBeenCalled();
+    act(() => overlay?.dispose());
+    expect(Number(pixiVisible) + mount.querySelectorAll('[data-promote-card]').length).toBe(1);
+    expect(pixiVisible).toBe(true);
+  } finally { act(() => overlay?.dispose()); timer.mockRestore(); mount.remove(); }
+});
+
+it('failure boundary: absent frame seam ignores transition without scheduling a rebuild', () => {
+  const mount = document.createElement('div');
+  document.body.appendChild(mount);
+  let notify: (reason: PromoteSyncReason) => void = () => undefined;
+  const timer = rstest.spyOn(globalThis, 'setTimeout');
+  let overlay: ReactPromoteOverlay | undefined;
+  act(() => { overlay = createReactPromoteOverlay({
+    mount, component: DefaultPromoteCard,
+    diagram: makeDiagram({ subscribePromoteSync: (listener) => { notify = listener; return () => undefined; } }),
+  }); });
+  try {
+    const card = mount.querySelector('[data-promote-card]');
+    timer.mockClear();
+    act(() => notify('transition'));
+    expect(timer).not.toHaveBeenCalled();
+    expect(mount.querySelector('[data-promote-card]')).toBe(card);
+    expect(mount.querySelector<HTMLElement>('[data-promote-slot]')?.style.display).toBe('contents');
+  } finally { act(() => overlay?.dispose()); timer.mockRestore(); mount.remove(); }
+});
+
+it('mount promotes a currently visible card even when its final target is offscreen', () => {
+  const mount = document.createElement('div');
+  document.body.appendChild(mount);
+  const diagram = makeDiagram({
+    listPromoteBoxes: () => [{ id: 'pos1', kind: 'position', x: -2000, y: 0, width: 100, height: 60 }],
+    getTransitionFrame: () => new Map([['position:pos1', {
+      key: 'position:pos1', x: 75, y: 45, w: 100, h: 60, scale: 1, opacity: 1, phase: 'updating',
+    }]]),
+  });
+  let overlay: ReactPromoteOverlay | undefined;
+  try {
+    act(() => { overlay = createReactPromoteOverlay({ diagram, mount, component: DefaultPromoteCard, mode: 'near-visible' }); });
+    expect(mount.querySelector<HTMLElement>('[data-promote-card]')?.style.left).toBe('75px');
+    expect(diagram.setPromotedNodeIds).toHaveBeenLastCalledWith(['pos1']);
+  } finally { act(() => overlay?.dispose()); mount.remove(); }
+});
+
+describe('per-slot interaction', () => {
+  it('reads interaction, forwards actions, refreshes only changed cards and releases subscriptions', () => {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    const selected = new Set(['pos1']);
+    let hovered: string | null = 'pos2';
+    const listeners = new Set<() => void>();
+    const interaction = {
+      isSelected: (id: string) => selected.has(id),
+      isHovered: (id: string) => hovered === id,
+      subscribe: (listener: () => void) => {
+        listeners.add(listener);
+        return () => { listeners.delete(listener); };
+      },
+      select: rstest.fn(),
+      hover: rstest.fn(),
+    };
+    const base = makeDiagram();
+    const first = base.listPromoteCandidates()[0]!;
+    const second: PromoteCandidate = {
+      ...first, id: 'pos2', world: { ...first.world, x: 150 },
+      node: { ...first.node, ref: { id: 'pos2', kind: 'position', positionId: 'pos2' } },
+    };
+    const resolve = rstest.fn(() => [first, second]);
+    const diagram = makeDiagram({
+      listPromoteBoxes: () => [first, second].map((c) => ({ id: c.id, kind: c.kind, ...c.world })),
+      listPromoteCandidates: resolve,
+    });
+    const seen = new Map<string, PromoteSlotProps>();
+    const renders = new Map<string, number>();
+    const Card = (props: PromoteSlotProps) => {
+      seen.set(props.id, props);
+      renders.set(props.id, (renders.get(props.id) ?? 0) + 1);
+      return createElement(DefaultPromoteCard, props);
+    };
+    let overlay: ReactPromoteOverlay | undefined;
+    try {
+      act(() => { overlay = createReactPromoteOverlay({ diagram, mount, component: Card, mode: 'near-visible', interaction }); });
+      expect(seen.get('pos1')?.selected).toBe(true);
+      expect(seen.get('pos1')?.hovered).toBe(false);
+      expect(seen.get('pos2')?.selected).toBe(false);
+      expect(seen.get('pos2')?.hovered).toBe(true);
+      expect(listeners.size).toBe(2);
+      const mods = { ctrlKey: true, metaKey: false, shiftKey: false };
+      seen.get('pos1')!.onSelect(mods);
+      seen.get('pos2')!.onSelect();
+      seen.get('pos2')!.onHover(true);
+      seen.get('pos2')!.onHover(false);
+      expect(interaction.select.mock.calls).toEqual([['pos1', mods], ['pos2', undefined]]);
+      expect(interaction.hover.mock.calls).toEqual([['pos2', true], ['pos2', false]]);
+      const before = new Map(renders);
+      resolve.mockClear();
+      rstest.mocked(diagram.setPromotedNodeIds).mockClear();
+      const emit = () => { for (const listener of listeners) listener(); };
+      act(() => { selected.delete('pos1'); emit(); });
+      expect(seen.get('pos1')?.selected).toBe(false);
+      expect(renders.get('pos1')).toBe(before.get('pos1')! + 1);
+      expect(renders.get('pos2')).toBe(before.get('pos2'));
+      act(() => { hovered = null; emit(); });
+      expect(seen.get('pos2')?.hovered).toBe(false);
+      expect(renders.get('pos1')).toBe(before.get('pos1')! + 1);
+      expect(renders.get('pos2')).toBe(before.get('pos2')! + 1);
+      act(emit);
+      expect(renders.get('pos2')).toBe(before.get('pos2')! + 1);
+      expect(resolve).not.toHaveBeenCalled();
+      expect(diagram.setPromotedNodeIds).not.toHaveBeenCalled();
+      act(() => overlay?.setMaxPromoted(1));
+      expect(listeners.size).toBe(1);
+      act(() => overlay?.dispose());
+      expect(listeners.size).toBe(0);
+      act(emit);
+    } finally { act(() => overlay?.dispose()); mount.remove(); }
+  });
+});
+
+for (const interaction of [undefined, null]) {
+  it(`keeps the default card unchanged and actions passive with ${interaction} interaction`, () => {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    const diagram = makeDiagram();
+    let slot: PromoteSlotProps | undefined;
+    const Card = (props: PromoteSlotProps) => {
+      slot = props;
+      return createElement(DefaultPromoteCard, props);
+    };
+    let overlay: ReactPromoteOverlay | undefined;
+    try {
+      act(() => { overlay = createReactPromoteOverlay({ diagram, mount, component: Card, interaction }); });
+      const before = mount.innerHTML;
+      expect(slot?.selected).toBe(false);
+      expect(slot?.hovered).toBe(false);
+      expect(mount.querySelector('[data-promote-card]')?.textContent).toBe('AliceEng×');
+      act(() => {
+        slot!.onSelect();
+        slot!.onSelect({ ctrlKey: false, metaKey: true, shiftKey: true });
+        slot!.onHover(true);
+        slot!.onHover(false);
+      });
+      expect(diagram.select).not.toHaveBeenCalled();
+      expect(mount.innerHTML).toBe(before);
+      act(() => overlay?.dispose());
+      act(() => { overlay = createReactPromoteOverlay({ diagram, mount, component: DefaultPromoteCard }); });
+      expect(mount.innerHTML).toBe(before);
+    } finally { act(() => overlay?.dispose()); mount.remove(); }
+  });
+}

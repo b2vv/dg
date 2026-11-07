@@ -30,6 +30,13 @@ interface MediaView {
   reloadMedia: () => Promise<void>;
 }
 
+export interface SceneRegistrySnapshot {
+  boxes: Map<string, NodeWorldBox>;
+  views: Map<string, Container>;
+  baselineAlphas: Map<string, number>;
+  mediaViews: Map<string, Set<MediaView>>;
+}
+
 /**
  * What the last render put on screen: world boxes per node, the Pixi view for
  * each, and which media URL each view is bound to. Everything that answers
@@ -41,6 +48,21 @@ export class SceneRegistry {
   private baselineAlphas = new Map<string, number>();
   private mediaViews = new Map<string, Set<MediaView>>();
   private promoted = new Set<string>();
+
+  snapshot(): SceneRegistrySnapshot {
+    return {
+      boxes: new Map(this.boxes), views: new Map(this.views),
+      baselineAlphas: new Map(this.baselineAlphas), mediaViews: new Map(this.mediaViews),
+    };
+  }
+
+  restore(snapshot: SceneRegistrySnapshot): void {
+    this.boxes = new Map(snapshot.boxes);
+    this.views = new Map(snapshot.views);
+    this.baselineAlphas = new Map(snapshot.baselineAlphas);
+    this.mediaViews = new Map(snapshot.mediaViews);
+    this.applyPromoteVisibility();
+  }
 
   /** Called at render entry — the promote set deliberately survives. */
   clear(): void {

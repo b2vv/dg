@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@rstest/core';
+import { describe, expect, it, rstest } from '@rstest/core';
 import { Application } from 'pixi.js';
 import { PixiHost, resolvePixiResolution, resolveRendererPreference } from './PixiHost.js';
 
@@ -104,6 +104,61 @@ describe('resolveRendererPreference', () => {
 });
 
 describe('PixiHost create/destroy (A4)', () => {
+  it('culls the current camera before each requested paint, never while idle or destroyed', async () => {
+    const container = document.createElement('div');
+    const host = await PixiHost.create(container, { renderer: 'canvas' });
+    const frames: FrameRequestCallback[] = [];
+    const raf = rstest.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const events: string[] = [];
+    const cull = rstest.spyOn(host.renderer, 'cullToViewport').mockImplementation(() => {
+      events.push('cull');
+    });
+    const render = rstest.spyOn(host.getApplication()!, 'render').mockImplementation(() => {
+      events.push('render');
+    });
+
+    try {
+      host.setOnViewportChange(null);
+      host.setViewport({ x: 100 });
+      host.setViewport({ x: 200, y: 50, scale: 2 });
+      expect(frames).toHaveLength(1);
+      expect(events).toEqual([]);
+      frames[0]!(0);
+      expect(cull).toHaveBeenLastCalledWith(
+        { x: 200, y: 50, scale: 2 },
+        { width: 800, height: 600 },
+      );
+      expect(events).toEqual(['cull', 'render']);
+      expect(frames).toHaveLength(1);
+
+      host.setViewport({ x: -100 });
+      expect(frames).toHaveLength(2);
+      frames[1]!(16);
+      expect(cull).toHaveBeenLastCalledWith(
+        { x: -100, y: 50, scale: 2 },
+        { width: 800, height: 600 },
+      );
+      expect(events).toEqual(['cull', 'render', 'cull', 'render']);
+      expect(frames).toHaveLength(2);
+
+      host.requestPaint();
+      host.destroy();
+      // Even a callback delivered after cancellation must not touch the scene.
+      frames[2]!(32);
+      host.requestPaint();
+      expect(frames).toHaveLength(3);
+      expect(events).toEqual(['cull', 'render', 'cull', 'render']);
+    } finally {
+      host.destroy();
+      cull.mockRestore();
+      render.mockRestore();
+      raf.mockRestore();
+    }
+  });
+
   it('failure: abort during Application.init rejects and leaves no canvas', async () => {
     const container = document.createElement('div');
     container.style.width = '400px';

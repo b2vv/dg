@@ -1,0 +1,9 @@
+T-F RESUME 2 — your QUESTION is answered: YES, fix the test selector. The earlier "fix ONLY that assertion" instruction was about NOT weakening the idle/behavioral contracts — it never meant you must keep a genuinely wrong test selector. Correcting a test-side identifier typo so the query matches what the overlay actually emits is exactly what to do. Continue appending to work/reports/d3-transitions/_impl-T-F.md.
+
+## The selector fix (confirmed by the coordinator)
+The overlay emits `data-promote-slot={slot.id}` where `slot.id === candidate.id === box.id`, and position box ids are PREFIXED (`position:<id>`) — your own test at line ~133 already strips `"position:"`. So the query `[data-promote-slot="sibling"]` at line ~100 is wrong; it must use the real emitted id, `[data-promote-slot="position:sibling"]` (or derive it the same way the rest of the test does). Fix it to match the overlay's real output. This is a test bug, not a production defect — do NOT touch production code.
+
+## Scope for the rest
+You may correct ANY other purely test-side identifier/selector mismatch the same way (make the test query what the real facade/overlay actually produces). What you must NOT do: weaken or delete a BEHAVIORAL assertion (interpolation between start and target, after-settle ±0.5px parity with animate-OFF, the `'transition'`-then-`'structural'` signal order, the D3-specific idle check = no new `'transition'` emissions + getTransitionFrame()===null, and #11 zero new transition frames). Those must stay and pass against the real stack. If a BEHAVIORAL assertion genuinely cannot pass because a real production seam is wrong (not a test-id typo), THAT is a real defect — record a QUESTION with both file:line sides and stop.
+
+Finish: all assertions in briefs/T-F-e2e.md (as amended by T-F-resume.md for the idle instrument) GREEN. Paste full test output (no pipes). `npm run typecheck -w @org-hierarchy/sdk` and `npm run lint` pass. STATUS line last.

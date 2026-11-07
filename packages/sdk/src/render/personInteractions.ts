@@ -9,7 +9,6 @@ import {
   type SelectionPointerMods,
 } from '../interaction/selection.js';
 import type { ContextMenuPointer } from '../interaction/contextMenuPayload.js';
-import type { PersonNodeView } from './PersonNode.js';
 import { bindCardContextMenu } from './cardContextMenu.js';
 import type { NodeWorldBox } from './SceneRegistry.js';
 import type { RenderConfig } from './types.js';
@@ -79,6 +78,8 @@ export interface PersonInteractionDeps {
   dragGrid(): DragGrid | null;
   /** Band the scene is drawn at — see the drag gate in `bind`. */
   currentLod(): LodLevel;
+  /** Settle layout motion before the drag reads its origin. */
+  onDragStart?(): void;
   previewDrag(positionId: string, col: number, row: number): void;
   restoreContours(): void;
   /** Put back any neighbour card the drag preview moved aside (T111-K4b). */
@@ -96,7 +97,7 @@ export interface PersonInteractionDeps {
 
 interface DragState {
   positionId: string;
-  node: PersonNodeView;
+  node: Container;
   originX: number;
   originY: number;
   grabOffsetX: number;
@@ -142,7 +143,7 @@ export class PersonInteractions {
   }
 
   /** Wire click, double-tap, context menu and drag for one seat card. */
-  bind(node: PersonNodeView, args: PersonBindArgs): void {
+  bind(node: Container, args: PersonBindArgs): void {
     const { personId, positionId, box, config, options, gridCell } = args;
     const dragMode: SeatDragMode = args.dragMode ?? 'move';
     this.deps.rememberBox(box);
@@ -192,6 +193,7 @@ export class PersonInteractions {
       if (this.deps.currentLod() !== 'near') return;
       // Shown, not owned — see `SeatDragMode`.
       if (dragMode === 'none') return;
+      this.deps.onDragStart?.();
       const local = this.deps.personLayer.toLocal(e.global);
       const grid = this.deps.dragGrid();
       // T78-L1: origin from THIS card's world + gridCell, not the first staff tier.

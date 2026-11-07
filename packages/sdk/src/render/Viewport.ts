@@ -1,4 +1,6 @@
 import { easeOutCubic } from './contour/contourMorph.js';
+import { resolveWheelConfig, wheelAction } from './wheelConfig.js';
+import type { ResolvedWheel, WheelConfig } from './wheelConfig.js';
 
 export interface ViewportTransform {
   x: number;
@@ -11,6 +13,7 @@ export interface ViewportOptions {
   maxScale?: number;
   /** Wheel zoom sensitivity (default 0.0015) */
   wheelIntensity?: number;
+  wheel?: WheelConfig;
 }
 
 /** Camera tween options (injectable clock for tests). */
@@ -22,7 +25,11 @@ export interface CameraMotionOptions {
   cancelFrame?: (id: number) => void;
 }
 
-const DEFAULT_MIN_SCALE = 0.15;
+// #96 (owner, universal org+staff): the library floors fit- and wheel-zoom at
+// 0.36 so a fully-expanded large staff (SPEC §2.2 current org = all) stays
+// readable — scroll rather than zoom out to an unreadable 0.15. A host may still
+// override `minScale` at construction.
+const DEFAULT_MIN_SCALE = 0.36;
 const DEFAULT_MAX_SCALE = 4;
 const DEFAULT_WHEEL = 0.0015;
 const DEFAULT_CAMERA_MS = 280;
@@ -35,6 +42,9 @@ export class Viewport {
   private x = 0;
   private y = 0;
   private scale = 1;
+  // Only zoomBy commits a pending target; transforms remain visual during tweens.
+  private pendingZoom: number | null = null;
+  private readonly wheel: ResolvedWheel;
   private readonly minScale: number;
   private readonly maxScale: number;
   private readonly wheelIntensity: number;
@@ -65,6 +75,7 @@ export class Viewport {
     this.minScale = options.minScale ?? DEFAULT_MIN_SCALE;
     this.maxScale = options.maxScale ?? DEFAULT_MAX_SCALE;
     this.wheelIntensity = options.wheelIntensity ?? DEFAULT_WHEEL;
+    this.wheel = resolveWheelConfig(options.wheel, detectPlatform());
     this.apply();
   }
 
@@ -109,7 +120,7 @@ export class Viewport {
   }
 
   getZoom(): number {
-    return this.scale;
+    return this.pendingZoom ?? this.scale;
   }
 
   getScreenSize(): { width: number; height: number } {
@@ -205,6 +216,7 @@ export class Viewport {
     });
 
     const finish = () => {
+      this.pendingZoom = null;
       this.x = to.x;
       this.y = to.y;
       this.scale = to.scale;
@@ -235,6 +247,7 @@ export class Viewport {
     const cancel = () => {
       if (cancelled) return;
       cancelled = true;
+      this.pendingZoom = null;
       cancelFrame(frameId);
       this.animCancel = null;
       resolveDone();
@@ -246,20 +259,23 @@ export class Viewport {
   cancelAnimation(): void {
     this.animCancel?.();
     this.animCancel = null;
+    this.pendingZoom = null;
   }
 
   /**
-   * Wheel gestures on the canvas: **Ctrl/⌘ + scroll zooms** at the pointer
-   * (trackpad pinch arrives as ctrl+wheel too), plain scroll pans vertically and
-   * Shift + scroll pans horizontally. Drag-pan still comes from beginPan/movePan.
+   * Configured wheel gestures zoom at the pointer or pan. Trackpad pinch arrives
+   * as ctrl+wheel, preserved on Mac alongside Command. Shift is left to the host
+   * unless horizontal pan is enabled. Keyboard zoom is scoped to this canvas.
    */
   attachWheel(canvas: HTMLCanvasElement): void {
     this.detachWheel?.();
 
     const onWheel = (e: WheelEvent) => {
+      const action = wheelAction(this.wheel, e);
+      if (action === 'none') return;
       e.preventDefault();
       this.cancelAnimation();
-      if (isZoomWheel(e)) {
+      if (action === 'zoom') {
         const rect = canvas.getBoundingClientRect?.() ?? { left: 0, top: 0 };
         const sx = e.clientX - rect.left;
         const sy = e.clientY - rect.top;
@@ -271,9 +287,21 @@ export class Viewport {
       this.panBy(dx, dy);
     };
 
+    const previousTabIndex = canvas.getAttribute('tabindex');
+    canvas.tabIndex = 0;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      if (e.key !== '+' && e.key !== '=' && e.key !== '-') return;
+      e.preventDefault();
+      this.zoomBy(e.key === '-' ? 1 / 1.2 : 1.2);
+    };
+    canvas.addEventListener('keydown', onKeyDown);
     canvas.addEventListener('wheel', onWheel, { passive: false });
     this.detachWheel = () => {
       canvas.removeEventListener('wheel', onWheel);
+      canvas.removeEventListener('keydown', onKeyDown);
+      if (previousTabIndex === null) canvas.removeAttribute('tabindex');
+      else canvas.setAttribute('tabindex', previousTabIndex);
       this.detachWheel = null;
     };
   }
@@ -355,8 +383,16 @@ export class Viewport {
 
   /** Zoom by a multiplicative step around screen center (UI +/- buttons). */
   zoomBy(factor: number): void {
-    this.cancelAnimation();
-    this.zoomAt(this.scale * factor, this.screenWidth / 2, this.screenHeight / 2);
+    const scale = clamp(this.getZoom() * factor, this.minScale, this.maxScale);
+    const cx = this.screenWidth / 2;
+    const cy = this.screenHeight / 2;
+    const target = {
+      x: cx - ((cx - this.x) / this.scale) * scale,
+      y: cy - ((cy - this.y) / this.scale) * scale,
+      scale,
+    };
+    this.animateTo(target);
+    this.pendingZoom = scale;
   }
 
   /** Move the camera by a screen-space delta (wheel / keyboard pan). */
@@ -437,11 +473,6 @@ function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
 }
 
-/** Ctrl/⌘ + wheel = zoom (this is also how a trackpad pinch reaches the page). */
-export function isZoomWheel(e: Pick<WheelEvent, 'ctrlKey' | 'metaKey'>): boolean {
-  return e.ctrlKey || e.metaKey;
-}
-
 /**
  * Screen-space camera delta for a pan wheel: content follows the scroll, so the
  * camera moves the other way. Shift swaps a vertical wheel onto the X axis.
@@ -454,4 +485,12 @@ export function wheelPanDelta(
   const invert = (v: number) => (v === 0 ? 0 : -v);
   if (e.shiftKey && deltaX === 0) return { dx: invert(deltaY), dy: 0 };
   return { dx: invert(deltaX), dy: invert(deltaY) };
+}
+
+/** Read once per viewport; SSR and unknown platforms use strict non-Mac gestures. */
+function detectPlatform(): 'mac' | 'other' {
+  if (typeof navigator === 'undefined') return 'other';
+  return /Mac|iPhone|iPad|iPod/i.test(`${navigator.platform ?? ''} ${navigator.userAgent ?? ''}`)
+    ? 'mac'
+    : 'other';
 }
